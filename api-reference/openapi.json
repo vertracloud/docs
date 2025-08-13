@@ -10,7 +10,7 @@
   },
   "servers": [
     {
-      "url": "http://sandbox.mintlify.com"
+      "url": "https://api.vertracloud.app"
     }
   ],
   "security": [
@@ -19,29 +19,133 @@
     }
   ],
   "paths": {
-    "/plants": {
+     "/v1/status": {
       "get": {
-        "description": "Returns all plants from the system that the user has access to",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "The maximum number of results to return",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
+        "description": "Checks if the infrastructure is fully operational.",
         "responses": {
           "200": {
-            "description": "Plant response",
+            "description": "Current infrastructure status details.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plant"
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["healthy", "unknown", "degraded"]
+                    },
+                    "response": {
+                      "type": "string",
+                      "enum": ["All systems operational", "Some systems are degraded", "Some systems are down"]
+                    }
+                  },
+                  "required": ["status", "response"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "code": { "type": "string" },
+                    "response": { "type": "string" }
+                  },
+                  "required": ["status", "code", "response"]
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/users/@me": {
+      "get": {
+        "description": "Returns the main data of all applications, databases, and information about the authenticated user's plan.",
+        "responses": {
+          "200": {
+            "description": "User information including applications, databases, and plan details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "success or error"
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "plan_id": {
+                          "type": "string",
+                          "description": "The user's current plan ID"
+                        },
+                        "applications": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "owner_plan_id": { "type": "string" },
+                              "type": { "type": "string" },
+                              "status": { "type": "string" },
+                              "cluster": { "type": "string" },
+                              "language": { "type": "string" },
+                              "subdomain": { "type": "string" },
+                              "custom_domain": { "type": "string", "nullable": true },
+                              "created_at": { "type": "string", "format": "date-time" },
+                              "updated_at": { "type": "string", "format": "date-time" },
+                              "last_commit": { "type": "string", "format": "date-time" },
+                              "last_backup": { "type": "string", "format": "date-time", "nullable": true }
+                            }
+                          }
+                        },
+                        "databases": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "owner_plan_id": { "type": "string" },
+                              "type": { "type": "string" },
+                              "plan_id": { "type": "string" },
+                              "cluster": { "type": "string" },
+                              "status": { "type": "string" },
+                              "duration": { "type": "integer", "example": 30 },
+                              "host": { "type": "string" },
+                              "port": { "type": "integer", "example": "6379" },
+                              "created_at": { "type": "string", "format": "date-time" },
+                              "updated_at": { "type": "string", "format": "date-time" },
+                              "purchased_at": { "type": "string", "format": "date-time" },
+                              "expires_at": { "type": "string", "format": "date-time" },
+                              "last_backup": { "type": "string", "format": "date-time", "nullable": true }
+                            }
+                          }
+                        },
+                        "plan": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string" },
+                            "name": { "type": "string" },
+                            "expires_at": { "type": "string", "format": "date-time", "nullable": true },
+                            "duration": { "type": "integer", "example": 30  },
+                            "memory": {
+                              "type": "object",
+                              "properties": {
+                                "limit": { "type": "integer" },
+                                "used": { "type": "integer" }
+                              }
+                            }
+                          }
+                        },
+                        "created_at": { "type": "string", "format": "date-time" },
+                        "updated_at": { "type": "string", "format": "date-time" }
+                      }
+                    }
                   }
                 }
               }
@@ -52,161 +156,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "code": { "type": "string" },
+                    "response": { "type": "string" }
+                  }
                 }
               }
             }
           }
-        }
-      },
-      "post": {
-        "description": "Creates a new plant in the store",
-        "requestBody": {
-          "description": "Plant to add to the store",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPlant"
-              }
-            }
-          },
-          "required": true
         },
-        "responses": {
-          "200": {
-            "description": "plant response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Plant"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/plants/{id}": {
-      "delete": {
-        "description": "Deletes a single plant based on the ID supplied",
-        "parameters": [
+        "security": [
           {
-            "name": "id",
-            "in": "path",
-            "description": "ID of plant to delete",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
+            "bearerAuth": []
           }
-        ],
-        "responses": {
-          "204": {
-            "description": "Plant deleted",
-            "content": {}
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "webhooks": {
-    "/plant/webhook": {
-      "post": {
-        "description": "Information about a new plant added to the store",
-        "requestBody": {
-          "description": "Plant added to the store",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPlant"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Return a 200 status to indicate that the data was received successfully"
-          }
-        }
+        ]
       }
     }
   },
   "components": {
-    "schemas": {
-      "Plant": {
-        "required": [
-          "name"
-        ],
-        "type": "object",
-        "properties": {
-          "name": {
-            "description": "The name of the plant",
-            "type": "string"
-          },
-          "tag": {
-            "description": "Tag to specify the type",
-            "type": "string"
-          }
-        }
-      },
-      "NewPlant": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Plant"
-          },
-          {
-            "required": [
-              "id"
-            ],
-            "type": "object",
-            "properties": {
-              "id": {
-                "description": "Identification number of the plant",
-                "type": "integer",
-                "format": "int64"
-              }
-            }
-          }
-        ]
-      },
-      "Error": {
-        "required": [
-          "error",
-          "message"
-        ],
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      }
-    },
     "securitySchemes": {
       "bearerAuth": {
         "type": "http",
