@@ -1,0 +1,102 @@
+---
+title: 'Application Metrics'
+sidebarTitle: 'Application Metrics'
+api: 'GET https://api.vertracloud.app/v1/apps/{id}/metrics'
+authMethod: 'bearer'
+description: 'Retrieves the metrics for an application by its ID, including CPU, RAM, storage, and network usage over the last 24 hours.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to retrieve metrics for. If the application belongs to an organization, include the organization ID in the format `appId-orgId`.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="array">
+  An array of metric objects for the application over the last 24 hours.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="cpu" type="number">
+    The CPU usage percentage.
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    The RAM usage in MB.
+  </ResponseField>
+
+  <ResponseField name="storage" type="number">
+    The storage usage in MB.
+  </ResponseField>
+
+  <ResponseField name="network" type="array">
+    An array containing two numbers: `[network_in, network_out]` representing network inbound and outbound traffic in bytes.
+  </ResponseField>
+
+  <ResponseField name="date" type="string" format="date-time">
+    The timestamp when the metric was recorded.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": [
+    {
+      "cpu": 25.5,
+      "ram": 512,
+      "storage": 1024,
+      "network": [1048576, 524288],
+      "date": "2025-08-14T19:58:00Z"
+    },
+    {
+      "cpu": 30.2,
+      "ram": 510,
+      "storage": 1024,
+      "network": [2097152, 1048576],
+      "date": "2025-08-14T19:59:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "status": "error",
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

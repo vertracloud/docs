@@ -1,0 +1,179 @@
+---
+title: 'Upload Commit for Application'
+sidebarTitle: 'Upload Commit'
+api: 'POST https://api.vertracloud.app/v1/apps/{id}/commit'
+authMethod: 'bearer'
+description: 'Uploads a commit file for an application, optionally restarting the app and managing versions.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to upload a commit for. If the application belongs to an organization, include the organization ID in the format `appId-orgId`.
+</ParamField>
+
+<ParamField query="restart" type="string" required={false}>
+  If set to "true", the application will automatically restart after the commit is uploaded.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  The commit file to be uploaded in zip format.
+</ParamField>
+
+<ParamField body="message" type="string" required={false}>
+  Optional commit message describing the changes.
+</ParamField>
+
+<ParamField body="version" type="string" required={false}>
+  Optional version to assign to the commit.
+</ParamField>
+
+<ParamField body="versionIncrement" type="string" required={false}>
+  Increment type for versioning. Possible values: `major`, `minor`, `patch`.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="object">
+  Information about the application after the commit upload.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The application ID.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    The ID of the application owner.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The application name.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    The application description.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="integer">
+    The cluster ID where the application is hosted.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Current status of the application.
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    RAM allocated to the application.
+  </ResponseField>
+
+  <ResponseField name="type" type="number">
+    Type of application.
+  </ResponseField>
+
+  <ResponseField name="language" type="string">
+    Programming language of the application.
+  </ResponseField>
+
+  <ResponseField name="domain" type="string">
+    Application domain or subdomain.
+  </ResponseField>
+
+  <ResponseField name="custom_domain" type="string">
+    Optional custom domain for the application.
+  </ResponseField>
+
+  <ResponseField name="auto_restart" type="boolean">
+    Indicates if the application is set to auto-restart.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string">
+    ISO timestamp of when the application was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string">
+    ISO timestamp of the last update to the application.
+  </ResponseField>
+
+  <ResponseField name="last_commit" type="string">
+    ISO timestamp of the last commit.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": {
+    "id": "app_123",
+    "owner_id": "user_456",
+    "name": "My Application",
+    "description": "Sample description",
+    "cluster": 1,
+    "status": "running",
+    "ram": 1024,
+    "type": 1,
+    "language": "nodejs",
+    "domain": "myapp.vertraweb.app",
+    "custom_domain": null,
+    "auto_restart": true,
+    "created_at": "2025-08-14T20:00:00.000Z",
+    "updated_at": "2025-08-14T20:30:00.000Z",
+    "last_commit": "2025-08-14T20:30:00.000Z"
+  }
+}
+```
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have access to the project.
+  - `APP_NOT_FOUND`: The application was not found.
+  - `NO_FILE_UPLOADED`: No file was provided for the commit.
+  - `FILE_TOO_LARGE`: Uploaded file exceeds the maximum allowed size.
+  - `UPLOAD_COMMIT_FAILED`: Failed to upload the commit.
+  - `OWNER_APP_WITHOUT_LIMITS`: The owner has no resource limits defined.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "NO_FILE_UPLOADED"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "FILE_TOO_LARGE"
+}
+```
+</ResponseExample>

@@ -1,0 +1,69 @@
+---
+title: 'Application Realtime Logs'
+sidebarTitle: 'Application Realtime'
+api: 'GET https://api.vertracloud.app/v1/apps/{id}/logs/realtime'
+authMethod: 'bearer'
+description: 'Retrieves the realtime logs for an application by its ID, streamed as a text event stream.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to retrieve realtime logs for. If the application
+  belongs to an organization, include the organization ID in the format
+  `appId-orgId`.
+</ParamField>
+
+### Response
+
+The response is streamed as a text event stream (`text/event-stream`). Each log entry is sent as an event with the following format:
+
+- **Event Type**: `logs` for log messages, `system` for connection-related messages (e.g., errors or connection closure).
+- **Data**: A string containing a timestamp in ISO 8601 format followed by the log message or system message.
+
+<ResponseExample>
+
+```text Response
+event: logs
+data: 2025-08-14T19:58:00Z [INFO] Application started successfully
+
+event: logs
+data: 2025-08-14T19:58:01Z [DEBUG] Connected to database
+
+event: logs
+data: 2025-08-14T19:58:02Z [ERROR] Failed to process request
+
+event: system
+data: 2025-08-14T19:58:03Z Connection Closed
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values: 
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `APP_NOT_FOUND`: The specified application does not exist. 
+  - `FORBIDDEN`: The user does not have permission to access the application.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "status": "error",
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

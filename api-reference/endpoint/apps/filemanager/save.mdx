@@ -1,0 +1,82 @@
+---
+title: 'Create or Update Application File or Folder'
+sidebarTitle: 'Create/Update File or Folder'
+api: 'PUT https://api.vertracloud.app/v1/apps/{id}/files'
+authMethod: 'bearer'
+description: 'Creates or updates a file or folder for an application by its ID.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to create or update the file or folder in. If the application belongs to an organization, include the organization ID in the format `appId-orgId`.
+</ParamField>
+
+<ParamField query="path" type="string" required>
+  The path where the file or folder will be created or updated. End with `/` to create a folder.
+</ParamField>
+
+<ParamField body="content" type="string">
+  The content of the file to create or update. Required for files, not applicable for folders.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success"
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `PLAN_RESTRICTED_FEATURE`: The user's plan does not support file manager access (except for `vertracloud.config`).
+  - `MISSING_PATH`: The path query parameter was not provided.
+  - `MISSING_CONTENT`: The content body parameter is required for files.
+  - `INVALID_PATH`: The provided path is invalid.
+  - `INVALID_CONFIG`: The `vertracloud.config` file content is invalid.
+  - `INVALID_MEMORY`: The requested memory in `vertracloud.config` is invalid or exceeds plan limits.
+  - `PUT_FILE_FAILED`: Failed to create or update the file or folder.
+  - `OWNER_APP_WITHOUT_LIMITS`: The owner's plan limits could not be found.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "MISSING_PATH",
+  "message": "Path query parameter is required"
+}
+```
+
+</ResponseExample>

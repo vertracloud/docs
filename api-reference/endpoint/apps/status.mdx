@@ -1,0 +1,136 @@
+---
+title: 'Application Status'
+sidebarTitle: 'Application Status'
+api: 'GET https://api.vertracloud.app/v1/apps/{id}/status'
+authMethod: 'bearer'
+description: 'Retrieves the current status and resource usage of an application by its ID.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to retrieve status for. If the application belongs to an organization, include the organization ID in the format `appId-orgId`.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="object">
+  The status and resource usage details of the application.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="cpu" type="number">
+    The CPU usage percentage.
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    The RAM usage in MB.
+  </ResponseField>
+
+  <ResponseField name="storage" type="number">
+    The storage usage in MB.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The application’s status (e.g., `running`).
+  </ResponseField>
+
+  <ResponseField name="running" type="boolean">
+    Indicates whether the application is currently running.
+  </ResponseField>
+
+  <ResponseField name="network" type="object">
+    Network usage details.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="in" type="number">
+      Inbound network traffic in bytes.
+    </ResponseField>
+
+    <ResponseField name="out" type="number">
+      Outbound network traffic in bytes.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="uptime" type="number">
+    The application’s uptime in seconds.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the application was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp when the application was last updated.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": {
+    "cpu": 25.5,
+    "ram": 512,
+    "storage": 1024,
+    "status": "running",
+    "running": true,
+    "network": {
+      "in": 1048576,
+      "out": 524288
+    },
+    "uptime": 3600,
+    "created_at": "2025-08-09T15:51:47.234Z",
+    "updated_at": "2025-08-11T15:06:41.449Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `INTERNAL_SERVER_ERROR`: An error occurred while retrieving the status.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "status": "error",
+  "code": "FORBIDDEN"
+}
+```
+
+```json Error Response (500)
+{
+  "status": "error",
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

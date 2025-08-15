@@ -1,0 +1,104 @@
+---
+title: 'Custom Domain DNS Records'
+sidebarTitle: 'Custom Domain DNS Records'
+api: 'GET https://api.vertracloud.app/v1/apps/{id}/custom-domain/dns'
+authMethod: 'bearer'
+description: 'Retrieves the DNS records required for configuring a custom domain for an application.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to retrieve DNS records for.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="array">
+  An array of DNS record objects required for the custom domain.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="type" type="string">
+    The type of DNS record (`CNAME` or `TXT`).
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The name of the DNS record (e.g., `example.com` or `_acme-challenge.example.com`).
+  </ResponseField>
+
+  <ResponseField name="value" type="string | null">
+    The value to set for the DNS record. For TXT records, this is `null` if the record is already validated.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The status of the DNS record (`active` or `pending_validation`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": [
+    {
+      "type": "CNAME",
+      "name": "example.com",
+      "value": "cname.vertraweb.app",
+      "status": "pending_validation"
+    },
+    {
+      "type": "TXT",
+      "name": "_acme-challenge.example.com",
+      "value": "v111d4af8cd74272a284831fbae14a8v",
+      "status": "pending_validation"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `PLAN_RESTRICTED_FEATURE`: The user's plan does not support custom domains.
+  - `APP_NOT_FOUND`: The specified application does not exist or does not belong to the user.
+  - `NO_CUSTOM_DOMAIN_SET`: The application does not have a custom domain configured.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "NO_CUSTOM_DOMAIN_SET"
+}
+```
+
+</ResponseExample>

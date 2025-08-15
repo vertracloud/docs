@@ -1,0 +1,109 @@
+---
+title: 'Delete Application Environments'
+sidebarTitle: 'Delete Environments'
+api: 'DELETE https://api.vertracloud.app/v1/apps/{id}/environments'
+authMethod: 'bearer'
+description: 'Deletes specified environment variables for an application by its ID.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to delete environment variables from. If the application belongs to an organization, include the organization ID in the format `appId-orgId`.
+</ParamField>
+
+<ParamField body="keys" type="array" required>
+  An array of environment variable keys to delete.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="array">
+  An array of remaining environment variable objects after deletion.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The ID of the environment variable.
+  </ResponseField>
+
+  <ResponseField name="key" type="string">
+    The key of the environment variable.
+  </ResponseField>
+
+  <ResponseField name="value" type="string">
+    The value of the environment variable (decrypted).
+  </ResponseField>
+
+  <ResponseField name="note" type="string | null">
+    The optional note or description for the environment variable.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the environment variable was created.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": [
+    {
+      "id": "env456",
+      "key": "DATABASE_URL",
+      "value": "mysql://user:pass@localhost/db",
+      "note": null,
+      "created_at": "2025-08-14T19:58:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `INVALID_BODY`: The request body is not a valid array or is empty.
+  - `INVALID_KEY`: One or more provided keys are invalid or forbidden.
+  - `ENVIRONMENTS_NOT_FOUND`: None of the specified environment variables were found.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "INVALID_BODY"
+}
+```
+
+</ResponseExample>

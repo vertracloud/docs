@@ -1,0 +1,133 @@
+---
+title: 'Create or Edit Application Environments'
+sidebarTitle: 'Create/Edit Environments'
+api: 'PUT https://api.vertracloud.app/v1/apps/{id}/environments'
+authMethod: 'bearer'
+description: 'Creates or updates environment variables for an application by its ID.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to create or update environment variables for. If the application belongs to an organization, include the organization ID in the format `appId-orgId`.
+</ParamField>
+
+<ParamField body="environments" type="array" required>
+  An array of environment variable objects.
+
+  <Expandable title="Toggle object">
+
+  <ParamField name="key" type="string" required>
+    The key of the environment variable (max 100 characters).
+  </ParamField>
+
+  <ParamField name="value" type="string" required>
+    The value of the environment variable (max 1000 characters).
+  </ParamField>
+
+  <ParamField name="note" type="string">
+    An optional note or description for the environment variable.
+  </ParamField>
+
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="array">
+  An array of environment variable objects after creation or update.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The ID of the environment variable.
+  </ResponseField>
+
+  <ResponseField name="key" type="string">
+    The key of the environment variable.
+  </ResponseField>
+
+  <ResponseField name="value" type="string">
+    The value of the environment variable (decrypted).
+  </ResponseField>
+
+  <ResponseField name="note" type="string | null">
+    The optional note or description for the environment variable.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the environment variable was created.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": [
+    {
+      "id": "env123",
+      "key": "API_KEY",
+      "value": "secret123",
+      "note": "API key for external service",
+      "created_at": "2025-08-14T19:58:00Z"
+    },
+    {
+      "id": "env456",
+      "key": "DATABASE_URL",
+      "value": "mysql://user:pass@localhost/db",
+      "note": null,
+      "created_at": "2025-08-14T19:58:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `INVALID_BODY`: The request body is not a valid array or is empty.
+  - `INVALID_ENVIRONMENT`: One or more environment variables are invalid or use forbidden keys.
+  - `ENV_VARIABLE_TOO_LONG`: An environment variable key or value exceeds length limits.
+  - `ENV_LIMIT_EXCEEDED`: The total number of environment variables exceeds the limit of 25.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "INVALID_BODY"
+}
+```
+
+</ResponseExample>

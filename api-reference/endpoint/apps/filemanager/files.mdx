@@ -1,0 +1,121 @@
+---
+title: 'Get Application Files'
+sidebarTitle: 'Get Files'
+api: 'GET https://api.vertracloud.app/v1/apps/{id}/files'
+authMethod: 'bearer'
+description: 'Retrieves a list of files and folders for an application by its ID.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the application to retrieve files from. If the application belongs to an organization, include the organization ID in the format `appId-orgId`.
+</ParamField>
+
+<ParamField query="path" type="string">
+  The relative path to list files from. Defaults to the root directory (`/`).
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="array">
+  An array of file or folder objects.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="name" type="string">
+    The name of the file or folder.
+  </ResponseField>
+
+  <ResponseField name="path" type="string">
+    The full path to the file or folder.
+  </ResponseField>
+
+  <ResponseField name="is_directory" type="boolean">
+    Indicates whether the item is a directory.
+  </ResponseField>
+
+  <ResponseField name="size" type="number">
+    The size of the file in bytes (0 for directories).
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the file or folder was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp when the file or folder was last updated.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": [
+    {
+      "name": "index.js",
+      "path": "/index.js",
+      "is_directory": false,
+      "size": 1024,
+      "created_at": "2025-08-14T19:58:00Z",
+      "updated_at": "2025-08-14T19:58:00Z"
+    },
+    {
+      "name": "src",
+      "path": "/src",
+      "is_directory": true,
+      "size": 0,
+      "created_at": "2025-08-14T19:58:00Z",
+      "updated_at": "2025-08-14T19:58:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `PLAN_RESTRICTED_FEATURE`: The user's plan does not support file manager access.
+  - `INTERNAL_SERVER_ERROR`: Failed to retrieve the file list.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "PLAN_RESTRICTED_FEATURE"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,203 @@
+---
+title: 'Create Application'
+sidebarTitle: 'Create Application'
+api: 'POST https://api.vertracloud.app/v1/apps'
+authMethod: 'bearer'
+description: 'Creates a new application with the provided configuration and files.'
+---
+
+<ParamField body="file" type="file" required>
+  The ZIP file containing the application code (max size: 100 MB).
+</ParamField>
+
+<ParamField body="memory" type="string" required>
+  The amount of RAM to allocate for the application in MB.
+</ParamField>
+
+<ParamField body="autorestart" type="string">
+  Whether the application should automatically restart (`true` or `false`). Requires plan support for auto-restart.
+</ParamField>
+
+<ParamField body="start" type="string">
+  The start command for the application.
+</ParamField>
+
+<ParamField body="main" type="string" required>
+  The main file of the application.
+</ParamField>
+
+<ParamField body="version" type="string" required>
+  The version of the application runtime (`recommended` or `latest`).
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  The name of the application.
+</ParamField>
+
+<ParamField body="description" type="string">
+  A description of the application.
+</ParamField>
+
+<ParamField body="organization_id" type="string">
+  The ID of the organization to associate the application with, if applicable.
+</ParamField>
+
+<ParamField body="subdomain" type="string">
+  The subdomain for the application (e.g., `myapp`). Requires plan support for web publishing.
+</ParamField>
+
+<ParamField body="envs" type="string">
+  A JSON string containing an array of environment variables, each with `key` and `value` properties (max 25 variables, key max length 100, value max length 1000).
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="object">
+  The details of the created application.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The application’s ID.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    The ID of the application’s owner.
+  </ResponseField>
+
+  <ResponseField name="owner_plan_id" type="integer">
+    The ID of the owner’s plan.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The application’s name.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    The application’s description.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="integer">
+    The cluster ID of the application.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The application’s status (e.g., `up`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="integer">
+    The application’s RAM usage in MB.
+  </ResponseField>
+
+  <ResponseField name="type" type="integer">
+    The application’s type.
+  </ResponseField>
+
+  <ResponseField name="language" type="string">
+    The application’s programming language (e.g., `nodejs`).
+  </ResponseField>
+
+  <ResponseField name="subdomain" type="string | null">
+    The application’s subdomain, if applicable.
+  </ResponseField>
+
+  <ResponseField name="custom_domain" type="string | null">
+    The application’s custom domain, if applicable.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the application was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp when the application was last updated.
+  </ResponseField>
+
+  <ResponseField name="last_commit" type="string" format="date-time">
+    The timestamp of the application’s last commit.
+  </ResponseField>
+
+  <ResponseField name="last_backup" type="string | null" format="date-time">
+    The timestamp of the application’s last backup, if applicable.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": {
+    "id": "v111d4af8cd74272a284831fbae14a8v",
+    "owner_id": "1085944713435160717",
+    "owner_plan_id": 1,
+    "name": "Simple API",
+    "description": "I have a description :)",
+    "cluster": 1,
+    "status": "up",
+    "ram": 128,
+    "type": 2,
+    "language": "nodejs",
+    "subdomain": "myapp.vertraweb.app",
+    "custom_domain": null,
+    "created_at": "2025-08-14T19:58:00Z",
+    "updated_at": "2025-08-14T19:58:00Z",
+    "last_commit": "2025-08-14T19:58:00Z",
+    "last_backup": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `USER_NOT_FOUND`: The user’s plan could not be found.
+  - `NO_FILE_UPLOADED`: No file was uploaded.
+  - `FILE_TOO_LARGE`: The uploaded file exceeds the 100 MB limit.
+  - `INVALID_VERSION`: The specified version is not `recommended` or `latest`.
+  - `TOO_MANY_ENV_VARIABLES`: More than 25 environment variables were provided.
+  - `ENV_VARIABLE_TOO_LONG`: An environment variable key or value exceeds length limits.
+  - `INVALID_MEMORY`: The requested memory is invalid or exceeds plan limits.
+  - `SUBDOMAIN_ALREADY_IN_USE`: The specified subdomain is already in use.
+  - `INVALID_SUBDOMAIN_LENGTH`: The subdomain length is invalid (must be 5-63 characters).
+  - `FORBIDDEN_SUBDOMAIN`: The specified subdomain is restricted.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "NO_FILE_UPLOADED"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "INVALID_MEMORY"
+}
+```
+
+</ResponseExample>
