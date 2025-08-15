@@ -1,0 +1,162 @@
+---
+title: 'Update Organization'
+sidebarTitle: 'Update Organization'
+api: 'PATCH https://api.vertracloud.app/v1/organizations/{id}'
+authMethod: 'bearer'
+description: 'Updates the name, description, or tags of an organization.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the organization to update.
+</ParamField>
+
+<ParamField body="updates" type="object">
+  The fields to update for the organization.
+
+  <Expandable title="Toggle object">
+
+  <ParamField name="name" type="string">
+    The new name for the organization (case-insensitive, max 50 characters).
+  </ParamField>
+
+  <ParamField name="description" type="string">
+    The new description for the organization (max 200 characters).
+  </ParamField>
+
+  <ParamField name="tags" type="array">
+    The new tags for the organization (each tag max 20 characters).
+  </ParamField>
+
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseField name="response" type="object">
+  The updated details of the organization.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The ID of the organization.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The name of the organization.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    The description of the organization.
+  </ResponseField>
+
+  <ResponseField name="tags" type="array">
+    The tags associated with the organization.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    The ID of the organization owner.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the organization was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp when the organization was last updated.
+  </ResponseField>
+
+  <ResponseField name="members" type="array">
+    An array of member objects.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="user_id" type="string">
+      The ID of the member.
+    </ResponseField>
+
+    <ResponseField name="role" type="string">
+      The role of the member (e.g., `owner`, `admin`, `developer`, `operator`, `viewer`).
+    </ResponseField>
+
+    <ResponseField name="joined_at" type="string" format="date-time">
+      The timestamp when the member joined the organization.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success",
+  "response": {
+    "id": "org123",
+    "name": "updatedorganization",
+    "description": "Updated description",
+    "tags": ["newtag", "updated"],
+    "owner_id": "user123",
+    "created_at": "2025-08-14T19:58:00Z",
+    "updated_at": "2025-08-14T20:00:00Z",
+    "members": [
+      {
+        "user_id": "user123",
+        "role": "owner",
+        "joined_at": "2025-08-14T19:58:00Z"
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `NAME_MUST_BE_A_STRING`: The provided name is not a string.
+  - `DESCRIPTION_MUST_BE_A_STRING`: The provided description is not a string.
+  - `TAGS_MUST_BE_AN_ARRAY`: The provided tags are not an array of strings.
+  - `NAME_TOO_LONG`: The provided name exceeds 50 characters.
+  - `DESCRIPTION_TOO_LONG`: The provided description exceeds 200 characters.
+  - `TAG_TOO_LONG`: One or more tags exceed 20 characters.
+  - `ORGANIZATION_NAME_ALREADY_EXISTS`: An organization with the provided name already exists.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "NAME_TOO_LONG"
+}
+```
+
+```json Error Response (400)
+{
+  "status": "error",
+  "code": "ORGANIZATION_NAME_ALREADY_EXISTS"
+}
+```
+
+</ResponseExample>

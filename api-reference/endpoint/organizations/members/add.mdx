@@ -1,0 +1,78 @@
+---
+title: 'Add Member to Organization with Token'
+sidebarTitle: 'Add Member'
+api: 'POST https://api.vertracloud.app/v1/organizations/{id}/members'
+authMethod: 'bearer'
+description: 'Adds a member to an organization using an invite token.'
+---
+
+<ParamField path="id" type="string" required>
+  The ID of the organization to add the member to.
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  The invite token code for adding the member.
+</ParamField>
+
+<ParamField body="role" type="string">
+  The role to assign to the new member. Must be one of: `owner`, `admin`, `developer`, `operator`, `viewer`. Defaults to `viewer`.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `success` if successful, `error` if not.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "success"
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Indicates whether the call was successful. `error` if not successful.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `INSUFFICIENT_PERMISSIONS_TO_ADD_MEMBERS`: The user does not have `owner` or `admin` role to add members.
+  - `ORGANIZATION_NOT_FOUND`: The specified organization does not exist.
+  - `INVALID_ROLE`: The provided role is invalid.
+  - `ORGANIZATION_MEMBER_LIMIT_REACHED`: The organization has reached its member limit.
+  - `INVALID_OR_EXPIRED_TOKEN`: The provided invite token is invalid or expired.
+  - `USER_ALREADY_IN_ORGANIZATION`: The user is already a member of the organization.
+  - `CODE_MUST_BE_STRING`: The provided code is not a string.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (403)
+{
+  "status": "error",
+  "code": "INSUFFICIENT_PERMISSIONS_TO_ADD_MEMBERS"
+}
+```
+
+```json Error Response (404)
+{
+  "status": "error",
+  "code": "ORGANIZATION_NOT_FOUND"
+}
+```
+
+</ResponseExample>
