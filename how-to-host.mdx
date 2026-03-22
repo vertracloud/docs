@@ -1,102 +1,148 @@
 ---
 title: 'How to Host'
-description: 'Learn how to host your application in just a few steps.'
+description: 'Learn how to host your application on Vertra Cloud in just a few steps.'
+icon: 'cloud-arrow-up'
 ---
 
 ## Create an Account
 
-Log in to our website using your Discord account by visiting [https://vertracloud.app/login](https://vertracloud.app/login).
+Visit [vertracloud.app/login](https://vertracloud.app/login) and log in using one of the available options:
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/login-page.png"
-  alt="Login Page"
-/>
+<CardGroup cols={2}>
+  <Card title="Discord" icon="discord">
+    Login with Discord account via OAuth.
+  </Card>
+  <Card title="GitHub" icon="github">
+    Login with GitHub account via OAuth.
+  </Card>
+  <Card title="Google" icon="google">
+    Login with Google account via OAuth.
+  </Card>
+  <Card title="Magic Link" icon="envelope">
+    Login via magic link sent to your email.
+  </Card>
+</CardGroup>
 
 ## Access the Dashboard
 
-After logging in, you will be automatically redirected to [https://vertracloud.app/dashboard](https://vertracloud.app/dashboard).  
-Click **"New Project"** to start.
+After logging in, you will be automatically redirected to the dashboard. The panel displays your applications, databases and general account metrics.
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/dashboard-page.png"
-  alt="Dashboard Page"
-/>
+## Create a New Project
 
-## Create the `vertracloud.config` File (Optional)
+Click on **"New Project"** and choose the type:
 
-You can define the project name, description, and resource settings in the `vertracloud.config` file.  
-This step is **optional**, as you can configure everything directly on our website.
+<Tabs>
+  <Tab title="Application">
+    Choose the code source:
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/vertracloud.config.png"
-  alt="vertracloud.config File"
-/>
+    - **ZIP Upload** — Drag a ZIP file with your code
+    - **GitHub** — Select a repository (including private repos)
 
-## Zip Your Project
+    Then, configure:
 
-Before zipping:
+    1. **Language** — JavaScript, Python, Go, Rust, etc.
+    2. **Runtime Version** — Choose a specific version or use `recommended`
+    3. **Main File** — Ex: `index.js`, `main.py`, `main.go`
+    4. **Memory** — From 100 MB to 32 GB according to your plan
+    5. **Billing Mode** — Fixed plan or credits per hour
+    6. **Subdomain** — Customize your app's address (optional)
+  </Tab>
+  <Tab title="Database">
+    Select the database type:
 
-- **JavaScript**: Exclude `node_modules`, `.npm`, and `package-lock.json`.  
-- **Python**: Exclude `venv` and `.cache`.
+    - **PostgreSQL** 17 — SQL relational database
+    - **MongoDB** 8.0 — NoSQL document-oriented
+    - **Redis** 7 — Cache and in-memory store
+    - **MySQL** 8.0 — Relational database with X509
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/zip-file.png"
-  alt="Zip File"
-/>
+    Configure desired memory and billing mode.
+  </Tab>
+</Tabs>
 
-## Upload Your `.zip` File
+## `vertracloud.config` File (Optional)
 
-Drag and drop your zipped file into the upload area at [https://vertracloud.app/dashboard/new](https://vertracloud.app/dashboard/new).
+You can define configuration directly in the source code by creating the `vertracloud.config` file at the project root:
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/upload-area.png"
-  alt="Upload File"
-/>
+```ini
+MAIN=index.js
+START=npm start
+SUBDOMAIN=my-app
+VERSION=recommended
+MEMORY=512
+AUTORESTART=true
+```
 
-## Configure Your Application (If Needed)
+| Field | Description | Example |
+|-------|-----------|---------|
+| `MAIN` | Main file | `src/index.js` |
+| `START` | Startup command | `npm start` |
+| `SUBDOMAIN` | Custom subdomain | `my-app` |
+| `VERSION` | Runtime version | `recommended`, `22.18.0` |
+| `MEMORY` | Memory in MB | `512` |
+| `AUTORESTART` | Auto-restart on crash | `true` |
 
-If you did not create a `vertracloud.config` file, you will need to set up your application details here.
+## Prepare Code for Upload
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/new-project.png"
-  alt="New Project"
-/>
+Before compressing your project to ZIP, **exclude** the following directories:
 
-## Deploying Your Application
+<Tabs>
+  <Tab title="JavaScript / TypeScript">
+    Remove: `node_modules`, `.npm`, `package-lock.json`, `.next`, `dist`
+  </Tab>
+  <Tab title="Python">
+    Remove: `venv`, `.cache`, `__pycache__`, `.env`
+  </Tab>
+  <Tab title="Go">
+    Remove: `vendor` (if present)
+  </Tab>
+  <Tab title="Rust">
+    Remove: `target`
+  </Tab>
+  <Tab title="Java">
+    Remove: `target`, `.gradle`, `build`
+  </Tab>
+  <Tab title="PHP / Ruby">
+    Remove: `vendor`
+  </Tab>
+</Tabs>
 
-Click **"Create Application"** to start the deployment process.  
-Your project will begin uploading.
+<Warning>
+  The `vertracloud.config` file is **not** sent to the container. It is only read during the deployment process.
+</Warning>
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/app-uploading.png"
-  alt="Application Uploading"
-/>
+## Deploy
 
-## Application Created
+Drag the ZIP file to the upload area or connect via GitHub. The deployment process includes:
 
-After a few seconds, your application will be created in one of our clusters.  
-You can now click **"View Application"** to see it live.
+1. Upload code to the platform
+2. Automatically build Docker image
+3. Install dependencies (`npm install`, `pip install`, etc.)
+4. Start container with configured resources
+5. Assign subdomain and provision SSL
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/app-uploaded.png"
-  alt="Application Created"
-/>
+## Monitor Status
 
-## Deployment Successful
+After deployment, access the application detail panel to:
 
-Your project is now successfully deployed on Vertra Cloud.  
-You can manage, monitor, and update it from your dashboard.
+- **Logs** — Monitor real-time output via integrated terminal
+- **Status** — See if application is online, offline or in error
+- **Metrics** — CPU, memory and network usage
+- **Files** — Manage files with integrated Monaco editor
+- **Settings** — Environment variables, auto-restart, subdomain
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/app-details.png"
-  alt="Application Details"
-/>
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deploy via GitHub" icon="github" href="/deploy-github">
+    Set up automatic deployment from your repository.
+  </Card>
+  <Card title="Tutorials" icon="graduation-cap" href="/tutorials/introduction">
+    Step-by-step guides for Node.js, Python, Go, Discord bots and more.
+  </Card>
+  <Card title="VSCode Extension" icon="window" href="/vscode-extension">
+    Deploy directly from your editor.
+  </Card>
+  <Card title="Public API" icon="plug" href="/api-reference/introduction">
+    Automate operations via RESTful API.
+  </Card>
+</CardGroup>

@@ -1,0 +1,201 @@
+---
+title: 'v26.0 — March 21, 2026'
+description: 'Major platform release with credits system, workspaces, new authentication, and complete dashboard redesign.'
+---
+
+## Overview
+
+Version 26.0 is the largest update to Vertra Cloud since launch. It introduces a credit-based billing system, collaborative workspaces, multiple authentication providers, a redesigned dashboard, and significant infrastructure improvements.
+
+---
+
+## New Features
+
+### Credits System
+A flexible billing model based on credits that lets you pay only for what you use.
+
+- **Compute Credits** — Hourly billing for applications and databases based on allocated memory
+- **AI Credits** — Separate pool for AI-powered features
+- **Free weekly allocation** per plan (e.g., 500 compute + 50 AI credits/week on Free)
+- **Cost estimation API** — Calculate costs before creating resources via `GET /v1/credits/cost?ram={mb}`
+- **Paid credits** with 365-day expiration
+- **Automatic resource stop** when credits run out
+- Dashboard billing page with transaction history, filters by resource/credit type, and pagination
+
+### Workspaces
+Collaborative team spaces with role-based access control.
+
+- Create, edit, and delete workspaces
+- **5 roles**: Owner, Admin, Developer, Operator, Viewer
+- Member management with invite links
+- Assign applications and databases to workspaces
+- Available from the **Enterprise** plan (5 to 24 members)
+
+### Authentication
+Multiple login options and account management.
+
+- **Magic Link** — Passwordless email authentication
+- **GitHub OAuth** — Login and account linking
+- **Google OAuth** — Login and account linking
+- **Discord OAuth** — Existing provider, now with account linking/unlinking
+- **Account switching** — Up to 5 saved accounts in the same browser
+- **Session management** — View active sessions, revoke all sessions
+- **API Key generation** — For programmatic access
+
+### Notifications
+Platform notification system integrated into the dashboard.
+
+- API-driven notifications with read/unread status
+- Mark individual or all notifications as read
+- Real-time display in dashboard header
+- Localized email templates in 3 languages (EN, PT-BR, ES)
+- Templates for: plan expiration, deletion warning, purchase confirmation
+
+### Plan Downgrade
+Users can now downgrade their plan directly from the dashboard or API.
+
+- Downgrade to Free plan via `POST /v1/users/me/downgrade`
+- Rate limiting to prevent abuse
+- Warnings about impact on existing resources
+
+### Snapshots
+Replaced the previous backup/commit system with unified snapshots.
+
+- Create manual snapshots for applications and databases
+- Restore from any previous snapshot (with cooldown)
+- Download snapshot content
+- `vertracloud.config` auto-injection during snapshot creation
+- Grouped snapshots view in dashboard
+
+### Free Plan Cleanup
+Automatic management of inactive Free plan resources.
+
+- Projects offline for 30+ days are automatically deleted
+- Email notifications at days 7, 23, and 27
+- Reactivation link included in warnings
+
+### Dynamic Runtime Versions
+Runtime selection now fetches available versions dynamically.
+
+- Version picker in project creation wizard
+- `recommended` and `latest` tags
+- New languages supported: **Ruby**, **Rust**, **Java**
+
+---
+
+## Dashboard
+
+### Complete Redesign
+The dashboard has been rebuilt from the ground up with Next.js 16 and React 19.
+
+- **New project wizard** — Multi-step creation with vertical animated layout
+- **File Manager** — Rewritten with Monaco Editor (drag-and-drop, ZIP upload, forbidden path validation)
+- **Embedded terminal** — Real-time log streaming via SSE with ANSI colors and auto-scroll
+- **Billing page** — Transaction history, credit usage tracking, order management with PIX support
+- **Account settings** — Authentication connections, session management, API key generation, redeem codes
+- **Responsive header** — Compact mode, overflow prevention, close-on-click-outside menus
+
+### Internationalization
+Full i18n support across the dashboard.
+
+- 3 languages: English, Portuguese (BR), Spanish
+- Localized error messages, success messages, and email templates
+- Granular message files organized by feature
+
+### GitHub Integration
+Enhanced GitHub support in the project creation flow.
+
+- Repository selection including private repos
+- Branch selection
+- ZIP fallback when GitHub is unavailable
+- Webhook configuration for automatic deploys
+
+---
+
+## API Changes
+
+### New Endpoints
+- `GET /v1/credits/balance` — Credit balance
+- `GET /v1/credits/usage` — Credit usage history (paginated)
+- `GET /v1/credits/cost` — Cost estimation
+- `POST /v1/users/me/downgrade` — Plan downgrade
+- `GET /v1/users/me/sessions` — List active sessions
+- `DELETE /v1/users/me/sessions` — Revoke all sessions
+- `POST /v1/users/me/generate-api-key` — Generate API key
+- `GET /v1/notifications` — List notifications
+- `POST /v1/notifications/:id/read` — Mark as read
+- `POST /v1/notifications/read-all` — Mark all as read
+- `POST /v1/workspaces` — Create workspace
+- `GET /v1/workspaces` — List workspaces
+- `GET/PUT/DELETE /v1/workspaces/:id` — Workspace CRUD
+- `POST/DELETE /v1/workspaces/:id/members` — Member management
+- `POST/DELETE /v1/workspaces/:id/apps/:appId` — App association
+- `POST/DELETE /v1/workspaces/:id/databases/:dbId` — Database association
+- `GET /v1/apps/runtimes` — Available runtime versions
+- `POST /v1/orders` — Create order
+- `GET /v1/orders` — List orders
+- `POST /v1/orders/:id/initiate/pix` — PIX payment
+- `POST /v1/redeem/:code` — Redeem code
+
+### Response Format
+Standardized API response format across all endpoints:
+- Success: `{ "status": "success", "response": { ... } }`
+- Error: `{ "code": "ERROR_CODE", "message": "..." }`
+
+### Type Safety
+- Published `@vertracloud/api-types` package (v0.0.38+) with full TypeScript definitions
+- All REST endpoint response types documented with `@see` links to documentation
+- Complete type coverage: applications, databases, workspaces, credits, orders, snapshots, notifications
+
+---
+
+## Improvements
+
+### Crash Loop Detection
+Intelligent auto-restart with abuse prevention.
+
+- 5 crashes in 10 minutes disables auto-restart for 24 hours
+- Exit code filtering (normal exit code 0 is not counted)
+- 1-hour cooldown between restarts
+- Minimum 60-second uptime to count as stable
+
+### Real-Time Logs
+Enhanced log streaming with improved reliability and real-time delivery.
+
+### Custom Subdomain Management
+- Select custom subdomain during project creation
+- Change subdomain via API (`PATCH /v1/apps/:id/network/subdomain`)
+- Availability validation
+
+### File Manager
+- Upload via drag-and-drop with ZIP support
+- Forbidden directory/file validation
+- Smart file tree sorting
+- Localized error messages
+
+---
+
+## Bug Fixes
+
+- Fixed file upload size limits in Nginx for files larger than 2MB
+- Fixed database status monitoring inconsistencies
+- Fixed notification delivery during data migration
+- Fixed horizontal overflow in responsive dashboard header
+- Fixed various bugs in project creation wizard flow
+- Fixed crash loop detection for containers with syntax errors
+- Fixed custom domain DNS record verification
+
+---
+
+## Breaking Changes
+
+<Warning>
+  Review these changes before updating. They may impact existing integrations.
+</Warning>
+
+- **Snapshot system** — Replaced previous backup/commit system. Old backup endpoints are deprecated.
+- **Authentication** — New session-based authentication. Existing API keys continue to work.
+- **Workspace endpoints** — `/v1/organizations/*` renamed to `/v1/workspaces/*`
+- **Credit mode** — New resources can use credits instead of fixed plan billing
+- **Auto-restart behavior** — Now includes crash loop detection with automatic disable
+- **Free plan cleanup** — Inactive projects are deleted after 30 days (with email warnings)

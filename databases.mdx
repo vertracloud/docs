@@ -1,0 +1,254 @@
+---
+title: 'Databases'
+description: 'Everything about managing databases on Vertra Cloud.'
+icon: 'database'
+---
+
+## What are Managed Databases?
+
+Databases on Vertra Cloud are fully managed with automatic security configuration, TLS certificates and monitoring. Each database receives isolated memory and storage resources.
+
+## Available Databases
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL 17" icon="elephant">
+    Relational database with full SQL, JSONB and extensions support.
+
+    **Port**: 5432 &nbsp;|&nbsp; **TLS**: Mandatory &nbsp;|&nbsp; **Auth**: Certificate + Password
+  </Card>
+  <Card title="MongoDB 8.0" icon="leaf">
+    NoSQL document-oriented database for flexible data.
+
+    **Port**: 27017 &nbsp;|&nbsp; **TLS**: Mandatory &nbsp;|&nbsp; **Auth**: Platform-signed CA
+  </Card>
+  <Card title="Redis 7" icon="bolt">
+    In-memory storage for high-performance caching, queues and pub/sub.
+
+    **Port**: 6379 &nbsp;|&nbsp; **TLS**: Mandatory &nbsp;|&nbsp; **Auth**: Password + TLS
+  </Card>
+  <Card title="MySQL 8.0" icon="database">
+    Popular relational database with ACID transactions and large ecosystem.
+
+    **Port**: 3306 &nbsp;|&nbsp; **TLS**: Mandatory &nbsp;|&nbsp; **Auth**: X509 Mandatory
+  </Card>
+</CardGroup>
+
+## TLS Security
+
+All databases use encrypted connections with mandatory TLS. Certificates are generated automatically during creation.
+
+<AccordionGroup>
+  <Accordion title="Automatically generated certificates" icon="lock">
+    - **CA Certificate** (Certificate Authority) for signing
+    - **Server Certificate** with wildcard SNI for database domains
+    - **Client Certificate** signed by CA
+    - **Client Bundle** (key + certificate + CA) for download
+  </Accordion>
+  <Accordion title="MySQL: X509 Authentication" icon="shield">
+    MySQL uses mandatory X509 authentication in addition to password. The `require_secure_transport` is enabled by default, ensuring all connections are end-to-end encrypted.
+  </Accordion>
+</AccordionGroup>
+
+## Connection Examples
+
+<Tabs>
+  <Tab title="PostgreSQL (Node.js)">
+    ```javascript
+    const { Pool } = require('pg');
+    const fs = require('fs');
+
+    const pool = new Pool({
+      host: 'your-database.db.vertracloud.app',
+      port: 5432,
+      user: 'your-user',
+      password: 'your-password',
+      database: 'default',
+      ssl: {
+        ca: fs.readFileSync('ca.pem'),
+        cert: fs.readFileSync('client-cert.pem'),
+        key: fs.readFileSync('client-key.pem'),
+      }
+    });
+    ```
+  </Tab>
+  <Tab title="MongoDB (Node.js)">
+    ```javascript
+    const { MongoClient } = require('mongodb');
+
+    const client = new MongoClient(
+      'mongodb://user:password@your-database.db.vertracloud.app:27017/default',
+      {
+        tls: true,
+        tlsCAFile: 'ca.pem',
+        tlsCertificateKeyFile: 'client-bundle.pem',
+      }
+    );
+    ```
+  </Tab>
+  <Tab title="Redis (Node.js)">
+    ```javascript
+    const { createClient } = require('redis');
+
+    const client = createClient({
+      url: 'rediss://user:password@your-database.db.vertracloud.app:6379',
+      socket: {
+        tls: true,
+        ca: fs.readFileSync('ca.pem'),
+      }
+    });
+    ```
+  </Tab>
+  <Tab title="MySQL (Node.js)">
+    ```javascript
+    const mysql = require('mysql2/promise');
+
+    const connection = await mysql.createConnection({
+      host: 'your-database.db.vertracloud.app',
+      port: 3306,
+      user: 'your-user',
+      password: 'your-password',
+      database: 'default',
+      ssl: {
+        ca: fs.readFileSync('ca.pem'),
+        cert: fs.readFileSync('client-cert.pem'),
+        key: fs.readFileSync('client-key.pem'),
+      }
+    });
+    ```
+  </Tab>
+  <Tab title="PostgreSQL (Python)">
+    ```python
+    import psycopg2
+
+    conn = psycopg2.connect(
+        host='your-database.db.vertracloud.app',
+        port=5432,
+        user='your-user',
+        password='your-password',
+        dbname='default',
+        sslmode='verify-full',
+        sslcert='client-cert.pem',
+        sslkey='client-key.pem',
+        sslrootcert='ca.pem'
+    )
+    ```
+  </Tab>
+  <Tab title="MySQL (Go)">
+    ```go
+    import (
+        "database/sql"
+        "crypto/tls"
+        "crypto/x509"
+        "os"
+        "github.com/go-sql-driver/mysql"
+    )
+
+    func connect() {
+        caCert, _ := os.ReadFile("ca.pem")
+        clientCert, _ := os.ReadFile("client-cert.pem")
+        clientKey, _ := os.ReadFile("client-key.pem")
+
+        cert, _ := tls.X509KeyPair(clientCert, clientKey)
+        caCertPool := x509.NewCertPool()
+        caCertPool.AppendCertsFromPEM(caCert)
+
+        mysql.RegisterTLSConfig("custom", &tls.Config{
+            RootCAs: caCertPool,
+            Certificates: []tls.Certificate{cert},
+        })
+
+        db, _ := sql.Open("mysql", "user:password@tcp(your-database.db.vertracloud.app:3306)/default?tls=custom")
+    }
+    ```
+  </Tab>
+  <Tab title="Redis (Go)">
+    ```go
+    import (
+        "github.com/go-redis/redis/v8"
+        "crypto/tls"
+        "crypto/x509"
+        "os"
+    )
+
+    func connect() {
+        caCert, _ := os.ReadFile("ca.pem")
+        caCertPool := x509.NewCertPool()
+        caCertPool.AppendCertsFromPEM(caCert)
+
+        rdb := redis.NewClient(&redis.Options{
+            Addr: "your-database.db.vertracloud.app:6379",
+            Password: "your-password",
+            TLSConfig: &tls.Config{
+                RootCAs: caCertPool,
+            },
+        })
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Creating: create database
+    Creating --> Online: ready
+    Online --> Stopped: stop / no credits
+    Online --> Error: failure
+    Stopped --> Online: start
+    Error --> Online: restart
+```
+
+| State | Description | Indicator |
+|-------|-----------|:---------:|
+| **Creating** | Container being provisioned with TLS certificates | ↻ |
+| **Online** | Database running and accepting connections | ● |
+| **Stopped** | Manually stopped or out of credits (data preserved) | ○ |
+| **Error** | Problem during initialization or execution | ! |
+
+## Available Operations
+
+<CardGroup cols={2}>
+  <Card title="Start / Stop / Restart" icon="play">
+    Control the container lifecycle. Data is preserved during stop/restart.
+  </Card>
+  <Card title="Reset" icon="trash">
+    Clears all data and recreates the database from scratch. **Irreversible action.**
+  </Card>
+  <Card title="Reset Password" icon="key">
+    Generates a new random and secure password for the database.
+  </Card>
+  <Card title="Reset Certificates" icon="certificate">
+    Regenerates all TLS certificates (CA, server and client).
+  </Card>
+  <Card title="Download Snapshot" icon="download">
+    Downloads a copy of the database data.
+  </Card>
+  <Card title="Restore Snapshot" icon="clock-rotate-left">
+    Restores the database from a previous snapshot.
+  </Card>
+</CardGroup>
+
+<Warning>
+  The **Reset** operation is destructive and erases all database data. This action cannot be undone.
+</Warning>
+
+## Metrics
+
+The panel displays real-time metrics for each database:
+
+<CardGroup cols={3}>
+  <Card title="CPU" icon="microchip">
+    Container CPU usage.
+  </Card>
+  <Card title="Memory" icon="memory">
+    Current RAM consumption.
+  </Card>
+  <Card title="Storage" icon="hard-drive">
+    Used disk space vs. quota.
+  </Card>
+</CardGroup>
+
+## Storage
+
+Database storage has hard limits enforced at the container level, ensuring that a database cannot consume more space than allocated.

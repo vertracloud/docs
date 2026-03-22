@@ -1,0 +1,104 @@
+---
+title: 'Plan Downgrade'
+description: 'How plan downgrades work and how your remaining time is converted.'
+icon: 'arrow-down'
+---
+
+## How Downgrades Work
+
+When you downgrade your plan, your **remaining days are converted** to equivalent days on the new plan using prorated credit — the same model used by industry-standard platforms like Stripe.
+
+No days are lost. The unused value of your current plan is fairly converted based on the price ratio.
+
+<Info>
+  Downgrades always move to the **immediately previous plan** in the hierarchy. You cannot skip plans.
+</Info>
+
+## Conversion Formula
+
+Your remaining time is converted proportionally:
+
+```
+newDays = remainingDays × (currentPlanPrice / targetPlanPrice)
+```
+
+Since the target plan is cheaper, you always get **more days** than you had remaining.
+
+### Example
+
+<Card title="Enterprise-4 → Scale" icon="calculator">
+  | | Value |
+  |---|---|
+  | **Current plan** | Enterprise-4 (R$23.99/mo) |
+  | **Target plan** | Scale (R$10.99/mo) |
+  | **Days remaining** | 15 days |
+  | **Converted days** | 15 × (23.99 ÷ 10.99) = **32 days** on Scale |
+</Card>
+
+## Plan Hierarchy
+
+```
+FREE → ECONOMY → PRO → SCALE → INTERMEDIARY → ENTERPRISE-4 → ... → ENTERPRISE-32
+```
+
+<Warning>
+  **FREE** and **ECONOMY** plans cannot be downgraded further.
+</Warning>
+
+## Before You Downgrade
+
+The system will check the following before processing:
+
+<Steps>
+  <Step title="Memory usage">
+    Your total memory usage across all apps and databases must fit within the target plan's memory limit. If it exceeds, you'll need to reduce resource allocation first.
+  </Step>
+  <Step title="Rate limit">
+    You can only downgrade once every **3 hours** to prevent abuse.
+  </Step>
+</Steps>
+
+## What Changes on Downgrade
+
+<AccordionGroup>
+  <Accordion title="Resources & Limits">
+    - Memory limit is reduced to the target plan's allocation
+    - Apps and databases that exceed the new limit must be resized beforehand
+    - CPU allocation is adjusted proportionally
+  </Accordion>
+  <Accordion title="Features">
+    - Features exclusive to higher plans are immediately disabled
+    - For example: custom domains, auto-restart, daily backups, etc.
+  </Accordion>
+  <Accordion title="Workspaces">
+    If downgrading from an **Enterprise** plan to a non-Enterprise plan, you will **lose the ability to create and manage workspaces**. Existing workspaces will be affected.
+  </Accordion>
+  <Accordion title="Credits">
+    - Your credit balance (free + paid) is **not affected** by the downgrade
+    - Free credits will be reset to the new plan's weekly allocation on the next Monday
+    - Paid credits remain yours regardless of plan changes
+  </Accordion>
+</AccordionGroup>
+
+## How to Downgrade
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Go to **Dashboard → Settings → Account**
+    2. Scroll to the **Downgrade Plan** section
+    3. Review the target plan and confirm
+  </Tab>
+  <Tab title="Via API">
+    ```bash
+    curl -X POST \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      https://api.vertracloud.app/v1/users/me/downgrade
+    ```
+
+    **Possible responses:**
+    - `200` — Downgrade successful
+    - `400 DOWNGRADE_NOT_AVAILABLE` — Already on FREE or ECONOMY
+    - `400 INSUFFICIENT_MEMORY_FOR_DOWNGRADE` — Reduce resource usage first
+    - `429` — Rate limited (wait 3 hours)
+  </Tab>
+</Tabs>

@@ -1,0 +1,166 @@
+---
+title: 'Sites & Protections'
+description: 'Host static and dynamic sites with automatic protections and SSL on Vertra Cloud.'
+icon: 'shield'
+---
+
+## Site Hosting
+
+Vertra Cloud offers site hosting with infrastructure optimized for web applications. Each site runs in an isolated container with dedicated resources, automatic SSL and network abuse protection.
+
+### Site Types
+
+<Tabs>
+  <Tab title="Static Sites">
+    Sites composed of HTML, CSS and pure JavaScript. Ideal for landing pages, portfolios, documentation and SPA applications.
+
+    **How to configure:**
+    - Select **"Static"** language when creating the application
+    - Set `index.html` as main file
+    - Upload the directory with your static files
+
+    **Support for:**
+    - HTML5, CSS3, JavaScript ES6+
+    - Web Components
+    - Service Workers
+    - Any compiled frontend framework (React, Vue, Svelte, Angular)
+  </Tab>
+  <Tab title="Dynamic Sites">
+    Sites that need a backend server for rendering or APIs. Support all available languages on the platform.
+
+    **Examples:**
+    - Next.js with SSR (Server-Side Rendering)
+    - Express.js serving dynamic pages
+    - Flask/Django with templates
+    - Fastify with integrated frontend
+
+    **How to configure:**
+    - Select the corresponding server language
+    - Configure port via `PORT` environment variable
+    - The subdomain will be assigned automatically
+  </Tab>
+</Tabs>
+
+### Subdomains
+
+Each website type application receives an automatic subdomain in the format:
+
+```
+https://your-app.vertracloud.app
+```
+
+You can customize the subdomain during creation or in application settings. Subdomains are unique and validated automatically.
+
+### Custom Domain
+
+To connect your own domain:
+
+<Steps>
+  <Step title="Add domain">
+    In the application panel, go to **Network** and add your custom domain.
+  </Step>
+  <Step title="Configure DNS">
+    Add a **CNAME** record pointing to the address provided by the platform.
+  </Step>
+  <Step title="Wait for propagation">
+    DNS propagation can take up to 48 hours. SSL will be provisioned automatically after validation.
+  </Step>
+</Steps>
+
+<Note>
+  Custom domains are available starting from the **Intermediary** plan.
+</Note>
+
+---
+
+## Platform Protections
+
+Vertra Cloud implements multiple layers of protection to ensure stability, security and service availability.
+
+### Container Isolation
+
+Each application and database runs in an isolated container with:
+
+- **Dedicated memory** — Hard RAM limits per resource
+- **Limited CPU** — CPU quota proportional to the plan
+- **Isolated storage** — Storage quotas per resource, preventing one from affecting others
+- **Segregated network** — Containers cannot communicate directly with each other
+
+### Traffic Protection (Vertra Shield)
+
+Vertra Shield is the network monitoring system that protects infrastructure against abuse:
+
+<AccordionGroup>
+  <Accordion title="Bandwidth monitoring" icon="chart-line">
+    Real-time traffic monitoring with per-application request limits proportional to allocated memory.
+  </Accordion>
+  <Accordion title="Burst detection" icon="bolt">
+    Automatic detection of abnormal traffic spikes using sliding window. Bursts exceeding configured limits trigger automatic mitigation.
+  </Accordion>
+  <Accordion title="Bandwidth limiting" icon="gauge-high">
+    Bandwidth limits are applied to containers exceeding normal usage. Limits scale proportionally to allocated memory.
+  </Accordion>
+  <Accordion title="Automatic mitigation" icon="shield-halved">
+    Containers in persistent violation are automatically paused with cooldown period. The system keeps a record of violations to escalate penalties.
+  </Accordion>
+</AccordionGroup>
+
+### Crash Loop Protection
+
+The system detects containers entering restart loops and applies preventive measures:
+
+- **Intelligent detection** — 5 crashes in 10 minutes disables auto-restart for 24 hours
+- **Exit code filtering** — Normal termination (code 0) is not counted
+- **Cooldown between restarts** — Minimum interval of 1 hour between automatic restarts
+- **Minimum uptime time** — The container must be online for at least 60 seconds to count as stable
+
+### Automatic SSL/TLS
+
+All website type applications receive SSL certificates automatically:
+
+- Automatic certificate provisioning and renewal
+- Support for subdomains and custom domains
+- HTTP → HTTPS redirection enabled by default
+
+### Database Certificates
+
+All databases use encrypted connections:
+
+- **PostgreSQL** — Mandatory TLS with client and server certificates
+- **MongoDB** — TLS enabled with platform-signed CA
+- **Redis** — Configurable TLS
+- **MySQL** — Mandatory X509 authentication with auto-generated certificates
+
+### Automatic Cleanup (Free Plan)
+
+To maintain platform health, projects on the free plan inactive for more than 30 days are automatically removed:
+
+- **Day 7** — First email notification
+- **Day 23** — Second warning
+- **Day 27** — Final warning with reactivation link
+- **Day 30** — Automatic project deletion
+
+<Warning>
+  Back up your data before expiration. Deleted projects cannot be recovered.
+</Warning>
+
+---
+
+## Best Practices
+
+- **Set appropriate memory limits** to avoid OOM restarts
+- **Use environment variables** for sensitive settings instead of hardcoded
+- **Configure `.gitignore`** to exclude `node_modules`, `venv` and temporary files from deployment
+- **Monitor logs** regularly to identify errors and bottlenecks
+- **Use snapshots** before making major application changes
+- **Enable auto-restart** for production applications
+
+## Limitations
+
+| Resource | Limit |
+|---------|--------|
+| Maximum ZIP upload size | 100 MB |
+| Subdomain | Unique per application |
+| Custom domain | 1 per application |
+| Maximum build time | 5 minutes |
+| Exposed ports | Only the configured port |

@@ -1,0 +1,119 @@
+---
+title: 'Workspaces'
+description: 'Organize projects and collaborate as a team with workspaces on Vertra Cloud.'
+icon: 'users'
+---
+
+## What are Workspaces?
+
+Workspaces are collaborative work spaces that allow you to organize applications and databases into logical groups and share them with other team members.
+
+## Roles and Permissions
+
+Each workspace member has a role that defines their access level:
+
+<CardGroup cols={2}>
+  <Card title="Owner" icon="crown">
+    Full control. Manages members, resources and workspace settings. Can delete the workspace.
+  </Card>
+  <Card title="Admin" icon="user-shield">
+    Manages resources and members. Can add/remove members (except the owner).
+  </Card>
+  <Card title="Developer" icon="code">
+    Can manage resources (deploy, start, stop, restart) but cannot delete them or manage members.
+  </Card>
+  <Card title="Operator" icon="wrench">
+    Can operate resources (start, stop, restart) and view metrics. No access to settings.
+  </Card>
+</CardGroup>
+
+Additionally, the **Viewer** () role offers read-only access to resources and metrics.
+
+### Permissions Matrix
+
+| Action | Owner | Admin | Developer | Operator | Viewer |
+|------|:-----:|:-----:|:---------:|:--------:|:------:|
+| View resources and metrics | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Start / Stop / Restart | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Deploy and configure | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Manage members | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Delete resources | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Delete workspace | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+## Creating a Workspace
+
+<Steps>
+  <Step title="Access Workspaces">
+    In the dashboard sidebar menu, access the **"Workspaces"** section.
+  </Step>
+  <Step title="Create New">
+    Click **"New Workspace"** and define a name and description.
+  </Step>
+  <Step title="Invite Members">
+    Add members by providing the user identifier and selecting the desired role. You can generate an **invite link** to facilitate.
+  </Step>
+  <Step title="Assign Resources">
+    Associate existing applications and databases to the workspace.
+  </Step>
+</Steps>
+
+<Note>
+  Workspace creation is available starting from the **Enterprise** plan. The maximum number of members varies according to the plan (5 to 24 members).
+</Note>
+
+## Member Management
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    Access the workspace → **Members** → Add, remove or change roles. Changes are applied immediately.
+  </Tab>
+  <Tab title="Via API">
+    ```bash
+    # Add member
+    curl -X POST -H "Authorization: Bearer TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{"user_id":"ID","role":"developer"}' \
+         https://api.vertracloud.app/v1/workspaces/{id}/members
+
+    # Change role
+    curl -X PUT -H "Authorization: Bearer TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{"role":"admin"}' \
+         https://api.vertracloud.app/v1/workspaces/{id}/members/{userId}
+
+    # Remove member
+    curl -X DELETE -H "Authorization: Bearer TOKEN" \
+         https://api.vertracloud.app/v1/workspaces/{id}/members/{userId}
+    ```
+  </Tab>
+</Tabs>
+
+## Resources in Workspace
+
+Applications and databases can be associated with a workspace during creation or later.
+
+<AccordionGroup>
+  <Accordion title="Associate existing resource" icon="link">
+    Use the API to link an application or database to the workspace:
+    ```bash
+    # Add app to workspace
+    curl -X POST -H "Authorization: Bearer TOKEN" \
+         https://api.vertracloud.app/v1/workspaces/{workspace_id}/apps/{app_id}
+
+    # Add database to workspace
+    curl -X POST -H "Authorization: Bearer TOKEN" \
+         https://api.vertracloud.app/v1/workspaces/{workspace_id}/databases/{db_id}
+    ```
+  </Accordion>
+  <Accordion title="Disassociate resource" icon="unlink">
+    Removing a resource from a workspace **does not delete it** — it simply stops being associated:
+    ```bash
+    curl -X DELETE -H "Authorization: Bearer TOKEN" \
+         https://api.vertracloud.app/v1/workspaces/{workspace_id}/apps/{app_id}
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+  A resource can belong to only one workspace at a time. To move a resource between workspaces, remove it from the current one and add it to the new one.
+</Info>
