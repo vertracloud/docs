@@ -43,7 +43,7 @@ A Vertra Cloud é uma plataforma brasileira de hospedagem em nuvem para deploy d
 
 Todos os bancos geram certificados TLS automaticamente (CA, servidor, cliente). Os certificados podem ser baixados no dashboard ou via API.
 
-**Host**: `vertra-cloud-<tipo>-<id>.db.vertraweb.app`
+**Host**: `<id_sem_hifens>.db.usa1.vertraweb.app`
 
 **Operações**: Iniciar, Parar, Reiniciar, Resetar (destrutivo), Resetar Senha, Resetar Certificados, Download/Restauração de Snapshot.
 
