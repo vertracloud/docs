@@ -1,0 +1,423 @@
+---
+title: Erros Comuns
+description: Guia de solução para os erros mais frequentes ao fazer deploy na Vertra Cloud.
+icon: triangle-exclamation
+---
+
+## Erros de Plataforma
+
+### Aplicação não inicia / Crashando
+
+<AccordionGroup>
+  <Accordion title="OOMKilled — Aplicação morta por falta de memória" icon="memory">
+    **Sintoma:** App para sem mensagem de erro, ou aparece `Killed` nos logs.
+
+    **Causa:** O app está usando mais RAM do que o alocado.
+
+    **Solução:**
+    - Aumente a memória alocada (tente 50% a mais)
+    - Java/JVM precisa de 512 MB+, apps com Puppeteer/Chrome precisam de 512 MB+
+    - Otimize o código para reduzir consumo de memória
+  </Accordion>
+
+  <Accordion title="Crash loop — Auto-restart desativado" icon="rotate">
+    **Sintoma:** App crashou 5 vezes em 10 minutos e auto-restart foi desativado por 24 horas.
+
+    **Causa:** Erro persistente no código (token inválido, dependência faltando, erro de sintaxe).
+
+    **Solução:**
+    - Verifique os logs para identificar o erro raiz
+    - Corrija o problema e faça redeploy
+    - Erros de sintaxe e exit code 0 NÃO disparam auto-restart — o app simplesmente para
+  </Accordion>
+
+  <Accordion title="Aplicação para imediatamente (exit code 0)" icon="circle-stop">
+    **Sintoma:** App inicia e para em seguida sem erro.
+
+    **Causa:** O processo não tem nada mantendo ele vivo (sem servidor HTTP, sem bot logado, sem event loop).
+
+    **Solução:**
+    - Para bots: garanta que o client está fazendo login (`client.login(token)`)
+    - Para servidores: garanta que `app.listen()` está sendo chamado
+    - Verifique se não há `process.exit()` sendo chamado acidentalmente
+  </Accordion>
+</AccordionGroup>
+
+### Erros de Deploy
+
+<AccordionGroup>
+  <Accordion title="ZIP muito grande (máx 100 MB)" icon="file-zipper">
+    **Causa:** Diretórios de dependências incluídos no ZIP (`node_modules`, `venv`, `.git`, etc.).
+
+    **Solução:** Exclua antes de compactar:
+    - **JS/TS:** `node_modules`, `.npm`, `.next`, `dist`
+    - **Python:** `venv`, `.venv`, `__pycache__`, `.cache`
+    - **Go:** `vendor` | **Rust:** `target` | **Java:** `target`, `.gradle`, `build`
+  </Accordion>
+
+  <Accordion title="Build excede tempo limite (5 minutos)" icon="clock">
+    **Causa:** Instalação de dependências demora muito (muitos pacotes, compilação nativa).
+
+    **Solução:**
+    - Remova dependências desnecessárias
+    - Para apps Node.js grandes, considere fazer `npm install` local e incluir apenas o necessário
+  </Accordion>
+
+  <Accordion title="Estrutura do ZIP inválida" icon="folder-tree">
+    **Causa:** O ZIP tem uma pasta extra envolvendo os arquivos (ex: `meu-projeto/src/index.js` em vez de `src/index.js`).
+
+    **Solução:** Os arquivos devem estar na raiz do ZIP, não dentro de uma subpasta extra.
+  </Accordion>
+</AccordionGroup>
+
+### Erros de Rede
+
+<AccordionGroup>
+  <Accordion title="Site retorna timeout / Connection refused" icon="globe">
+    **Causa:** App está fazendo bind em `localhost` ou `127.0.0.1` em vez de `0.0.0.0`.
+
+    **Solução:**
+    ```js
+    // Correto
+    app.listen(80, '0.0.0.0')
+
+    // Errado
+    app.listen(80, 'localhost')
+    app.listen(80, '127.0.0.1')
+    ```
+    Use sempre `0.0.0.0` como host e a porta configurada no `PORT`.
+  </Accordion>
+
+  <Accordion title="Domínio personalizado não funciona" icon="link-slash">
+    **Causa:** DNS não propagou, CNAME incorreto, ou plano não suporta.
+
+    **Solução:**
+    - Confirme que seu plano é Intermediary+ (domínios personalizados)
+    - Verifique o registro CNAME aponta para o endereço do dashboard
+    - Propagação DNS pode levar até 48 horas
+    - SSL é provisionado automaticamente após validação
+  </Accordion>
+</AccordionGroup>
+
+### Erros de Banco de Dados
+
+<AccordionGroup>
+  <Accordion title="Conexão recusada / SSL required" icon="database">
+    **Causa:** Tentativa de conexão sem TLS, que é obrigatório.
+
+    **Solução:**
+    - Baixe os certificados no dashboard (aba Credenciais)
+    - Configure TLS no cliente de banco de dados
+    - Use a porta correta: PostgreSQL=5432, MongoDB=27017, Redis=6379, MySQL=3306
+  </Accordion>
+
+  <Accordion title="Muitas conexões abertas" icon="diagram-project">
+    **Causa:** Cada conexão consome memória. Sem connection pooling, conexões se acumulam.
+
+    **Solução:**
+    - Use connection pooling no seu cliente de banco de dados
+    - Reduza o número de conexões simultâneas
+    - Aumente a memória do banco se necessário
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Node.js / JavaScript
+
+<AccordionGroup>
+  <Accordion title="Cannot find module 'xxx' / MODULE_NOT_FOUND" icon="js">
+    **Causa:** Módulo não está no `dependencies` do `package.json`, ou está apenas em `devDependencies`.
+
+    **Solução:** A plataforma roda `npm install --production`, que pula `devDependencies`. Mova o pacote para `dependencies`:
+    ```bash
+    npm install discord.js --save
+    ```
+  </Accordion>
+
+  <Accordion title="npm ERR! missing script: start" icon="terminal">
+    **Causa:** `package.json` não tem script `start` definido.
+
+    **Solução:** Adicione ao `package.json`:
+    ```json
+    {
+      "scripts": {
+        "start": "node index.js"
+      }
+    }
+    ```
+    Ou defina o campo `START` no `vertracloud.config`.
+  </Accordion>
+
+  <Accordion title="SyntaxError: Cannot use import statement outside a module" icon="code">
+    **Causa:** Usando `import` (ES Module) em um projeto CommonJS.
+
+    **Solução:** Adicione ao `package.json`:
+    ```json
+    {
+      "type": "module"
+    }
+    ```
+    Ou converta para `require()`.
+  </Accordion>
+
+  <Accordion title="ERR_REQUIRE_ESM — require() of ES Module not supported" icon="code">
+    **Causa:** Tentando usar `require()` em um pacote que só suporta ESM (ex: `node-fetch` v3+, `chalk` v5+).
+
+    **Solução:** Troque para ESM (`"type": "module"`) ou use uma versão mais antiga do pacote (ex: `node-fetch@2`).
+  </Accordion>
+
+  <Accordion title="ERESOLVE — unable to resolve dependency tree" icon="cubes">
+    **Causa:** Conflito de versões entre dependências (peer dependencies).
+
+    **Solução:** Crie um arquivo `.npmrc` na raiz do projeto com:
+    ```
+    legacy-peer-deps=true
+    ```
+  </Accordion>
+
+  <Accordion title="Error: listen EADDRINUSE" icon="plug">
+    **Causa:** A porta já está em uso ou o app tenta fazer bind duas vezes.
+
+    **Solução:** Garanta que existe apenas um `app.listen()` no código. Use a variável `PORT` do ambiente.
+  </Accordion>
+
+  <Accordion title="Could not locate the bindings file (better-sqlite3)" icon="database">
+    **Causa:** Módulos nativos compilados no macOS/Windows não funcionam no container Linux.
+
+    **Solução:** Não inclua `node_modules/` no upload. A plataforma compila módulos nativos automaticamente para Linux.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## TypeScript
+
+<AccordionGroup>
+  <Accordion title="tsx / ts-node: command not found" icon="code">
+    **Causa:** Runtime TypeScript não está nas dependências.
+
+    **Solução:** Adicione `tsx` ou `ts-node` ao `dependencies`:
+    ```bash
+    npm install tsx --save
+    ```
+  </Accordion>
+
+  <Accordion title="TSError: Unable to compile TypeScript" icon="triangle-exclamation">
+    **Causa:** Erros de compilação TypeScript que não apareceram localmente, ou `tsconfig.json` faltando.
+
+    **Solução:** Inclua `tsconfig.json` no upload. Corrija todos os erros TS localmente antes do deploy. Considere pré-compilar e enviar o `dist/`.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Python
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError: No module named 'xxx'" icon="python">
+    **Causa:** Módulo não está no `requirements.txt`.
+
+    **Solução:** Gere o arquivo com:
+    ```bash
+    pip freeze > requirements.txt
+    ```
+    Garanta que está na raiz do projeto.
+  </Accordion>
+
+  <Accordion title="requirements.txt não encontrado" icon="file">
+    **Causa:** Arquivo faltando, com nome errado, ou com extensão dupla (`.txt.txt` — comum no Windows).
+
+    **Solução:** Verifique o nome exato do arquivo. No Windows, ative "mostrar extensões de arquivos" para conferir.
+  </Accordion>
+
+  <Accordion title="SyntaxError: invalid syntax" icon="code">
+    **Causa:** Código usa recursos de uma versão do Python mais recente do que a selecionada (ex: `match/case` do 3.10 em runtime 3.9).
+
+    **Solução:** Selecione a versão correta do Python na configuração. Use `VERSION=recommended` para a versão estável mais recente.
+  </Accordion>
+
+  <Accordion title="UnicodeDecodeError / Erros de encoding" icon="language">
+    **Causa:** Arquivos com caracteres não-UTF-8, ou locale do container não configurado.
+
+    **Solução:** Salve todos os arquivos como UTF-8. Use `encoding='utf-8'` ao abrir arquivos:
+    ```python
+    with open('arquivo.txt', 'r', encoding='utf-8') as f:
+        ...
+    ```
+  </Accordion>
+
+  <Accordion title="Flask/Django não acessível externamente" icon="globe">
+    **Causa:** Usando servidor de desenvolvimento que faz bind em `127.0.0.1`.
+
+    **Solução:** Use Gunicorn para produção:
+    ```
+    START=gunicorn app:app --bind 0.0.0.0:80
+    ```
+    Nunca use o servidor de desenvolvimento do Flask/Django em produção.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Go
+
+<AccordionGroup>
+  <Accordion title="go.mod not found / cannot find main module" icon="golang">
+    **Causa:** `go.mod` faltando na raiz do projeto.
+
+    **Solução:**
+    ```bash
+    go mod init nome-do-modulo
+    go mod tidy
+    ```
+    Inclua `go.mod` e `go.sum` no upload.
+  </Accordion>
+
+  <Accordion title="Build falha / Binário incompatível" icon="hammer">
+    **Causa:** Binário compilado para macOS/Windows, não para Linux.
+
+    **Solução:** Se enviar código-fonte, inclua `go.mod` e `go.sum`. Se enviar binário, compile para Linux:
+    ```bash
+    GOOS=linux GOARCH=amd64 go build -o app main.go
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Java
+
+<AccordionGroup>
+  <Accordion title="no main manifest attribute, in app.jar" icon="java">
+    **Causa:** O JAR não tem `Main-Class` no MANIFEST.MF.
+
+    **Solução:** Configure o build tool para criar um fat JAR. Para Maven, use `maven-shade-plugin` ou `spring-boot-maven-plugin`.
+  </Accordion>
+
+  <Accordion title="OutOfMemoryError: Java heap space" icon="memory">
+    **Causa:** Heap do JVM excede a memória alocada ao container.
+
+    **Solução:** Apps Java precisam de 512 MB+. Limite o heap:
+    ```
+    START=java -Xmx256m -Xms128m -jar app.jar
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## PHP
+
+<AccordionGroup>
+  <Accordion title="Dependências não instaladas / composer.json não encontrado" icon="php">
+    **Causa:** `composer.json` faltando na raiz ou `vendor/` enviado (que pode ser incompatível).
+
+    **Solução:** Inclua `composer.json` e `composer.lock` na raiz. Não envie o diretório `vendor/`.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Bots Discord
+
+<AccordionGroup>
+  <Accordion title="An invalid token was provided / Improper token" icon="robot">
+    **Causa:** Token do bot inválido, expirado ou regenerado.
+
+    **Solução:**
+    - Gere um novo token no [Discord Developer Portal](https://discord.com/developers/applications)
+    - Configure como variável de ambiente (não hardcode no código)
+    - Reinicie a aplicação após atualizar
+  </Accordion>
+
+  <Accordion title="Used disallowed intents / DisallowedIntents" icon="shield">
+    **Causa:** Bot usa intents privilegiados não habilitados no Developer Portal.
+
+    **Solução:** Discord Developer Portal → Bot → Privileged Gateway Intents → Habilite:
+    - **Message Content Intent** (para ler conteúdo de mensagens)
+    - **Server Members Intent** (para eventos de membros)
+    - **Presence Intent** (para status de presença)
+  </Accordion>
+
+  <Accordion title="Valid intents must be provided / ClientMissingIntents" icon="list-check">
+    **Causa:** Nenhum intent especificado ao criar o client.
+
+    **Solução:**
+    ```js
+    // discord.js
+    const client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+      ]
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Bot fica offline aleatoriamente" icon="wifi">
+    **Causa:** Memória insuficiente causando kill, ou versão do discord.js/discord.py desatualizada.
+
+    **Solução:**
+    - Aumente a memória alocada
+    - Atualize discord.js/discord.py para a versão mais recente
+    - Verifique se não há memory leaks
+  </Accordion>
+
+  <Accordion title="on_message não funciona (discord.py)" icon="message">
+    **Causa:** Falta o intent `message_content` (obrigatório desde discord.py 2.0+).
+
+    **Solução:**
+    ```python
+    intents = discord.Intents.default()
+    intents.message_content = True
+    client = discord.Client(intents=intents)
+    ```
+    Também habilite no Developer Portal.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Variáveis de Ambiente
+
+<AccordionGroup>
+  <Accordion title="Valores undefined / null nas configurações" icon="key">
+    **Causa:** Variáveis de ambiente não foram configuradas na plataforma.
+
+    **Solução:** Configure todas as variáveis via dashboard ou API. Nunca hardcode valores sensíveis. Use um `.env.example` para documentar quais variáveis são necessárias.
+  </Accordion>
+
+  <Accordion title="Arquivo .env não funciona na plataforma" icon="file">
+    **Causa:** A plataforma não lê arquivos `.env` automaticamente.
+
+    **Solução:** Configure as variáveis pelo dashboard da Vertra Cloud (aba Variáveis de Ambiente) ou via API. Não dependa do `dotenv` carregando de um arquivo `.env` em produção.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Créditos
+
+<AccordionGroup>
+  <Accordion title="Créditos acabando muito rápido" icon="coins">
+    **Causa:** Cobrança é por hora baseada na memória alocada.
+
+    **Solução:**
+    - Fórmula: `ceil(RAM_MB / 100) × taxa` por hora
+    - Free: 10 cr/100MB/hr | Pagos: 7 cr/100MB/hr
+    - Reduza a memória para diminuir custos
+    - Pare recursos quando não estiver usando
+    - Reset semanal: toda segunda-feira 00:00 UTC
+  </Accordion>
+
+  <Accordion title="Recursos pararam automaticamente" icon="circle-stop">
+    **Causa:** Créditos esgotados — todos os recursos baseados em créditos são parados.
+
+    **Solução:**
+    - Compre créditos adicionais via dashboard
+    - Aguarde o reset semanal (segunda-feira)
+    - Migre para modo plano fixo (planos pagos)
+  </Accordion>
+</AccordionGroup>
