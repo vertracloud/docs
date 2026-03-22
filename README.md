@@ -1,32 +1,27 @@
-# Mintlify Starter Kit
+# Vertra Cloud Docs
 
-Click on `Use this template` to copy the Mintlify starter kit. The starter kit contains examples including
+Documentação oficial da [Vertra Cloud](https://vertracloud.app) — plataforma de hospedagem para bots, APIs e sites.
 
-- Guide pages
-- Navigation
-- Customizations
-- API Reference pages
-- Use of popular components
+Publicada em: **docs.vertracloud.app**
 
-### Development
-
-Install the [Mintlify CLI](https://www.npmjs.com/package/mintlify) to preview the documentation changes locally. To install, use the following command
+## Estrutura
 
 ```
-npm i -g mintlify
+docs/
+├── introduction.mdx        # Introdução à plataforma
+├── overview.mdx            # Visão geral dos recursos
+├── how-to-host.mdx         # Guia de deploy (ZIP)
+├── deploy-github.mdx       # Deploy via GitHub
+├── applications.mdx        # Aplicações
+├── databases.mdx           # Bancos de dados
+├── sites.mdx               # Sites estáticos
+├── credits.mdx             # Sistema de créditos
+├── workspaces.mdx          # Workspaces e equipes
+├── plan-downgrade.mdx      # Downgrade de plano
+├── common-errors.mdx       # Erros comuns e soluções
+├── changelog.mdx           # Changelog (índice)
+├── changelog/              # Changelogs por mês
+├── tutorials/              # Tutoriais por linguagem
+├── api-reference/          # Referência da API REST
+└── VERTRA_KNOWLEDGE_BASE.md # Base de conhecimento para IAs
 ```
-
-Run the following command at the root of your documentation (where docs.json is)
-
-```
-mintlify dev
-```
-
-### Publishing Changes
-
-Install our Github App to auto propagate changes from your repo to your deployment. Changes will be deployed to production automatically after pushing to the default branch. Find the link to install on your dashboard. 
-
-#### Troubleshooting
-
-- Mintlify dev isn't running - Run `mintlify install` it'll re-install dependencies.
-- Page loads as a 404 - Make sure you are running in a folder with `docs.json`
