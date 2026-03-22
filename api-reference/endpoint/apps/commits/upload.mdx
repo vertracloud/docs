@@ -1,13 +1,14 @@
 ---
-title: 'Upload Commit for Application'
-sidebarTitle: 'Upload Commit'
-api: 'POST https://api.vertracloud.app/v1/apps/{id}/commit'
-authMethod: 'bearer'
-description: 'Uploads a commit file for an application, optionally restarting the app and managing versions.'
+title: Upload Commit for Application
+sidebarTitle: Upload Commit
+api: POST https://api.vertracloud.app/v1/apps/{id}/commit
+authMethod: bearer
+description: Uploads a commit file for an application, optionally restarting the app and managing versions.
 ---
 
+{/* @see APIResourceSnapshot — @vertracloud/api-types */}
 <ParamField path="id" type="string" required>
-  The ID of the application to upload a commit for. If the application belongs to an organization, include the organization ID in the format `appId-orgId`.
+  The ID of the application to upload a commit for. If the application belongs to a workspace, include the workspace_id in the format `appId-workspace_id`.
 </ParamField>
 
 <ParamField query="restart" type="string" required={false}>
@@ -31,10 +32,6 @@ description: 'Uploads a commit file for an application, optionally restarting th
 </ParamField>
 
 ### Response
-
-<ResponseField name="status" type="string">
-  Indicates whether the call was successful. `success` if successful, `error` if not.
-</ResponseField>
 
 <ResponseField name="response" type="object">
   Information about the application after the commit upload.
@@ -97,8 +94,8 @@ description: 'Uploads a commit file for an application, optionally restarting th
     ISO timestamp of the last update to the application.
   </ResponseField>
 
-  <ResponseField name="last_commit" type="string">
-    ISO timestamp of the last commit.
+  <ResponseField name="last_snapshot" type="string">
+    ISO timestamp of the last snapshot.
   </ResponseField>
 
   </Expandable>
@@ -108,7 +105,6 @@ description: 'Uploads a commit file for an application, optionally restarting th
 
 ```json Response
 {
-  "status": "success",
   "response": {
     "id": "app_123",
     "owner_id": "user_456",
@@ -118,23 +114,19 @@ description: 'Uploads a commit file for an application, optionally restarting th
     "status": "running",
     "ram": 1024,
     "type": 1,
-    "language": "nodejs",
+    "language": "javascript",
     "domain": "myapp.vertraweb.app",
     "custom_domain": null,
     "auto_restart": true,
-    "created_at": "2025-08-14T20:00:00.000Z",
-    "updated_at": "2025-08-14T20:30:00.000Z",
-    "last_commit": "2025-08-14T20:30:00.000Z"
+    "created_at": "2026-03-14T20:00:00.000Z",
+    "updated_at": "2026-03-14T20:30:00.000Z",
+    "last_snapshot": "2026-03-14T20:30:00.000Z"
   }
 }
 ```
 </ResponseExample>
 
 ### Error Responses
-
-<ResponseField name="status" type="string">
-  Indicates whether the call was successful. `error` if not.
-</ResponseField>
 
 <ResponseField name="code" type="string">
   The error code indicating the reason for failure. Possible values:
@@ -147,32 +139,32 @@ description: 'Uploads a commit file for an application, optionally restarting th
   - `OWNER_APP_WITHOUT_LIMITS`: The owner has no resource limits defined.
 </ResponseField>
 
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
 <ResponseExample>
 
 ```json Error Response (403)
 {
-  "status": "error",
   "code": "UNAUTHORIZED"
 }
 ```
 
 ```json Error Response (404)
 {
-  "status": "error",
   "code": "APP_NOT_FOUND"
 }
 ```
 
 ```json Error Response (400)
 {
-  "status": "error",
   "code": "NO_FILE_UPLOADED"
 }
 ```
 
 ```json Error Response (400)
 {
-  "status": "error",
   "code": "FILE_TOO_LARGE"
 }
 ```

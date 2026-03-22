@@ -1,20 +1,18 @@
 ---
-title: 'All Applications Status'
-sidebarTitle: 'All Applications Status'
-api: 'GET https://api.vertracloud.app/v1/apps/status'
-authMethod: 'bearer'
-description: 'Retrieves the status of all applications for the authenticated user or a specified organization.'
+title: All Applications Status
+sidebarTitle: All Applications Status
+api: GET https://api.vertracloud.app/v1/apps/status
+authMethod: bearer
+description: Retrieves the status of all applications for the authenticated user or a specified workspace.
 ---
 
-<ParamField query="organization_id" type="string">
-  The ID of the organization to retrieve application statuses for, if applicable.
+{/* @see APIApplicationStatusShort[] — @vertracloud/api-types */}
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID to retrieve application status, if applicable.
 </ParamField>
 
 ### Response
-
-<ResponseField name="status" type="string">
-  Indicates whether the call was successful. `success` if successful, `error` if not.
-</ResponseField>
 
 <ResponseField name="response" type="array">
   An array of status objects for each application.
@@ -22,19 +20,19 @@ description: 'Retrieves the status of all applications for the authenticated use
   <Expandable title="Toggle object">
 
   <ResponseField name="id" type="string">
-    The application’s ID.
+    The application ID.
   </ResponseField>
 
   <ResponseField name="cpu" type="string">
-    The CPU usage percentage (e.g., `0%`).
+    CPU usage percentage (e.g., `25.5%`).
   </ResponseField>
 
   <ResponseField name="ram" type="string">
-    The RAM usage (e.g., `0 MB`).
+    RAM usage (e.g., `512 MB`).
   </ResponseField>
 
   <ResponseField name="running" type="boolean">
-    Indicates whether the application is currently running.
+    Indicates if the application is running.
   </ResponseField>
 
   </Expandable>
@@ -44,18 +42,17 @@ description: 'Retrieves the status of all applications for the authenticated use
 
 ```json Response
 {
-  "status": "success",
   "response": [
     {
-      "id": "v111d4af8cd74272a284831fbae14a8v",
-      "cpu": "25%",
-      "ram": "512 MB",
+      "id": "app-abc123def456",
+      "cpu": "25.50%",
+      "ram": "512.00 MB",
       "running": true
     },
     {
-      "id": "v222e5bf9de84383b395942fcbf25b9w",
-      "cpu": "0%",
-      "ram": "0 MB",
+      "id": "app-xyz789mno012",
+      "cpu": "0.00%",
+      "ram": "0.00 MB",
       "running": false
     }
   ]
@@ -66,37 +63,34 @@ description: 'Retrieves the status of all applications for the authenticated use
 
 ### Error Responses
 
-<ResponseField name="status" type="string">
-  Indicates whether the call was successful. `error` if not successful.
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or does not have sufficient permissions.
+  - `WORKSPACE_NOT_FOUND`: The specified workspace does not exist.
+  - `USER_NOT_IN_WORKSPACE`: The user is not a member of the specified workspace.
 </ResponseField>
 
-<ResponseField name="code" type="string">
-  The error code indicating the reason for failure. Possible values:
-  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
-  - `ORGANIZATION_NOT_FOUND`: The specified organization does not exist.
-  - `USER_NOT_IN_ORGANIZATION`: The user is not a member of the specified organization.
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
 </ResponseField>
 
 <ResponseExample>
 
 ```json Error Response (403)
 {
-  "status": "error",
   "code": "UNAUTHORIZED"
 }
 ```
 
 ```json Error Response (404)
 {
-  "status": "error",
-  "code": "ORGANIZATION_NOT_FOUND"
+  "code": "WORKSPACE_NOT_FOUND"
 }
 ```
 
 ```json Error Response (403)
 {
-  "status": "error",
-  "code": "USER_NOT_IN_ORGANIZATION"
+  "code": "USER_NOT_IN_WORKSPACE"
 }
 ```
 

@@ -1,19 +1,80 @@
 ---
-title: 'How to use the Public API'
-description: 'In this section you will learn how to use our public API.'
+title: Public API
+description: Complete documentation of Vertra Cloud's RESTful API for automation and integrations.
 ---
 
-<Note>
-  Request limits vary depending on your subscription plan.
-</Note>
+## Overview
+
+Vertra Cloud's public API allows you to manage applications, databases, workspaces and other resources programmatically. All operations available in the dashboard can be performed via API.
+
+**Base URL:** `https://api.vertracloud.app`
 
 ## Authentication
 
-You need to obtain your API authentication key.  
-Go to [https://vertracloud.app/dashboard/settings](https://vertracloud.app/dashboard/settings) and click **"Request API Key"**.
+All API requests require authentication via Bearer token. To get your API key:
 
-<img
-  className="rounded-lg"
-  src="/images/dashboard/settings.png"
-  alt="Dashboard Settings"
-/>
+1. Visit [https://vertracloud.app/dashboard/settings](https://vertracloud.app/dashboard/settings)
+2. Click **"Request API Key"**
+3. Copy the generated token
+
+Include the token in the `Authorization` header of all requests:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     https://api.vertracloud.app/v1/users/@me
+```
+
+## Response Format
+
+Most API responses follow this format:
+
+**Success:**
+```json
+{
+  "response": { ... }
+}
+```
+
+**Error:**
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Optional descriptive message"
+}
+```
+
+## Common Error Codes
+
+| Code | Description |
+|--------|-----------|
+| `UNAUTHORIZED` | Token missing or invalid |
+| `FORBIDDEN` | No permission to access the resource |
+| `APP_NOT_FOUND` | Application not found |
+| `DATABASE_NOT_FOUND` | Database not found |
+| `PLAN_RESTRICTED_FEATURE` | Feature not available on your plan |
+| `INVALID_PARAMETER` | Invalid parameter in request |
+
+## Rate Limiting
+
+<Note>
+  Request limits vary according to your subscription plan. Check your plan details for more information.
+</Note>
+
+When the limit is reached, the API returns HTTP status `429 Too Many Requests`. We recommend implementing retry logic with exponential backoff.
+
+## Available Resources
+
+<CardGroup cols={2}>
+  <Card title="Users" icon="user">
+    Query information about the authenticated user.
+  </Card>
+  <Card title="Applications" icon="rocket">
+    Manage complete application lifecycle: creation, deployment, start/stop, files, environment variables, snapshots and domains.
+  </Card>
+  <Card title="Databases" icon="database">
+    Manage databases: creation, start/stop, reset, metrics and credentials.
+  </Card>
+  <Card title="Workspaces" icon="users">
+    Manage workspaces: creation, members, permissions and resource association.
+  </Card>
+</CardGroup>
