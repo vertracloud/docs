@@ -1,0 +1,170 @@
+---
+title: 'Java'
+description: 'Deploy Java applications to Vertra Cloud.'
+icon: 'java'
+---
+
+## Requirements
+
+- Java 17+ installed locally
+- Maven or Gradle configured
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-api-java/
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com/example/
+│   │   │       ├── Application.java
+│   │   │       └── controller/
+│   │   │           └── ItemController.java
+│   │   └── resources/
+│   │       └── application.properties
+├── pom.xml
+└── vertracloud.config
+```
+
+## Configuration
+
+### pom.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example</groupId>
+    <artifactId>my-api</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+        <relativePath/>
+    </parent>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.0</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+### application.properties
+
+```properties
+spring.application.name=my-api-java
+server.port=${PORT:8080}
+server.address=0.0.0.0
+
+# Database
+spring.datasource.url=jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}
+spring.datasource.username=${DB_USER:postgres}
+spring.datasource.password=${DB_PASSWORD:}
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+
+# Logging
+logging.level.root=INFO
+logging.level.com.example=DEBUG
+```
+
+### vertracloud.config
+
+```ini
+MAIN=pom.xml
+VERSION=recommended
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Execute `mvn clean package` locally to test the build
+    2. Exclude the `target` folder from the project
+    3. Compress into a ZIP file
+    4. Access **Dashboard → New Project → Application**
+    5. Select **Java** language and upload
+    6. Configure memory (512MB minimum for Spring Boot, 1GB recommended)
+    7. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Push the project to GitHub (with `pom.xml` at root)
+    2. Access **Dashboard → New Project → Application**
+    3. Select **"GitHub"** as source
+    4. Choose the repository and configure memory (1GB recommended)
+    5. Configure database environment variables
+    6. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. Configure memory (1GB recommended) and environment variables
+    5. Wait for automatic build and deployment
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 21 | Recommended | Java 21 LTS (recommended for production) |
+| 21 | Latest | Java 21 (latest version) |
+| 17 | Stable | Java 17 LTS with extended support |
+
+## Notes
+
+- **Automatic compilation**: Maven compiles the project inside the container during deployment
+- **Compilation time**: May take 5-10 minutes depending on size
+- **Recommended memory**: 1GB for Spring Boot in production (compilation + runtime)
+- **Environment variables**: Configure via dashboard for database credentials
+- **Logs**: Available in real-time in dashboard terminal
+- **JVM tuning**: JVM is automatically configured for the container
+- Listen on `0.0.0.0` on port `$PORT`

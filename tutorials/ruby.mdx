@@ -1,0 +1,183 @@
+---
+title: 'Ruby'
+description: 'Deploy Ruby applications to Vertra Cloud.'
+icon: 'gem'
+---
+
+## Requirements
+
+- Ruby 3.2+ installed locally
+- Bundler for dependency management
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-app-ruby/
+├── app.rb
+├── Gemfile
+├── Gemfile.lock
+└── vertracloud.config
+```
+
+## Configuration
+
+### Gemfile
+
+```ruby
+source 'https://rubygems.org'
+
+ruby '3.3.0'
+
+gem 'sinatra', '~> 3.0'
+gem 'rack', '~> 2.2'
+gem 'pry', '~> 0.14'
+gem 'pg', '~> 1.5'  # For PostgreSQL
+gem 'json', '~> 2.6'
+
+group :development do
+  gem 'rerun', '~> 1.14'
+end
+```
+
+<Note>
+  The platform automatically runs `bundle install`. Do not include the `vendor` folder in the upload.
+</Note>
+
+### vertracloud.config
+
+```ini
+MAIN=app.rb
+START=bundle exec ruby app.rb -p $PORT -o 0.0.0.0
+VERSION=recommended
+```
+
+## Example: Sinatra Application
+
+### app.rb
+
+```ruby
+require 'sinatra'
+require 'json'
+require 'pg'
+
+set :bind, '0.0.0.0'
+set :port, ENV['PORT'] || 80
+
+# Database configuration
+def get_db_connection
+  begin
+    PG.connect(
+      host: ENV['DB_HOST'] || 'localhost',
+      dbname: ENV['DB_NAME'] || 'postgres',
+      user: ENV['DB_USER'] || 'postgres',
+      password: ENV['DB_PASSWORD'] || '',
+      port: ENV['DB_PORT'] || 5432
+    )
+  rescue PG::Error => e
+    puts "Database connection error: #{e.message}"
+    nil
+  end
+end
+
+before do
+  content_type :json
+end
+
+# Root route
+get '/' do
+  {
+    message: 'Ruby Sinatra API on Vertra Cloud',
+    version: '1.0.0'
+  }.to_json
+end
+
+# Health check
+get '/health' do
+  {
+    status: 'healthy',
+    service: 'ruby-api',
+    uptime: Time.now.to_i
+  }.to_json
+end
+
+# List items
+get '/api/items' do
+  conn = get_db_connection
+  return { error: 'Database connection failed' }.to_json if conn.nil?
+
+  begin
+    result = conn.exec('SELECT id, name, description FROM items LIMIT 20')
+    items = result.map do |row|
+      {
+        id: row['id'].to_i,
+        name: row['name'],
+        description: row['description']
+      }
+    end
+    items.to_json
+  rescue PG::Error => e
+    { error: e.message }.to_json
+  ensure
+    conn.close if conn
+  end
+end
+
+# Error handling
+error do
+  status 500
+  { error: 'Internal server error' }.to_json
+end
+
+not_found do
+  status 404
+  { error: 'Not found' }.to_json
+end
+
+puts "Server starting on #{settings.bind}:#{settings.port}"
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Execute `bundle install` locally
+    2. Exclude `vendor` and `.bundle` folders from the project
+    3. Compress into a ZIP file
+    4. Access **Dashboard → New Project → Application**
+    5. Select **Ruby** language and upload
+    6. Configure memory (256MB for simple applications, 512MB+ for larger applications)
+    7. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Push the project to GitHub (with `Gemfile` and `Gemfile.lock` at root)
+    2. Access **Dashboard → New Project → Application**
+    3. Select **"GitHub"** as source
+    4. Choose the repository and configure resources
+    5. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. Configure memory and environment variables
+    5. Wait for automatic upload and deployment
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 3.4 | Latest | Ruby 3.4 (latest version) |
+| 3.3 | Recommended | Ruby 3.3 LTS (recommended for production) |
+| 3.2 | Stable | Ruby 3.2 with extended support |
+
+## Notes
+
+- **Dependencies**: Use Bundler to manage gems
+- **Environment variables**: Access via `ENV['KEY']`
+- **Database**: Configure credentials as environment variables
+- **Logs**: Use `puts` or `STDOUT.puts` for logs that appear in dashboard
+- **GIL**: Ruby uses the Global Interpreter Lock, consider multiple processes for I/O intensive work
+- Listen on `0.0.0.0` on port `$PORT`

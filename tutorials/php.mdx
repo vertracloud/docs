@@ -1,0 +1,145 @@
+---
+title: 'PHP'
+description: 'Deploy PHP applications to Vertra Cloud.'
+icon: 'php'
+---
+
+## Requirements
+
+- PHP 8.2+ installed locally
+- Composer for dependency management
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-api-php/
+├── src/
+│   ├── index.php
+│   └── routes.php
+├── vendor/
+├── public/
+│   └── .htaccess
+├── composer.json
+└── vertracloud.config
+```
+
+## Configuration
+
+### composer.json
+
+```json
+{
+  "name": "example/my-api-php",
+  "description": "PHP API on Vertra Cloud",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "illuminate/http": "^10.0",
+    "guzzlehttp/guzzle": "^7.5"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  },
+  "scripts": {
+    "start": "php -S 0.0.0.0:${PORT:-8000} -t public"
+  }
+}
+```
+
+<Note>
+  The platform automatically runs `composer install`. Do not include the `vendor` folder in the upload.
+</Note>
+
+### vertracloud.config
+
+```ini
+MAIN=public/index.php
+START=php -S 0.0.0.0:$PORT -t public
+VERSION=recommended
+```
+
+## Example: Simple REST API
+
+### public/index.php
+
+```php
+<?php
+header('Content-Type: application/json');
+
+// Helper function to respond JSON
+function json_response($data, $status = 200) {
+    http_response_code($status);
+    echo json_encode($data);
+    exit;
+}
+
+// Root route
+if ($_SERVER['REQUEST_URI'] === '/' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    json_response([
+        'message' => 'API PHP on Vertra Cloud',
+        'version' => '1.0.0'
+    ], 200);
+}
+
+// Health route
+if ($_SERVER['REQUEST_URI'] === '/health' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    json_response([
+        'status' => 'healthy',
+        'service' => 'php-api'
+    ], 200);
+}
+
+// 404
+json_response(['error' => 'Not found'], 404);
+?>
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Execute `composer install` locally
+    2. Exclude the `vendor` folder from the project
+    3. Compress into a ZIP file
+    4. Access **Dashboard → New Project → Application**
+    5. Select **PHP** language and upload
+    6. Configure memory (256MB for simple APIs, 512MB for larger applications)
+    7. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Push the project to GitHub (with `composer.json` at root)
+    2. Access **Dashboard → New Project → Application**
+    3. Select **"GitHub"** as source
+    4. Choose the repository and configure resources
+    5. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. Wait for automatic upload and deployment
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 8.3 | Recommended | PHP 8.3 (recommended for production) |
+| 8.3 | Latest | PHP 8.3 (latest version) |
+| 8.2 | Stable | PHP 8.2 with extended support |
+
+## Notes
+
+- **Dependencies**: Use Composer to manage dependencies
+- **Environment variables**: Access via `$_SERVER['...']` or use libraries like `vlucas/phpdotenv`
+- **Logs**: Print to stdout/stderr to appear in dashboard logs
+- **Sessions**: Configure in-memory sessions or with Redis if needed
+- **Security**: Use `header('Content-Type: application/json')` for APIs
+- Listen on `0.0.0.0` on port `$PORT`

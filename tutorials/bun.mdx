@@ -1,0 +1,154 @@
+---
+title: 'Bun'
+description: 'Deploy Bun applications to Vertra Cloud.'
+icon: bread-slice
+---
+
+<img src="/images/logos/bun.svg" width="100" />
+
+## Requirements
+
+- Bun 1.1.0+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+- Configured `package.json`
+
+## Project Structure
+
+```
+my-server-bun/
+├── src/
+│   └── index.ts
+├── package.json
+├── bunfig.toml
+└── vertracloud.config
+```
+
+## Configuration
+
+### package.json
+
+```json
+{
+  "name": "my-server-bun",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "elysia": "^0.7.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}
+```
+
+### bunfig.toml
+
+```toml
+[build]
+target = "bun"
+```
+
+### vertracloud.config
+
+```ini
+MAIN=package.json
+START=bun run src/index.ts
+VERSION=recommended
+```
+
+## Example: Simple Server with Bun.serve()
+
+### src/index.ts
+
+```typescript
+const port = parseInt(process.env.PORT || "80");
+const hostname = "0.0.0.0";
+
+const server = Bun.serve({
+  port: port,
+  hostname: hostname,
+  fetch(request: Request) {
+    const url = new URL(request.url);
+
+    // Root route
+    if (url.pathname === "/" && request.method === "GET") {
+      return Response.json({
+        message: "API Bun on Vertra Cloud",
+        version: "1.0.0",
+        runtime: "Bun"
+      });
+    }
+
+    // Health check
+    if (url.pathname === "/health" && request.method === "GET") {
+      return Response.json({
+        status: "healthy",
+        service: "bun-api",
+        uptime: Math.floor(process.uptime())
+      });
+    }
+
+    // API items
+    if (url.pathname === "/api/items" && request.method === "GET") {
+      const items = [
+        { id: 1, name: "Item 1", description: "Description 1" },
+        { id: 2, name: "Item 2", description: "Description 2" }
+      ];
+      return Response.json(items);
+    }
+
+    // 404
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+});
+
+console.log(`Server running at http://${hostname}:${port}/`);
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Execute `bun install` locally
+    2. Exclude `node_modules` folder from the project
+    3. Compress into a ZIP file
+    4. Access **Dashboard → New Project → Application**
+    5. Select **Bun** language and upload
+    6. Configure memory (256MB for simple servers)
+    7. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Push the project to GitHub (with `package.json` at root)
+    2. Access **Dashboard → New Project → Application**
+    3. Select **"GitHub"** as source
+    4. Choose the repository and configure resources
+    5. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. Wait for automatic upload and deployment
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 1.2.2 | Recommended | Bun 1.2.2 LTS (recommended for production) |
+| 1.2.2 | Latest | Bun 1.2.2 (latest version) |
+| 1.1.0 | Stable | Bun 1.1.0 with extended support |
+
+## Notes
+
+- **Performance**: Bun is significantly faster than Node.js
+- **Native TypeScript**: Bun runs TypeScript directly without compilation
+- **Compatibility**: Bun is compatible with Node.js/npm, but has some differences
+- **Environment variables**: Access via `process.env.KEY`
+- **Logs**: Use `console.log()` for logs that appear in dashboard
+- **Modules**: Use `bun add` to add dependencies
+- Listen on `0.0.0.0` on port `$PORT`

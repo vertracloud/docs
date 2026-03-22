@@ -1,0 +1,183 @@
+---
+title: 'Rust'
+description: 'Deploy Rust applications to Vertra Cloud.'
+icon: 'rust'
+---
+
+## Requirements
+
+- Rust 1.85+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+- Configured `Cargo.toml`
+
+## Project Structure
+
+```
+my-server-rust/
+├── src/
+│   └── main.rs
+├── Cargo.toml
+├── Cargo.lock
+└── vertracloud.config
+```
+
+## Configuration
+
+### Cargo.toml
+
+```toml
+[package]
+name = "my-server-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.4"
+actix-rt = "2.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+env_logger = "0.11"
+log = "0.4"
+
+[[bin]]
+name = "servidor"
+path = "src/main.rs"
+```
+
+### vertracloud.config
+
+```ini
+MAIN=Cargo.toml
+VERSION=recommended
+```
+
+## Example: Actix-web Server
+
+```rust
+use actix_web::{web, App, HttpServer, HttpResponse, middleware};
+use serde::{Deserialize, Serialize};
+use std::env;
+use log::info;
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Item {
+    pub id: u32,
+    pub name: String,
+    pub description: String,
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    let port = env::var("PORT")
+        .unwrap_or_else(|_| "80".to_string())
+        .parse::<u16>()
+        .expect("PORT must be a valid number");
+
+    info!("Starting server on 0.0.0.0:{}", port);
+
+    HttpServer::new(|| {
+        App::new()
+            .wrap(middleware::Logger::default())
+            .route("/", web::get().to(index))
+            .route("/health", web::get().to(health))
+            .route("/api/items", web::get().to(list_items))
+            .route("/api/items", web::post().to(create_item))
+    })
+    .bind("0.0.0.0:".to_string() + &port.to_string())?
+    .run()
+    .await
+}
+
+async fn index() -> HttpResponse {
+    HttpResponse::Ok().json(serde_json::json!({
+        "message": "API Rust on Vertra Cloud",
+        "version": "1.0.0"
+    }))
+}
+
+async fn health() -> HttpResponse {
+    HttpResponse::Ok().json(serde_json::json!({
+        "status": "healthy",
+        "service": "rust-api"
+    }))
+}
+
+async fn list_items() -> HttpResponse {
+    let items = vec![
+        Item {
+            id: 1,
+            name: "Item 1".to_string(),
+            description: "Description 1".to_string(),
+        },
+        Item {
+            id: 2,
+            name: "Item 2".to_string(),
+            description: "Description 2".to_string(),
+        },
+    ];
+
+    HttpResponse::Ok().json(items)
+}
+
+#[derive(Deserialize)]
+pub struct CreateItemRequest {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+async fn create_item(req: web::Json<CreateItemRequest>) -> HttpResponse {
+    let item = Item {
+        id: 3,
+        name: req.name.clone(),
+        description: req.description.clone().unwrap_or_default(),
+    };
+
+    HttpResponse::Created().json(item)
+}
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Make sure `Cargo.toml` and `Cargo.lock` are at root
+    2. Compress into a ZIP file (without `target` folder)
+    3. Access **Dashboard → New Project → Application**
+    4. Select **Rust** language and upload
+    5. Configure memory (512MB for compilation, 256MB for runtime)
+    6. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Push the project to GitHub
+    2. Access **Dashboard → New Project → Application**
+    3. Select **"GitHub"** as source
+    4. Choose the repository and configure resources
+    5. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. Wait for compilation (may take several minutes)
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 1.87 | Latest | Rust 1.87 (latest version) |
+| 1.86 | Recommended | Rust 1.86 LTS (recommended for production) |
+| 1.85 | Stable | Rust 1.85 with extended support |
+
+## Notes
+
+- **Automatic compilation**: Rust is compiled inside the container during deployment
+- **Compilation time**: May take 5-10 minutes depending on project size
+- **Environment variables**: Use `std::env::var()` to capture settings
+- **Logging**: Use the `log` crate for logs that appear in real-time
+- **Memory**: 512MB recommended during compilation, 256MB sufficient for runtime
+- Listen on `0.0.0.0` to accept external connections

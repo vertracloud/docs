@@ -1,0 +1,126 @@
+---
+title: 'Node.js'
+description: 'Deploy Node.js applications to Vertra Cloud.'
+icon: js
+---
+
+## Requirements
+
+- Node.js installed locally (for development)
+- Account on [Vertra Cloud](https://vertracloud.app)
+- `package.json` file at project root
+
+## Project Structure
+
+```
+my-project/
+├── src/
+│   └── index.js
+├── package.json
+└── vertracloud.config  (optional)
+```
+
+## Configuration
+
+### package.json
+
+Make sure `package.json` has a `start` script defined:
+
+```json
+{
+  "name": "my-project",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    // your dependencies
+  }
+}
+```
+
+<Note>
+  The platform automatically runs `npm install` before starting your application. Do not include `node_modules` in the upload.
+</Note>
+
+### vertracloud.config (Optional)
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+## Example: Simple HTTP Server
+
+```javascript
+const http = require('http');
+
+const port = process.env.PORT || 80;
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ message: 'Hello from Vertra Cloud!' }));
+});
+
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Server running on port ${port}`);
+});
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Exclude `node_modules` and `package-lock.json` from the project
+    2. Compress the project into a ZIP file
+    3. Access **Dashboard → New Project → Application**
+    4. Select **"ZIP Upload"** and drag the file
+    5. Configure memory, Node.js version and subdomain
+    6. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Push the project to GitHub
+    2. Access **Dashboard → New Project → Application**
+    3. Select **"GitHub"** as source
+    4. Choose the repository and branch
+    5. Configure resources and click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. Wait for automatic upload and deployment
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+## Notes
+
+- **Dependencies** are automatically installed via `npm install`
+- **Environment variables** can be configured in the dashboard or via API
+- **Logs** are available in real-time in the dashboard terminal
+- **Auto-restart** can be enabled to automatically restart on crash
+- Always listen on `process.env.PORT` and on host `0.0.0.0`
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Error: Cannot find module">
+    Make sure all dependencies are listed in `package.json`. The platform only installs what is declared.
+  </Accordion>
+  <Accordion title="EADDRINUSE: address already in use">
+    Your application might be trying to use a fixed port. Use `process.env.PORT` for the correct port.
+  </Accordion>
+  <Accordion title="Container keeps restarting">
+    Check the logs to identify the error. Syntax errors or missing dependencies are common causes. The crash loop detection system will pause auto-restart after 5 crashes in 10 minutes.
+  </Accordion>
+</AccordionGroup>

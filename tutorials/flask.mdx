@@ -1,0 +1,166 @@
+---
+title: 'Flask'
+description: 'Deploy Flask applications to Vertra Cloud.'
+icon: 'python'
+---
+
+## Requirements
+
+- Python 3.11+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+- `requirements.txt` file at project root
+
+## Project Structure
+
+```
+my-api-flask/
+├── app.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+## Configuration
+
+### requirements.txt
+
+```txt
+flask==3.0.0
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+requests==2.31.0
+```
+
+<Note>
+  The platform automatically runs `pip install -r requirements.txt`. Do not include `venv` or `__pycache__` in the upload.
+</Note>
+
+### vertracloud.config
+
+```ini
+MAIN=app.py
+START=gunicorn --bind 0.0.0.0:$PORT app:app
+VERSION=recommended
+```
+
+## Example: REST API with Flask
+
+```python
+from flask import Flask, jsonify, request
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+app = Flask(__name__)
+
+# Database connection
+def get_db_connection():
+    conn = psycopg2.connect(
+        host=os.environ.get('DB_HOST'),
+        database=os.environ.get('DB_NAME'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASSWORD'),
+        port=os.environ.get('DB_PORT', 5432)
+    )
+    return conn
+
+@app.route('/')
+def index():
+    return jsonify({
+        'message': 'Flask API on Vertra Cloud',
+        'version': '1.0.0'
+    })
+
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'healthy',
+        'uptime': request.remote_addr
+    })
+
+@app.route('/api/items', methods=['GET'])
+def get_items():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT * FROM items LIMIT 10;')
+        items = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify(items), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/items', methods=['POST'])
+def create_item():
+    try:
+        data = request.get_json()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            'INSERT INTO items (name, description) VALUES (%s, %s) RETURNING id;',
+            (data['name'], data.get('description', ''))
+        )
+        item_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': item_id, 'name': data['name']}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def server_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Exclude `venv`, `.cache` and `__pycache__` from the project
+    2. Compress into a ZIP file
+    3. Access **Dashboard → New Project → Application**
+    4. Select **Python** language and upload
+    5. Configure memory (256MB for simple APIs, 512MB+ for APIs with database)
+    6. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Make sure `requirements.txt` is at root
+    2. Push the project to GitHub
+    3. Select **"GitHub"** as source in the creation wizard
+    4. Choose the repository and branch
+    5. Configure resources and click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. Wait for automatic upload and deployment
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 3.13 | Recommended | Python 3.13 LTS (recommended for production) |
+| 3.13 | Latest | Latest available version |
+| 3.12 | Stable | Python 3.12 with extended support |
+| 3.11 | Legacy | Python 3.11 with limited support |
+
+## Notes
+
+- **Production server**: Use `gunicorn` instead of `app.run()` for production
+- **Environment variables**: Configure database credentials in the dashboard
+- **Database dependencies**: Use `psycopg2-binary` for PostgreSQL
+- **Logs**: Available in real-time in dashboard terminal
+- **Auto-restart**: Enabled by default to restart on crash
+- Always listen on port `process.env.PORT` and host `0.0.0.0`

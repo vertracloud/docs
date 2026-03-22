@@ -1,0 +1,166 @@
+---
+title: 'Django'
+description: 'Deploy Django applications to Vertra Cloud.'
+icon: 'python'
+---
+
+## Requirements
+
+- Python 3.11+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+- `requirements.txt` file at project root
+
+## Project Structure
+
+```
+my-django-project/
+├── manage.py
+├── my_project/
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── my_apps/
+│   ├── models.py
+│   ├── views.py
+│   └── urls.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+## Configuration
+
+### requirements.txt
+
+```txt
+django==4.2.0
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+python-decouple==3.8
+whitenoise==6.5.0
+```
+
+<Note>
+  The platform automatically runs `pip install -r requirements.txt`. Do not include `venv` or `__pycache__` in the upload.
+</Note>
+
+### settings.py
+
+Configure your `settings.py` for production:
+
+```python
+import os
+from pathlib import Path
+from decouple import config
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Security
+SECRET_KEY = config('SECRET_KEY', default='dev-key-change-in-production')
+DEBUG = config('DEBUG', default=False, cast=bool)
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+
+# Applications
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'my_apps',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add WhiteNoise
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+]
+
+ROOT_URLCONF = 'my_project.urls'
+
+# Database
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME', default='postgres'),
+        'USER': config('DB_USER', default='postgres'),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT', default='5432'),
+    }
+}
+
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# HTTPS
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+```
+
+### vertracloud.config
+
+```ini
+MAIN=manage.py
+START=gunicorn --bind 0.0.0.0:$PORT my_project.wsgi:application
+VERSION=recommended
+```
+
+<Warning>
+  Before deployment, run `python manage.py collectstatic --noinput` locally to compile static files.
+</Warning>
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Execute `python manage.py collectstatic --noinput` locally
+    2. Exclude `venv`, `.cache`, `db.sqlite3` and `__pycache__` from the project
+    3. Compress into a ZIP file
+    4. Access **Dashboard → New Project → Application**
+    5. Select **Python** language and upload
+    6. Configure memory (512MB recommended for Django)
+    7. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Push the project to GitHub (with `requirements.txt` at root)
+    2. Access **Dashboard → New Project → Application**
+    3. Select **"GitHub"** as source
+    4. Choose the repository and configure resources
+    5. Configure environment variables (SECRET_KEY, DB_*, etc)
+    6. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. Configure the necessary environment variables
+    5. Wait for automatic deployment
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 3.13 | Recommended | Python 3.13 LTS (recommended for production) |
+| 3.13 | Latest | Latest available version |
+| 3.12 | Stable | Python 3.12 with extended support |
+| 3.11 | Legacy | Python 3.11 with limited support |
+
+## Notes
+
+- **Production server**: Use `gunicorn` to serve the Django application
+- **Static files**: Run `collectstatic` and configure `WhiteNoise` before deployment
+- **Database**: Configure `psycopg2-binary` for PostgreSQL
+- **Migrations**: Run `python manage.py migrate` before first deployment
+- **Environment variables**: Configure `SECRET_KEY`, database credentials and `DEBUG=False`
+- **Auto-restart**: Enabled by default

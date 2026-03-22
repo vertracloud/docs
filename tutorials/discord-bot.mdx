@@ -1,0 +1,169 @@
+---
+title: 'Discord Bots'
+description: 'Deploy bots for Discord using discord.js or discord.py on Vertra Cloud.'
+icon: 'discord'
+---
+
+## Overview
+
+Vertra Cloud is ideal for hosting Discord bots, offering continuous uptime with auto-restart and real-time log monitoring.
+
+## Discord.js (JavaScript)
+
+### Structure
+
+```
+my-bot-js/
+├── src/
+│   └── index.js
+├── package.json
+└── vertracloud.config
+```
+
+### package.json
+
+```json
+{
+  "name": "my-bot-discord",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+### Example
+
+```javascript
+const { Client, GatewayIntentBits } = require('discord.js');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
+client.once('ready', () => {
+  console.log(`Bot online as ${client.user.tag}`);
+});
+
+client.on('messageCreate', (message) => {
+  if (message.author.bot) return;
+  if (message.content === '!ping') {
+    message.reply('Pong! ');
+  }
+});
+
+client.login(process.env.DISCORD_TOKEN);
+```
+
+---
+
+## Discord.py (Python)
+
+### Structure
+
+```
+my-bot-py/
+├── main.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+### requirements.txt
+
+```txt
+discord.py==2.3.2
+```
+
+### vertracloud.config
+
+```ini
+MAIN=main.py
+VERSION=recommended
+```
+
+### Example
+
+```python
+import discord
+import os
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+client = discord.Client(intents=intents)
+
+@client.event
+async def on_ready():
+    print(f'Bot online as {client.user}')
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+    if message.content == '!ping':
+        await message.channel.send('Pong! ')
+
+client.run(os.environ['DISCORD_TOKEN'])
+```
+
+## Deploy
+
+<Steps>
+  <Step title="Configure environment variables">
+    After creating the application, add `DISCORD_TOKEN` in environment variables with your bot token.
+  </Step>
+  <Step title="Select BOT type">
+    In the creation wizard, select **Bot** type (not Website). Bots don't need HTTP port.
+  </Step>
+  <Step title="Enable auto-restart">
+    Activate **auto-restart** so the bot automatically returns in case of disconnection or error.
+  </Step>
+  <Step title="Check logs">
+    After deployment, monitor logs to confirm the bot is online.
+  </Step>
+</Steps>
+
+<Warning>
+  Never include the bot token directly in the code. Use environment variables for sensitive data.
+</Warning>
+
+## Available Versions
+
+### Node.js
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+### Python
+| Version | Status | Description |
+|--------|--------|-----------|
+| 3.13 | Recommended | Python 3.13 LTS (recommended for production) |
+| 3.13 | Latest | Python 3.13 (latest version) |
+| 3.12 | Stable | Python 3.12 with extended support |
+| 3.11 | Legacy | Python 3.11 with limited support |
+
+## Notes
+
+- **Bot Type**: Always select **Bot** when creating the application (not Website)
+- **Environment variables**: Configure `DISCORD_TOKEN` in the application's variables
+- **Auto-restart**: Essential to keep the bot online in case of disconnection
+- **Memory**: 256MB is enough for simple bots, 512MB+ for complex ones
+- **Logs**: Use `console.log()` (JS) or `logging` (Python) to monitor in real-time
+- **Polling**: Both libraries use polling, which is simpler but consumes more resources than webhooks

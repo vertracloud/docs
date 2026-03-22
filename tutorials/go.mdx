@@ -1,0 +1,103 @@
+---
+title: 'Go'
+description: 'Deploy Go applications to Vertra Cloud.'
+icon: 'golang'
+---
+
+## Requirements
+
+- Go 1.21+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-server-go/
+├── main.go
+├── go.mod
+├── go.sum
+└── vertracloud.config
+```
+
+## Configuration
+
+### go.mod
+
+```go
+module my-server-go
+
+go 1.21
+```
+
+### vertracloud.config
+
+```ini
+MAIN=main.go
+VERSION=recommended
+```
+
+## Example: HTTP Server
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+)
+
+func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Hello from Go on Vertra Cloud!",
+		})
+	})
+
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "healthy",
+		})
+	})
+
+	fmt.Printf("Server running on port %s\n", port)
+	http.ListenAndServe("0.0.0.0:"+port, nil)
+}
+```
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 1.23 | Recommended | Go 1.23 (recommended for production) |
+| 1.23 | Latest | Go 1.23 (latest version) |
+| 1.22 | Stable | Go 1.22 with extended support |
+| 1.21 | Legacy | Go 1.21 with limited support |
+
+## Deploy
+
+1. Make sure `go.mod` and `go.sum` are at root
+2. Compress the project into ZIP (without `vendor` directory if present)
+3. Select **Go** as language in the wizard
+4. Configure desired memory
+5. Click **"Create Application"**
+
+<Note>
+  The platform compiles Go code automatically inside the container. No need to build locally.
+</Note>
+
+## Notes
+
+- **Automatic compilation**: Go is compiled inside the container during deployment
+- Use `os.Getenv("PORT")` to capture the correct port
+- Listen on `0.0.0.0` to accept external connections
+- **Recommended memory**: 256MB for simple servers
+- Dependencies are downloaded automatically via `go mod download`

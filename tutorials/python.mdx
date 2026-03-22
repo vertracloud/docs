@@ -1,0 +1,137 @@
+---
+title: 'Python'
+description: 'Deploy Python applications to Vertra Cloud.'
+icon: 'python'
+---
+
+## Requirements
+
+- Python 3.x installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+- `requirements.txt` file at project root
+
+## Project Structure
+
+```
+my-project/
+├── main.py
+├── requirements.txt
+└── vertracloud.config  (optional)
+```
+
+## Configuration
+
+### requirements.txt
+
+List all project dependencies:
+
+```txt
+flask==3.0.0
+gunicorn==21.2.0
+requests==2.31.0
+```
+
+<Note>
+  The platform automatically runs `pip install -r requirements.txt`. Do not include `venv` or `__pycache__` in the upload.
+</Note>
+
+### vertracloud.config (Optional)
+
+```ini
+MAIN=main.py
+VERSION=recommended
+```
+
+## Example: Discord Bot (discord.py)
+
+```python
+import discord
+import os
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+client = discord.Client(intents=intents)
+
+@client.event
+async def on_ready():
+    print(f'{client.user} is online!')
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+    if message.content == '!ping':
+        await message.send('Pong!')
+
+client.run(os.environ['DISCORD_TOKEN'])
+```
+
+## Example: Flask API
+
+```python
+from flask import Flask, jsonify
+import os
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return jsonify({'message': 'Hello from Vertra Cloud!'})
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 80))
+    app.run(host='0.0.0.0', port=port)
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Exclude `venv`, `.cache` and `__pycache__` from the project
+    2. Compress into a ZIP file
+    3. Access **Dashboard → New Project → Application**
+    4. Select **Python** language and upload
+    5. Configure memory and Python version
+    6. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Make sure `requirements.txt` is at root
+    2. Select **"GitHub"** as source in the creation wizard
+    3. Choose the repository and configure resources
+  </Tab>
+</Tabs>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 3.13 | Recommended | Python 3.13 LTS (recommended for production) |
+| 3.13 | Latest | Python 3.13 (latest version) |
+| 3.12 | Stable | Python 3.12 with extended support |
+| 3.11 | Legacy | Python 3.11 with limited support |
+
+## Notes
+
+- **Dependencies** are automatically installed via `pip install -r requirements.txt`
+- For **Discord bots**, set the token as environment variable `DISCORD_TOKEN` in the dashboard
+- For **web APIs**, listen on port `PORT` and host `0.0.0.0`
+- **Poetry** and **pipenv** are not natively supported; use `requirements.txt`
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError">
+    Check if the module is listed in `requirements.txt` with the correct version.
+  </Accordion>
+  <Accordion title="SyntaxError: invalid syntax">
+    Make sure you are using the correct Python version. Python 3.10+ code may not work on earlier versions.
+  </Accordion>
+  <Accordion title="Bot doesn't connect to Discord">
+    Check if environment variable `DISCORD_TOKEN` is configured in the application's environment variables.
+  </Accordion>
+</AccordionGroup>

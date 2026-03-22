@@ -1,0 +1,111 @@
+---
+title: 'Tutorials'
+description: 'Step-by-step guides to deploy applications on Vertra Cloud using different languages and frameworks.'
+---
+
+## Deploy Guides
+
+Learn how to host your application on Vertra Cloud with language and framework-specific guides. Each tutorial covers project structure, necessary configuration and the complete deployment process.
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js" href="/tutorials/nodejs">
+    Node.js applications with or without framework.
+  </Card>
+  <Card title="Python" icon="python" href="/tutorials/python">
+    Python scripts, bots and APIs.
+  </Card>
+  <Card title="Express.js" icon="node-js" href="/tutorials/expressjs">
+    REST APIs with Express.js.
+  </Card>
+  <Card title="Fastify" icon="bolt" href="/tutorials/fastify">
+    High-performance APIs with Fastify.
+  </Card>
+  <Card title="Next.js" icon="react" href="/tutorials/nextjs">
+    React applications with SSR and SSG.
+  </Card>
+  <Card title="Go" icon="golang" href="/tutorials/go">
+    APIs and services in Go.
+  </Card>
+  <Card title="Static Sites" icon="file-code" href="/tutorials/static">
+    HTML, CSS and pure JavaScript.
+  </Card>
+  <Card title="Discord Bots" icon="discord" href="/tutorials/discord-bot">
+    Bots for Discord with discord.js or discord.py.
+  </Card>
+</CardGroup>
+
+## Common Structure
+
+Regardless of the framework chosen, every deployment on Vertra Cloud follows the same structure:
+
+<Steps>
+  <Step title="Prepare the project">
+    Organize files and configure the main file and startup command.
+  </Step>
+  <Step title="Configure (optional)">
+    Create the `vertracloud.config` file with desired settings.
+  </Step>
+  <Step title="Upload">
+    Send the code via ZIP, GitHub or VSCode extension.
+  </Step>
+  <Step title="Verify">
+    Monitor logs and application status in the dashboard.
+  </Step>
+</Steps>
+
+## `vertracloud.config` File
+
+The configuration file is optional but recommended. It must be at the project root:
+
+```ini
+MAIN=index.js
+START=npm start
+SUBDOMAIN=my-app
+VERSION=recommended
+MEMORY=512
+AUTORESTART=true
+```
+
+| Field | Description | Required |
+|-------|-----------|:-----------:|
+| `MAIN` | Application's main file | Yes |
+| `START` | Custom startup command | No |
+| `SUBDOMAIN` | Custom subdomain | No |
+| `VERSION` | Runtime version (`recommended`, `latest`) | No |
+| `MEMORY` | Memory in MB | No |
+| `AUTORESTART` | Auto-restart on crash | No |
+
+## Application Port
+
+Web applications must listen on the port defined by the `PORT` environment variable. The platform automatically injects this variable into the container.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```javascript
+    const port = process.env.PORT || 80;
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server running on port ${port}`);
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+    port = int(os.environ.get('PORT', 80))
+    app.run(host='0.0.0.0', port=port)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "80"
+    }
+    http.ListenAndServe("0.0.0.0:"+port, nil)
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Always use `0.0.0.0` as host instead of `localhost` or `127.0.0.1`. Inside the container, binding must be on all interfaces for external traffic to reach the application.
+</Warning>

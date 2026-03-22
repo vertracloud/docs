@@ -1,0 +1,156 @@
+---
+title: 'Express.js'
+description: 'Deploy Express.js applications to Vertra Cloud.'
+icon: 'server'
+---
+
+## Requirements
+
+- Node.js installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-api/
+├── src/
+│   ├── index.js
+│   ├── routes/
+│   │   └── users.js
+│   └── middleware/
+│       └── auth.js
+├── package.json
+└── vertracloud.config
+```
+
+## Configuration
+
+### package.json
+
+```json
+{
+  "name": "my-api",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+## Complete Example
+
+```javascript
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+const port = process.env.PORT || 80;
+
+// Middlewares
+app.use(cors());
+app.use(express.json());
+
+// Routes
+app.get('/', (req, res) => {
+  res.json({ message: 'API online on Vertra Cloud' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', uptime: process.uptime() });
+});
+
+app.get('/api/users', (req, res) => {
+  res.json({ users: [] });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// Start server
+app.listen(port, '0.0.0.0', () => {
+  console.log(`API running on port ${port}`);
+});
+```
+
+<Warning>
+  Always use `'0.0.0.0'` as host in `app.listen()`. The default `localhost` binding does not accept external connections inside the container.
+</Warning>
+
+## Deploy
+
+1. Exclude `node_modules` from the project
+2. Compress into ZIP or connect via GitHub
+3. In the creation wizard, select **Node.js** as language
+4. Configure memory (256MB is enough for simple APIs)
+5. Set environment variables if needed
+6. Click **"Create Application"**
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+## Connecting to a Database
+
+<Tabs>
+  <Tab title="PostgreSQL">
+    ```javascript
+    const { Pool } = require('pg');
+
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+    ```
+  </Tab>
+  <Tab title="MongoDB">
+    ```javascript
+    const { MongoClient } = require('mongodb');
+
+    const client = new MongoClient(process.env.MONGODB_URI, {
+      tls: true,
+      tlsCAFile: process.env.MONGO_CA_PATH
+    });
+    ```
+  </Tab>
+  <Tab title="Redis">
+    ```javascript
+    const { createClient } = require('redis');
+
+    const client = createClient({
+      url: process.env.REDIS_URL
+    });
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Create the database on Vertra Cloud and use the provided credentials as environment variables.
+</Note>
+
+## Notes
+
+- For **TypeScript** applications, compile before deployment and point `MAIN` to the compiled `.js` file
+- Use **environment variables** for database configuration and secrets
+- Enable **auto-restart** for production APIs
+- Configure a `/health` endpoint for monitoring

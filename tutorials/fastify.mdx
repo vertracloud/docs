@@ -1,0 +1,119 @@
+---
+title: 'Fastify'
+description: 'Deploy high-performance APIs with Fastify to Vertra Cloud.'
+icon: bolt
+---
+
+<img src="/images/logos/fastify.svg" width="200" />
+
+## Requirements
+
+- Node.js installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-api-fastify/
+├── src/
+│   ├── server.js
+│   └── routes/
+│       └── index.js
+├── package.json
+└── vertracloud.config
+```
+
+## Configuration
+
+### package.json
+
+```json
+{
+  "name": "my-api-fastify",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0",
+    "@fastify/cors": "^10.0.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/server.js
+START=npm start
+VERSION=recommended
+```
+
+## Complete Example
+
+```javascript
+const fastify = require('fastify')({ logger: true });
+const cors = require('@fastify/cors');
+
+// Plugins
+fastify.register(cors, { origin: '*' });
+
+// Routes
+fastify.get('/', async (request, reply) => {
+  return { message: 'Fastify on Vertra Cloud!' };
+});
+
+fastify.get('/health', async (request, reply) => {
+  return { status: 'healthy', uptime: process.uptime() };
+});
+
+// Start server
+const start = async () => {
+  try {
+    const port = process.env.PORT || 80;
+    await fastify.listen({ port, host: '0.0.0.0' });
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();
+```
+
+<Warning>
+  Use `host: '0.0.0.0'` in `fastify.listen()`. Fastify by default listens only on `localhost`, preventing external connections inside the container.
+</Warning>
+
+## Deploy
+
+1. Exclude `node_modules` from the project
+2. Compress into ZIP or connect via GitHub
+3. Select **Node.js** as language
+4. Configure memory (256MB for simple APIs, 512MB+ for heavy processing APIs)
+5. Click **"Create Application"**
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+## Differences from Express
+
+| Aspect | Express | Fastify |
+|--------|---------|---------|
+| Performance | Good | Superior (up to 2x faster) |
+| Validation | Manual or middleware | Built-in with JSON Schema |
+| Plugins | Simple middleware | Encapsulated plugin system |
+| TypeScript | Via @types | Native support |
+
+## Notes
+
+- Fastify has **built-in schema validation** — use it to ensure request integrity
+- For **TypeScript**, compile to JavaScript before deployment
+- The **built-in logger** from Fastify appears in dashboard real-time logs
+- Enable **auto-restart** for production applications

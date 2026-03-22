@@ -1,0 +1,114 @@
+---
+title: 'Next.js'
+description: 'Deploy Next.js applications with SSR and SSG to Vertra Cloud.'
+icon: 'react'
+---
+
+## Requirements
+
+- Node.js 18+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-app-next/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   └── components/
+├── public/
+├── next.config.js
+├── package.json
+└── vertracloud.config
+```
+
+## Configuration
+
+### next.config.js
+
+For deployment on Vertra Cloud, configure `standalone` mode to optimize build size:
+
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone',
+};
+
+module.exports = nextConfig;
+```
+
+### package.json
+
+```json
+{
+  "name": "my-app-next",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p $PORT"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=package.json
+START=npm run build && npm start
+VERSION=recommended
+```
+
+<Warning>
+  Next.js needs to be compiled before starting. Use `npm run build && npm start` as startup command. Compilation happens inside the container.
+</Warning>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. Exclude `node_modules` and `.next` from the project
+    2. Compress into ZIP
+    3. Select **Node.js** as language
+    4. Configure at least **512MB** of memory (build is resource-intensive)
+    5. Set `START=npm run build && npm start`
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Configure `output: 'standalone'` in `next.config.js`
+    2. Connect via GitHub in the creation wizard
+    3. Allocate at least 512MB of memory
+  </Tab>
+</Tabs>
+
+## Notes
+
+- **Recommended memory**: 512MB or more (build process is intensive)
+- **Environment variables**: Configure via dashboard before first build
+- Use `output: 'standalone'` to reduce build size
+- **API Routes** from Next.js work normally on the platform
+- Port is injected via `PORT` — use `next start -p $PORT`
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Build fails due to lack of memory">
+    Increase application memory to at least 512MB. Next.js build process is memory-intensive.
+  </Accordion>
+  <Accordion title="Page returns 404">
+    Check if `output: 'standalone'` is configured and if the build completed successfully in logs.
+  </Accordion>
+</AccordionGroup>

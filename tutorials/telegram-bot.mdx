@@ -1,0 +1,298 @@
+---
+title: 'Telegram Bots'
+description: 'Deploy bots for Telegram using Node.js or Python on Vertra Cloud.'
+icon: 'telegram'
+---
+
+## Overview
+
+Vertra Cloud is ideal for hosting Telegram bots, offering continuous uptime with auto-restart and real-time log monitoring.
+
+<Warning>
+  When creating the application for a bot, select the **Bot** type (not Website). Bots don't need exposed HTTP port.
+</Warning>
+
+## Node.js with node-telegram-bot-api
+
+### Structure
+
+```
+my-bot-telegram-js/
+├── src/
+│   └── index.js
+├── package.json
+└── vertracloud.config
+```
+
+### package.json
+
+```json
+{
+  "name": "my-bot-telegram-js",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.63.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+### Example (Node.js)
+
+```javascript
+const TelegramBot = require('node-telegram-bot-api');
+
+const token = process.env.BOT_TOKEN;
+if (!token) {
+  throw new Error('BOT_TOKEN environment variable is required');
+}
+
+const bot = new TelegramBot(token, { polling: true });
+
+// /start command
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  const replyMarkup = {
+    keyboard: [
+      [{ text: ' Hello' }, { text: '❓ Help' }],
+      [{ text: 'Information' }]
+    ],
+    resize_keyboard: true
+  };
+
+  bot.sendMessage(chatId, 'Welcome to the bot! Choose an option:', {
+    reply_markup: replyMarkup
+  });
+});
+
+// /help command
+bot.onText(/\/help|❓ Help/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `
+Available commands:
+/start - Start the bot
+/help - Show this help
+/info - Bot information
+  `);
+});
+
+// /info command
+bot.onText(/\/info|Information/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, 'This is an example bot on Vertra Cloud!');
+});
+
+// Respond to text messages
+bot.on('message', (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+
+  if (text === ' Hello') {
+    bot.sendMessage(chatId, 'Hello! How can I help you?');
+  } else if (text && !text.startsWith('/')) {
+    // Echo message
+    bot.sendMessage(chatId, `You said: ${text}`);
+  }
+});
+
+// Error handling
+bot.on('polling_error', (error) => {
+  console.error('Polling error:', error.message);
+});
+
+console.log('Bot started and waiting for messages...');
+```
+
+---
+
+## Python with python-telegram-bot
+
+### Structure
+
+```
+my-bot-telegram-py/
+├── main.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+### requirements.txt
+
+```txt
+python-telegram-bot==20.3
+python-dotenv==1.0.0
+```
+
+### vertracloud.config
+
+```ini
+MAIN=main.py
+VERSION=recommended
+```
+
+### Example (Python)
+
+```python
+import os
+import logging
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+
+# Logging configuration
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+if not BOT_TOKEN:
+    raise ValueError('BOT_TOKEN environment variable is required')
+
+# Handlers
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Start command"""
+    keyboard = [
+        [' Hello', '❓ Help'],
+        ['Information']
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text('Welcome to the bot! Choose an option:', reply_markup=reply_markup)
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Help command"""
+    help_text = """Available commands:
+/start - Start the bot
+/help - Show this help
+/info - Bot information
+"""
+    await update.message.reply_text(help_text)
+
+async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Info command"""
+    await update.message.reply_text('This is an example bot on Vertra Cloud!')
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle text messages"""
+    text = update.message.text
+
+    if text == ' Hello':
+        await update.message.reply_text('Hello! How can I help you?')
+    elif text == '❓ Help':
+        await help_command(update, context)
+    elif text == 'Information':
+        await info_command(update, context)
+    else:
+        # Echo
+        await update.message.reply_text(f'You said: {text}')
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle errors"""
+    logger.error(msg='Exception while handling an update:', exc_info=context.error)
+
+async def main() -> None:
+    """Start the bot"""
+    # Create the application
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    # Register handlers
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(CommandHandler('info', info_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Error handler
+    application.add_error_handler(error_handler)
+
+    # Start the bot
+    logger.info('Bot started and waiting for messages...')
+    await application.run_polling()
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Via Dashboard">
+    1. For **Node.js**: Exclude `node_modules` from the project
+    2. For **Python**: Exclude `venv` and `__pycache__`
+    3. Compress into a ZIP file
+    4. Access **Dashboard → New Project → Application**
+    5. Select language (**Node.js** or **Python**)
+    6. Upload the file
+    7. In the wizard, **select type: Bot** (not Website)
+    8. Configure memory (256MB for simple bots)
+    9. Click **"Create Application"**
+  </Tab>
+  <Tab title="Via GitHub">
+    1. Push the project to GitHub
+    2. Access **Dashboard → New Project → Application**
+    3. Select **"GitHub"** as source
+    4. Choose the repository and branch
+    5. **Select type: Bot**
+    6. Configure resources and click **"Create Application"**
+  </Tab>
+  <Tab title="Via VSCode">
+    1. Open the project in VSCode with Vertra Cloud extension installed
+    2. Press `Ctrl+Shift+P` and type **"Vertra: Deploy"**
+    3. Select or create the target application
+    4. **Select type: Bot**
+    5. Configure environment variables (BOT_TOKEN)
+    6. Wait for automatic deployment
+  </Tab>
+</Tabs>
+
+## Environment Variables Configuration
+
+<Steps>
+  <Step title="Get bot token">
+    Talk to @BotFather on Telegram to create a new bot and get the `BOT_TOKEN`.
+  </Step>
+  <Step title="Configure in dashboard">
+    After creating the application, add the environment variable:
+    - **Name**: `BOT_TOKEN`
+    - **Value**: (your @BotFather token)
+  </Step>
+  <Step title="Check logs">
+    Monitor the logs after deployment to confirm the bot is online and connected.
+  </Step>
+</Steps>
+
+## Available Versions
+
+### Node.js
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+### Python
+| Version | Status | Description |
+|--------|--------|-----------|
+| 3.13 | Recommended | Python 3.13 LTS (recommended for production) |
+| 3.13 | Latest | Python 3.13 (latest version) |
+| 3.12 | Stable | Python 3.12 with extended support |
+
+## Notes
+
+- **Bot Type**: Always select **Bot** when creating the application (not Website)
+- **Environment variables**: Configure `BOT_TOKEN` in the application's variables
+- **Auto-restart**: Essential to keep the bot online in case of disconnection
+- **Memory**: 256MB is enough for simple bots, 512MB+ for complex ones
+- **Logs**: Use `console.log()` (JS) or `logging` (Python) to monitor in real-time
+- **Polling**: Both libraries use polling, which is simpler but uses more resources than webhooks
