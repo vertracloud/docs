@@ -1,0 +1,107 @@
+---
+title: Restore Application Snapshot
+sidebarTitle: Restore Snapshot
+api: POST https://api.vertracloud.app/v1/users/{id}/snapshots/{snapshot_id}/restore
+authMethod: bearer
+description: Restores a specified snapshot to an application or database, then automatically rebuilds/restarts the resource.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the application or database to restore the snapshot to.
+</ParamField>
+
+<ParamField path="snapshot_id" type="string" required>
+  The ID of the snapshot to restore.
+</ParamField>
+
+<ParamField query="scope" type="string" required>
+  The resource type. Possible values: `applications`, `databases`.
+</ParamField>
+
+<ParamField body="resource_id" type="string">
+  Optional. Override the target resource for cross-resource restore. If omitted, restores to the resource specified by `id`.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  Confirmation that the restoration process was triggered.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="message" type="string">
+    A message confirming the restore was started.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "message": "Restoration started and rebuild triggered"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `USER_NOT_FOUND`: The authenticated user was not found.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `DATABASE_NOT_FOUND`: The specified database does not exist.
+  - `ACCESS_DENIED`: The user does not own the resource or snapshot.
+  - `RESTORE_COOLDOWN`: A restore operation was recently performed on this resource. Wait before retrying.
+  - `TYPE_MISMATCH`: The snapshot resource type does not match the target resource type.
+  - `SNAPSHOT_NOT_FOUND`: The specified snapshot does not exist.
+  - `UNKNOWN_ERROR`: An unexpected error occurred in the wing.
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "SNAPSHOT_NOT_FOUND"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RESTORE_COOLDOWN"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "TYPE_MISMATCH",
+  "message": "Cannot restore snapshot to a different resource type"
+}
+```
+
+</ResponseExample>
