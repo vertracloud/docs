@@ -2,7 +2,7 @@
 
 Documentação oficial da [Vertra Cloud](https://vertracloud.app) — plataforma de hospedagem para bots, APIs e sites.
 
-Publicada em: **docs.vertracloud.app**
+Publicada em: [Vertra Cloud Docs](https://docs.vertracloud.app)**
 
 ## Estrutura
 
