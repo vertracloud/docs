@@ -286,12 +286,14 @@ Upload do código → Instalação de dependências → Inicialização do conta
 - 1 porta exposta por aplicação
 
 ### Arquivos para Excluir do ZIP
-- **JavaScript/TypeScript**: `node_modules`, `.npm`, `package-lock.json`, `.next`, `dist`
+- **JavaScript/TypeScript**: `node_modules`, `.npm`, `package-lock.json`, `.next`
 - **Python**: `venv`, `.venv`, `.cache`, `__pycache__`, `.env`
 - **Go**: `vendor`
 - **Rust**: `target`
-- **Java**: `target`, `.gradle`, `build`
+- **Java**: `target`, `.gradle`
 - **PHP/Ruby**: `vendor`
+
+> `dist/` e `build/` (saída de build) **não** são removidos automaticamente — se o seu `main`/`start` apontar pra dentro deles (comum em projetos que fazem bundle antes do deploy), a plataforma precisa desses arquivos. Só exclua-os do zip se o entry point real estiver fora deles.
 
 ---
 
@@ -373,23 +375,39 @@ Authorization: Bearer SEU_TOKEN
 | GET | `/v1/apps/{id}/realtime` | Logs em tempo real (SSE stream) |
 | GET | `/v1/apps/{id}/metrics` | Métricas das últimas 24h |
 | GET | `/v1/apps/{id}/download` | Download da app como ZIP |
-| POST | `/v1/apps/{id}/commit` | Upload de novo snapshot |
-| GET | `/v1/apps/{id}/commits` | Listar snapshots |
-| POST | `/v1/apps/{id}/commit/{cid}/revert` | Reverter para snapshot |
 | GET | `/v1/apps/{id}/envs` | Listar variáveis de ambiente |
 | POST | `/v1/apps/{id}/envs` | Criar/editar variáveis |
+| PUT | `/v1/apps/{id}/envs` | Atualizar uma variável de ambiente (por ID) |
+| DELETE | `/v1/apps/{id}/envs` | Deletar variáveis de ambiente (array de chaves) |
 | GET | `/v1/apps/{id}/files` | Gerenciador — listar arquivos |
 | GET | `/v1/apps/{id}/files/content` | Conteúdo de um arquivo |
 | PUT | `/v1/apps/{id}/files` | Criar/atualizar arquivo |
+| PATCH | `/v1/apps/{id}/files` | Mover arquivo ou pasta |
 | DELETE | `/v1/apps/{id}/files` | Deletar arquivo/pasta |
+| POST | `/v1/apps/{id}/files/upload` | Upload de ZIP para a aplicação (substitui conteúdo) |
+| GET | `/v1/apps/{app_id}/deploys` | Listar 20 deploys mais recentes (integração GitHub) |
+| POST | `/v1/apps/{app_id}/deploys/webhooks` | Criar webhook de deploy automático (GitHub) |
+| GET | `/v1/apps/{app_id}/deploys/webhook` | Obter URL e dados do webhook de deploy |
+| DELETE | `/v1/apps/{app_id}/deploys/webhook` | Deletar webhook de deploy |
 | POST | `/v1/apps/{id}/network/custom` | Adicionar domínio personalizado |
-| GET | `/v1/apps/{id}/network/dns` | Obter registros DNS |
+| GET | `/v1/apps/{id}/network/dns` | Obter registros DNS (CNAME + TXT, com status de validação) |
+| POST | `/v1/apps/{app_id}/network/purge-cache` | Limpar cache do subdomínio ou domínio personalizado |
+
+#### Snapshots
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/v1/users/{id}/snapshots?scope=applications\|databases` | Listar snapshots do recurso |
+| GET | `/v1/users/{id}/snapshots/{snapshot_id}/download?scope=` | Download do snapshot como ZIP |
+| POST | `/v1/users/{id}/snapshots/{snapshot_id}/restore?scope=` | Restaurar snapshot (recria/reinicia o recurso) |
+
+> O parâmetro `scope` é obrigatório e aceita `applications` ou `databases`. O campo `id` é o ID do app ou banco. A restauração suporta `resource_id` no body para restaurar em outro recurso do mesmo tipo. Cooldown de restauração: erro `RESTORE_COOLDOWN` (HTTP 429).
 
 #### Bancos de Dados
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | POST | `/v1/databases` | Criar banco de dados |
 | GET | `/v1/databases/{id}` | Detalhes do banco |
+| PUT | `/v1/databases/{id}` | Atualizar nome ou descrição do banco |
 | POST | `/v1/databases/{id}/start` | Iniciar banco |
 | POST | `/v1/databases/{id}/stop` | Parar banco |
 | POST | `/v1/databases/{id}/restart` | Reiniciar banco |
@@ -432,7 +450,7 @@ Authorization: Bearer SEU_TOKEN
 #### Serviços
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| GET | `/v1/status` | Status da infraestrutura (sem autenticação) |
+| GET | `/v1/status` | Status da infraestrutura (sem autenticação). Retorna `status` (`healthy`, `unknown`, `degraded`) e `response` (mensagem descritiva) |
 
 ---
 
