@@ -1,0 +1,27 @@
+---
+title: 'v26.2 — August 2026'
+description: 'Snapshots of large projects now work, and projects are never deleted without a verified backup.'
+---
+
+## Backups & Automatic Deletion
+
+- **Projects are never deleted without a verified backup.** Plan expiry and the FREE cleanup job now create a snapshot first and only delete the resources whose snapshot completed. Anything that fails to back up is **stopped and kept in place** rather than deleted, and reported for manual review.
+- The FREE cleanup job previously deleted offline projects without creating any snapshot at all. It now takes one first.
+- Pre-deletion snapshots ignore the plan's backup permission — a project about to be removed is always backed up, regardless of tier.
+- **Snapshots of large projects now work.** The archive is uploaded straight from the host to storage instead of being relayed through the API, removing the size ceiling that made backups of bigger projects fail outright.
+- Snapshot archives no longer include reinstallable content (`node_modules`, virtualenvs, `vendor`, build caches) or git history, so they are considerably smaller.
+- A snapshot is only recorded once the archive is confirmed to exist in storage, and its reported size now comes from storage itself — a snapshot can no longer appear in your list without a real file behind it.
+
+## Validation & Error Messages
+
+- Endpoints taking a workspace, application, database or environment-variable ID now reject a malformed ID with a clear `400`, instead of failing with a generic internal error.
+- Updating an application or workspace with an empty body now returns a validation error instead of failing.
+- `start_command` is now limited to 512 characters at the moment you save it, instead of only failing later during a rebuild.
+- Uploading a corrupted or truncated `.zip` when creating an application now returns `INVALID_ZIP` instead of a generic internal error.
+- Writing a file over a path that already exists as a folder now returns `TARGET_IS_DIRECTORY` instead of a generic internal error.
+
+## Security
+
+- Hardened path resolution in the file manager: a symlink placed inside a project could previously redirect a newly created file outside the project's own volume.
+- Snapshot uploads are restricted to the storage host and bound to the request that authorized them, so an archive can only ever be written to its own intended destination.
+- Internal error reports no longer include database query parameters, which could contain user data.

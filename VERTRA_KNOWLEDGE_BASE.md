@@ -354,6 +354,13 @@ Authorization: Bearer SEU_TOKEN
 | MAX_DATABASES_REACHED | Limite de bancos atingido para o plano |
 | MEMORY_EXCEEDS_CREDITS_LIMIT | RAM excede o máximo do modo créditos |
 | FILE_TOO_LARGE | Upload excede 100 MB |
+| VALIDATION_ERROR | Corpo, parâmetro ou query inválido (o campo vem em `path`) |
+| INVALID_ZIP | O `.zip` enviado está corrompido, truncado ou não é um zip válido |
+| ZIP_TOO_SMALL | O `.zip` enviado tem menos de 100 bytes |
+| MAIN_FILE_NOT_FOUND | O arquivo principal informado não existe dentro do `.zip` |
+| NO_FIELDS_TO_UPDATE | Requisição de atualização sem nenhum campo para alterar |
+| TARGET_IS_DIRECTORY | O caminho informado já existe como pasta |
+| INVALID_PATH | Caminho de arquivo fora do projeto ou reservado pelo sistema |
 | SUBDOMAIN_ALREADY_IN_USE | Subdomínio já em uso |
 | RATE_LIMIT_EXCEEDED | Muitas requisições |
 | INTERNAL_SERVER_ERROR | Erro interno do servidor |
