@@ -1,0 +1,69 @@
+---
+title: Browse and Edit Keys
+sidebarTitle: Redis Keys
+api: GET https://api.vertracloud.app/v1/databases/{id}/data/keys
+authMethod: bearer
+description: Scans the keyspace, reads a key by type, writes a key, sets its TTL and deletes keys.
+---
+
+{/* @see APIDatabaseRedisKey, APIDatabaseRedisKeyValue — @vertracloud/api-types */}
+<Note>
+  Every `/data` endpoint needs the **Intermediary** plan or higher, on the **database owner's**
+  account — not the caller's. Below that the answer is `PLAN_RESTRICTED_FEATURE` (403).
+  It is also **dashboard-session only**: an API key gets `API_KEY_SCOPE_DENIED` (403) here, regardless of
+  its scopes.
+</Note>
+
+Redis only. There is **no arbitrary command endpoint**: the surface is `SCAN`, typed reads, typed
+writes, `UNLINK`, `EXPIRE`/`PERSIST` and `INFO`. `KEYS`, `FLUSHALL`, `FLUSHDB`, `CONFIG`, `DEBUG`,
+`SCRIPT` and `EVAL` are not reachable through the API.
+
+<ParamField path="id" type="string" required>The ID of the database.</ParamField>
+<ParamField query="pattern" type="string">Glob for `SCAN MATCH`. Defaults to `*`.</ParamField>
+<ParamField query="cursor" type="string">Cursor from the previous page. Numeric; anything else is rejected.</ParamField>
+<ParamField query="count" type="number">Hint for the scan batch. Maximum **200**.</ParamField>
+<ParamField query="workspace" type="string">Workspace the database belongs to.</ParamField>
+
+The listing always uses `SCAN`, never `KEYS` — `KEYS` blocks the customer's own Redis while it runs.
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+  <ResponseField name="keys" type="object[]">Each key with `key`, `type`, `ttl_seconds` (`null` = no expiry), `size_bytes` and, for collections, `length`.</ResponseField>
+  <ResponseField name="cursor" type="string">Cursor for the next page, or `null` when the scan finished.</ResponseField>
+  <ResponseField name="scanned" type="number">Keys returned in this batch.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Read one key
+
+<ParamField header="GET" type="string">`/v1/databases/{id}/data/keys/{key}`</ParamField>
+
+Returns `{ key, type, ttl_seconds, value, truncated }`, discriminated by `type`: `string` (string),
+`hash` (object), `list` / `set` / `stream` (array of strings), `zset` (array of `{ member, score }`).
+
+The read stops at **1000 items** or **1 MB**, whichever comes first, and `truncated` is `true` when it
+did. A truncated value is a partial read: writing it back replaces the key with only what you received.
+
+## Write, expire and delete
+
+Mutations require **owner** or **admin** in the workspace and are recorded in the activity log.
+
+<ParamField header="PUT" type="string">`/v1/databases/{id}/data/keys/{key}`</ParamField>
+
+Body: `{ key, type, value, ttl_seconds? }`. The key in the **URL** is the one written — a different
+`key` in the body is ignored. The write replaces the key rather than merging into it. Values are
+capped at 1 MB. Streams are read-only.
+
+<ParamField header="PUT" type="string">`/v1/databases/{id}/data/keys/{key}/expire`</ParamField>
+
+Body: `{ ttl_seconds }` — `null` means `PERSIST`.
+
+<ParamField header="DELETE" type="string">`/v1/databases/{id}/data/keys`</ParamField>
+
+Body: `{ keys }` — up to 200 keys, removed with `UNLINK`.
+
+All three answer `{ "response": { "affected": <number> } }`.

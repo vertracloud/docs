@@ -1,0 +1,61 @@
+---
+title: Browse and Edit Documents
+sidebarTitle: Documents
+api: GET https://api.vertracloud.app/v1/databases/{id}/data/collections/{name}/documents
+authMethod: bearer
+description: Reads a page of documents from a collection, and creates, replaces or deletes documents by _id.
+---
+
+{/* @see APIDatabaseDocumentsPage — @vertracloud/api-types */}
+<Note>
+  Every `/data` endpoint needs the **Intermediary** plan or higher, on the **database owner's**
+  account — not the caller's. Below that the answer is `PLAN_RESTRICTED_FEATURE` (403).
+  It is also **dashboard-session only**: an API key gets `API_KEY_SCOPE_DENIED` (403) here, regardless of
+  its scopes.
+</Note>
+
+MongoDB only.
+
+<ParamField path="id" type="string" required>The ID of the database.</ParamField>
+<ParamField path="name" type="string" required>Collection name, URL-encoded.</ParamField>
+<ParamField query="page" type="number">1-based page. Defaults to `1`.</ParamField>
+<ParamField query="per_page" type="number">Documents per page. Maximum **200**.</ParamField>
+<ParamField query="filter" type="string">
+  A MongoDB query document, JSON-encoded. Operators that execute JavaScript inside the server —
+  `$where`, `$function`, `$accumulator` — are rejected at any depth with `QUERY_REJECTED`.
+</ParamField>
+<ParamField query="sort" type="string">JSON object of `{ field: 1 | -1 }`.</ParamField>
+<ParamField query="workspace" type="string">Workspace the database belongs to.</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+  <ResponseField name="documents" type="object[]">The page of documents. `_id` is always returned as a string.</ResponseField>
+  <ResponseField name="total" type="number">Documents matching the filter.</ResponseField>
+  <ResponseField name="page" type="number">Page returned.</ResponseField>
+  <ResponseField name="per_page" type="number">Page size applied.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Create, replace and delete
+
+Mutations require **owner** or **admin** in the workspace and are recorded in the activity log —
+the operation and the collection, never the content. Bodies are capped at 1 MB.
+
+<ParamField header="POST" type="string">`/v1/databases/{id}/data/collections/{name}/documents`</ParamField>
+
+Body: `{ document }`.
+
+<ParamField header="PUT" type="string">`/v1/databases/{id}/data/collections/{name}/documents/{doc_id}`</ParamField>
+
+Body: `{ document }`. Replaces the document with that `_id`; `_id` itself is immutable and is ignored
+if present in the body.
+
+<ParamField header="DELETE" type="string">`/v1/databases/{id}/data/collections/{name}/documents`</ParamField>
+
+Body: `{ ids }` — up to 200 `_id` values.
+
+All three answer `{ "response": { "affected": <number> } }`.

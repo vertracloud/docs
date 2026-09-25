@@ -1,0 +1,119 @@
+---
+title: Attach Custom Domain to Application
+sidebarTitle: Attach Custom Domain
+api: POST https://api.vertracloud.app/v1/apps/{id}/network/custom
+authMethod: bearer
+description: Attaches a custom domain to an application by its ID.
+---
+
+{/* @see RESTPostAPIApplicationCustomDomainResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to attach the custom domain to.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<ParamField body="domain" type="string" required>
+  The custom domain to attach to the application (e.g., `example.com`). Between 1 and 253
+  characters. A scheme (`https://`), a path, a port or a leading `user@` are stripped before
+  validation, so `https://example.com/path` is accepted and stored as `example.com`.
+
+  To read the attached domain, call `GET /v1/apps/{id}/network/custom`, which returns the same
+  `{ "domain" }` object (`404 NO_CUSTOM_DOMAIN` when there is none). To remove a custom domain, call `DELETE /v1/apps/{id}/network/custom` — sending `"@"` here is
+  rejected with `INVALID_CUSTOM_DOMAIN_FORMAT`.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="domain" type="string">
+    The normalised domain that was attached (e.g., `example.com`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "domain": "example.com"
+  }
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Attaching a domain does not make it live on its own. Publish the DNS records returned by
+  [Custom Domain DNS Records](/api-reference/endpoint/apps/network/dns) — until the CNAME and the
+  TXT validation record resolve, the hostname stays `pending_validation`.
+</Note>
+
+<Note>
+  An application holds **one** custom domain. Sending a different domain replaces the current one:
+  the new hostname is created and stored first, and only then is the previous one detached — so a
+  failure never leaves the application without a domain. Sending the domain that is already
+  attached is idempotent and detaches nothing. The replaced domain stops resolving to the
+  application, and you are free to attach it elsewhere.
+</Note>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameter or the body failed validation (`400`). The response also
+    carries `message` and `path` pointing at the offending field.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN`: The owner's plan does not include custom domains (`403`).
+  - `INVALID_CUSTOM_DOMAIN_FORMAT`: The value is not a valid domain after normalisation (`400`).
+  - `FORBIDDEN_DOMAIN`: The domain is on the platform's blocklist and cannot be attached (`400`).
+  - `DOMAIN_ALREADY_IN_USE`: The domain is already attached to another application (`400`).
+  - `CUSTOM_DOMAIN_REGISTRATION_FAILED`: The domain could not be registered right now; retry later (`500`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "INVALID_CUSTOM_DOMAIN_FORMAT"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  A custom domain only works on a published application. If the application is private, turn web
+  publishing on first with
+  [Publish Application on the Web](/api-reference/endpoint/apps/network/publish) — and note that
+  unpublishing removes the custom domain again.
+</Note>
+
+<Note>
+  This route has its own budget of 10 requests per minute. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

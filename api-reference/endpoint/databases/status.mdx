@@ -1,0 +1,141 @@
+---
+title: Get Database Status by ID
+sidebarTitle: Get Database Status
+api: GET https://api.vertracloud.app/v1/databases/{id}/status
+authMethod: bearer
+description: Retrieves the current status and resource usage of a database by its ID.
+---
+
+{/* @see APIDatabaseStatus — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the database to retrieve status for. If the database belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the database belongs to a workspace, the workspace's ID. Required for workspace members acting on a database they don't own.
+</ParamField>
+
+<Note>
+  **A stopped database answers `200`, not an error.** The container of a stopped database does not exist — it is removed on stop — and that is a normal state, not a failure. The API returns `200` with `status: "stopped"`, `running: false` and every metric zeroed. Only a genuine failure to read the status returns `500`.
+</Note>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The status and resource usage details of the database.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The database ID.
+  </ResponseField>
+
+  <ResponseField name="cpu" type="string">
+    CPU usage percentage, already formatted (e.g., `12.30%`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    RAM usage, already formatted (e.g., `256.00 MB`).
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    Storage usage, already formatted (e.g., `512.00 MB`).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The database’s status: `running` or `stopped`.
+  </ResponseField>
+
+  <ResponseField name="running" type="boolean">
+    Indicates whether the database is currently running.
+  </ResponseField>
+
+  <ResponseField name="network" type="object">
+    Network usage details.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="total" type="string">
+      Total network traffic since the container started, inbound and outbound in one string.
+    </ResponseField>
+
+    <ResponseField name="now" type="string">
+      Current network traffic, inbound and outbound in one string.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="uptime" type="number">
+    The database’s uptime in seconds.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the database was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp when the database was last updated.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "db-abc123def456",
+    "cpu": "12.30%",
+    "ram": "256.00 MB",
+    "storage": "512.00 MB",
+    "status": "running",
+    "running": true,
+    "network": {
+      "total": "320.15KB ↓ 20.10KB ↑",
+      "now": "5.00KB ↑ 1.00KB ↓"
+    },
+    "uptime": 7200,
+    "created_at": "2026-03-09T15:51:47.234Z",
+    "updated_at": "2026-03-11T15:06:41.449Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `DATABASE_NOT_FOUND`: The specified database does not exist.
+  - `FORBIDDEN`: The user does not have permission to access the database.
+  - `INTERNAL_SERVER_ERROR`: The status could not be read. A stopped database is **not** this case — see the note above.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

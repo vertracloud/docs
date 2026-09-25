@@ -1,0 +1,45 @@
+---
+title: Create Role
+sidebarTitle: Create
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/roles
+authMethod: bearer
+description: Creates a custom role. Requires `roles:manage`.
+---
+
+{/* @see RESTPostAPIWorkspaceRoleBody, RESTPostAPIWorkspaceRoleResponse — @vertracloud/api-types */}
+Requires `roles:manage`. An API key needs the `workspaces:write` scope.
+
+<Note>
+  **Privilege escalation guard:** a non-owner can only grant a permission set they themselves
+  already hold. There's no separate check for "creating vs. editing" — without this,
+  `roles:manage` alone would let a member mint a role with every permission, including ones
+  they don't have.
+</Note>
+
+The number of roles a workspace can hold is capped by the owner's plan tier — **the 4 seed roles
+count against that cap.**
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+
+### Body
+
+<ParamField body="name" type="string" required>1–50 characters.</ParamField>
+<ParamField body="permissions" type="WorkspacePermission[]" required>
+  Subset of the 21-entry catalog. Must be a subset of the caller's own permissions unless the caller is the owner.
+</ParamField>
+<ParamField body="position" type="number">0–999, display order.</ParamField>
+
+### Response
+
+Same shape as a [List Roles](/api-reference/endpoint/workspaces/roles/list) row.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `roles:manage`. |
+| 403 | `WORKSPACE_PERMISSION_ESCALATION` | Caller isn't the owner and requested a permission they don't have. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |
+| 409 | `WORKSPACE_ROLE_LIMIT_REACHED` | Owner's plan tier's role cap is reached (seed roles included). |

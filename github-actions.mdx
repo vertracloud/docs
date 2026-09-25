@@ -1,0 +1,162 @@
+---
+title: 'Deploy to Vertra Cloud with GitHub Actions'
+sidebarTitle: 'GitHub Actions'
+description: 'Update a Vertra Cloud application on every push using the official vertracloud/github-action.'
+icon: 'github'
+---
+
+[`vertracloud/github-action`](https://github.com/vertracloud/github-action) is the official GitHub
+Action that uploads your repository to an existing Vertra Cloud application and restarts it. It
+wraps the same [CLI](/cli) binary used locally (`vertra deploy`), pinned to a release and verified
+by SHA-256, and runs on Linux and macOS runners (x64 and ARM64).
+
+<Note>
+  The Action **updates** an existing application — it does not create one. Create the application
+  first, either in the dashboard or with `POST /v1/apps`, then point the workflow at its ID.
+</Note>
+
+## Prerequisites
+
+- A Vertra Cloud application already created (any plan).
+- The application's ID, shown in the dashboard or via `GET /v1/apps/:id`.
+- A GitHub repository you can add secrets and workflows to.
+
+## 1. Create an API key with the minimum scopes
+
+Deploying uploads files and, by default, restarts the application afterward. In
+**Dashboard → Settings → API Keys**, create a key with:
+
+- **`apps:files`** — required, covers the file upload.
+- **`apps:write`** — required unless you set `restart: false` in the workflow (see
+  [variations](#variations) below); covers the restart.
+
+See [Scopes](/api-reference/introduction#scopes) for the full catalog if the application also
+needs other automation (environment variables, network) from the same key.
+
+## 2. Save the key and app ID as secrets
+
+In the repository, go to **Settings → Secrets and variables → Actions** and add:
+
+| Secret | Value |
+|---|---|
+| `VERTRA_API_KEY` | The API key from step 1 |
+| `VERTRA_APP_ID` | The application's ID |
+
+Never write the key directly in the workflow file — the Action also masks it in the logs, but the
+source of truth should always be a secret.
+
+## 3. Add the workflow
+
+Save this as `.github/workflows/deploy.yml`:
+
+```yaml .github/workflows/deploy.yml
+name: Deploy
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vertracloud/github-action@v1
+        with:
+          api-key: ${{ secrets.VERTRA_API_KEY }}
+          app-id: ${{ secrets.VERTRA_APP_ID }}
+```
+
+Push to `main` and follow the run under the repository's **Actions** tab. Files are merged: the
+upload overwrites matching paths, but files that only exist in the application (not in the
+repository) are left alone — deploying does not delete them.
+
+## Inputs
+
+| Input | Required | Default | Description |
+|---|:---:|---|---|
+| `api-key` | yes | — | Vertra Cloud API key. Always pass it from a secret. |
+| `app-id` | yes | — | ID of the existing application to update. |
+| `path` | no | `.` | Project directory to upload, relative to the repository root. |
+| `restart` | no | `true` | Restart the application once after the upload so the new files go live (`"true"`/`"false"`). Not related to auto-restart, which is always on. |
+| `cli-version` | no | `v0.1.0` | [CLI](/cli) release tag the Action downloads and runs. |
+
+The Action has no outputs: the step succeeds when the deploy succeeds and fails otherwise.
+
+## Variations
+
+### Update an existing app only on push to `main`
+
+This is the default behavior of the workflow above — `on.push.branches: [main]` is what limits
+runs to that branch. Pushes to any other branch don't trigger the job, since GitHub Actions only
+runs jobs that match the event filter.
+
+### Monorepo — deploy a subfolder
+
+Point `path` at the application's directory inside the repository; only that directory is
+uploaded, so you don't have to package the whole repo:
+
+```yaml
+      - uses: vertracloud/github-action@v1
+        with:
+          api-key: ${{ secrets.VERTRA_API_KEY }}
+          app-id: ${{ secrets.VERTRA_APP_ID }}
+          path: apps/api
+```
+
+Add a `.vertraignore` file inside that directory for extra exclusion patterns — `node_modules`,
+`.git`, `.github`, `.vscode`, `.venv`, `venv`, `vendor`, `target`, `.next` and `__pycache__` are
+already ignored by default.
+
+### Upload without restarting
+
+Set `restart: false` to only sync files — useful when you want to trigger the restart separately
+(for example, from another step or on a schedule). With this set, the API key only needs the
+`apps:files` scope:
+
+```yaml
+      - uses: vertracloud/github-action@v1
+        with:
+          api-key: ${{ secrets.VERTRA_API_KEY }}
+          app-id: ${{ secrets.VERTRA_APP_ID }}
+          restart: false
+```
+
+### Deploy after your tests
+
+Add the deploy step at the end of an existing job, after your test/build steps, so files are only
+sent when everything before it passed:
+
+```yaml
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm test
+      - uses: vertracloud/github-action@v1
+        with:
+          api-key: ${{ secrets.VERTRA_API_KEY }}
+          app-id: ${{ secrets.VERTRA_APP_ID }}
+```
+
+## Alternative: the deploy webhook
+
+Instead of running the CLI from a workflow, you can enable
+[automatic deploy from GitHub](/deploy-github#enable-automatic-deploy) directly on the
+application: Vertra Cloud registers a webhook on the repository itself and redeploys on every push
+to `main`/`master`, with no workflow file or secret needed. Use the Action instead when you want
+the deploy to run only after CI passes, need to deploy a subfolder, or want the upload to skip the
+restart.
+
+## Troubleshooting
+
+| Code | Cause |
+|---|---|
+| `403 API_KEY_SCOPE_DENIED` | The key is missing `apps:files` (upload) or `apps:write` (restart, when `restart: true`). `details.required` names the missing scope. |
+| `404 APP_NOT_FOUND` | `VERTRA_APP_ID` is wrong, or the key's account doesn't own that application. |
+| `401 API_KEY_INVALID` | `VERTRA_API_KEY` is missing, was rotated, or was pasted incorrectly into the secret. |
+| `413 PAYLOAD_TOO_LARGE` | The uploaded directory is larger than the upload limit. Check `path` isn't pointing at the whole monorepo, and that build artifacts aren't included. |
+| `400 STORAGE_FULL` | The application's volume has no space left for this upload. |
+| `409 OPERATION_IN_PROGRESS` | Another lifecycle operation (a manual restart, another deploy) is already running for the application. The step fails; re-run the job. |
+| `429 DEPLOY_RATE_LIMITED` | The account's hourly deploy budget for its plan was reached — see [Plans and limits](/plans-and-limits). `details.retry_after` says how long to wait. |
+| Checksum/download step fails | `cli-version` isn't a real [CLI release tag](https://github.com/vertracloud/cli/releases), or the runner OS/architecture isn't Linux/macOS x64/ARM64. |
+
+See the full [error code catalog](/api-reference/errors) for anything not listed here.

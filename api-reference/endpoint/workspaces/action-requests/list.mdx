@@ -1,0 +1,53 @@
+---
+title: List Action Requests
+sidebarTitle: List
+api: GET https://api.vertracloud.app/v1/workspaces/{id}/action-requests
+authMethod: bearer
+description: Lists pending/decided action requests. Requires `members:manage`; an API key needs the `workspaces:read` scope.
+---
+
+{/* @see APIWorkspaceActionRequest, RESTGetAPIWorkspaceActionRequestsResponse — @vertracloud/api-types */}
+<Note>
+  An API key needs the `workspaces:read` scope. Approving and rejecting stay dashboard-only:
+  deciding a request is a human call, including when the request came from an agent.
+</Note>
+
+Requires `members:manage`.
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+
+### Query
+
+<ParamField query="status" type="string">One of `pending`, `approved`, `rejected`, `expired`. Omitted = all.</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIWorkspaceActionRequest[]">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string" />
+  <ResponseField name="workspace_id" type="string" />
+  <ResponseField name="action" type="'app_delete' | 'database_delete' | 'snapshot_create' | 'snapshot_restore'" />
+  <ResponseField name="resource_type" type="'application' | 'database'" />
+  <ResponseField name="resource_id" type="string" />
+  <ResponseField name="resource_name" type="string | null" />
+  <ResponseField name="params" type="object">The parameters persisted at request time — this, not anything sent on approve, is what runs.</ResponseField>
+  <ResponseField name="status" type="'pending' | 'approved' | 'rejected' | 'expired'" />
+  <ResponseField name="requested_by" type="object">`{ id, display_name }`.</ResponseField>
+  <ResponseField name="decided_by" type="object | null">`{ id, display_name }`, `null` while `pending`.</ResponseField>
+  <ResponseField name="decided_at" type="string | null" format="date-time" />
+  <ResponseField name="expires_at" type="string" format="date-time">24h after creation.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time" />
+
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key that lacks the `workspaces:read` scope. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `members:manage`. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |

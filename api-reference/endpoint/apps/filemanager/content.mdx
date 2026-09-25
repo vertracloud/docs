@@ -1,0 +1,109 @@
+---
+title: Get Application File Content
+sidebarTitle: Get File Content
+api: GET https://api.vertracloud.app/v1/apps/{id}/files/content
+authMethod: bearer
+description: Retrieves the content of a specific file for an application by its ID.
+---
+
+{/* @see APIApplicationFileContent — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the application to retrieve the file content from. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Members with an Owner, Admin or Developer role can use the file manager on a workspace app they don't own; without this, only the app's own owner can.
+</ParamField>
+
+<ParamField query="path" type="string" required>
+  The path to the file whose content is to be retrieved.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The content of the requested file.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="type" type="string">
+    Always `"base64"`.
+  </ResponseField>
+
+  <ResponseField name="data" type="string">
+    The file content, encoded as standard base64 (with padding).
+  </ResponseField>
+
+  <ResponseField name="size" type="number">
+    The file size in bytes. This is the real byte size of the file, not the length of the base64 string.
+  </ResponseField>
+
+  <ResponseField name="last_modified" type="string" format="date-time">
+    The file's mtime. Send this value back in the body of [`PUT /files`](/api-reference/endpoint/apps/filemanager/save) as `last_modified` to detect edit conflicts.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "type": "base64",
+    "data": "SGVsbG8gV29ybGQ=",
+    "size": 11,
+    "last_modified": "2026-03-14T19:58:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN` / `ACCESS_DENIED`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `PLAN_RESTRICTED_FEATURE`: The user's plan does not support file manager access.
+  - `MISSING_PATH`: The path query parameter was not provided.
+  - `FILE_NOT_FOUND`: The requested file does not exist.
+  - `FILE_TOO_LARGE`: The file exceeds the 10 MB limit for content retrieval.
+  - `FILE_CONTENT_ERROR`: Failed to retrieve the file content.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "FILE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "FILE_TOO_LARGE",
+  "message": "File exceeds the 10 MB limit for content retrieval"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "MISSING_PATH",
+  "message": "Path query parameter is required"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,132 @@
+---
+title: 'Personal Resource Organization'
+sidebarTitle: 'Folders and favorites'
+description: 'Create individual folders and favorites to organize your account applications and databases.'
+---
+This API organizes your personal view of applications and databases. It doesn't change the
+resource or create a configuration shared with other people.
+
+## Scope and reading
+
+Use a Bearer token. Personal organization is returned in
+[`GET /v1/users/me`](/api-reference/endpoint/users/me), in the
+`response.resource_organization` field.
+
+An API key needs `account:read` to read the profile and `account:write` to change personal
+organization.
+
+Folders and favorites only accept these resource types:
+
+| `resource_type` | Resource |
+|---|---|
+| `application` | Application |
+| `database` | Database |
+
+Folder colors are `neutral`, `red`, `orange`, `yellow`, `green`, `blue` and `purple`.
+
+## Create a folder
+
+```http
+POST /v1/users/me/folders
+```
+
+```json
+{
+  "name": "Active projects",
+  "color": "blue",
+  "position": 0
+}
+```
+
+`name` is required. `color` and `position` are optional. The response contains the created folder
+in `response`.
+
+## Rename, recolor or reorder a folder
+
+```http
+PATCH /v1/users/me/folders/{folder_id}
+```
+
+Send one or more fields:
+
+```json
+{
+  "name": "Published projects",
+  "color": "green",
+  "position": 1
+}
+```
+
+`folder_id` is the personal folder's ID. The response contains the updated folder in `response`.
+
+## Delete a folder
+
+```http
+DELETE /v1/users/me/folders/{folder_id}
+```
+
+Deleting removes the folder and its organization links; it doesn't delete the applications or
+databases.
+
+## Put a resource in a folder
+
+```http
+PUT /v1/users/me/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Parameters:
+
+| Parameter | Values |
+|---|---|
+| `folder_id` | Personal folder ID |
+| `resource_type` | `application` or `database` |
+| `resource_id` | Application or database ID |
+
+The body can contain the resource's position within the folder:
+
+```json
+{
+  "position": 0
+}
+```
+
+If the resource is already in another personal folder, this operation moves it to the indicated
+folder. The response returns the updated organization in `response`.
+
+To remove just the folder link:
+
+```http
+DELETE /v1/users/me/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+## Favorite and unfavorite a resource
+
+To favorite:
+
+```http
+PUT /v1/users/me/favorites/{resource_type}/{resource_id}
+```
+
+The body can contain the favorite's position:
+
+```json
+{
+  "position": 0
+}
+```
+
+To unfavorite:
+
+```http
+DELETE /v1/users/me/favorites/{resource_type}/{resource_id}
+```
+
+Favorite and folder are independent preferences: a resource can be in both. Both operations
+return the updated organization in `response` and are safe to repeat.
+
+## Activity
+
+Creating, editing or deleting a folder, moving a resource, and favoriting or unfavoriting
+generates an activity. The dashboard and workflows use the same API; API key calls made through
+the CLI, MCP, or the extension also enter the history. The client doesn't send `origin` or
+`author_id`: those fields are set by the API.

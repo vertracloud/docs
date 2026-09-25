@@ -1,0 +1,136 @@
+---
+title: Application Status
+sidebarTitle: Get Application Status
+api: GET https://api.vertracloud.app/v1/apps/{id}/status
+authMethod: bearer
+description: Retrieves the current status and resource usage of an application by its ID.
+---
+
+{/* @see APIApplicationStatus — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to retrieve the status. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<Note>
+  **A stopped application answers `200`, not an error.** The container of a stopped application does not exist — it is removed on stop — and that is a normal state, not a failure. The API returns `200` with `running: false` and every metric zeroed. Only a genuine failure to read the status returns `500`.
+</Note>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The application status and resource usage details.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The application ID.
+  </ResponseField>
+
+  <ResponseField name="cpu" type="string">
+    CPU usage percentage (e.g., `25.5%`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    RAM usage (e.g., `512 MB`).
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    Storage usage (e.g., `1024 MB`).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The application status (e.g., `running`).
+  </ResponseField>
+
+  <ResponseField name="running" type="boolean">
+    Indicates if the application is running.
+  </ResponseField>
+
+  <ResponseField name="installing" type="boolean">
+    Present and `true` while dependencies are being installed or the application is rebuilding. During this time, `running` can be `false` even though work is in progress. Treat this as an in-progress state, not as "stopped", and do not issue a start while it is `true`. A [restart](/api-reference/endpoint/apps/restart) with `reinstall_dependencies` or `force_build` is one of the operations that opens this window.
+  </ResponseField>
+
+  <ResponseField name="network" type="object">
+    Network usage details.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="total" type="string">
+      Total network traffic.
+    </ResponseField>
+
+    <ResponseField name="now" type="string">
+      Current network traffic.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="uptime" type="number">
+    The application uptime in seconds.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "cpu": "25.50%",
+    "ram": "512.00 MB",
+    "storage": "1024.00 MB",
+    "status": "running",
+    "running": true,
+    "network": {
+      "total": "569.90KB ↓ 36.41KB ↑",
+      "now": "18.78KB ↑ 1.20KB ↓"
+    },
+    "uptime": 3600
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or does not have sufficient permissions.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `INTERNAL_SERVER_ERROR`: The status could not be read. A stopped application is **not** this case — see the note above.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

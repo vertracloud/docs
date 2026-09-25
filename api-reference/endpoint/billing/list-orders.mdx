@@ -1,0 +1,104 @@
+---
+title: List Orders
+sidebarTitle: List Orders
+api: GET https://api.vertracloud.app/v1/orders
+authMethod: bearer
+description: Lists the authenticated user's orders (plan purchases, renewals and upgrades).
+---
+<ParamField query="provider" type="string">
+  Filters by payment method. Possible values: `pix`, `redeem_code`.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="array">
+  An array of orders, most recent first.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The order ID.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Order status. Possible values: `unpaid`, `paid`, `cancelled`, `expired`.
+  </ResponseField>
+
+  <ResponseField name="price" type="number">
+    The final price charged, after any coupon discount.
+  </ResponseField>
+
+  <ResponseField name="provider" type="string">
+    How the order was or will be paid. Possible values: `pix`, `redeem_code`.
+  </ResponseField>
+
+  <ResponseField name="type" type="string">
+    What the order is for. Possible values: `purchase`, `renew`, `upgrade`.
+  </ResponseField>
+
+  <ResponseField name="related_to" type="object">
+    The plan the order applies to.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="plan" type="object">
+      <Expandable title="Toggle object">
+      <ResponseField name="name" type="string">The plan name.</ResponseField>
+      <ResponseField name="duration" type="integer">Duration in months.</ResponseField>
+      <ResponseField name="months" type="integer">Duration in months (same value as `duration`).</ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    When the order was created.
+  </ResponseField>
+
+  <ResponseField name="paid_at" type="string | null" format="date-time">
+    When the order was paid, or `null` if it hasn't been paid yet.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "order-abc123",
+      "status": "paid",
+      "price": 24.9,
+      "provider": "pix",
+      "type": "purchase",
+      "related_to": { "plan": { "name": "PRO", "duration": 1, "months": 1 } },
+      "created_at": "2026-08-01T12:00:00.000Z",
+      "paid_at": "2026-08-01T12:05:00.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `USER_NOT_FOUND`: The authenticated user was not found.
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+</ResponseExample>

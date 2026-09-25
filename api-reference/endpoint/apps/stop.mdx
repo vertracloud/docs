@@ -1,0 +1,69 @@
+---
+title: Stop Application
+sidebarTitle: Stop Application
+api: POST https://api.vertracloud.app/v1/apps/{id}/stop
+authMethod: bearer
+description: Stops an application by its ID.
+---
+
+{/* @see RESTPostAPIApplicationStartResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to stop. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<Note>
+  **Stopping is idempotent.** Stopping an application that is already stopped is a success, not an error: the API answers `200` and makes sure the recorded state is `down`. You do not have to read the status first to decide whether the call is safe.
+</Note>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The response containing the operation status.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="status" type="string">
+    The operation status (`success`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "status": "success"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `ACCESS_DENIED`: The user does not have permission to act on the application.
+  - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same application is already running (`409`). The container was not touched — wait a few seconds and retry. See [Common Error Codes](/api-reference/introduction#what-error-codes-can-the-api-return).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route shares a budget of 10 requests per minute per application with `start` and `restart`. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

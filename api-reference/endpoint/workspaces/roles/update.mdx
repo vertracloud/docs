@@ -1,0 +1,45 @@
+---
+title: Update Role
+sidebarTitle: Update
+api: PUT https://api.vertracloud.app/v1/workspaces/{id}/roles/{role_id}
+authMethod: bearer
+description: Updates a role's name or permissions. Requires `roles:manage`.
+---
+
+{/* @see RESTPutAPIWorkspaceRoleBody, RESTPutAPIWorkspaceRoleResponse — @vertracloud/api-types */}
+Requires `roles:manage`. An API key needs the `workspaces:write` scope.
+
+<Note>
+  Same escalation guard as [Create Role](/api-reference/endpoint/workspaces/roles/create), but
+  checked against the **union of the role's old and new permission sets**: removing a
+  permission you don't hold from someone else's role is also editing something that isn't
+  yours. Nobody — owner included in spirit, though the owner is exempt from the check — can
+  edit the role currently assigned to themselves, and nobody can change their own role
+  assignment through this endpoint.
+</Note>
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+<ParamField path="role_id" type="string" required>Role ID.</ParamField>
+
+### Body
+
+Full replacement — same fields as [Create Role](/api-reference/endpoint/workspaces/roles/create), all required except the optional ones.
+
+<ParamField body="name" type="string" required />
+<ParamField body="permissions" type="WorkspacePermission[]" required />
+<ParamField body="position" type="number" />
+
+### Response
+
+Same shape as [Create Role](/api-reference/endpoint/workspaces/roles/create).
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `roles:manage`. |
+| 403 | `WORKSPACE_PERMISSION_ESCALATION` | Old or new permission set includes something the caller doesn't have (non-owner). |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |
+| 404 | `WORKSPACE_ROLE_NOT_FOUND` | `role_id` doesn't belong to this workspace. |

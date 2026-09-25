@@ -1,0 +1,93 @@
+---
+title: Restart Application
+sidebarTitle: Restart Application
+api: POST https://api.vertracloud.app/v1/apps/{id}/restart
+authMethod: bearer
+description: Restarts an application by its ID.
+---
+
+{/* @see RESTPostAPIApplicationStartResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to restart. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<ParamField body="cleanup_old_runtime_language" type="string">
+  Optional. One of `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`. Any other value is rejected.
+
+  Deletes the known artifact directories (e.g. `node_modules`, `vendor`, `target`) of the named language from the application's volume before this restart reinstalls dependencies for its **current** language — reclaiming the disk quota those old artifacts held after a runtime change. It never touches project source files. Installing the current language's dependencies already happens on its own on the first restart after a runtime change; this field only controls whether the previous language's leftovers are cleaned up first.
+</ParamField>
+
+<ParamField body="reinstall_dependencies" type="boolean">
+  Optional. Reinstalls the application's dependencies from scratch, ignoring the install cache — the equivalent of "Reinstall dependencies" in the dashboard's file manager. Use it when a dependency folder is corrupted or a package was installed by hand and needs to go. Counts toward your plan's hourly deploy limit.
+</ParamField>
+
+<ParamField body="force_build" type="boolean">
+  Optional. Runs the application's build command again even if no source file changed since the last build — the equivalent of "Force build" in the dashboard. Only meaningful when the application has a build command. Counts toward your plan's hourly deploy limit.
+</ParamField>
+
+<Note>
+  **The value must differ from the application's current language.** Sending the language the application already uses fails with `400 CLEANUP_LANGUAGE_SAME_AS_CURRENT` — nothing is deleted.
+</Note>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The response containing the operation status.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="status" type="string">
+    The operation status (`success`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "status": "success"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `ACCESS_DENIED`: The user does not have permission to act on the application.
+  - `VALIDATION_ERROR`: `cleanup_old_runtime_language` is not one of the supported languages (`400`).
+  - `CLEANUP_LANGUAGE_SAME_AS_CURRENT`: `cleanup_old_runtime_language` matches the application's current language (`400`).
+  - `DEPLOY_RATE_LIMITED`: `reinstall_dependencies` or `force_build` was sent and the plan's hourly deploy limit is exhausted (`429`); `details` carries `limit`, `window_seconds` and `retry_after`.
+  - `APPLICATION_SHIELD_COOLDOWN`: Vertra Shield temporarily paused the application; retry after the cooldown (`403`).
+  - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same application is already running (`409`). The container was not touched — wait a few seconds and retry. See [Common Error Codes](/api-reference/introduction#what-error-codes-can-the-api-return).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "CLEANUP_LANGUAGE_SAME_AS_CURRENT"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route shares a budget of 10 requests per minute per application with `start` and `stop`. With `reinstall_dependencies` or `force_build`, it also consumes one slot of your plan's hourly deploy limit. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

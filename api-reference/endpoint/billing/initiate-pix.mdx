@@ -1,0 +1,77 @@
+---
+title: Initiate PIX Payment
+sidebarTitle: Initiate PIX
+api: POST https://api.vertracloud.app/v1/orders/{orderId}/initiate/pix
+authMethod: bearer
+description: Generates the PIX charge (QR code) for an unpaid order.
+---
+<ParamField path="orderId" type="string" required>
+  The order ID.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="transaction_amount" type="number">
+    The charge amount, in BRL.
+  </ResponseField>
+
+  <ResponseField name="external_reference" type="string | null">
+    The order ID, echoed back as the payment's external reference.
+  </ResponseField>
+
+  <ResponseField name="txid" type="string">
+    The PIX transaction ID.
+  </ResponseField>
+
+  <ResponseField name="qrcode" type="object">
+    <Expandable title="Toggle object">
+    <ResponseField name="copy" type="string | null">The copy-and-paste PIX code.</ResponseField>
+    <ResponseField name="base64" type="string | null">The QR code image, base64-encoded.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "transaction_amount": 24.9,
+    "external_reference": "order-abc123",
+    "txid": "9c2b1e3a-...-000",
+    "qrcode": {
+      "copy": "00020126...6304ABCD",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAA..."
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `USER_NOT_FOUND`: The authenticated user was not found.
+  - `ORDER_NOT_FOUND`: The specified order does not exist.
+  - `FORBIDDEN`: The order does not belong to the authenticated user.
+  - `ORDER_NOT_PAYABLE`: The order is already paid, cancelled, or has expired.
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "ORDER_NOT_PAYABLE"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,50 @@
+---
+title: List Invites
+sidebarTitle: List
+api: GET https://api.vertracloud.app/v1/workspaces/{id}/invites
+authMethod: bearer
+description: Lists pending and past invites. Requires `members:manage`; an API key needs the `workspaces:invites` scope.
+---
+
+{/* @see APIWorkspaceInvite, RESTGetAPIWorkspaceInvitesResponse — @vertracloud/api-types */}
+<Note>
+  An API key needs the `workspaces:invites` scope (only in the `full` preset or a custom
+  selection). Creating invites stays dashboard-only.
+</Note>
+
+Requires the `members:manage` permission.
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIWorkspaceInvite[]">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string" />
+  <ResponseField name="workspace_id" type="string" />
+  <ResponseField name="kind" type="'email' | 'link'" />
+  <ResponseField name="email" type="string | null">Set only for `kind: \"email\"`.</ResponseField>
+  <ResponseField name="role_id" type="string" />
+  <ResponseField name="role_name" type="string" />
+  <ResponseField name="invited_by" type="object">`{ id, display_name }`.</ResponseField>
+  <ResponseField name="expires_at" type="string" format="date-time">7 days from creation for email invites, fixed 24h for link invites.</ResponseField>
+  <ResponseField name="accepted_at" type="string | null" format="date-time" />
+  <ResponseField name="revoked_at" type="string | null" format="date-time" />
+  <ResponseField name="uses" type="number" />
+  <ResponseField name="max_uses" type="number | null">Only for `kind: \"link\"`; `null` = unlimited.</ResponseField>
+  <ResponseField name="expires_in_days" type="number | null">Access expiry applied to the member once they join through this invite. `null` = no expiry.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time" />
+
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key that lacks the `workspaces:invites` scope. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `members:manage`. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |

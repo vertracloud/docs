@@ -1,0 +1,74 @@
+---
+title: Delete Application File or Folder
+sidebarTitle: Delete File or Folder
+api: DELETE https://api.vertracloud.app/v1/apps/{id}/files
+authMethod: bearer
+description: Deletes a file or folder for an application by its ID.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the application to delete the file or folder from. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Members with an Owner, Admin or Developer role can use the file manager on a workspace app they don't own; without this, only the app's own owner can.
+</ParamField>
+
+<ParamField query="path" type="string" required>
+  The path to the file or folder to delete.
+</ParamField>
+
+### Response
+
+A success returns `200` with `{ "response": null }`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `PLAN_RESTRICTED_FEATURE`: The user's plan does not support file manager access.
+  - `MISSING_PATH`: The path query parameter was not provided.
+  - `FORBIDDEN_PATH`: The specified path is restricted.
+  - `FILE_DELETE_FAILED`: Failed to delete the file or folder.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "MISSING_PATH",
+  "message": "Path query parameter is required"
+}
+```
+
+</ResponseExample>

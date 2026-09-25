@@ -1,0 +1,183 @@
+---
+title: 'How to Host a Rust Application on Vertra Cloud'
+sidebarTitle: 'Rust'
+description: 'Deploy a Rust service to Vertra Cloud: Cargo.toml and Cargo.lock in the zip, release build on the platform, and memory sizing for build time.'
+icon: 'rust'
+---
+
+## Requirements
+
+- Rust 1.85+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+- Configured `Cargo.toml`
+
+## Project Structure
+
+```
+my-server-rust/
+├── src/
+│   └── main.rs
+├── Cargo.toml
+├── Cargo.lock
+└── vertracloud.config
+```
+
+## Configuration
+
+### Cargo.toml
+
+```toml
+[package]
+name = "my-server-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.4"
+actix-rt = "2.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+env_logger = "0.11"
+log = "0.4"
+
+[[bin]]
+name = "servidor"
+path = "src/main.rs"
+```
+
+### vertracloud.config
+
+```ini
+MAIN=Cargo.toml
+VERSION=recommended
+```
+
+## Example: Actix-web Server
+
+```rust
+use actix_web::{web, App, HttpServer, HttpResponse, middleware};
+use serde::{Deserialize, Serialize};
+use std::env;
+use log::info;
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Item {
+    pub id: u32,
+    pub name: String,
+    pub description: String,
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    let port = env::var("PORT")
+        .unwrap_or_else(|_| "80".to_string())
+        .parse::<u16>()
+        .expect("PORT must be a valid number");
+
+    info!("Starting server on 0.0.0.0:{}", port);
+
+    HttpServer::new(|| {
+        App::new()
+            .wrap(middleware::Logger::default())
+            .route("/", web::get().to(index))
+            .route("/health", web::get().to(health))
+            .route("/api/items", web::get().to(list_items))
+            .route("/api/items", web::post().to(create_item))
+    })
+    .bind("0.0.0.0:".to_string() + &port.to_string())?
+    .run()
+    .await
+}
+
+async fn index() -> HttpResponse {
+    HttpResponse::Ok().json(serde_json::json!({
+        "message": "API Rust on Vertra Cloud",
+        "version": "1.0.0"
+    }))
+}
+
+async fn health() -> HttpResponse {
+    HttpResponse::Ok().json(serde_json::json!({
+        "status": "healthy",
+        "service": "rust-api"
+    }))
+}
+
+async fn list_items() -> HttpResponse {
+    let items = vec![
+        Item {
+            id: 1,
+            name: "Item 1".to_string(),
+            description: "Description 1".to_string(),
+        },
+        Item {
+            id: 2,
+            name: "Item 2".to_string(),
+            description: "Description 2".to_string(),
+        },
+    ];
+
+    HttpResponse::Ok().json(items)
+}
+
+#[derive(Deserialize)]
+pub struct CreateItemRequest {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+async fn create_item(req: web::Json<CreateItemRequest>) -> HttpResponse {
+    let item = Item {
+        id: 3,
+        name: req.name.clone(),
+        description: req.description.clone().unwrap_or_default(),
+    };
+
+    HttpResponse::Created().json(item)
+}
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compress the project into a `.zip` (folders like `node_modules`, `venv` and `target` are removed automatically) or push it to GitHub.
+    2. In the dashboard, click **New Project** and upload the `.zip` or paste the repository URL.
+    3. In **Build**, check the runtime (**Rust**), the main file (`src/main.rs`) and the memory. Start and build commands are under **Advanced settings**.
+    4. Add your environment variables in **Environment**.
+    5. In **Network**, turn on **web publishing** so the app gets a `*.vertraweb.app` address (Pro plan or higher, 512 MB of memory). The app must listen on port 80.
+    6. Review and deploy. Follow the output in the **Logs** tab.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra deploy
+    vertra logs -f
+    ```
+    See [CLI](/cli) for installation and login.
+  </Tab>
+  <Tab title="VS Code">
+    Open the folder with the Vertra Cloud extension installed and run **Deploy current project**. See [VS Code extension](/vscode-extension).
+  </Tab>
+</Tabs>
+
+The full walkthrough is in [First deploy](/how-to-host).
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 1.87 | Latest | Rust 1.87 (latest version) |
+| 1.86 | Recommended | Rust 1.86 LTS (recommended for production) |
+| 1.85 | Stable | Rust 1.85 with extended support |
+
+## Notes
+
+- **Automatic compilation**: Rust is compiled inside the container during deployment
+- **Compilation time**: May take 5-10 minutes depending on project size
+- **Environment variables**: Use `std::env::var()` to capture settings
+- **Logging**: Use the `log` crate for logs that appear in real-time
+- **Memory**: 512MB recommended during compilation, 256MB sufficient for runtime
+- Listen on `0.0.0.0` to accept external connections

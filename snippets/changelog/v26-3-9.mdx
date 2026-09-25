@@ -1,0 +1,25 @@
+### Per-minute and per-day request limits on the API
+
+Calls made with an **API key** now respect two new limit windows, scaled by the account's plan,
+in addition to the existing per-route limits (lifecycle actions, SQL console, subdomain changes,
+etc.):
+
+- **Per minute**, from 30/min on Free to 480/min from Enterprise-12 up. Exceeding it returns
+  `429 RATE_LIMIT_EXCEEDED`.
+- **Per day**, from 1,000/day on Free to 864,000/day on Enterprise-32, resetting at midnight,
+  Brazil time. Exceeding it returns `429 DAILY_QUOTA_EXCEEDED`.
+
+Dashboard usage doesn't count toward either window.
+
+Also changed:
+
+- **Manual snapshot creation** got its own limit — 1 every 5 minutes on the same project and 10
+  per hour on the account — so it doesn't compete with the automatic snapshot the platform already
+  takes before deleting or resetting a database. Exceeding it returns `429 SNAPSHOT_RATE_LIMITED`.
+- **Unit fix:** the API request quota was always **daily**, not monthly as the documentation
+  stated. No number changed size, only the unit was wrong.
+- **Intermediary plan fix:** the published daily quota was 56,000; the correct value is 115,200.
+- **Database reset fix:** the limit is 1 per hour, not 1 every 3 hours.
+
+Full detail in [API limits](/api-reference/limitations) and
+[Plans and limits](/plans-and-limits).

@@ -1,0 +1,45 @@
+---
+title: Delete Database
+sidebarTitle: Delete Database
+api: DELETE https://api.vertracloud.app/v1/databases/{id}
+authMethod: bearer
+description: Deletes a database by its ID after taking an automatic safety snapshot. Requires the databases:delete scope.
+---
+Deleting a database first takes an automatic **safety snapshot**, on every plan. If that snapshot
+fails, nothing is deleted and the request answers `INTERNAL_SERVER_ERROR`. An API key needs the
+`databases:delete` scope.
+
+<ParamField path="id" type="string" required>
+  The ID of the database to delete.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the database belongs to a workspace, the workspace's ID.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="string">
+  The ID of the deleted database.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": "00000000000000000000000000000001"
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  - `DATABASE_NOT_FOUND`: The database does not exist (`404`).
+  - `ACCESS_DENIED`: Your account can't act on this database (`403`).
+  - `FORCED_SNAPSHOT_RATE_LIMIT`: Too many safety snapshots were attempted recently on this database or on your account; the database was not deleted (`429`).
+  - `INTERNAL_SERVER_ERROR`: The safety snapshot could not be taken; the database was not deleted (`500`).
+  - `OPERATION_IN_PROGRESS`: Another lifecycle operation is running on this database (`409`).
+  - `INTERNAL_SERVER_ERROR`: The platform could not remove the database; retry later (`500`).
+</ResponseField>

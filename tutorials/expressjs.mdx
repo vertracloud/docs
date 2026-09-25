@@ -1,0 +1,157 @@
+---
+title: 'How to Host an Express.js API on Vertra Cloud'
+sidebarTitle: 'Express.js'
+description: 'Deploy an Express.js API to Vertra Cloud: bind to 0.0.0.0 and the PORT variable, publish the subdomain and read requests in the live logs.'
+icon: 'server'
+---
+
+## Requirements
+
+- Node.js installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-api/
+├── src/
+│   ├── index.js
+│   ├── routes/
+│   │   └── users.js
+│   └── middleware/
+│       └── auth.js
+├── package.json
+└── vertracloud.config
+```
+
+## Configuration
+
+### package.json
+
+```json
+{
+  "name": "my-api",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+## Complete Example
+
+```javascript
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+const port = process.env.PORT || 80;
+
+app.use(cors());
+app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.json({ message: 'API online on Vertra Cloud' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', uptime: process.uptime() });
+});
+
+app.get('/api/users', (req, res) => {
+  res.json({ users: [] });
+});
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`API running on port ${port}`);
+});
+```
+
+<Warning>
+  Always use `'0.0.0.0'` as host in `app.listen()`. The default `localhost` binding does not accept external connections inside the container.
+</Warning>
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compress the project into a `.zip` (folders like `node_modules`, `venv` and `target` are removed automatically) or push it to GitHub.
+    2. In the dashboard, click **New Project** and upload the `.zip` or paste the repository URL.
+    3. In **Build**, check the runtime (**JavaScript**), the main file (`index.js`) and the memory. Start and build commands are under **Advanced settings**.
+    4. Add your environment variables in **Environment**.
+    5. In **Network**, turn on **web publishing** so the app gets a `*.vertraweb.app` address (Pro plan or higher, 512 MB of memory). The app must listen on port 80.
+    6. Review and deploy. Follow the output in the **Logs** tab.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra deploy
+    vertra logs -f
+    ```
+    See [CLI](/cli) for installation and login.
+  </Tab>
+  <Tab title="VS Code">
+    Open the folder with the Vertra Cloud extension installed and run **Deploy current project**. See [VS Code extension](/vscode-extension).
+  </Tab>
+</Tabs>
+
+The full walkthrough is in [First deploy](/how-to-host).
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+## Connecting to a Database
+
+Vertra databases require TLS **and** the client certificate. Put the three files from the database's
+**Certificates** tab in your project and read them when opening the pool:
+
+```javascript
+const fs = require('fs');
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT), // unique per database, copy it from the dashboard
+  user: 'postgres',
+  password: process.env.DB_PASSWORD,
+  database: 'postgres',
+  ssl: {
+    ca: fs.readFileSync('certificate.pem'),
+    cert: fs.readFileSync('certificate.crt'),
+    key: fs.readFileSync('certificate.key'),
+    rejectUnauthorized: true,
+  },
+});
+```
+
+MongoDB, Redis and MySQL examples are in [How do I connect to each engine?](/databases#how-do-i-connect-to-each-engine).
+
+## Notes
+
+- For **TypeScript** applications, compile before deployment and point `MAIN` to the compiled `.js` file
+- Use **environment variables** for database configuration and secrets
+- **Auto-restart** is on by default for every application
+- Configure a `/health` endpoint for monitoring

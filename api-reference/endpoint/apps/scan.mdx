@@ -1,0 +1,96 @@
+---
+title: Scan Application Source
+sidebarTitle: Scan
+api: POST https://api.vertracloud.app/v1/apps/scan
+authMethod: bearer
+description: Pre-scans a zip before creating an application, returning start/build command and memory suggestions.
+---
+<Note>
+  This is **dashboard-session only**: an API key gets `API_KEY_SCOPE_DENIED` (403) here, regardless of its
+  scopes. It exists for the app-creation wizard, not for external integrations.
+</Note>
+
+Scans a zip and returns suggestions the caller can pre-fill and edit before actually creating the
+application with [Create Application](/api-reference/endpoint/apps/create). It does not create
+anything, does not persist anything, and never fails the caller's flow silently on its own —
+suggestions are just a best-effort read.
+
+<ParamField body="file" type="file" required>
+  The ZIP file to scan. Same size and archive limits as `file` on Create Application.
+</ParamField>
+
+<ParamField body="main" type="string" required>
+  The main file of the application, used to detect the runtime language.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="suggested_start_command" type="string">
+    Suggested startup command for the detected framework, if any.
+  </ResponseField>
+
+  <ResponseField name="suggested_build_command" type="string">
+    Suggested build command for the detected framework, if any.
+  </ResponseField>
+
+  <ResponseField name="suggested_memory_mb" type="integer">
+    Suggested RAM in MB based on the project's dependencies, if any.
+  </ResponseField>
+
+  <ResponseField name="suggested_public_web" type="boolean">
+    Whether the project looks like a web app that should be published, if detectable.
+  </ResponseField>
+
+  <ResponseField name="missing_dependencies" type="string[]">
+    Dependencies the scan could not find declared in the project's manifest, if any.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "suggested_start_command": "npm run start",
+    "suggested_build_command": "npm run build",
+    "suggested_memory_mb": 512,
+    "suggested_public_web": true,
+    "missing_dependencies": []
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  <Expandable title="Toggle possible values">
+    <ResponseField name="ZIP_TOO_SMALL" type="string">
+      The uploaded file is smaller than 100 bytes.
+    </ResponseField>
+    <ResponseField name="FILE_TOO_LARGE" type="string">
+      The uploaded file exceeds the 100 MB limit.
+    </ResponseField>
+    <ResponseField name="INVALID_ZIP" type="string">
+      The file is not a valid zip, or is corrupted.
+    </ResponseField>
+    <ResponseField name="MAIN_FILE_NOT_FOUND" type="string">
+      The `main` file does not exist in the zip.
+    </ResponseField>
+    <ResponseField name="ARCHIVE_TOO_LARGE" type="string">
+      The zip's uncompressed content exceeds the platform limit.
+    </ResponseField>
+    <ResponseField name="ARCHIVE_TOO_MANY_ENTRIES" type="string">
+      The zip has too many entries.
+    </ResponseField>
+    <ResponseField name="API_KEY_SCOPE_DENIED" type="string">
+      The request used an API key instead of a dashboard session.
+    </ResponseField>
+  </Expandable>
+</ResponseField>

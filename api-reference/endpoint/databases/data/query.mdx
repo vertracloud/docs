@@ -1,0 +1,64 @@
+---
+title: SQL Console
+sidebarTitle: SQL Console
+api: POST https://api.vertracloud.app/v1/databases/{id}/data/query
+authMethod: bearer
+description: Runs a SQL statement against your own database, with limits on time, rows, size and concurrency.
+---
+
+{/* @see RESTPostAPIDatabaseQueryBody, APIDatabaseQueryResult — @vertracloud/api-types */}
+<Note>
+  Every `/data` endpoint needs the **Intermediary** plan or higher, on the **database owner's**
+  account — not the caller's. Below that the answer is `PLAN_RESTRICTED_FEATURE` (403).
+  It is also **dashboard-session only**: an API key gets `API_KEY_SCOPE_DENIED` (403) here, regardless of
+  its scopes.
+</Note>
+
+PostgreSQL and MySQL only. The statement runs as your database's own user — it is your database, and
+nothing in it is filtered or rewritten. What is enforced are limits:
+
+| Limit | Value |
+|---|---|
+| Statement timeout | 10 s, applied by the engine itself |
+| Rows returned | `limit`, default 200, maximum 1000 |
+| Statement size | 64 KB |
+| Result size | 5 MB serialized |
+| Concurrency | one console query at a time per database |
+| Rate limit | 30 requests/minute per user |
+
+Requires **owner** or **admin** in the workspace, and is recorded in the activity log (the fact that a
+query ran — never the SQL itself).
+
+<ParamField path="id" type="string" required>The ID of the database.</ParamField>
+<ParamField body="sql" type="string" required>The statement. Empty bodies are rejected.</ParamField>
+<ParamField body="limit" type="number">Row ceiling. The result is truncated, not the statement.</ParamField>
+<ParamField query="workspace" type="string">Workspace the database belongs to.</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+  <ResponseField name="columns" type="string[]">Column names, in order.</ResponseField>
+  <ResponseField name="rows" type="array[]">Positional matrix — each row matches the order of `columns`.</ResponseField>
+  <ResponseField name="row_count" type="number">Rows returned.</ResponseField>
+  <ResponseField name="duration_ms" type="number">How long the statement took.</ResponseField>
+  <ResponseField name="truncated" type="boolean">`true` when the row or size ceiling cut the result.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json 200
+{
+  "response": {
+    "columns": ["id", "email"],
+    "rows": [[1, "ana@example.com"]],
+    "row_count": 1,
+    "duration_ms": 12,
+    "truncated": false
+  }
+}
+```
+```json 504
+{ "code": "QUERY_TIMEOUT" }
+```
+</ResponseExample>

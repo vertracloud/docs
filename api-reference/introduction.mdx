@@ -1,0 +1,338 @@
+---
+title: 'Vertra Cloud Public API Reference'
+sidebarTitle: 'Public API'
+description: 'The Vertra Cloud REST API manages applications, databases and workspaces programmatically. Base URL, Bearer auth, envelope and error codes.'
+---
+
+## What can the Vertra Cloud API do?
+
+The Vertra Cloud public REST API manages applications, databases, workspaces and every other
+resource of the platform programmatically — every operation available in the dashboard is available
+over HTTP. Vertra Cloud is a Brazilian application hosting platform (PaaS); this API is how you
+automate deploys, restarts, environment variables, snapshots and monitoring from your own tooling.
+
+**Base URL:** `https://api.vertracloud.app`
+
+## How do you authenticate?
+
+Every request carries an API key as a Bearer token in the `Authorization` header; there is no other
+authentication method for the public API.
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     https://api.vertracloud.app/v1/users/me
+```
+
+### API key format
+
+A key created today looks like `vc_live_` followed by 48 hex characters. The full secret is shown
+**once**, at creation or rotation time — only a hash is stored, so it cannot be recovered later.
+Keys created before this format (64 hex characters, no prefix) keep working with every scope.
+
+### Creating and managing keys
+
+Manage keys from [https://vertracloud.app/dashboard/settings](https://vertracloud.app/dashboard/settings).
+Key management itself (list, create, update, rotate, delete) is **dashboard-session only** — calling
+any of those routes with an API key answers `403 API_KEY_SCOPE_DENIED`, so a leaked key can't mint
+or edit keys for itself. See [API Keys](/api-reference/endpoint/users/api-keys/list) for the full
+request/response shape.
+
+You can hold up to **10 keys** per account. Each key has:
+
+- **A name** — 1 to 40 characters.
+- **Scopes** — which routes the key can call (see below). At least one is required.
+- **Allowed IPs** *(optional)* — up to 20 IPs or CIDRs. Empty means any IP can use the key.
+
+There's also a legacy route, `POST /v1/users/me/generate-api-key`, kept for backward compatibility
+(mainly the [CLI](/cli)): it creates or **rotates** the account's single key named
+"CLI" (full scope), without touching your other keys. Calling it again just gives that same "CLI"
+key a new secret — it never creates a second one.
+
+### Scopes
+
+Every route the API exposes to a key belongs to exactly one scope, grouped by resource. A key must
+carry the scope a route requires, or the request answers `403 API_KEY_SCOPE_DENIED` with
+`details.required` naming the missing scope. A route that isn't in the catalog at all — key
+management itself or the database Data tab (`/v1/databases/{id}/data/*`) — always answers `403`,
+regardless of scopes: **the Data tab can only be driven by a dashboard session**.
+
+Three presets speed up creation: **`read`** marks every `*:read` scope, **`write`** adds every
+`*:write` scope on top of `read`, **`full`** marks the entire catalog, including scopes with no
+read/write suffix (delete, envs, files, credentials).
+
+20 scopes across 6 groups:
+
+| Scope | Group | What it allows |
+|---|---|---|
+| `billing:read` | Billing | List orders and check order status |
+| `billing:write` | Billing | Create a plan order and generate its PIX payment |
+| `redeem:write` | Billing | Redeem a promo code |
+| `apps:read` | Applications | Read app status, metrics, logs, deploys, downloads, network config |
+| `apps:write` | Applications | Create, start/stop/restart (including dependency reinstall and forced build), update config, deploy webhooks, network |
+| `apps:delete` | Applications | Delete an application |
+| `apps:envs` | Applications | Read, create and delete environment variables |
+| `apps:files` | Applications | Read, write and upload files |
+| `databases:read` | Databases | Read database status and metrics |
+| `databases:write` | Databases | Create, update, start/stop, reset |
+| `databases:delete` | Databases | Delete a database |
+| `databases:credentials` | Databases | Read/reset the TLS certificate and reset credentials |
+| `snapshots:read` | Snapshots | List snapshots and download them |
+| `snapshots:write` | Snapshots | Create and restore snapshots |
+| `account:read` | Account | Read profile, sessions and personal organization |
+| `account:write` | Account | Update your own profile and personal folders/favorites |
+| `workspaces:read` | Workspaces | List and read workspaces, including your individual organization |
+| `workspaces:write` | Workspaces | Create and update workspaces, manage members/roles/resources, your individual folders/favorites, and ask for an action request |
+| `workspaces:delete` | Workspaces | Delete a workspace (owner only) |
+| `workspaces:invites` | Workspaces | List and revoke a workspace's invites; preview, accept and decline an invite by token |
+<Note>
+  To drive the platform from your own agent, use the [MCP server](/mcp) with the `apps:read`,
+  `apps:write` and `apps:files` scopes above.
+</Note>
+
+<Note>
+  There is no `databases:data` scope either. The database **Data tab** (`/v1/databases/{id}/data/*`
+  — schemas, tables, rows, SQL console, collections, documents, keys) is dashboard-session only:
+  an API key gets `403` on every one of those routes, regardless of scope.
+</Note>
+
+<Note>
+  `account:write` does not cover every account action. It covers profile updates and personal
+  folders/favorites. Revoking sessions (`DELETE /v1/users/me/sessions`) and downgrading the plan
+  (`POST /v1/users/me/downgrade`) are dashboard-session only — an API key gets
+  `403 API_KEY_SCOPE_DENIED` on both, regardless of scope.
+</Note>
+
+<Note>
+  `workspaces:delete` and `workspaces:invites` have no `read`/`write` suffix, so the `read` and
+  `write` presets never include them — only `full` or a custom selection does. `workspaces:read`
+  also lists action requests. Some workspace actions stay dashboard-session only and no scope
+  covers them: creating an invite (a leaked key could leave behind access that outlives revoking
+  it), transferring ownership (it could be used to take over the workspace), and approving or
+  rejecting an action request (a human decision, including when an agent asked for it). With an
+  API key those routes answer `403 API_KEY_SCOPE_DENIED`.
+</Note>
+
+<Note>
+  The activity log is dashboard-session only. Listing activities and exporting a workspace's
+  activity log both get `403 API_KEY_SCOPE_DENIED` for an API key, regardless of scope — the log
+  stays available in the dashboard.
+</Note>
+
+<Note>
+  Orders are the one billing action an API key can drive: `billing:read` covers listing orders and
+  checking an order's status, `billing:write` covers creating a plan order and
+  generating its PIX payment, and `redeem:write` covers redeeming a promo code. Downgrading the
+  plan stays dashboard-only, as noted above.
+</Note>
+
+### Allowed IPs
+
+An empty `allowed_ips` list means the key works from any IP. Once you add at least one IP or CIDR,
+every request from outside that list answers `403 API_KEY_IP_DENIED`, even with a correct key and
+scope. The IP checked is the one Vertra's edge sees the connection come from — client-sent headers
+like `X-Forwarded-For` or `CF-Connecting-IP` are ignored, so they can't be spoofed to bypass the
+allowlist.
+
+### Errors specific to API keys
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `API_KEY_INVALID` | The key doesn't exist, or its secret doesn't match — both answer the same way, so a caller can't use the response to tell a valid prefix from an invalid one. |
+| 403 | `API_KEY_SCOPE_DENIED` | The key is missing the scope the route requires (`details.required`), or the route is dashboard-session only and no scope covers it (no `details`). |
+| 403 | `API_KEY_IP_DENIED` | The request's IP isn't in the key's `allowed_ips`. |
+| 404 | `API_KEY_NOT_FOUND` | Only on key management routes (`GET/PATCH/DELETE/rotate` on `/v1/users/me/api-keys/:id`): no key with that ID on this account. |
+| 409 | `API_KEY_LIMIT_REACHED` | The account already has 10 keys. |
+| 400 | `API_KEY_INVALID_NAME` | Name is empty or longer than 40 characters. |
+| 400 | `API_KEY_INVALID_SCOPES` | `scopes` is empty or has an entry outside the catalog. |
+| 400 | `API_KEY_INVALID_IPS` | An entry in `allowed_ips` isn't a valid IP/CIDR, or there are more than 20. |
+
+### Connecting through OAuth
+
+Besides pasting a key from the dashboard, a client can obtain one through a standard OAuth flow —
+this is how third-party agent clients connect to your Vertra account
+without you ever handling a raw key.
+
+- **Discovery:** `GET /.well-known/oauth-authorization-server` returns the standard metadata
+  document (`authorization_endpoint`, `token_endpoint`, `registration_endpoint`, supported grant
+  and PKCE methods).
+- **Dynamic client registration:** `POST` to `registration_endpoint` registers the connecting
+  client and returns a `client_id`; no manual app registration in the dashboard is needed.
+- **Authorization:** the client sends the user to `authorization_endpoint` with PKCE — `S256` is
+  the only supported `code_challenge_method`. You approve on a Vertra consent screen that lists the
+  scopes being requested and shows the name of the connecting client, then choose to allow it.
+- **Token exchange:** `POST` to `token_endpoint` accepts only `grant_type=authorization_code` with
+  the matching PKCE `code_verifier`. There's no refresh token grant, because the token it returns
+  doesn't expire.
+- **What you get back:** the "access token" is an ordinary Vertra API key — same format, same
+  scopes, same rate limits as one created in the dashboard — created with the name of the
+  connecting client. It shows up in **Settings → API keys**, prefixed `oauth:`, and you revoke it
+  the same way you'd revoke any other key.
+
+## What does a response look like?
+
+Every response uses the same envelope: a success carries the payload under `response`, an error
+carries a stable `code`, an optional `message` and, on some codes, a `details` object with the
+numbers you need to act (the missing scope, the retry delay, the limit). The HTTP status tells you
+which one it is.
+
+**Success:**
+```json
+{
+  "response": { ... }
+}
+```
+
+A route with nothing to return (a delete, a file save, a cache purge) answers `{ "response": null }`.
+
+**Error:**
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Optional descriptive message",
+  "details": { "retry_after": 30 }
+}
+```
+
+## What error codes can the API return?
+
+Error codes are stable strings, safe to branch on — the `message` is not. These are the ones you
+will meet most often; the endpoint pages document the codes specific to each route.
+
+| Code | Description |
+|--------|-----------|
+| `AUTH_TOKEN_MISSING` | No `Authorization` header (HTTP `401`) |
+| `API_KEY_INVALID` | The key doesn't exist or its secret doesn't match (HTTP `401`) |
+| `ACCESS_DENIED` | The resource exists but your account can't act on it (HTTP `403`) |
+| `APP_NOT_FOUND` | Application not found |
+| `DATABASE_NOT_FOUND` | Database not found |
+| `APP_BANNED` | The application is banned and cannot be managed |
+| `DATABASE_PERSISTENCE_FAILED` | The database was created but could not be read back |
+| `PLAN_RESTRICTED_FEATURE` | Feature not available on your plan |
+| `VALIDATION_ERROR` | A parameter, query or body field failed validation (HTTP `400`); `details.path` names the field (e.g. `"memory"`, `"user.name"`) |
+| `OPERATION_IN_PROGRESS` | Another lifecycle operation on the same resource is already running (HTTP `409`) |
+| `STORAGE_ABOVE_NEW_LIMIT` | A configuration change was refused because the application's volume already holds more than its disk ceiling (HTTP `409`) |
+| `BUILD_FAILED` | The application's `build_command` exited with an error; the deploy fails and the application does not come up (HTTP `422`) |
+| `BUILD_TIMEOUT` | The `build_command` ran past its 10-minute limit (HTTP `422`) |
+| `INSTALL_TIMEOUT` | Dependency installation ran past its 15-minute limit (HTTP `422`) |
+| `DEPLOY_RATE_LIMITED` | The account's hourly deploy budget for its plan was reached (HTTP `429`); see below |
+| `DAILY_QUOTA_EXCEEDED` | The account's daily API request quota for its plan was reached (HTTP `429`); see below |
+| `SNAPSHOT_RATE_LIMITED` | Manual snapshot creation hit its per-resource or per-account budget (HTTP `429`); see [Create Snapshot](/api-reference/endpoint/apps/snapshots/create) |
+| `INSTALL_SHIELD_BLOCKED` | Vertra Shield stopped the deployment because traffic exceeded the plan allowance (HTTP `422`) |
+| `DATABASE_NOT_RUNNING` | A manual snapshot was requested for a stopped database (HTTP `409`); start it and retry — Redis has no such requirement |
+| `SNAPSHOT_IMPORT_FAILED` | A snapshot restore failed while loading the data; the database is left running and empty, and the snapshot stays available to retry (HTTP `500`) |
+| `SNAPSHOT_ENGINE_MISMATCH` | The snapshot belongs to a different database engine than the target (HTTP `400`) |
+
+### `OPERATION_IN_PROGRESS`
+
+Lifecycle operations on the same application or database are serialised: only one runs at a time. If you ask for a second one while the first is still going, the API answers `409 OPERATION_IN_PROGRESS` and leaves the resource unchanged.
+
+This is contention, not a failure. Wait a few seconds and retry. It can be returned by start, restart, stop, delete, dependency installs, deploys and snapshot operations.
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+### `STORAGE_ABOVE_NEW_LIMIT`
+
+Every application has a fixed disk ceiling (see [Limitations](/api-reference/limitations)). If the volume already holds more than that ceiling, a change through [Update Configuration](/api-reference/endpoint/apps/updateconfig) is refused with `409` instead of being applied.
+
+The response carries the numbers you need to act on, in MB:
+
+```json Error Response (409)
+{
+  "code": "STORAGE_ABOVE_NEW_LIMIT",
+  "details": {
+    "used_mb": 2048,
+    "limit_mb": 1024,
+    "free_mb": 1024
+  }
+}
+```
+
+`free_mb` is how much you have to delete before the change can be applied.
+
+## How is the API rate limited?
+
+The API has three layers of limits, and a single call can be rejected by any of them.
+
+**1. Per-route, fixed, the same on every plan.** Application lifecycle routes —
+[`start`](/api-reference/endpoint/apps/start), [`restart`](/api-reference/endpoint/apps/restart),
+[`stop`](/api-reference/endpoint/apps/stop) and publish — share a single budget of **10 requests per minute per application**, so restarting an
+app ten times in a row leaves no allowance for stopping it in that same minute. Database reset is
+capped at **1 per hour**; subdomain changes at **5 per minute with a 5-minute cooldown**; the SQL
+console at **30 per minute**; every other Data tab route at **120 per minute**; workspace exports
+at **5 per minute**. Every other route, databases included, keeps its own budget. Over the limit:
+`429 RATE_LIMIT_EXCEEDED`.
+
+**2. Per minute, per account, scaled by plan.** This layer only counts requests authenticated with
+an **API key** — dashboard sessions don't count against it. Every API-key response carries
+`x-ratelimit-limit`, `x-ratelimit-remaining` and `x-ratelimit-reset` (seconds) headers. Over the
+limit: `429 RATE_LIMIT_EXCEEDED` with `details: { scope: "minute", limit, used, retry_after }`.
+
+**3. Per day, per account, scaled by plan.** Also API-key only, and resets at midnight in the
+America/Fortaleza (Brasília) timezone. Every API-key response carries `x-quota-limit`,
+`x-quota-remaining` and `x-quota-reset` (seconds) headers. Over the limit: `429
+DAILY_QUOTA_EXCEEDED` with `details: { scope: "day", limit, used, retry_after }`.
+
+| Plan | Req/min | Req/day |
+|---|---:|---:|
+| Free | 30 | 1,000 |
+| Economy | 60 | 5,000 |
+| Pro | 120 | 20,000 |
+| Scale | 180 | 86,400 |
+| Intermediary | 240 | 115,200 |
+| Enterprise-4 | 300 | 144,000 |
+| Enterprise-6 | 300 | 180,000 |
+| Enterprise-8 | 300 | 216,000 |
+| Enterprise-12 | 480 | 324,000 |
+| Enterprise-14 | 480 | 378,000 |
+| Enterprise-16 | 480 | 432,000 |
+| Enterprise-18 | 480 | 486,000 |
+| Enterprise-20 | 480 | 540,000 |
+| Enterprise-22 | 480 | 594,000 |
+| Enterprise-24 | 480 | 648,000 |
+| Enterprise-26 | 480 | 702,000 |
+| Enterprise-28 | 480 | 756,000 |
+| Enterprise-30 | 480 | 810,000 |
+| Enterprise-32 | 480 | 864,000 |
+
+We recommend implementing retry logic with exponential backoff for any `429` response.
+
+**Deploys have their own hourly budget, separate from the request budgets above.** Creating an
+application, uploading a ZIP, deploying from GitHub, a restart with `reinstall_dependencies` or
+`force_build`, and changing the build command all draw from one counter per account, sized by plan (5/hour on Free up to 60/hour
+on Intermediary and every Enterprise tier — see [Plans and limits](/plans-and-limits)). Starting,
+stopping and a plain restart do not draw from it. Over the limit, the API answers `429
+DEPLOY_RATE_LIMITED` with `details.limit`, `details.window_seconds` (3600) and
+`details.retry_after`.
+
+**Manual snapshot creation has its own budget too**, on top of the per-route limit: at most **1
+every 5 minutes per project** and **10 per hour per account**. Over the limit, the API answers
+`429 SNAPSHOT_RATE_LIMITED` with `details: { scope: "resource" | "account", retry_after }`.
+Restoring or downloading a snapshot isn't affected, and snapshots the platform takes automatically
+before a destructive operation don't count against this budget.
+
+## Which resources does the API cover?
+
+Seven groups: users, applications, databases, workspaces, billing, redeem codes and platform status.
+Each has its own reference page with the request body, the response and the error codes.
+
+<CardGroup cols={2}>
+  <Card title="Users" icon="user">
+    Query information about the authenticated user.
+  </Card>
+  <Card title="Applications" icon="rocket">
+    Manage complete application lifecycle: creation, deployment, start/stop, files, environment variables, snapshots and domains.
+  </Card>
+  <Card title="Databases" icon="database">
+    Manage databases: creation, start/stop, reset, metrics and credentials.
+  </Card>
+  <Card title="Workspaces" icon="users">
+    Manage workspaces: creation, members, permissions and resource association.
+  </Card>
+  <Card title="Billing" icon="credit-card" href="/api-reference/endpoint/billing/list-orders">
+    List orders, create a plan order and generate its PIX payment.
+  </Card>
+</CardGroup>

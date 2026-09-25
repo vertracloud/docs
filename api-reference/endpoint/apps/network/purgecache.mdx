@@ -1,0 +1,88 @@
+---
+title: Purge Cache
+sidebarTitle: Purge Cache
+api: POST https://api.vertracloud.app/v1/apps/{id}/network/purge-cache
+authMethod: bearer
+description: Purges the cache for an application’s subdomain or custom domain, optionally for specific paths.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the application to purge the cache for.
+</ParamField>
+
+<ParamField body="hostnames" type="array">
+  The hostnames to purge. **Optional** — omit it (an empty body is fine) and every hostname the
+  application owns is purged, which is what a plain "purge this app's cache" wants. When you do send
+  it, each entry must be one of the application's own hostnames: its `subdomain`, already a full
+  host (`myapp.vertraweb.app` — do not append the zone again), or its attached custom domain.
+  Anything else is rejected with `INVALID_HOSTNAME_FOR_APP`.
+</ParamField>
+
+<ParamField body="paths" type="array">
+  An optional array of full URLs to purge (e.g., `["https://example.com/path1", "https://example.com/path2"]`).
+  URLs whose host is not among the hostnames being purged are dropped; if nothing is left the
+  request fails with `NO_AUTHORIZED_PATHS`. If omitted, everything under each hostname is purged.
+</ParamField>
+
+### Response
+
+A success returns `200` with `{ "response": null }`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameter or the body failed validation (`400`). The response also
+    carries `message` and `path`.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `INVALID_HOSTNAME_FOR_APP`: One of the `hostnames` does not belong to the application (`403`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `APP_NOT_PUBLISHED`: The application has no subdomain and no custom domain, so it has no edge
+    cache to purge (`400`).
+  - `NO_AUTHORIZED_PATHS`: None of the provided `paths` belong to the given hostnames (`400`).
+  - `INTERNAL_SERVER_ERROR`: The CDN rejected the purge (`500`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "INVALID_HOSTNAME_FOR_APP"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route has its own budget of 10 requests per minute. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

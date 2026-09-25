@@ -1,0 +1,61 @@
+---
+title: Database Data Overview
+sidebarTitle: Overview
+api: GET https://api.vertracloud.app/v1/databases/{id}/data/overview
+authMethod: bearer
+description: Engine version, size on disk, object count and connection usage of the database.
+---
+
+{/* @see APIDatabaseDataOverview — @vertracloud/api-types */}
+<Note>
+  Every `/data` endpoint needs the **Intermediary** plan or higher, on the **database owner's**
+  account — not the caller's. Below that the answer is `PLAN_RESTRICTED_FEATURE` (403).
+  It is also **dashboard-session only**: an API key gets `API_KEY_SCOPE_DENIED` (403) here, regardless of
+  its scopes.
+</Note>
+
+Works for every engine. The shape is the same; only `extra` differs per engine.
+
+<ParamField path="id" type="string" required>
+  The ID of the database.
+</ParamField>
+
+<ParamField query="workspace" type="string">
+  Workspace the database belongs to. Required when the caller is not the owner.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+  <ResponseField name="engine_version" type="string">Version reported by the engine.</ResponseField>
+  <ResponseField name="size_bytes" type="number">Data plus indexes, in bytes.</ResponseField>
+  <ResponseField name="objects_count" type="number">Tables (SQL), collections (MongoDB) or keys (Redis).</ResponseField>
+  <ResponseField name="connections_active" type="number">Connections open right now.</ResponseField>
+  <ResponseField name="connections_max" type="number">Connection ceiling. `0` when the engine has none.</ResponseField>
+  <ResponseField name="uptime_seconds" type="number">Seconds since the engine started.</ResponseField>
+  <ResponseField name="extra" type="object">Engine-specific fields (`replica_set`, `max_memory_bytes`, …). Optional.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl https://api.vertracloud.app/v1/databases/{id}/data/overview \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "response": {
+    "engine_version": "17.2",
+    "size_bytes": 8437760,
+    "objects_count": 12,
+    "connections_active": 3,
+    "connections_max": 100,
+    "uptime_seconds": 84213
+  }
+}
+```
+</ResponseExample>

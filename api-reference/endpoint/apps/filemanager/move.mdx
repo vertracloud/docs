@@ -1,0 +1,78 @@
+---
+title: Move Application File or Folder
+sidebarTitle: Move File or Folder
+api: PATCH https://api.vertracloud.app/v1/apps/{id}/files
+authMethod: bearer
+description: Moves a file or folder within an application to a new location by its ID.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the application to move the file or folder within. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Members with an Owner, Admin or Developer role can use the file manager on a workspace app they don't own; without this, only the app's own owner can.
+</ParamField>
+
+<ParamField query="path" type="string" required>
+  The source path of the file or folder to move.
+</ParamField>
+
+<ParamField query="to" type="string" required>
+  The destination path to move the file or folder to.
+</ParamField>
+
+### Response
+
+A success returns `200` with `{ "response": null }`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `PLAN_RESTRICTED_FEATURE`: The user's plan does not support file manager access.
+  - `MISSING_PATH_OR_DESTINATION`: The path or destination query parameter was not provided.
+  - `FORBIDDEN_PATH`: The specified source path is restricted.
+  - `FILE_MOVE_FAILED`: Failed to move the file or folder.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "MISSING_PATH_OR_DESTINATION",
+  "message": "Both 'path' and 'to' query parameters are required"
+}
+```
+
+</ResponseExample>

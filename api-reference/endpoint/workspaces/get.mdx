@@ -1,0 +1,67 @@
+---
+title: Get Workspace
+sidebarTitle: Get
+api: GET https://api.vertracloud.app/v1/workspaces/{id}
+authMethod: bearer
+description: Returns full workspace details, the caller's permissions and their individual resource organization.
+---
+
+{/* @see APIWorkspaceInfoResponse, RESTGetAPIWorkspaceInfoResponse — @vertracloud/api-types */}
+Any member can call this (there's no read permission gate on the workspace itself — you either
+belong to it or you get `404`). An API key needs the `workspaces:read` scope.
+
+<Note>
+  A workspace that doesn't exist and one you don't belong to answer the same way:
+  `404 WORKSPACE_NOT_FOUND`. That's deliberate — telling the two apart would leak which
+  workspace IDs exist.
+</Note>
+
+### Path
+
+<ParamField path="id" type="string" required>
+  Workspace ID.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIWorkspaceInfoResponse">
+  Everything from [List Workspaces](/api-reference/endpoint/workspaces/get-all), plus:
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="members" type="APIWorkspaceMember[]">Full member list, same shape as [List Members](/api-reference/endpoint/workspaces/members/list).</ResponseField>
+  <ResponseField name="roles" type="APIWorkspaceRole[]">Full role list, same shape as [List Roles](/api-reference/endpoint/workspaces/roles/list).</ResponseField>
+  <ResponseField name="applications" type="APIApplication[]">Applications linked to this workspace.</ResponseField>
+  <ResponseField name="databases" type="APIDatabase[]">Databases linked to this workspace.</ResponseField>
+  <ResponseField name="permissions" type="WorkspacePermission[]">The caller's resolved permissions. The owner gets the full 21-permission catalog without needing a role row.</ResponseField>
+  <ResponseField name="is_owner" type="boolean" />
+  <ResponseField name="resource_organization" type="APIWorkspaceResourceOrganization">
+    Personal organization of the member who made this request in this workspace. It has `scope` set to
+    `workspace`, `user_id`, `workspace_id`, `folders` and `favorites`; it is not a configuration
+    shared with other members. See the [folder and favorite mutations](/api-reference/endpoint/workspaces/resource-organization).
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="scope" type="string">Always `workspace` in this response.</ResponseField>
+    <ResponseField name="user_id" type="string">ID of the member who made the request.</ResponseField>
+    <ResponseField name="workspace_id" type="string">ID of this workspace.</ResponseField>
+    <ResponseField name="folders" type="APIWorkspaceResourceFolder[]">
+      Personal folders with `id`, `name`, `color`, `position`, `resources`, `created_at` and
+      `updated_at`. `color` is `neutral`, `red`, `orange`, `yellow`, `green`, `blue` or `purple`.
+    </ResponseField>
+    <ResponseField name="favorites" type="APIWorkspaceFavorite[]">
+      Individual favorites with `resource_type` (`application` or `database`), `resource_id`,
+      `position` and `created_at`.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist, is soft-deleted, or you're not a member. |

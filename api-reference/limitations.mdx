@@ -1,0 +1,250 @@
+---
+title: 'Platform Limits and Quotas on Vertra Cloud'
+sidebarTitle: 'Limitations'
+description: 'Resource limits per Vertra Cloud plan: RAM, vCPU, database connections, bandwidth, upload size, install/build time, storage and deploy rate limits.'
+---
+
+Every limit on this page is enforced by the platform, not advisory. The full plan table — price,
+RAM, vCPU, projects and API requests — is on [Plans and limits](/plans-and-limits).
+
+## Resource Limits per Plan
+
+Memory and vCPU come from the plan; database connections are capped at 100 per database on every
+plan. Only the Free plan has a project count cap (1 app, no databases) — from Economy up, there's
+no count cap, and the real limit is the plan's RAM: creating an app or database is refused with
+`INSUFFICIENT_MEMORY` once the plan's RAM runs out.
+
+| Plan | Plan RAM | vCPU | Projects | DB Connections |
+|------|:--------:|:----:|:------------:|:--------------:|
+| Free ("suspended") | 100 MB "free" | 0.25 | 1 app, no databases | — |
+| Economy | 256 MB | 0.3 | Limited by RAM | 100 |
+| Pro | 1,024 MB | 0.5 | Limited by RAM | 100 |
+| Scale | 2,048 MB | 1 | Limited by RAM | 100 |
+| Intermediary | 3,072 MB | 1.5 | Limited by RAM | 100 |
+| Enterprise-4 | 4,096 MB | 2 | Limited by RAM | 100 |
+| Enterprise-32 | 32,768 MB | 12 | Limited by RAM | 100 |
+
+## Bandwidth Limits
+
+Each resource's network bandwidth is proportional to the memory allocated to it.
+
+| RAM | Bandwidth |
+|-----|:---------:|
+| ≤ 256 MB | 50 Mbit |
+| ≤ 512 MB | 100 Mbit |
+| ≤ 1,024 MB | 200 Mbit |
+| ≤ 2,048 MB | 400 Mbit |
+| ≤ 4,096 MB | 800 Mbit |
+| ≤ 8,192 MB | 1,600 Mbit |
+| ≤ 10,240 MB | 2,000 Mbit |
+
+Resources exceeding 10 GB of RAM receive bandwidth scaled at approximately 50 Mbit per 256 MB.
+
+## Upload Limits
+
+| Resource | Limit |
+|----------|:-----:|
+| ZIP file size | 100 MB |
+| Dependency install time | 15 minutes (`INSTALL_TIMEOUT`) |
+| Build command (`build_command`) time | 10 minutes (`BUILD_TIMEOUT`) |
+| Exposed ports | 1 per application (port 80) |
+
+## Storage Limits
+
+| Resource | Storage |
+|----------|:-------:|
+| Application | 10 GB, fixed, regardless of RAM |
+| Database | 6 GB + 1 GB per 512 MB of allocated RAM, rounded up to whole GB |
+
+## API Request Limits
+
+These two layers only apply to requests authenticated with an **API key** — dashboard sessions
+don't count against them. The minute window returns `x-ratelimit-limit`,
+`x-ratelimit-remaining` and `x-ratelimit-reset` headers; the day window returns `x-quota-limit`,
+`x-quota-remaining` and `x-quota-reset`. The daily quota resets at midnight in the
+America/Fortaleza (Brasília) timezone. Over either limit: `429 RATE_LIMIT_EXCEEDED` (minute) or
+`429 DAILY_QUOTA_EXCEEDED` (day), both with `details: { scope, limit, used, retry_after }`. See
+[API Reference Introduction](/api-reference/introduction) for the full three-layer model,
+including the fixed per-route limits (lifecycle, database reset, subdomain changes, SQL console).
+
+| Plan | Req/min | Req/day |
+|------|:-------:|:-------:|
+| Free | 30 | 1,000 |
+| Economy | 60 | 5,000 |
+| Pro | 120 | 20,000 |
+| Scale | 180 | 86,400 |
+| Intermediary | 240 | 115,200 |
+| Enterprise-4 | 300 | 144,000 |
+| Enterprise-6 | 300 | 180,000 |
+| Enterprise-8 | 300 | 216,000 |
+| Enterprise-12 | 480 | 324,000 |
+| Enterprise-14 | 480 | 378,000 |
+| Enterprise-16 | 480 | 432,000 |
+| Enterprise-18 | 480 | 486,000 |
+| Enterprise-20 | 480 | 540,000 |
+| Enterprise-22 | 480 | 594,000 |
+| Enterprise-24 | 480 | 648,000 |
+| Enterprise-26 | 480 | 702,000 |
+| Enterprise-28 | 480 | 756,000 |
+| Enterprise-30 | 480 | 810,000 |
+| Enterprise-32 | 480 | 864,000 |
+
+## Deploy Rate Limits
+
+Creating an application, uploading a ZIP, deploying from GitHub (manual or push), reinstalling
+dependencies and changing the build command all count against one hourly budget per account.
+Starting, stopping and a plain restart do not count; a restart with `reinstall_dependencies` or `force_build` does. A GitHub push beyond the limit is dropped and
+logged in the activity history. Over the limit: `429 DEPLOY_RATE_LIMITED`, with `details.limit`,
+`details.window_seconds` (3600) and `details.retry_after`.
+
+| Plan | Deploys/hour |
+|------|:------------:|
+| Free | 5 |
+| Economy | 10 |
+| Pro | 20 |
+| Scale | 40 |
+| Intermediary | 60 |
+| Enterprise (any tier) | 60 |
+
+## Auto-Restart
+
+Auto-restart is on by default for every application, on every plan, and is subject to crash loop detection. If a container crashes **5 times in 10 minutes**, auto-restart is disabled for 24 hours. There is a **1-hour cooldown** between restarts, and the container must be online for at least **60 seconds** to count as stable.
+
+## What are the Free plan limits?
+
+<Warning>
+  The Free plan is currently **"suspended"**. It stays documented here for reference, with
+  100 MB of RAM "free", but it isn't available right now — start on Economy or above.
+</Warning>
+
+The Free plan is an evaluation tier: 1 application and no databases, 100 MB of RAM "free", no
+web publishing and no file manager. Projects on the Free plan that remain offline for more than **30 days** are automatically deleted. Notifications are sent at days 7, 23 and 27.
+
+## Features per Plan
+
+Every plan includes Vertra Shield, auto-restart with crash loop detection, TLS on every database,
+10 GB of storage per application, API keys with scopes, the CLI, the SDKs, the MCP server, the
+VS Code extension and Vertra Flow. What changes from plan to plan is resources, limits and the
+features in the table below.
+
+| Feature | Free ("suspended") | Economy | Pro | Scale | Intermediary | Enterprise |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Price/month | R\$0 | R\$1.99 | R\$5.99 | R\$10.99 | R\$18.99 | from R\$23.99 |
+| RAM | 100 MB "free" | 256 MB | 1,024 MB | 2,048 MB | 3,072 MB | 4–32 GB |
+| vCPU per app | 0.25 | 0.3 | 0.5 | 1 | 1.5 | 2–12 |
+| Applications | 1 | limited by RAM | limited by RAM | limited by RAM | limited by RAM | limited by RAM |
+| Databases | — | — ¹ | Yes | Yes | Yes | Yes |
+| API requests/min | 30 | 60 | 120 | 180 | 240 | 300–480 |
+| API requests/day | 1,000 | 5,000 | 20,000 | 86,400 | 115,200 | 144,000–864,000 |
+| Deploys/hour | 5 | 10 | 20 | 40 | 60 | 60 |
+| Web publishing (`*.vertraweb.app`) | — | — | Yes (random subdomain) | Yes | Yes | Yes |
+| Choose the subdomain | — | — | — | Yes | Yes | Yes |
+| "Powered by Vertra Cloud" badge | — | — | Yes | — | — | — |
+| Custom domain | — | — | — | — | Yes | Yes |
+| File manager | — | — | Yes | Yes | Yes | Yes |
+| Advanced metrics | — | — | Yes | Yes | Yes | Yes |
+| Daily backups | — | — | — | Yes | Yes | Yes |
+| Manual snapshots | — | — | — | Yes | Yes | Yes |
+| Database Data tab | — | — | — | — | Yes | Yes |
+| Auto-deploy from GitHub (push) | — | — | — | — | Yes | Yes |
+| Workspaces | — | — | — | — | — | Yes (5–24 members) |
+| Commit system | — | — | — | — | — | Yes |
+| Support | Discord | Specialized | Priority | Priority | Priority | Premium |
+
+¹ The smallest database (Redis) needs 512 MB of RAM, which doesn't fit in Economy's 256 MB.
+
+<Tabs>
+  <Tab title='Free ("suspended")'>
+    <Warning>The Free plan is currently **"suspended"** and isn't available right now.</Warning>
+
+    - **Price:** R\$0
+    - **RAM:** 100 MB "free" · **vCPU:** 0.25
+    - **Projects:** 1 application — databases can't be created on Free
+    - **API:** 30 requests/min, 1,000 requests/day · **Deploys:** 5/hour
+    - Vertra Shield, auto-restart, 10 GB of storage for the application
+    - Deploy by zip upload, GitHub, CLI or VS Code extension
+    - Discord support · 99.99% SLA
+    - **Not included:** web publishing, file manager, advanced metrics, backups, custom domain, workspaces
+    - Projects inactive for **30 days** are deleted automatically (email warnings on days 7, 23 and 27)
+  </Tab>
+  <Tab title="Economy">
+    - **Price:** R\$1.99/month
+    - **RAM:** 256 MB · **vCPU:** 0.3
+    - **Projects:** no count cap — limited by RAM (an application needs at least 100 MB, so up to 2)
+    - **Databases:** the smallest one (Redis) needs 512 MB, so they don't fit in this plan
+    - **API:** 60 requests/min, 5,000 requests/day · **Deploys:** 10/hour
+    - Vertra Shield, auto-restart, 10 GB of storage per application
+    - Deploy by zip upload, GitHub, CLI or VS Code extension
+    - Specialized support · 99.99% SLA
+    - **Not included:** web publishing, file manager, advanced metrics, backups, custom domain, workspaces
+  </Tab>
+  <Tab title="Pro">
+    - **Price:** R\$5.99/month
+    - **RAM:** 1,024 MB · **vCPU:** 0.5
+    - **Projects:** limited by RAM — e.g. up to 10 applications of 100 MB, or one PostgreSQL/MySQL/MongoDB
+      (1,024 MB), or a Redis (512 MB) plus applications
+    - **API:** 120 requests/min, 20,000 requests/day · **Deploys:** 20/hour
+    - **Web publishing** with a randomly assigned `*.vertraweb.app` subdomain and automatic SSL
+    - "Powered by Vertra Cloud" badge on published HTML pages
+    - **File manager** in the dashboard (edit, upload, move, delete files)
+    - **Advanced metrics**
+    - Vertra Shield, auto-restart, 10 GB of storage per application
+    - Priority support · 99.99% SLA
+    - **Not included:** choosing the subdomain, backups, custom domain, Data tab, auto-deploy, workspaces
+  </Tab>
+  <Tab title="Scale">
+    - **Price:** R\$10.99/month
+    - **RAM:** 2,048 MB · **vCPU:** 1 per application
+    - **Projects:** limited by RAM
+    - **API:** 180 requests/min, 86,400 requests/day · **Deploys:** 40/hour
+    - Web publishing and **choosing the subdomain name**, with no "Powered by" badge
+    - File manager and advanced metrics
+    - **Daily backups** and **manual snapshots** (restore and download as ZIP)
+    - Vertra Shield, auto-restart, 10 GB of storage per application
+    - Priority support · 99.99% SLA
+    - **Not included:** custom domain, Data tab, auto-deploy, workspaces
+  </Tab>
+  <Tab title="Intermediary">
+    - **Price:** R\$18.99/month
+    - **RAM:** 3,072 MB · **vCPU:** 1.5 (1 for applications under 2 GB of RAM)
+    - **Projects:** limited by RAM
+    - **API:** 240 requests/min, 115,200 requests/day · **Deploys:** 60/hour
+    - Web publishing, choosing the subdomain and **custom domain**
+    - File manager and advanced metrics
+    - Daily backups and manual snapshots
+    - **Database Data tab** — browse and edit tables, rows and documents, with a SQL console
+    - **Auto-deploy from GitHub** on every push
+    - Vertra Shield, auto-restart, 10 GB of storage per application
+    - Priority support · 99.99% SLA
+    - **Not included:** workspaces, commit system
+  </Tab>
+  <Tab title="Enterprise">
+    - **Price:** from R\$23.99/month (Enterprise-4) to R\$191.99/month (Enterprise-32)
+    - **Projects:** limited by RAM · **Deploys:** 60/hour
+    - Everything in the other plans: web publishing, subdomain choice, custom domain, file manager,
+      advanced metrics, daily backups, manual snapshots, Data tab, auto-deploy
+    - **Workspaces** with customizable roles and invites — members and roles grow with the tier
+    - **Commit system**
+    - Premium support · 99.99% SLA · Enterprise-32: dedicated agent + exclusive manager
+
+    | Tier | Price/month | RAM | vCPU | Requests/min | Requests/day | Members | Roles |
+    |---|---:|---:|---:|---:|---:|---:|---:|
+    | Enterprise-4 | R\$23.99 | 4 GB | 2 | 300 | 144,000 | 5 | 4 |
+    | Enterprise-6 | R\$35.99 | 6 GB | 3 | 300 | 180,000 | 10 | 4 |
+    | Enterprise-8 | R\$47.99 | 8 GB | 4 | 300 | 216,000 | 10 | 4 |
+    | Enterprise-12 | R\$71.99 | 12 GB | 5 | 480 | 324,000 | 13 | 6 |
+    | Enterprise-14 | R\$83.99 | 14 GB | 5.5 | 480 | 378,000 | 14 | 6 |
+    | Enterprise-16 | R\$95.99 | 16 GB | 6 | 480 | 432,000 | 15 | 6 |
+    | Enterprise-18 | R\$107.99 | 18 GB | 6.5 | 480 | 486,000 | 16 | 8 |
+    | Enterprise-20 | R\$119.99 | 20 GB | 7.5 | 480 | 540,000 | 17 | 8 |
+    | Enterprise-22 | R\$131.99 | 22 GB | 8.5 | 480 | 594,000 | 18 | 8 |
+    | Enterprise-24 | R\$143.99 | 24 GB | 9 | 480 | 648,000 | 19 | 8 |
+    | Enterprise-26 | R\$155.99 | 26 GB | 9.5 | 480 | 702,000 | 20 | 10 |
+    | Enterprise-28 | R\$167.99 | 28 GB | 10.5 | 480 | 756,000 | 21 | 10 |
+    | Enterprise-30 | R\$179.99 | 30 GB | 11.5 | 480 | 810,000 | 22 | 10 |
+    | Enterprise-32 | R\$191.99 | 32 GB | 12 | 480 | 864,000 | 24 | 12 |
+
+    vCPU is the per-application ceiling; applications under 2 GB of RAM get 1 vCPU. Roles include the
+    4 built-in ones.
+  </Tab>
+</Tabs>

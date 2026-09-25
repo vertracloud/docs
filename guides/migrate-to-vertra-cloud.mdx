@@ -1,0 +1,52 @@
+---
+title: 'Move an Existing Application to Vertra Cloud'
+sidebarTitle: 'Migrate an application'
+description: 'A checklist for moving an app, its variables, its database and its domain to Vertra Cloud while the old host keeps serving traffic.'
+icon: 'arrow-right-arrow-left'
+---
+
+Moving doesn't require rewriting the application. The safe order is: bring up a copy, move the
+configuration and data, test, and only then move the traffic.
+
+## Check the code
+
+<Check>The port comes from `PORT` and the server listens on `0.0.0.0`.</Check>
+<Check>Secrets are read from environment variables, not from the code.</Check>
+<Check>The start command doesn't depend on a `Procfile` or a host-specific file.</Check>
+<Check>Nothing writes important data only to local disk that another host was backing up for you.</Check>
+
+A `Procfile` like `web: node server.js` becomes `START=node server.js` in
+[`vertracloud.config`](/configuration); a build step becomes `BUILD=`.
+
+## Step by step
+
+<Steps>
+  <Step title="Deploy a copy">
+    Upload a `.zip`, import the repository from [GitHub](/deploy-github) or run `vertra deploy`. Keep
+    the old host live and don't touch DNS yet.
+  </Step>
+  <Step title="Copy the environment variables">
+    Recreate them in **Config**, leaving out `PORT` and `HOST`, which the platform sets. It's a good
+    moment to rotate secrets instead of copying them.
+  </Step>
+  <Step title="Move the database">
+    Create the database, then export and import with the engine's own tools: `pg_dump`/`pg_restore`,
+    `mongodump`/`mongorestore`, `mysqldump`. For Redis, recreate the keys you need or let caches warm
+    up again. Connect with TLS as shown in [Connect a database](/guides/connect-database).
+  </Step>
+  <Step title="Test the copy">
+    Use the `*.vertraweb.app` address and exercise the flows that matter while watching the **Logs** tab.
+  </Step>
+  <Step title="Move the traffic">
+    Put the old application in read-only or maintenance mode, run a final data sync, then point the
+    DNS at Vertra Cloud with a [custom domain](/guides/custom-domain).
+  </Step>
+  <Step title="Retire the old host">
+    Keep it for a few days as a fallback, then shut it down.
+  </Step>
+</Steps>
+
+<Tip>
+  Lower the TTL of your DNS record to a few minutes a day before the switch, so the change (or a
+  rollback) propagates quickly.
+</Tip>

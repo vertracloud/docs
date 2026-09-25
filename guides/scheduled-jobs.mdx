@@ -1,0 +1,75 @@
+---
+title: 'Run Scheduled Jobs'
+sidebarTitle: 'Scheduled jobs'
+description: 'Run recurring tasks, like cleanups, reports and reminders, from an always-on background application with an in-process scheduler.'
+icon: 'calendar-clock'
+---
+
+Vertra Cloud keeps your process running around the clock, so a recurring task is simply a scheduler
+inside your code. A job that doesn't serve HTTP runs as a background application, which doesn't need
+web publishing and fits the smaller plans.
+
+## Choose where the job lives
+
+- **Inside your existing app**: simplest, if the job is light and shares code with it.
+- **In a separate background application**: better if the job is heavy or you don't want it to
+  compete with requests for memory. It restarts and scales on its own.
+
+## Node.js
+
+```bash
+npm install node-cron
+```
+
+```javascript index.js
+const cron = require('node-cron');
+
+cron.schedule('0 3 * * *', async () => {
+  console.log('nightly cleanup started');
+  await cleanup();
+}, { timezone: 'America/Sao_Paulo' });
+
+console.log('scheduler running');
+```
+
+## Python
+
+```bash
+pip install apscheduler
+```
+
+```python main.py
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+scheduler = BlockingScheduler(timezone="America/Sao_Paulo")
+
+@scheduler.scheduled_job("cron", hour=3)
+def nightly_cleanup():
+    print("nightly cleanup started", flush=True)
+
+scheduler.start()
+```
+
+`BlockingScheduler` keeps the process alive. With a script that ends after scheduling, the process
+exits with code `0` and isn't restarted.
+
+## Things to get right
+
+<AccordionGroup>
+  <Accordion title="Always set the timezone">
+    Don't depend on the container's clock zone: pass the timezone to the scheduler explicitly, as in
+    the examples.
+  </Accordion>
+  <Accordion title="Make jobs safe to run twice">
+    A restart during a job means it may run again. Record what was processed, or design the job so a
+    second run changes nothing.
+  </Accordion>
+  <Accordion title="Catch errors inside the job">
+    An unhandled error can take the whole process down, and 5 crashes in 10 minutes pause
+    auto-restart for 24 hours. Wrap the job body in `try`/`catch` and log the failure.
+  </Accordion>
+  <Accordion title="Log every run">
+    Print a line when a job starts and ends; the **Logs** tab is where you'll check that it ran. In Python
+    use `flush=True` so the line appears immediately.
+  </Accordion>
+</AccordionGroup>

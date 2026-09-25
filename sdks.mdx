@@ -1,0 +1,322 @@
+---
+title: 'Official SDKs (JavaScript, Python and Go)'
+sidebarTitle: 'SDKs'
+description: 'Typed clients for JavaScript/TypeScript, Python and Go over the Vertra Cloud public API: apps, databases, snapshots, account, workspaces and billing.'
+icon: 'box'
+---
+
+## What they are
+
+`@vertracloud/sdk-api` (JavaScript/TypeScript), `vertracloud-sdk-api` (Python) and
+`github.com/vertracloud/sdk-api-go` (Go) are thin typed clients over the
+[public API](/api-reference/introduction): one method per route, the same API key scopes, and
+nothing beyond that — no cache, no automatic retry, no state of its own. Use them instead of
+hand-rolling `fetch`/`requests`/`net/http` when you want types and errors already structured.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @vertracloud/sdk-api
+```
+
+```bash pip
+pip install vertracloud-sdk-api
+```
+
+```bash go
+go get github.com/vertracloud/sdk-api-go
+```
+
+</CodeGroup>
+
+## Authentication
+
+All three clients take the API key at construction — the same key created under
+**Settings → API keys** in the dashboard, with the scopes your code will use (see
+[Scopes](/api-reference/introduction#scopes)).
+
+<CodeGroup>
+
+```javascript JavaScript
+import { VertraClient } from "@vertracloud/sdk-api";
+
+const client = new VertraClient({ apiKey: process.env.VERTRA_API_KEY });
+```
+
+```python Python
+from vertracloud import VertraClient
+
+client = VertraClient(api_key="your_key")
+```
+
+```go Go
+import (
+	"github.com/vertracloud/sdk-api-go/rest"
+	"github.com/vertracloud/sdk-api-go/vertracloud"
+)
+
+restClient, err := rest.NewClient(os.Getenv("VERTRA_API_KEY"))
+if err != nil {
+	log.Fatal(err)
+}
+client := vertracloud.New(restClient)
+```
+
+</CodeGroup>
+
+All of them accept an optional base URL and timeout (`baseUrl`/`timeoutMs`,
+`base_url`/`timeout`, `rest.WithBaseURL`/`rest.WithTimeout`); the default already points to
+`https://api.vertracloud.app`. In Go, every call takes `context.Context` first and per-call
+options at the end — for example, `rest.WithWorkspaceID(id)` to act on a workspace resource.
+
+## Examples by domain
+
+### Applications
+
+<CodeGroup>
+
+```javascript JavaScript
+const app = await client.apps.get("app-abc123");
+await client.apps.restart("app-abc123", { hard: false });
+const runtimes = await client.apps.runtimes();
+```
+
+```python Python
+app = client.apps.get("app-abc123")
+client.apps.restart("app-abc123")
+runtimes = client.apps.runtimes()
+```
+
+```go Go
+app, err := client.Apps.Get(ctx, "app-abc123")
+_, err = client.Apps.Restart(ctx, "app-abc123", nil)
+runtimes, err := client.Apps.Runtimes(ctx)
+```
+
+</CodeGroup>
+
+### Databases
+
+<CodeGroup>
+
+```javascript JavaScript
+const db = await client.databases.get("db-abc123");
+await client.databases.start("db-abc123");
+```
+
+```python Python
+db = client.databases.get("db-abc123")
+client.databases.start("db-abc123")
+```
+
+```go Go
+db, err := client.Databases.Get(ctx, "db-abc123")
+_, err = client.Databases.Start(ctx, "db-abc123")
+```
+
+</CodeGroup>
+
+### Snapshots
+
+The `scope` (`"applications"` or `"databases"`) is required on every snapshot call — the same
+resource ID could be an app or a database, and the API doesn't guess.
+
+<CodeGroup>
+
+```javascript JavaScript
+const snapshots = await client.snapshots.list("app-abc123", { scope: "applications" });
+const created = await client.snapshots.create("app-abc123", { scope: "applications" });
+await client.snapshots.restore("app-abc123", created.id, { scope: "applications" });
+```
+
+```python Python
+snapshots = client.snapshots.list("app-abc123", scope="applications")
+created = client.snapshots.create("app-abc123", scope="applications")
+client.snapshots.restore("app-abc123", created.id, scope="applications")
+```
+
+```go Go
+snapshots, err := client.Snapshots.List(ctx, "app-abc123", vertracloud.SnapshotScopeApplications)
+created, err := client.Snapshots.Create(ctx, "app-abc123", vertracloud.SnapshotScopeApplications)
+_, err = client.Snapshots.Restore(ctx, "app-abc123", created.ID, vertracloud.SnapshotScopeApplications)
+```
+
+</CodeGroup>
+
+### Account
+
+<CodeGroup>
+
+```javascript JavaScript
+const me = await client.account.get();
+const sessions = await client.account.sessions.list();
+```
+
+```python Python
+me = client.account.get()
+sessions = client.account.sessions.list()
+```
+
+```go Go
+me, err := client.Account.Get(ctx)
+sessions, err := client.Account.Sessions().List(ctx)
+```
+
+</CodeGroup>
+
+### Workspaces
+
+<CodeGroup>
+
+```javascript JavaScript
+const members = await client.workspaces.members.list("ws-abc123");
+await client.workspaces.apps.add("ws-abc123", "app-abc123");
+```
+
+```python Python
+members = client.workspaces.members.list("ws-abc123")
+client.workspaces.apps.add("ws-abc123", "app-abc123")
+```
+
+```go Go
+members, err := client.Workspaces.Members().List(ctx, "ws-abc123")
+err = client.Workspaces.Apps().Add(ctx, "ws-abc123", "app-abc123")
+```
+
+</CodeGroup>
+
+### Billing and redemption
+
+<CodeGroup>
+
+```javascript JavaScript
+const order = await client.billing.orders.create({ type: "purchase", plan: "pro", months: 1 });
+const pix = await client.billing.orders.initiatePix(order.id);
+```
+
+```python Python
+order = client.billing.orders.create({"type": "purchase", "plan": "pro", "months": 1})
+pix = client.billing.orders.initiate_pix(order.id)
+```
+
+```go Go
+order, err := client.Billing.Orders().Create(ctx, vertracloud.OrderCreateBody{
+	Type: vertracloud.OrderCreateTypePurchase, Plan: "pro", Months: 1,
+})
+pix, err := client.Billing.Orders().InitiatePix(ctx, order.ID)
+```
+
+</CodeGroup>
+
+To redeem a promo code, use `billing.redeem` (`client.billing.redeem(code)` in JavaScript and
+Python, `client.Billing.Redeem(ctx, code)` in Go), with a key that has the `redeem:write` scope.
+
+## Streaming (`apps.realtime`)
+
+`GET /v1/apps/{id}/realtime` is the only route in the catalog that streams live events (logs and
+system notes). JavaScript exposes an async generator; Python, an iterable stream object; Go, an
+iterator (`Next`/`Event`/`Err`) — none of them reconnect on their own if the connection drops.
+
+<CodeGroup>
+
+```javascript JavaScript
+for await (const event of client.apps.realtime("app-abc123")) {
+  console.log(event.event, event.data);
+}
+```
+
+```python Python
+with client.apps.realtime("app-abc123") as stream:
+    for event in stream:
+        print(event.event, event.data)
+```
+
+```go Go
+stream, err := client.Apps.Realtime(ctx, "app-abc123", nil)
+if err != nil {
+	log.Fatal(err)
+}
+defer stream.Close()
+
+for stream.Next(ctx) {
+	event := stream.Event()
+	fmt.Println(event.Event, event.Data)
+}
+if err := stream.Err(); err != nil {
+	log.Fatal(err)
+}
+```
+
+</CodeGroup>
+
+## Typed errors
+
+Every response outside the 2xx range becomes a structured error, always with `code` (and
+`details`, when the API sends it) accessible — never a loose string to parse. In JavaScript and
+Python, the exception class indicates the HTTP status; in Go, every API error is a single
+`*rest.APIError`, and the status is checked through methods.
+
+| Status | JavaScript | Python | Go (`*rest.APIError`) |
+|---|---|---|---|
+| 401 | `AuthenticationError` | `AuthenticationError` | `IsAuthenticationError()` |
+| 403 | `PermissionError` | `ScopeDeniedError` | `IsPermissionError()` |
+| 404 | `NotFoundError` | `NotFoundError` | `IsNotFoundError()` |
+| 400 / 422 | `ValidationError` | `ValidationError` | `IsValidationError()` |
+| 429 | `RateLimitError` | `RateLimitError` | `IsRateLimitError()` |
+| other | `VertraAPIError` | `VertraAPIError` | `Status` field |
+
+```javascript JavaScript
+import { RateLimitError } from "@vertracloud/sdk-api";
+
+try {
+  await client.apps.restart("app-abc123");
+} catch (error) {
+  if (error instanceof RateLimitError) {
+    console.log(`Retry after ${error.retryAfter}s`);
+  }
+  throw error;
+}
+```
+
+```python Python
+from vertracloud.errors import RateLimitError
+
+try:
+    client.apps.restart("app-abc123")
+except RateLimitError as error:
+    print(f"Retry after {error.retry_after}s")
+    raise
+```
+
+```go Go
+_, err := client.Apps.Restart(ctx, "app-abc123", nil)
+if apiErr, ok := rest.AsAPIError(err); ok && apiErr.IsRateLimitError() {
+	if wait := apiErr.RetryAfter(); wait != nil {
+		fmt.Printf("Retry after %s\n", *wait)
+	}
+}
+```
+
+None of the clients print the API key to logs, `toString()`/`__repr__`/`Error()`, or error
+serialization — `retry_after` (in seconds) comes from `details.retry_after` in the error body or
+the `Retry-After` header on `429` responses. See
+[Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited) for per-route limits.
+
+## What you can't do with an API key
+
+Some management actions are only available in the dashboard, and are therefore not exposed by
+the SDKs:
+
+| Resource | Where it lives |
+|---|---|
+| Account/workspace activity | Dashboard → Activity |
+| Notifications | Dashboard → Notifications |
+| API key management (create, list, rotate, revoke) | Dashboard → Settings → API keys |
+| Creating a workspace invite, transferring ownership, approving/rejecting an action request | Dashboard → Workspace |
+| Database **Data** tab (schemas, tables, SQL console, collections, keys) | Dashboard → Database → Data |
+| Plan downgrade | Dashboard → Plan |
+
+For AI agent automation over files, logs, apps and deploys, see the [MCP server](/mcp) — it uses
+the same API key, with the same scope model.

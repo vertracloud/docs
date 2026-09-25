@@ -1,0 +1,106 @@
+---
+title: Get Database Metrics by ID
+sidebarTitle: Get Database Metrics
+api: GET https://api.vertracloud.app/v1/databases/{id}/metrics
+authMethod: bearer
+description: Retrieves metrics for a specific database by its ID over the last 24 hours.
+---
+
+{/* @see APIDatabaseMetrics[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the database to retrieve metrics for. If the database belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the database belongs to a workspace, the workspace's ID. Required for workspace members acting on a database they don't own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="array">
+  An array of metric objects for the database over the last 24 hours.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="cpu" type="string">
+    The CPU usage of the database container (e.g., "0.00%").
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    The RAM usage of the database container in MB (e.g., "0.00 MB").
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    The storage usage of the database container in MB (e.g., "0.00 MB").
+  </ResponseField>
+
+  <ResponseField name="network" type="array">
+    An array containing the network inbound and outbound traffic in bytes [in, out].
+  </ResponseField>
+
+  <ResponseField name="date" type="string" format="date-time">
+    The timestamp when the metric was recorded.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "cpu": "0.50%",
+      "ram": "128.00 MB",
+      "storage": "256.00 MB",
+      "network": [1024, 2048],
+      "date": "2026-03-14T19:58:00Z"
+    },
+    {
+      "cpu": "0.75%",
+      "ram": "130.00 MB",
+      "storage": "256.00 MB",
+      "network": [2048, 4096],
+      "date": "2026-03-14T20:00:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the database.
+  - `DATABASE_NOT_FOUND`: The specified database does not exist.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

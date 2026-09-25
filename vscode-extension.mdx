@@ -1,0 +1,208 @@
+---
+title: 'Manage Vertra Cloud from VS Code'
+sidebarTitle: 'VS Code Extension'
+description: 'Deploy, watch logs and edit files for your Vertra Cloud applications without leaving the editor.'
+icon: 'microsoft'
+---
+
+## What is it
+
+The Vertra Cloud extension manages your applications, databases and workspaces from the editor:
+deploy, watch logs in real time, check metrics, edit environment variables, browse remote files
+and inspect application state, without opening the dashboard.
+
+## Installation
+
+- **Visual Studio Code** — install "Vertra Cloud" from the
+  [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=VertraCloud.vertra-cloud),
+  or from the command line:
+
+  ```bash
+  code --install-extension VertraCloud.vertra-cloud
+  ```
+
+- **Cursor** — install "Vertra Cloud" from Open VSX, inside Cursor's own extension search.
+- **Other editors that don't index Open VSX or the Marketplace, such as Antigravity** — download
+  the `.vsix` file from a release and install it manually:
+
+  ```bash
+  code --install-extension vertra-cloud-<version>.vsix
+  ```
+
+  Replace `code` with the equivalent CLI command of your editor if it isn't VS Code itself.
+
+## Connecting your account
+
+Open the Vertra Cloud panel in the Activity Bar and choose one of two ways to connect:
+
+- **Connect account** — opens your browser to sign in and authorize the extension. The session
+  is stored using your editor's secret storage; it never touches settings, workspace files or logs.
+- **Use API key** — for environments without a browser. Create a key on the API keys page of the
+  dashboard, scoped to what you plan to use from the extension (at minimum `account:read` and
+  `apps:read`; add `apps:write`, `apps:files`, `databases:*`, `snapshots:*`, `workspaces:*` or
+  `snapshots:*` or `workspaces:*` as needed). Paste the key when prompted.
+
+To revoke access, delete the key or session from the API keys page in the dashboard. Disconnecting
+in the editor only removes the local credential; it does not revoke the key on the server.
+
+## Linking a folder and `vertracloud.config`
+
+Link a workspace folder to an application with **Link current folder**. The link is written to a
+`vertracloud.config` file at the folder root, the same format read by the CLI:
+
+| Field | Meaning |
+|---|---|
+| `ID` | Linked application id |
+| `NAME` | Application name |
+| `MEMORY` | Memory allocation |
+| `MAIN` | Entry point file |
+| `VERSION` | Runtime version |
+| `SUBDOMAIN` | Public subdomain, when published |
+| `START` | Start command |
+| `BUILD` | Build command, when one is configured |
+
+The extension recognizes this file by name and gives it completion for known fields, hover
+descriptions, and inline validation for missing or malformed values. If you decline writing the
+file when linking, the extension keeps the link only for the current editor window.
+
+## Deploying
+
+**Deploy current project** zips the linked folder and uploads it. What gets sent:
+
+- Everything in the folder except entries matched by `.vertraignore` (or `.vertracloudignore`),
+  with sensible defaults excluding version control folders, dependency folders and build output.
+- A hard limit of 100 MB per upload; the extension fails before uploading if the folder exceeds it.
+
+Deploying works on every plan, for new and existing applications, within the limits of your
+current plan.
+An option to restart the application as part of the deploy is offered after upload.
+
+## Logs and real-time output
+
+**Show logs** prints recent output for an application in an Output channel. **Toggle realtime
+logs** opens a live stream in an Output channel, with automatic reconnection while it stays
+healthy; it stops for good if you turn it off, close the output channel, or the connection is
+rejected by the server. Logs are not shown in an integrated terminal.
+
+## Metrics
+
+**Show metrics** summarizes CPU, memory and network usage for common time ranges directly in the
+editor, without a webview.
+
+## Environment variables
+
+**Manage environment variables** lists variable names, and adds, edits and removes them. Values
+are masked by default; the extension never copies or logs a value without an explicit action from
+you.
+
+## Snapshots
+
+**Manage snapshots** lists, creates, downloads and restores snapshots for applications and
+databases. Restoring always asks for confirmation. Manual application snapshots require the
+Scale plan or above; database snapshots have no plan gate.
+
+## Remote files
+
+**Open remote files** mounts the application's file system as a folder in the editor, under a
+`vertra://` scheme. You can open, edit and save text files remotely; binary files open read-only.
+Deleting, moving or uploading files asks for confirmation first. This is only available on plans
+that include the file manager.
+
+## Databases
+
+Create databases and control their lifecycle (start, stop, restart), view metrics, download the
+TLS certificate and reset the password. The password is shown once, right after a reset, and is
+never stored or displayed again afterward — if you lose it, reset it again. Browsing the contents
+of a database from inside it is not available through an API key and is not part of this
+extension; use the dashboard's data explorer for that.
+
+## Workspaces
+
+The extension lists workspaces you belong to and lets you browse and link their applications and
+databases according to your role's permissions. Creating a workspace, sending invitations and
+managing members happen in the dashboard, not in the extension.
+
+## Folders and favorites
+
+The extension's folders and favorites are persisted on the account, not in the editor's local
+storage. The extension lets you create, rename, recolor and delete folders and organize
+applications and databases inside them, as well as favorite and unfavorite resources.
+
+State is individual per scope: personal organization is different from the same resource's
+organization in each workspace. Changes made through the extension generate activities in the
+history, just like the equivalent actions in the dashboard and in workflows.
+
+The extension's folders aren't Flow groups. Groups continue organizing elements on Flow's local
+canvas; there's no sync, migration, or shared state between the two.
+
+## Network
+
+For applications on a plan that allows publishing, you can publish or unpublish, open the public
+domain, set a custom subdomain (where your plan allows choosing one) or a custom domain, view the
+DNS records to configure, and purge the edge cache.
+
+## Feature availability by plan
+
+| Feature | Free / Economy | Pro | Scale+ |
+|---|---|---|---|
+| List, start, stop, restart | Yes | Yes | Yes |
+| Deploy to new or existing application | Yes | Yes | Yes |
+| Publish web (random subdomain) | No | Yes | Yes |
+| Choose subdomain / custom domain | No | No | Yes |
+| Remote file manager | Depends on plan gate | Yes | Yes |
+| Manual application snapshot | No | No | Yes |
+| Database snapshot | Yes | Yes | Yes |
+
+Exact limits and prices change over time; the dashboard and this documentation always show the
+current numbers for your account. See [Plans and limits](/plans-and-limits) for details.
+
+## Privacy and Workspace Trust
+
+- The session token or API key is stored only in your editor's built-in secret storage.
+- The extension does not collect telemetry and does not phone home.
+- It only talks to `api.vertracloud.app`, plus your browser for the account authorization step;
+  no request goes to any other host.
+- In an untrusted workspace, deploying, uploading and writing to remote files are disabled;
+  reading remote data may still work.
+
+## Main commands
+
+| Command | What it does |
+|---|---|
+| Connect account | Starts the browser authorization flow |
+| Use API key | Connects with a manually entered API key |
+| Disconnect | Removes the local credential |
+| Refresh | Reloads applications, databases and account state |
+| Create / rename / recolor / delete folder | Manages persisted folders for the current account or workspace scope |
+| Add to folder / Remove from folder | Organizes an application or database without changing the resource |
+| Favorite / Unfavorite | Persists the preference for the current account or workspace scope |
+| Link current folder / Unlink current folder | Associates a workspace folder with an application |
+| Deploy current project | Uploads the linked folder |
+| Start / Stop / Restart | Controls an application's lifecycle |
+| Show logs / Toggle realtime logs | Recent and live output |
+| Show metrics | CPU, memory and network summary |
+| Manage environment variables | Add, edit, remove variables |
+| Manage snapshots | List, create, download, restore |
+| Open remote files | Mounts `vertra://` as a folder |
+| Open application / Open dashboard | Opens URLs in the browser |
+| Copy ID | Copies a resource's identifier |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Invalid API key">
+    The key was revoked or mistyped. Create a new one in the dashboard and connect again.
+  </Accordion>
+  <Accordion title="Missing scope error">
+    The key you're using doesn't include the permission the action needs; the error names the
+    missing scope and offers a shortcut to the key management page.
+  </Accordion>
+  <Accordion title="Plan-restricted action">
+    The action requires a higher plan than your application or account currently has; the
+    dashboard's plan page shows current limits and upgrade options.
+  </Accordion>
+  <Accordion title="Deploy fails with a size error">
+    Check your `.vertraignore` (or `.vertracloudignore`) file to exclude dependency folders and
+    build output, then try again.
+  </Accordion>
+</AccordionGroup>

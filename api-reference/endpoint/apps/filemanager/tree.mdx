@@ -1,0 +1,112 @@
+---
+title: Get Application File Tree
+sidebarTitle: Get File Tree
+api: GET https://api.vertracloud.app/v1/apps/{id}/files/tree
+authMethod: bearer
+description: Retrieves the full file tree of an application by its ID, with folders expanded recursively.
+---
+<Note>
+  The tree goes up to 6 levels deep and skips dependency and build folders (`node_modules`, `.git`,
+  `vendor`, `__pycache__`, `target`, `.venv`, `venv`, `.next`, `.local`). To browse those, use
+  [List Application Files](/api-reference/endpoint/apps/filemanager/files) on the folder directly.
+</Note>
+
+<ParamField path="id" type="string" required>
+  The ID of the application to retrieve the file tree from. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Members with an Owner, Admin or Developer role can use the file manager on a workspace app they don't own; without this, only the app's own owner can.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The root entry, with children nested recursively.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="name" type="string">
+    The name of the file or folder.
+  </ResponseField>
+
+  <ResponseField name="path" type="string">
+    The full path to the file or folder.
+  </ResponseField>
+
+  <ResponseField name="type" type="string">
+    Either `"file"` or `"directory"`.
+  </ResponseField>
+
+  <ResponseField name="size" type="string">
+    The file size, human-readable (e.g. `"12.34 KB"`). Only present for entries of type `"file"`.
+  </ResponseField>
+
+  <ResponseField name="last_modified" type="string" format="date-time">
+    The timestamp when the file or folder was last modified.
+  </ResponseField>
+
+  <ResponseField name="children" type="array">
+    Present on directories. An array of entries with this same shape.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "type": "directory",
+    "name": "/",
+    "path": "/",
+    "last_modified": "2026-03-14T19:58:00Z",
+    "children": [
+      {
+        "type": "file",
+        "name": "index.js",
+        "path": "/index.js",
+        "size": "1.24 KB",
+        "last_modified": "2026-03-14T19:58:00Z"
+      },
+      {
+        "type": "directory",
+        "name": "src",
+        "path": "/src",
+        "last_modified": "2026-03-14T19:58:00Z",
+        "children": []
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `PLAN_RESTRICTED_FEATURE`: The user's plan does not support file manager access.
+  - `INTERNAL_SERVER_ERROR`: Failed to retrieve the file tree.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>

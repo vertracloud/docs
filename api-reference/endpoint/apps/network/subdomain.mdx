@@ -1,0 +1,114 @@
+---
+title: Change Application Subdomain
+sidebarTitle: Change Subdomain
+api: PATCH https://api.vertracloud.app/v1/apps/{id}/network/subdomain
+authMethod: bearer
+description: Renames the vertraweb.app subdomain of an application that is already published on the web.
+---
+
+{/* @see RESTPatchAPIApplicationSubdomainResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<ParamField body="subdomain" type="string" required>
+  The new subdomain, without the `.vertraweb.app` suffix (e.g., `myapp`). Between 3 and 50
+  characters, matching `^[a-z0-9][a-z0-9-]*[a-z0-9]$` — lowercase letters, digits and hyphens, never
+  starting or ending with a hyphen.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="subdomain" type="string">
+    The full subdomain now serving the application, including the suffix.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "subdomain": "myapp.vertraweb.app"
+  }
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route only renames an existing subdomain. An application that was created without web
+  publishing answers `APP_HAS_NO_SUBDOMAIN` — turn publishing on first with
+  [Publish Application on the Web](/api-reference/endpoint/apps/network/publish).
+</Note>
+
+<Warning>
+  The previous subdomain is released the moment the change goes through. It is not reserved for you,
+  and anyone can take it afterwards.
+</Warning>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameter or the body failed validation (`400`). The response also
+    carries `message` and `path`.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN`: The owner's plan does not allow choosing the subdomain
+    name (`403`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `APP_HAS_NO_SUBDOMAIN`: The application is not published on the web, so there is nothing to
+    rename (`400`).
+  - `INVALID_SUBDOMAIN_FORMAT`: The value is not a valid subdomain after normalisation (`400`).
+  - `SUBDOMAIN_FORBIDDEN`: The requested subdomain is on the platform's reserved list (`400`).
+  - `SUBDOMAIN_TAKEN`: Another application already uses that subdomain (`409`).
+  - `SUBDOMAIN_CHANGE_RATE_LIMITED`: The subdomain of this application was changed less than 5
+    minutes ago (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "APP_HAS_NO_SUBDOMAIN"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "SUBDOMAIN_TAKEN"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "SUBDOMAIN_CHANGE_RATE_LIMITED"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route has its own budget of 5 requests per minute, on top of the 5-minute cooldown between
+  changes to an application's public address. That cooldown is **shared with
+  [Publish](/api-reference/endpoint/apps/network/publish)**: publishing an application also starts
+  it, and unpublishing then republishing under a new name does not get around it. See
+  [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

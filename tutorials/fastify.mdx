@@ -1,0 +1,132 @@
+---
+title: 'How to Host a Fastify API on Vertra Cloud'
+sidebarTitle: 'Fastify'
+description: 'Deploy a Fastify API to Vertra Cloud: listen on host 0.0.0.0 and the PORT variable, choose the Node version and get automatic HTTPS on the subdomain.'
+icon: bolt
+---
+
+## Requirements
+
+- Node.js installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-api-fastify/
+├── src/
+│   ├── server.js
+│   └── routes/
+│       └── index.js
+├── package.json
+└── vertracloud.config
+```
+
+## Configuration
+
+### package.json
+
+```json
+{
+  "name": "my-api-fastify",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0",
+    "@fastify/cors": "^10.0.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/server.js
+START=npm start
+VERSION=recommended
+```
+
+## Complete Example
+
+```javascript
+const fastify = require('fastify')({ logger: true });
+const cors = require('@fastify/cors');
+
+fastify.register(cors, { origin: '*' });
+
+fastify.get('/', async (request, reply) => {
+  return { message: 'Fastify on Vertra Cloud!' };
+});
+
+fastify.get('/health', async (request, reply) => {
+  return { status: 'healthy', uptime: process.uptime() };
+});
+
+const start = async () => {
+  try {
+    const port = process.env.PORT || 80;
+    await fastify.listen({ port, host: '0.0.0.0' });
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();
+```
+
+<Warning>
+  Use `host: '0.0.0.0'` in `fastify.listen()`. Fastify by default listens only on `localhost`, preventing external connections inside the container.
+</Warning>
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compress the project into a `.zip` (folders like `node_modules`, `venv` and `target` are removed automatically) or push it to GitHub.
+    2. In the dashboard, click **New Project** and upload the `.zip` or paste the repository URL.
+    3. In **Build**, check the runtime (**JavaScript**), the main file (`index.js`) and the memory. Start and build commands are under **Advanced settings**.
+    4. Add your environment variables in **Environment**.
+    5. In **Network**, turn on **web publishing** so the app gets a `*.vertraweb.app` address (Pro plan or higher, 512 MB of memory). The app must listen on port 80.
+    6. Review and deploy. Follow the output in the **Logs** tab.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra deploy
+    vertra logs -f
+    ```
+    See [CLI](/cli) for installation and login.
+  </Tab>
+  <Tab title="VS Code">
+    Open the folder with the Vertra Cloud extension installed and run **Deploy current project**. See [VS Code extension](/vscode-extension).
+  </Tab>
+</Tabs>
+
+The full walkthrough is in [First deploy](/how-to-host).
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+## Differences from Express
+
+| Aspect | Express | Fastify |
+|--------|---------|---------|
+| Performance | Good | Superior (up to 2x faster) |
+| Validation | Manual or middleware | Built-in with JSON Schema |
+| Plugins | Simple middleware | Encapsulated plugin system |
+| TypeScript | Via @types | Native support |
+
+## Notes
+
+- Fastify has **built-in schema validation** — use it to ensure request integrity
+- For **TypeScript**, compile to JavaScript before deployment
+- The **built-in logger** from Fastify appears in dashboard real-time logs
+- **Auto-restart** is on by default for every application

@@ -1,0 +1,127 @@
+---
+title: 'Application Configuration Reference on Vertra Cloud'
+sidebarTitle: 'Configuration'
+description: 'vertracloud.config keys, fields editable after deploy, environment variables, port and limits of an application on Vertra Cloud.'
+icon: 'sliders'
+---
+
+An application's configuration on Vertra Cloud lives in the dashboard, on the **Config** tab. The
+`vertracloud.config` file is optional and only pre-fills the creation flow: name, description,
+main file, memory, commands and subdomain. Once created, the application uses what's saved in the
+dashboard.
+
+## The `vertracloud.config` file
+
+`vertracloud.config` is a text file at the root of the `.zip`, with one `KEY=value` per line.
+Unknown keys are ignored.
+
+```ini vertracloud.config
+NAME=my-app
+DESCRIPTION=Orders API
+MAIN=src/index.js
+MEMORY=512
+VERSION=recommended
+BUILD=npm run build
+START=npm start
+SUBDOMAIN=my-app
+```
+
+| Key | What it sets | Limit | Can change later? |
+|---|---|---|---|
+| `NAME` | Project name | 50 characters | Yes, in the Config tab |
+| `DESCRIPTION` | Project description | 128 characters | Yes, in the Config tab |
+| `MAIN` | Main file, relative to the root | — | Yes, in the Config tab |
+| `MEMORY` | Memory in MB | minimum 100, maximum what's free on the plan | Yes, in the Config tab |
+| `VERSION` | Runtime version: `recommended`, `latest`, or a specific version from the [runtime list](/plans-and-limits#which-languages-and-versions-does-vertra-cloud-support). When the file is in your `.zip` or snapshot, the wizard pre-fills it and you can still change it before creating | must exist for the application's language, otherwise `INVALID_VERSION` | Yes, in the Config tab |
+| `BUILD` | Build command, runs before start on every deploy | 512 characters | Yes; counts as a deploy |
+| `START` | Start command | 512 characters | Yes, in the Config tab |
+| `SUBDOMAIN` | Subdomain under `*.vertraweb.app` (turns on web publishing) | 3 to 50 characters, `a-z`, `0-9` and `-` | Yes, with 5 minutes between changes |
+
+`vertracloud.config.json` is also accepted, with lowercase keys: `name`, `description`,
+`main`, `memory`, `build`, `start` and `subdomain`.
+
+### Which value wins?
+
+When reading the `.zip`, the creation flow uses the `vertracloud.config` value when it exists,
+and falls back to the platform's suggestion, which reads `package.json` and the project's
+dependencies. After that, any field can be edited in the following steps. Start and build
+commands you edit by hand aren't overwritten if you swap the `.zip`.
+
+Without `MAIN`, the platform looks for the main file via `main` and the `start` script in
+`package.json`, and then by common names (`index.js`, `server.js`, `main.py`, `app.py`, `main.go`,
+`src/main.rs`, `index.php`, `index.html` and others).
+
+<Note>
+  `vertracloud.config` is **not stored among the application's files**. It's discarded once the
+  `.zip` is extracted, and regenerated with the dashboard's current values when you download the
+  project or create a snapshot. That's why a downloaded or restored project always carries the
+  current configuration.
+</Note>
+
+## Advanced configuration: start and build commands
+
+The **start command** replaces the default way of starting the runtime from the main file.
+The **build command** runs after dependency installation and before start, on every deploy:
+code upload, GitHub deploy, **Force build**, and changing the command itself. A plain restart
+doesn't run the build again.
+
+| Framework | Build | Start |
+|---|---|---|
+| Next.js | `npm run build` | `npx next start -p 80` |
+| Nuxt | `npm run build` | `PORT=80 node .output/server/index.mjs` |
+| SvelteKit (adapter-node) | `npm run build` | `PORT=80 node build` |
+| Astro | `npm run build` | `npx astro preview --host 0.0.0.0 --port 80` |
+| Vite | `npm run build` | `npx vite preview --host 0.0.0.0 --port 80` |
+| Plain TypeScript | `npm run build` | `node dist/index.js` |
+
+If the build fails, the application doesn't come up (`BUILD_FAILED`); if it runs past 10 minutes,
+the deploy is interrupted (`BUILD_TIMEOUT`). The build environment gets twice the application's
+memory, between 1 GB and 4 GB.
+
+## Port and web publishing
+
+An application with **web publishing** must listen on **port 80**, on `0.0.0.0`. The platform
+already sets `PORT=80` and `HOST=0.0.0.0` in the container, so reading `process.env.PORT` (or
+your language's equivalent) works. That's why `PORT` and `HOST` are reserved and can't be set
+by you.
+
+Without web publishing, the application doesn't receive inbound traffic and runs in the
+background, like a bot or a worker. Publishing requires the Pro plan or higher and 512 MB of
+memory, and can be turned on or off at any time. Turning it on or off recreates the container, so
+the application restarts. When turned off, the subdomain is released and someone else can
+register it.
+
+## Environment variables
+
+Environment variables are injected into the container when it starts and are encrypted at rest.
+You set them in the **Environment** step of the creation flow, in the **Config** tab, via the
+[API](/api-reference/endpoint/apps/enviroments/get), the [CLI](/cli) or [MCP](/mcp).
+
+| Limit | Value |
+|---|---|
+| Variables per application | 25 |
+| Key size | 100 characters, starting with a letter or `_` |
+| Value size | 1,000 characters |
+| Reserved keys | `PORT`, `HOST`, `PATH`, `HOME`, `USER`, `SHELL` |
+
+If the `.zip` has a `.env.production`, `.env.production.local`, `.env.local` or `.env` (in that
+order of preference), the creation flow pre-fills the variables from it. Review the values before
+creating.
+
+<Warning>
+  A changed variable only reaches the process after a restart. Prefer environment variables over a
+  `.env` inside the code: the file is visible to anyone with access to the application's files.
+</Warning>
+
+## Application limits
+
+| Limit | Value |
+|---|---|
+| `.zip` size | 100 MB |
+| Storage | 10 GB per application, regardless of memory |
+| Dependency installation | 15 minutes (`INSTALL_TIMEOUT`) |
+| Build command | 10 minutes (`BUILD_TIMEOUT`) |
+| Exposed ports | 1 |
+| Deploys per hour | from 5 (Free) to 60 (Intermediary and Enterprise) |
+
+The full table per plan is in [Plans and limits](/plans-and-limits).

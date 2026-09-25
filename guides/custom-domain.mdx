@@ -1,0 +1,85 @@
+---
+title: 'Connect a Custom Domain to Your Application'
+sidebarTitle: 'Custom domain'
+description: 'Point your own domain at a Vertra Cloud application with a CNAME record, get HTTPS automatically, and fix the usual DNS mistakes.'
+icon: 'globe'
+---
+
+Every published application answers on a `*.vertraweb.app` subdomain. A custom domain lets the same
+application answer on an address you own, like `api.yourcompany.com`, with an HTTPS certificate the
+platform issues and renews for you.
+
+## Before you start
+
+<Check>The application is **published to the web** (Pro plan or higher, at least 512 MB of RAM).</Check>
+<Check>Your account is on the **Intermediary** plan or higher.</Check>
+<Check>You can edit the DNS records of the domain at your registrar or DNS provider.</Check>
+
+Each application accepts **one** custom domain. Use a subdomain (`app.example.com`, `www.example.com`):
+DNS doesn't allow a CNAME on the bare root (`example.com`) at most providers.
+
+## Step by step
+
+<Steps>
+  <Step title="Add the domain in the dashboard">
+    Open the application, go to **Network** and type the full hostname, for example `app.example.com`.
+    The dashboard shows the target address for the CNAME record.
+  </Step>
+  <Step title="Create the CNAME record">
+    At your DNS provider, create one record:
+
+    | Type | Name | Value |
+    |---|---|---|
+    | `CNAME` | `app` | the address shown in **Network** |
+
+    Remove any existing `A`, `AAAA` or `CNAME` record with the same name first: two records for one
+    name is the most common reason the domain never validates.
+  </Step>
+  <Step title="Wait for DNS and the certificate">
+    Most providers propagate in minutes; the worst case is 48 hours. Once the record resolves, the
+    platform validates it and provisions the SSL certificate automatically. HTTP is redirected to
+    HTTPS.
+  </Step>
+  <Step title="Check it">
+    ```bash
+    dig +short app.example.com CNAME
+    curl -I https://app.example.com
+    ```
+    The first command must print the target address; the second must answer with your application's
+    status code.
+  </Step>
+</Steps>
+
+## Using Cloudflare
+
+If the domain's DNS lives on Cloudflare, create the CNAME with the proxy **off** (grey cloud, "DNS
+only") until the certificate is issued. With the proxy on, validation sees Cloudflare's addresses
+instead of your record. After HTTPS works you may turn the proxy on; in that case set the SSL mode to
+**Full (strict)**, since the application already serves a valid certificate. The **Flexible** mode
+causes a redirect loop, because the platform redirects HTTP to HTTPS.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The domain stays pending">
+    Run `dig +short app.example.com`. No answer means the record doesn't exist yet or has a typo; an
+    IP address instead of the target means there's still an old `A` record, or the Cloudflare proxy
+    is on.
+  </Accordion>
+  <Accordion title="The browser shows a certificate error">
+    The certificate is only issued after DNS validation. Wait a few minutes after the record resolves,
+    then reload. If it persists, remove and add the domain again in **Network**.
+  </Accordion>
+  <Accordion title="Too many redirects">
+    You're behind a proxy in Flexible SSL mode. Switch it to Full (strict).
+  </Accordion>
+  <Accordion title="The domain opens, but the app doesn't answer">
+    The domain is fine; the application isn't listening. It must listen on `0.0.0.0` and the port in
+    `PORT` (80). See [Configuration](/configuration#port-and-web-publishing).
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  Unpublishing the application removes its custom domain along with the subdomain. Publishing again
+  means adding the domain again.
+</Note>

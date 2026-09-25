@@ -1,0 +1,39 @@
+---
+title: Update Workspace
+sidebarTitle: Update
+api: PUT https://api.vertracloud.app/v1/workspaces/{id}
+authMethod: bearer
+description: Updates a workspace's name or description. Owner only.
+---
+
+{/* @see RESTPutAPIWorkspaceUpdateBody — @vertracloud/api-types */}
+Only the workspace **owner** can call this — it isn't a permission, `owner_id` is checked
+directly. An API key needs the `workspaces:write` scope. Refused while the owner's plan is
+frozen (expired/downgraded below Enterprise).
+
+### Path
+
+<ParamField path="id" type="string" required>
+  Workspace ID.
+</ParamField>
+
+### Body
+
+Same fields as [Create Workspace](/api-reference/endpoint/workspaces/create), all optional — at least one must be present.
+
+<ParamField body="name" type="string">1–50 characters.</ParamField>
+<ParamField body="description" type="string">Up to 200 characters.</ParamField>
+
+### Response
+
+Same shape as [Get Workspace](/api-reference/endpoint/workspaces/get).
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | No field provided. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Caller isn't the owner. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | Owner's plan is frozen (expired/below Enterprise). |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or is soft-deleted. |
+| 409 | `WORKSPACE_NAME_ALREADY_EXISTS` | Another active workspace of yours already has this name. |

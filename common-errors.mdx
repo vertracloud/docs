@@ -1,0 +1,442 @@
+---
+title: 'Common Deploy Errors on Vertra Cloud and How to Fix Them'
+sidebarTitle: 'Common Errors'
+description: 'Symptom, cause and fix for the most frequent deploy errors on Vertra Cloud: OOMKilled, crash loop, missing module, timeout and invalid token.'
+icon: triangle-exclamation
+---
+
+This guide lists the most frequent errors when deploying on Vertra Cloud, in symptom → cause →
+fix format. If your application doesn't come up, the reason is almost always one of these:
+insufficient memory (OOMKilled), a dependency missing from the manifest, a missing start script,
+or the server listening on `localhost` instead of `0.0.0.0`.
+
+## Platform Errors
+
+The errors below come from the platform, not your code: memory, container lifecycle, upload and
+plan limits.
+
+### Application not starting / Crashing
+
+<AccordionGroup>
+  <Accordion title="OOMKilled — Application killed for lack of memory" icon="memory">
+    **Symptom:** The app stops with no error message, or `Killed` shows up in the logs.
+
+    **Cause:** The app is using more RAM than what's allocated.
+
+    **Fix:**
+    - Increase the allocated memory (try 50% more)
+    - Java/JVM needs 512 MB+, apps with Puppeteer/Chrome need 512 MB+
+    - Optimize the code to reduce memory usage
+  </Accordion>
+
+  <Accordion title="Crash loop — Auto-restart disabled" icon="rotate">
+    **Symptom:** The app crashed 5 times in 10 minutes and auto-restart was disabled for 24 hours.
+
+    **Cause:** A persistent error in the code (invalid token, missing dependency, syntax error).
+
+    **Fix:**
+    - Check the logs to identify the root error
+    - Fix the issue and redeploy
+    - Syntax errors and exit code 0 do NOT trigger auto-restart — the app simply stops
+  </Accordion>
+
+  <Accordion title="Application stops immediately (exit code 0)" icon="circle-stop">
+    **Symptom:** The app starts and stops right after, with no error.
+
+    **Cause:** The process has nothing keeping it alive (no HTTP server, no logged-in bot, no event loop).
+
+    **Fix:**
+    - For bots: make sure the client is logging in (`client.login(token)`)
+    - For servers: make sure `app.listen()` is being called
+    - Check that `process.exit()` isn't being called accidentally
+  </Accordion>
+</AccordionGroup>
+
+### Deploy Errors
+
+<AccordionGroup>
+  <Accordion title="ZIP too large (max 100 MB)" icon="file-zipper">
+    **Cause:** Dependency directories included in the ZIP (`node_modules`, `venv`, `.git`, etc).
+
+    **Fix:** Exclude these before zipping:
+    - **JS/TS:** `node_modules`, `.npm`, `.next`, `dist`
+    - **Python:** `venv`, `.venv`, `__pycache__`, `.cache`
+    - **Go:** `vendor` | **Rust:** `target` | **Java:** `target`, `.gradle`, `build`
+  </Accordion>
+
+  <Accordion title="Dependency installation exceeds the time limit (15 minutes)" icon="clock">
+    **Cause:** Installing dependencies takes too long (too many packages, native compilation). Error: `INSTALL_TIMEOUT`.
+
+    **Fix:**
+    - Remove unnecessary dependencies
+    - For large Node.js apps, consider running `npm install` locally and including only what's needed
+  </Accordion>
+
+  <Accordion title="Build command fails or exceeds the time limit (10 minutes)" icon="hammer">
+    **Cause:** The `build_command` (the `BUILD` field in `vertracloud.config`) ended with an error
+    (`BUILD_FAILED`) or didn't finish in time (`BUILD_TIMEOUT`). It runs after dependency
+    installation and before the application starts, in an environment with 2× the application's
+    RAM and 2× its vCPU.
+
+    **Fix:**
+    - Run the command locally to see the real error
+    - Simplify the build or increase the application's memory (the build environment scales with it)
+  </Accordion>
+
+  <Accordion title="Deploys-per-hour limit reached" icon="hourglass">
+    **Cause:** Creating an application, uploading a zip, deploying via GitHub, reinstalling
+    dependencies, or changing the build command all count toward an hourly cap per account (5 on
+    Free up to 60 on Intermediary and any Enterprise tier). Error: `DEPLOY_RATE_LIMITED`.
+
+    **Fix:**
+    - Wait for the time indicated in `details.retry_after`
+    - Restarting and stopping the application don't count against this limit
+  </Accordion>
+
+  <Accordion title="Invalid ZIP structure" icon="folder-tree">
+    **Cause:** The ZIP has an extra folder wrapping the files (e.g. `my-project/src/index.js` instead of `src/index.js`).
+
+    **Fix:** The files must be at the root of the ZIP, not inside an extra subfolder.
+  </Accordion>
+</AccordionGroup>
+
+### Network Errors
+
+<AccordionGroup>
+  <Accordion title="Site returns a timeout / Connection refused" icon="globe">
+    **Cause:** The app is binding to `localhost` or `127.0.0.1` instead of `0.0.0.0`.
+
+    **Fix:**
+    ```js
+    app.listen(80, '0.0.0.0')
+
+    app.listen(80, 'localhost')
+    app.listen(80, '127.0.0.1')
+    ```
+    Always use `0.0.0.0` as the host and the port configured in `PORT`.
+  </Accordion>
+
+  <Accordion title="Custom domain not working" icon="link-slash">
+    **Cause:** DNS hasn't propagated, the CNAME is wrong, or the plan doesn't support it.
+
+    **Fix:**
+    - Confirm your plan is Intermediary+ (custom domains)
+    - Check that the CNAME record points to the dashboard's address
+    - DNS propagation can take up to 48 hours
+    - SSL is provisioned automatically after validation
+  </Accordion>
+</AccordionGroup>
+
+### Database Errors
+
+<AccordionGroup>
+  <Accordion title="Connection refused / SSL required" icon="database">
+    **Cause:** Connecting without TLS, without the client certificate, or on the engine's default port.
+
+    **Fix:**
+    - Download the three certificate files in the database's **Certificates** tab
+    - Pass the client certificate (`.crt` + `.key`) and use the `.pem` as the CA — every engine requires it
+    - Use the database's own port shown on its page — it's not 5432, 27017, 6379 or 3306
+    - For MongoDB, add `authSource=admin` to the URI
+    - See [How do I connect to each engine?](/databases#how-do-i-connect-to-each-engine)
+  </Accordion>
+
+  <Accordion title="Too many open connections" icon="diagram-project">
+    **Cause:** Each connection consumes memory. Without connection pooling, connections pile up.
+
+    **Fix:**
+    - Use connection pooling in your database client
+    - Reduce the number of simultaneous connections
+    - Increase the database's memory if needed
+  </Accordion>
+</AccordionGroup>
+
+### Platform Protections
+
+<AccordionGroup>
+  <Accordion title="Application paused by Vertra Shield" icon="shield">
+    **Symptom:** Start/restart buttons disabled with a "Paused by Shield" banner and a countdown in the dashboard.
+
+    **Cause:** Vertra Shield temporarily stopped the application after detecting traffic above the limits. The dashboard shows the reason and the remaining pause time, which can reach up to 1 hour. Shield only stops the application — it never deletes it, its files or its data.
+
+    **Fix:**
+    - **Wait for the time shown in the dashboard** before starting or restarting the application.
+    - **Review the code:** look for infinite loops, unbounded recursive calls, or uncontrolled bulk requests.
+    - **Add rate limiting:** implement per-IP or per-session request limits in your code.
+    - **Fix the cause before the pause ends:** start, restart, deploy, configuration changes and deleting the application stay blocked until then, and repeated occurrences make the next pause longer.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Node.js / JavaScript
+
+<AccordionGroup>
+  <Accordion title="Cannot find module 'xxx' / MODULE_NOT_FOUND" icon="js">
+    **Cause:** The module isn't in `dependencies` in `package.json`, or is only in `devDependencies`.
+
+    **Fix:** The platform runs `npm install --production`, which skips `devDependencies`. Move the package to `dependencies`:
+    ```bash
+    npm install discord.js --save
+    ```
+  </Accordion>
+
+  <Accordion title="npm ERR! missing script: start" icon="terminal">
+    **Cause:** `package.json` has no `start` script defined.
+
+    **Fix:** Add to `package.json`:
+    ```json
+    {
+      "scripts": {
+        "start": "node index.js"
+      }
+    }
+    ```
+    Or set the `START` field in `vertracloud.config`.
+  </Accordion>
+
+  <Accordion title="SyntaxError: Cannot use import statement outside a module" icon="code">
+    **Cause:** Using `import` (ES Module) in a CommonJS project.
+
+    **Fix:** Add to `package.json`:
+    ```json
+    {
+      "type": "module"
+    }
+    ```
+    Or convert to `require()`.
+  </Accordion>
+
+  <Accordion title="ERR_REQUIRE_ESM — require() of ES Module not supported" icon="code">
+    **Cause:** Trying to use `require()` on a package that only supports ESM (e.g. `node-fetch` v3+, `chalk` v5+).
+
+    **Fix:** Switch to ESM (`"type": "module"`) or use an older version of the package (e.g. `node-fetch@2`).
+  </Accordion>
+
+  <Accordion title="ERESOLVE — unable to resolve dependency tree" icon="cubes">
+    **Cause:** Version conflict between dependencies (peer dependencies).
+
+    **Fix:** Create a `.npmrc` file at the project root with:
+    ```
+    legacy-peer-deps=true
+    ```
+  </Accordion>
+
+  <Accordion title="Error: listen EADDRINUSE" icon="plug">
+    **Cause:** The port is already in use, or the app tries to bind twice.
+
+    **Fix:** Make sure there's only one `app.listen()` in the code. Use the environment's `PORT` variable.
+  </Accordion>
+
+  <Accordion title="Could not locate the bindings file (better-sqlite3)" icon="database">
+    **Cause:** Native modules compiled on macOS/Windows don't work in the Linux container.
+
+    **Fix:** Don't include `node_modules/` in the upload. The platform compiles native modules for Linux automatically.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## TypeScript
+
+<AccordionGroup>
+  <Accordion title="tsx / ts-node: command not found" icon="code">
+    **Cause:** The TypeScript runtime isn't in the dependencies.
+
+    **Fix:** Add `tsx` or `ts-node` to `dependencies`:
+    ```bash
+    npm install tsx --save
+    ```
+  </Accordion>
+
+  <Accordion title="TSError: Unable to compile TypeScript" icon="triangle-exclamation">
+    **Cause:** TypeScript compilation errors that didn't show up locally, or a missing `tsconfig.json`.
+
+    **Fix:** Include `tsconfig.json` in the upload. Fix all TS errors locally before deploying. Consider pre-compiling and uploading `dist/`.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Python
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError: No module named 'xxx'" icon="python">
+    **Cause:** The module isn't in `requirements.txt`.
+
+    **Fix:** Generate the file with:
+    ```bash
+    pip freeze > requirements.txt
+    ```
+    Make sure it's at the project root.
+  </Accordion>
+
+  <Accordion title="requirements.txt not found" icon="file">
+    **Cause:** The file is missing, has the wrong name, or has a double extension (`.txt.txt` — common on Windows).
+
+    **Fix:** Check the file's exact name. On Windows, enable "show file extensions" to verify.
+  </Accordion>
+
+  <Accordion title="SyntaxError: invalid syntax" icon="code">
+    **Cause:** The code uses features from a newer Python version than the one selected (e.g. `match/case` from 3.10 on runtime 3.9).
+
+    **Fix:** Select the correct Python version in the configuration. Use `VERSION=recommended` for the latest stable version.
+  </Accordion>
+
+  <Accordion title="UnicodeDecodeError / Encoding errors" icon="language">
+    **Cause:** Files with non-UTF-8 characters, or the container's locale isn't configured.
+
+    **Fix:** Save all files as UTF-8. Use `encoding='utf-8'` when opening files:
+    ```python
+    with open('file.txt', 'r', encoding='utf-8') as f:
+        ...
+    ```
+  </Accordion>
+
+  <Accordion title="Flask/Django not accessible externally" icon="globe">
+    **Cause:** Using the development server, which binds to `127.0.0.1`.
+
+    **Fix:** Use Gunicorn for production:
+    ```
+    START=gunicorn app:app --bind 0.0.0.0:80
+    ```
+    Never use the Flask/Django development server in production.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Go
+
+<AccordionGroup>
+  <Accordion title="go.mod not found / cannot find main module" icon="golang">
+    **Cause:** `go.mod` is missing from the project root.
+
+    **Fix:**
+    ```bash
+    go mod init module-name
+    go mod tidy
+    ```
+    Include `go.mod` and `go.sum` in the upload.
+  </Accordion>
+
+  <Accordion title="Build fails / Incompatible binary" icon="hammer">
+    **Cause:** The binary was compiled for macOS/Windows, not Linux.
+
+    **Fix:** If uploading source code, include `go.mod` and `go.sum`. If uploading a binary, compile it for Linux:
+    ```bash
+    GOOS=linux GOARCH=amd64 go build -o app main.go
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Java
+
+<AccordionGroup>
+  <Accordion title="no main manifest attribute, in app.jar" icon="java">
+    **Cause:** The JAR has no `Main-Class` in MANIFEST.MF.
+
+    **Fix:** Configure the build tool to produce a fat JAR. For Maven, use `maven-shade-plugin` or `spring-boot-maven-plugin`.
+  </Accordion>
+
+  <Accordion title="OutOfMemoryError: Java heap space" icon="memory">
+    **Cause:** The JVM heap exceeds the memory allocated to the container.
+
+    **Fix:** Java apps need 512 MB+. Limit the heap:
+    ```
+    START=java -Xmx256m -Xms128m -jar app.jar
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## PHP
+
+<AccordionGroup>
+  <Accordion title="Dependencies not installed / composer.json not found" icon="php">
+    **Cause:** `composer.json` is missing from the root, or `vendor/` was uploaded (which may be incompatible).
+
+    **Fix:** Include `composer.json` and `composer.lock` at the root. Don't upload the `vendor/` directory.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Discord Bots
+
+<AccordionGroup>
+  <Accordion title="An invalid token was provided / Improper token" icon="robot">
+    **Cause:** The bot token is invalid, expired, or was regenerated.
+
+    **Fix:**
+    - Generate a new token in the [Discord Developer Portal](https://discord.com/developers/applications)
+    - Set it as an environment variable (don't hardcode it in the code)
+    - Restart the application after updating it
+  </Accordion>
+
+  <Accordion title="Used disallowed intents / DisallowedIntents" icon="shield">
+    **Cause:** The bot uses privileged intents that aren't enabled in the Developer Portal.
+
+    **Fix:** Discord Developer Portal → Bot → Privileged Gateway Intents → Enable:
+    - **Message Content Intent** (to read message content)
+    - **Server Members Intent** (for member events)
+    - **Presence Intent** (for presence status)
+  </Accordion>
+
+  <Accordion title="Valid intents must be provided / ClientMissingIntents" icon="list-check">
+    **Cause:** No intent was specified when creating the client.
+
+    **Fix:**
+    ```js
+    const client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+      ]
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Bot goes offline randomly" icon="wifi">
+    **Cause:** Insufficient memory causing a kill, or an outdated discord.js/discord.py version.
+
+    **Fix:**
+    - Increase the allocated memory
+    - Update discord.js/discord.py to the latest version
+    - Check for memory leaks
+  </Accordion>
+
+  <Accordion title="on_message doesn't work (discord.py)" icon="message">
+    **Cause:** The `message_content` intent is missing (required since discord.py 2.0+).
+
+    **Fix:**
+    ```python
+    intents = discord.Intents.default()
+    intents.message_content = True
+    client = discord.Client(intents=intents)
+    ```
+    Also enable it in the Developer Portal.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Environment Variables
+
+<AccordionGroup>
+  <Accordion title="undefined / null values in the configuration" icon="key">
+    **Cause:** Environment variables weren't configured on the platform.
+
+    **Fix:** Configure all variables via the dashboard or API. Never hardcode sensitive values. Use a `.env.example` to document which variables are required.
+  </Accordion>
+
+  <Accordion title=".env file doesn't work on the platform" icon="file">
+    **Cause:** The platform doesn't read `.env` files automatically.
+
+    **Fix:** Configure the variables through the Vertra Cloud dashboard (Environment Variables tab) or via the API. Don't rely on `dotenv` loading from a `.env` file in production.
+  </Accordion>
+</AccordionGroup>

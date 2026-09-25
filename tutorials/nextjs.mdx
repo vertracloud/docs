@@ -1,0 +1,129 @@
+---
+title: 'How to Host a Next.js Application on Vertra Cloud'
+sidebarTitle: 'Next.js'
+description: 'Deploy a Next.js application with SSR or SSG to Vertra Cloud: standalone output, a build_command that runs npm run build on every deploy, and 512 MB of RAM.'
+icon: 'react'
+---
+
+## Requirements
+
+- Node.js 18+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+
+## Project Structure
+
+```
+my-app-next/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   └── components/
+├── public/
+├── next.config.js
+├── package.json
+└── vertracloud.config
+```
+
+## Configuration
+
+### next.config.js
+
+For deployment on Vertra Cloud, configure `standalone` mode to optimize build size:
+
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone',
+};
+
+module.exports = nextConfig;
+```
+
+### package.json
+
+```json
+{
+  "name": "my-app-next",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p 80"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=package.json
+BUILD=npm run build
+START=npx next start -p 80
+VERSION=recommended
+```
+
+<Warning>
+  Next.js needs to be compiled before starting. Set `build_command` to `npm run build` (or the `BUILD` key above) instead of chaining it into the start command — it runs in its own isolated build environment (2× the application's RAM and vCPU, 10-minute timeout) on every deploy, and a plain restart skips it when the last build already succeeded.
+</Warning>
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 24.5.0 | Latest | Node.js 24.5.0 (latest version) |
+| 22.18.0 | Recommended | Node.js 22.18.0 LTS (recommended for production) |
+| 20.18.0 | Stable | Node.js 20.18.0 with extended support |
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compress the project into a `.zip` (folders like `node_modules`, `venv` and `target` are removed automatically) or push it to GitHub.
+    2. In the dashboard, click **New Project** and upload the `.zip` or paste the repository URL.
+    3. In **Build**, check the runtime (**JavaScript or TypeScript**), and the memory. Under **Advanced settings**, confirm the build command `npm run build` and the start command `npx next start -p 80`; both are pre-filled for Next.js projects.
+    4. Add your environment variables in **Environment**.
+    5. In **Network**, turn on **web publishing** so the app gets a `*.vertraweb.app` address (Pro plan or higher, 512 MB of memory). The app must listen on port 80.
+    6. Review and deploy. Follow the output in the **Logs** tab.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra deploy
+    vertra logs -f
+    ```
+    See [CLI](/cli) for installation and login.
+  </Tab>
+  <Tab title="VS Code">
+    Open the folder with the Vertra Cloud extension installed and run **Deploy current project**. See [VS Code extension](/vscode-extension).
+  </Tab>
+</Tabs>
+
+The full walkthrough is in [First deploy](/how-to-host).
+
+## Notes
+
+- **Recommended memory**: 512MB or more (build process is intensive)
+- **Environment variables**: Configure via dashboard before first build
+- Use `output: 'standalone'` to reduce build size
+- **API Routes** from Next.js work normally on the platform
+- The application must listen on **port 80**
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Build fails due to lack of memory">
+    The build environment already gets 2× the application's RAM automatically. If it still fails,
+    raise the application's own memory to at least 512MB — the build environment scales with it.
+  </Accordion>
+  <Accordion title="Build exceeds the time limit">
+    `build_command` has a 10-minute ceiling (`BUILD_TIMEOUT`). Trim dependencies or split a very
+    large build.
+  </Accordion>
+  <Accordion title="Page returns 404">
+    Check if `output: 'standalone'` is configured and if the build completed successfully in logs.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,50 @@
+---
+title: Update API Key
+sidebarTitle: Update
+api: PATCH https://api.vertracloud.app/v1/users/me/api-keys/{id}
+authMethod: bearer
+description: Updates a key's name, scopes and/or allowed IPs. Never changes the secret. Dashboard session only.
+---
+
+{/* @see RESTPatchAPIUserApiKeyBody, APIApiKey — @vertracloud/api-types */}
+<Note>
+  This never rotates the secret — a key that leaked stays valid after an update. To invalidate the old secret, use [Rotate](/api-reference/endpoint/users/api-keys/rotate).
+</Note>
+
+### Path
+
+<ParamField path="id" type="string" required>
+  The key's ID.
+</ParamField>
+
+### Body
+
+All fields are optional; only what you send is changed.
+
+<ParamField body="name" type="string">
+  1–40 characters.
+</ParamField>
+
+<ParamField body="scopes" type="string[]">
+  Replaces the full scope list — not a merge. At least one scope from the [catalog](/api-reference/introduction#scopes).
+</ParamField>
+
+<ParamField body="allowed_ips" type="string[]">
+  Replaces the full IP/CIDR list, up to 20 entries. Empty means any IP.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIApiKey">
+  The updated key. See [List API Keys](/api-reference/endpoint/users/api-keys/list) for the field reference.
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `API_KEY_INVALID_NAME` | Name is empty or longer than 40 characters. |
+| 400 | `API_KEY_INVALID_SCOPES` | `scopes` is empty or has an entry outside the catalog. |
+| 400 | `API_KEY_INVALID_IPS` | An entry in `allowed_ips` isn't a valid IP/CIDR, or there are more than 20. |
+| 403 | `API_KEY_SCOPE_DENIED` | The session is an API key. |
+| 404 | `API_KEY_NOT_FOUND` | No key with that ID on this account. |

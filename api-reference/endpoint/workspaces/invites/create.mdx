@@ -1,0 +1,64 @@
+---
+title: Create Invite
+sidebarTitle: Create
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/invites
+authMethod: bearer
+description: Invites someone by e-mail or generates a shareable link. Requires `members:manage`, dashboard session only.
+---
+
+{/* @see RESTPostAPIWorkspaceInviteBody, RESTPostAPIWorkspaceInviteCreated — @vertracloud/api-types */}
+<Note>
+  Dashboard session only — outside the API key scope catalog, so an API key gets `403 API_KEY_SCOPE_DENIED`. A leaked key that could create
+  invites would leave behind access that outlives revoking the key. Invite codes are gone; this is
+  the only way to bring someone in (besides `transfer-ownership`, which is for existing members).
+</Note>
+
+Requires `members:manage`.
+
+<Info>
+  The token is 32 random bytes, base64url-encoded. The database stores only its SHA-256 hash —
+  the plaintext token appears exactly once, in this response's `url` field for a link invite,
+  and is never logged. **The invite row is written before the e-mail is sent**: if SMTP is down,
+  you still get a `200` with the invite — losing the invite because the mail provider hiccupped
+  would be worse than a delayed e-mail.
+</Info>
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+
+### Body — e-mail invite
+
+<ParamField body="kind" type="'email'" required />
+<ParamField body="email" type="string" required>
+  Compared case-insensitively and Unicode-normalized (NFKC) on both sides, so `Joiner@Test.local` and its decomposed-Unicode twin are the same address. Expires in **7 days**. Only one pending invite per `(workspace, e-mail)` — inviting the same address again refreshes the row and resends the e-mail. A pending e-mail invite counts toward the plan's member cap.
+</ParamField>
+<ParamField body="role_id" type="string" required>Must belong to this workspace.</ParamField>
+<ParamField body="expires_in_days" type="number">1–365. Access expiry applied to the member once they accept. Omitted = no expiry.</ParamField>
+
+### Body — link invite
+
+<ParamField body="kind" type="'link'" required />
+<ParamField body="role_id" type="string" required>Must belong to this workspace.</ParamField>
+<ParamField body="max_uses" type="number">1–1000. Omitted = unlimited uses.</ParamField>
+<ParamField body="expires_in_days" type="number">1–365. Applied to every member who joins through this link. Omitted = no expiry. The link itself is a fixed **24 hours**, regardless of this field.</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIWorkspaceInviteCreated">
+  Same shape as [List Invites](/api-reference/endpoint/workspaces/invites/list), plus:
+
+  <ResponseField name="url" type="string | null">The invite URL. Only present for `kind: \"link\"`, and only in this response — it's never returned again.</ResponseField>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `members:manage`. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | Owner's plan is frozen. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |
+| 404 | `WORKSPACE_ROLE_NOT_FOUND` | `role_id` doesn't belong to this workspace. |
+| 409 | `WORKSPACE_MEMBER_LIMIT_REACHED` | Owner's plan member cap reached (pending e-mail invites count). |
+| 409 | `WORKSPACE_ALREADY_MEMBER` | (e-mail) That address already belongs to an account that's a member. |

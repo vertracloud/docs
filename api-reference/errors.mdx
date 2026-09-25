@@ -1,0 +1,246 @@
+---
+title: 'Vertra Cloud API Error Codes'
+sidebarTitle: 'Error Codes'
+description: 'Full catalog of stable error codes the Vertra Cloud public API returns, grouped by area, with HTTP status and how to resolve each one.'
+---
+
+## What does an error look like?
+
+Every error uses the same envelope, described in the [API introduction](/api-reference/introduction#what-does-a-response-look-like). The HTTP status tells you the category, `code` is a stable string safe to branch on, and `details` — when present — carries the numbers you need to act (a limit, a retry delay, the missing scope).
+
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Optional descriptive message",
+  "details": { "retry_after": 30 }
+}
+```
+
+`message` is for humans and can change; never branch your code on it. For deploy and runtime problems that don't come from the API itself (crash loops, missing dependencies, OOMKilled), see [Common Errors](/common-errors) — this page only covers the stable `code` values the API answers with.
+
+<Note>
+  `VALIDATION_ERROR` (`400`) covers request-shape problems across every route — a required field
+  missing, the wrong type, an out-of-range value. `details.path` names the offending field, e.g.
+  `"memory"` or `"user.name"`.
+</Note>
+
+## Auth & API keys
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 401 | `AUTH_TOKEN_MISSING` | No `Authorization` header was sent. Add `Authorization: Bearer <key>`. |
+| 401 | `API_KEY_INVALID` | The key doesn't exist or its secret doesn't match. Check the key value, or create a new one in the dashboard. |
+| 403 | `API_KEY_IP_DENIED` | The request's IP isn't in the key's `allowed_ips`. Add the caller's IP/CIDR to the key, or clear the list to allow any IP. |
+| 403 | `API_KEY_SCOPE_DENIED` | The key is missing the scope the route requires (`details.required`), or the route is dashboard-session only. See [Scopes](/api-reference/introduction#scopes). |
+| 403 | `WEBSITE_ONLY` | The route only accepts a dashboard session. API keys normally get `API_KEY_SCOPE_DENIED` first on these routes; `WEBSITE_ONLY` is the second check behind it. No scope unlocks the action — use the dashboard. |
+| 404 | `API_KEY_NOT_FOUND` | Key management (`/v1/users/me/api-keys`, dashboard session only — like the four codes below): no key with that ID on this account. |
+| 409 | `API_KEY_LIMIT_REACHED` | The account already has 10 keys. Delete one you no longer use. |
+| 400 | `API_KEY_INVALID_NAME` | The key name is empty or longer than 40 characters. |
+| 400 | `API_KEY_INVALID_SCOPES` | `scopes` is empty or has an entry outside the scope catalog. |
+| 400 | `API_KEY_INVALID_IPS` | An `allowed_ips` entry isn't a valid IP/CIDR, or there are more than 20. |
+| 403 | `ACCESS_DENIED` | The resource exists but your account can't act on it. Confirm you own the resource or have the right workspace permission. |
+| 403 | `ACCOUNT_BANNED` | The account was banned. Contact support. |
+| 403 | `APP_BANNED` | The application was banned. Contact support. |
+| 403 | `DATABASE_BANNED` | The database was banned. Contact support. |
+| 403 | `APP_SHIELD_COOLDOWN` | Vertra Shield paused the application after abusive traffic; `details` names the reason and cooldown end. Wait for the pause to end and fix the traffic source; start, restart, deploy, configuration and deletion stay blocked until then. See [Common Errors](/common-errors#platform-protections). |
+| 404 | `USER_NOT_FOUND` | The authenticated user no longer exists (rare — usually a deleted account). |
+| 404 | `USER_LIMITS_NOT_FOUND` | The account's plan limits couldn't be resolved. Contact support. |
+
+## Plans & billing
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 400 | `INVALID_PLAN` / `INVALID_PLAN_NAME` | The plan slug isn't recognized. Use one from [Plans and limits](/plans-and-limits). |
+| 400 | `MISSING_PLAN_OR_MONTHS` | `plan` or `months` is missing from the order body. |
+| 400 | `INVALID_MONTHS` | `months` isn't one of the accepted billing periods. |
+| 400 | `NOT_AN_UPGRADE` | The target plan isn't a memory upgrade over the current one. |
+| 400 | `PLAN_MISMATCH_FOR_RENEWAL` | A renewal order's plan doesn't match the resource's current plan. |
+| 400 | `ORDER_NOT_PAID` | The order hasn't been paid yet — wait for PIX confirmation. |
+| 400 | `ORDER_NOT_PAYABLE` | The order isn't in a payable state (already paid, expired, or cancelled). |
+| 400 | `ORDER_NOT_REFUNDED` | Requested an action that requires a refunded order, but this one isn't refunded. |
+| 400 | `REFUND_AMOUNT_EXCEEDS_PRICE` | The requested refund is larger than the order's price. |
+| 400 | `PENDING_ORDER_LIMIT_REACHED` | The account already has the maximum number of unpaid orders open. Pay or let one expire first. |
+| 404 | `ORDER_NOT_FOUND` | No order with that ID on this account. |
+| 404 | `INVALID_OR_EXPIRED_CODE` | The redeem code doesn't exist, was already used, or expired. |
+| 403 | `PLAN_NOT_ALLOWED` | The current plan doesn't allow this action (e.g. manual snapshots). Upgrade to use it. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | The feature isn't available on the resource owner's plan. |
+| 403 | `FREE_PLAN_NO_WEB_PUBLISH` | The Free plan can't publish an application to the web. Upgrade to publish. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH` | The current plan tier doesn't include web publishing. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN` | Custom domains require Intermediary or higher. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | Choosing a custom subdomain requires a higher plan; see [Plans and limits](/plans-and-limits). |
+
+## Applications
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `APP_NOT_FOUND` | No application with that ID (or not owned by this account/workspace). |
+| 404 | `OWNER_APP_WITHOUT_LIMITS` | The application's owner has no resolvable plan limits. Contact support. |
+| 400 | `INVALID_CONFIG` | The application configuration (build/start command, language) failed validation. |
+| 400 | `MEMORY_REQUIRED` | `memory` is required and wasn't sent, or isn't a number. |
+| 400 | `MEMORY_BELOW_MINIMUM` | The requested memory is below the plan's floor; `details` carries the numbers. |
+| 400 | `MEMORY_LIMIT_EXCEEDED` | The requested memory exceeds what the plan allows for this account. |
+| 400 | `INVALID_MEMORY_FORMAT` | `memory` isn't a valid integer. |
+| 400 | `INSUFFICIENT_MEMORY` | Not enough remaining plan memory to create/resize this resource. |
+| 400 | `INVALID_RAM_LIMIT` | The RAM value is below the minimum for the selected database engine. |
+| 403 | `MAX_APPS_REACHED` | The plan's application count limit was reached. Delete one or upgrade. |
+| 500 | `INVALID_LANGUAGE` | The detected/selected runtime language isn't supported. |
+| 400 | `INVALID_VERSION` | The runtime version doesn't exist for the application's language. Use `recommended`, `latest` or a version listed by [List Runtimes](/api-reference/endpoint/apps/runtimes). |
+| 400 | `CLEANUP_LANGUAGE_SAME_AS_CURRENT` | Asked to switch the runtime to the language it already uses. |
+| 409 | `CONTAINER_ALREADY_RUNNING` | Start was requested on an application that's already running. |
+| 409 | `OPERATION_IN_PROGRESS` | Another lifecycle operation on the same resource is already running. This is contention, not a failure — wait a few seconds and retry. |
+| 400 | `NO_FIELDS_TO_UPDATE` / `NO_CHANGES_PROVIDED` | The update body has nothing to change. |
+| 409 | `STORAGE_ABOVE_NEW_LIMIT` | A config change was refused because the volume already holds more than the new disk ceiling; `details` carries the numbers. |
+| 400 | `SOURCE_REQUIRED` / `SOURCE_CONFLICT` | Application creation needs exactly one source (`file` XOR `snapshot_id`); one is missing or both were sent. |
+| 400 | `INVALID_ZIP` / `INVALID_ZIP_STRUCTURE` | The ZIP is unreadable, or its files are wrapped in an extra top-level folder — files must sit at the ZIP root. |
+| 400 | `ZIP_TOO_SMALL` | The uploaded ZIP is too small to be a real project. |
+| 400 | `ZIP_TOO_LARGE` | The uploaded ZIP exceeds the 100 MB limit. |
+| 400 | `MAIN_FILE_NOT_FOUND` | The scanner couldn't find an entry point in the uploaded project. |
+| 422 | `BUILD_FAILED` | The `build_command` exited with an error. Check the build log and fix the command. |
+| 422 | `BUILD_TIMEOUT` | The `build_command` ran past its 10-minute limit. Simplify the build. |
+| 422 | `INSTALL_TIMEOUT` | Dependency installation ran past its 15-minute limit. |
+| 422 | `INSTALL_FAILED` | Dependency installation failed. Check the dependency manifest. |
+| 422 | `INSTALL_CANCELLED` | The installation was cancelled (e.g. by a new deploy superseding it). |
+| 422 | `INSTALL_SHIELD_BLOCKED` | Vertra Shield stopped the deployment because traffic exceeded the plan allowance. |
+| 429 | `DEPLOY_RATE_LIMITED` | The account's hourly deploy budget was reached; `details.retry_after` says how long to wait. See [rate limits](/api-reference/introduction#how-is-the-api-rate-limited) below. |
+
+## Deploy & GitHub
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `DEPLOYMENT_NOT_FOUND` | No deploy with that ID for this application. |
+| 500 | `DEPLOY_FAILED` | The GitHub-triggered deploy failed while fetching or applying the commit. Check the Activity tab. |
+| 409 | `REPO_ALREADY_LINKED` | That repository is already linked to another application. Unlink it first. |
+| 404 | `INSTALLATION_NOT_FOUND` | The GitHub App installation for this account/repository wasn't found. Reconnect GitHub. |
+| 413 | `FILE_TOO_LARGE` | A single file from the repository exceeds the size the GitHub file endpoint allows. |
+| 400 / 403 | `FORBIDDEN_PATH` | The requested repository path is outside what the app is allowed to read (400 as a generic rejection, 403 when it's specifically a forbidden path). |
+
+## Files
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `FILE_NOT_FOUND` | No file at that path. |
+| 404 | `FILE_OR_FOLDER_NOT_FOUND` | No file or folder at that path. |
+| 400 | `INVALID_PATH` | The path is malformed or escapes the application's file root. |
+| 403 | `FORBIDDEN_PATH` | The path is in a directory the API won't let you touch (e.g. reserved system paths). |
+| 400 | `MISSING_CONTENT` | A file write was sent with no content. |
+| 400 | `TARGET_IS_DIRECTORY` | Requested a file operation on a path that's actually a directory. |
+| 409 | `FILE_MODIFIED` | The file changed on disk since you last read it (optimistic-lock conflict). Re-read and retry. |
+| 400 | `NO_FILE_UPLOADED` | The upload request had no file attached. |
+| 413 | `PAYLOAD_TOO_LARGE` | The request body (upload) is larger than the limit for the route. |
+| 400 | `STORAGE_FULL` | The application's volume has no space left for this write. |
+
+## Network & domains
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 400 | `APP_ALREADY_PUBLISHED` | The application already has a subdomain or custom domain. |
+| 400 | `APP_NOT_PUBLISHED` | The application has no subdomain and no custom domain yet — publish it first. |
+| 400 | `APP_HAS_NO_SUBDOMAIN` | An operation that needs an existing subdomain was called before one was set. |
+| 409 | `SUBDOMAIN_TAKEN` | Someone else already owns that subdomain. |
+| 409 | `SUBDOMAIN_ALREADY_IN_USE` | The subdomain is already assigned elsewhere on this account. |
+| 400 | `INVALID_SUBDOMAIN_FORMAT` | The subdomain doesn't match the allowed character set/length. |
+| 400 | `SUBDOMAIN_FORBIDDEN` | The requested subdomain is reserved and can't be used. |
+| 429 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | Subdomain changes are capped at 5/minute with a 5-minute cooldown. |
+| 400 | `INVALID_CUSTOM_DOMAIN_FORMAT` | The custom domain string isn't a valid hostname. |
+| 400 | `DOMAIN_ALREADY_IN_USE` | That custom domain is already linked to another application. |
+| 404 | `NO_CUSTOM_DOMAIN` | The application has no custom domain configured. |
+| 404 | `CUSTOM_DOMAIN_RECORD_NOT_FOUND` | The DNS validation record for the domain wasn't found; recheck your DNS setup. |
+| 500 | `CUSTOM_DOMAIN_REGISTRATION_FAILED` | The platform failed to register the domain/certificate. Retry, or contact support if it persists. |
+| 403 | `FORBIDDEN_DOMAIN` | The domain is on the platform's blocked-domains list. |
+| 403 | `INVALID_HOSTNAME_FOR_APP` | The hostname used for an authorized network path isn't allowed for this application. |
+| 400 | `NO_AUTHORIZED_PATHS` | The network configuration ended up with no valid authorized paths after validation. |
+
+## Databases
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `DATABASE_NOT_FOUND` | No database with that ID (or not owned by this account/workspace). |
+| 409 | `DATABASE_NOT_RUNNING` | The database must be started for this operation (e.g. a manual snapshot); Redis has no such requirement. |
+| 500 | `DATABASE_PERSISTENCE_FAILED` | The database was created but couldn't be read back. Retry, or contact support. |
+| 403 | `MAX_DATABASES_REACHED` | The plan's database count limit was reached. |
+| 404 | `CERTIFICATE_NOT_FOUND` | No TLS certificate available for this database yet. |
+| 429 | `FORCED_SNAPSHOT_RATE_LIMIT` | A forced pre-operation snapshot hit its own rate budget. |
+
+## Environment variables
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `ENV_NOT_FOUND` | No environment variable with that key. |
+| 400 | `ENV_LIMIT_EXCEEDED` | The application already has the maximum number of environment variables. |
+| 400 | `ENV_DUPLICATE_KEY` | The batch has the same variable key more than once. |
+| 400 | `FORBIDDEN_KEY` | The key name is reserved by the platform (e.g. `PORT`) and can't be set. |
+
+## Snapshots
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `SNAPSHOT_NOT_FOUND` | No snapshot with that ID, or it doesn't belong to this account. |
+| 400 | `SNAPSHOT_TYPE_MISMATCH` | The snapshot's resource type (application/database) doesn't match what was requested. |
+| 400 | `SNAPSHOT_ENGINE_MISMATCH` | The snapshot's database engine doesn't match the target database. |
+| 400 | `TYPE_MISMATCH` | Can't restore a snapshot onto a resource of a different type. |
+| 400 | `SNAPSHOT_TOO_LARGE` | The snapshot exceeds the size the target plan/resource allows. |
+| 500 | `SNAPSHOT_IMPORT_FAILED` | The restore failed while loading data; the database is left running and empty, and the snapshot stays available to retry. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | Manual snapshot creation hit its per-resource (1/5 min) or per-account (10/hour) budget. |
+| 429 | `RESTORE_COOLDOWN` | A snapshot restore was requested too soon after a previous one on the same resource. |
+
+## Workspaces
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `WORKSPACE_NOT_FOUND` | No workspace with that ID, or you're not a member. |
+| 400 | `WORKSPACE_NAME_ALREADY_EXISTS` | You already have a workspace with that name. |
+| 400 | `WORKSPACE_MEMBER_LIMIT_REACHED` | The workspace's plan-based member cap was reached; `details.limit`. |
+| 400 | `WORKSPACE_ROLE_LIMIT_REACHED` | The workspace's plan-based role cap was reached; `details.limit`. |
+| 404 | `WORKSPACE_ROLE_NOT_FOUND` | No role with that ID in this workspace. |
+| 400 | `WORKSPACE_ROLE_NAME_ALREADY_EXISTS` | Another role in the workspace already has that name (case-insensitive). |
+| 400 | `WORKSPACE_ROLE_IN_USE` | Can't delete a role that still has members or a pending invite assigned to it. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | You're not a member, your membership expired, or your role lacks the required permission. |
+| 403 | `WORKSPACE_PERMISSION_ESCALATION` | You tried to grant/edit a permission you don't hold yourself, or edit your own role/membership. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Only the workspace owner can perform this action. |
+| 404 | `WORKSPACE_INVITE_NOT_FOUND` | The invite token is invalid, was revoked, accepted already, or exhausted its uses. |
+| 410 | `WORKSPACE_INVITE_EXPIRED` | The invite existed but its validity window passed. |
+| 403 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | The logged-in account's email doesn't match the email this invite was sent to. |
+| 400 | `APP_ALREADY_IN_WORKSPACE` / `DATABASE_ALREADY_IN_WORKSPACE` | The resource is already linked to a workspace. |
+| 404 | `APP_NOT_FOUND_IN_WORKSPACE` / `DATABASE_NOT_FOUND_IN_WORKSPACE` | The resource isn't linked to this workspace. |
+| 403 | `USER_NOT_IN_WORKSPACE` | The target user isn't a member of the workspace. |
+| 404 | `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | No pending action request with that ID. |
+| 400 | `WORKSPACE_ACTION_NOT_NEEDED` | You already hold the permission for this action — perform it directly instead of requesting it. |
+| 400 | `WORKSPACE_ACTION_INVALID_PARAMS` | The action request's `params` don't match what that action type expects. |
+| 409 | `WORKSPACE_ACTION_REQUEST_PENDING` | A pending request for the same action and resource already exists. |
+| 410 | `WORKSPACE_ACTION_REQUEST_EXPIRED` | The action request expired before anyone decided on it. Open a new one. |
+| 409 | `WORKSPACE_ACTION_REQUEST_ALREADY_DECIDED` | The action request was already approved or rejected. |
+| 400 | `WORKSPACE_INVITES_DISABLED` | The invited account turned off workspace invites by email in its settings. Ask them to turn invites back on, or share an invite link instead. |
+| 409 | `WORKSPACE_ALREADY_MEMBER` | You are already a member of this workspace. |
+| 404 | `WORKSPACE_RESOURCE_FOLDER_NOT_FOUND` | No resource folder with that ID. |
+| 409 | `WORKSPACE_RESOURCE_FOLDER_NAME_CONFLICT` | Another folder at the same level already has that name. |
+| 404 | `WORKSPACE_RESOURCE_NOT_FOUND` | The resource referenced in a folder/favorite operation doesn't exist or isn't yours. |
+
+## Rate limits & quotas
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 429 | `RATE_LIMIT_EXCEEDED` | A per-route or per-minute budget was hit. `details` (when per-account) carries `scope`, `limit`, `used`, `retry_after`. |
+| 429 | `DAILY_QUOTA_EXCEEDED` | The account's daily API request quota for its plan was reached; resets at midnight America/Fortaleza. |
+| 429 | `DEPLOY_RATE_LIMITED` | The account's hourly deploy budget was reached. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | Manual snapshot creation budget was reached. |
+| 429 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | Subdomain change budget was reached. |
+| 429 | `FORCED_SNAPSHOT_RATE_LIMIT` | Forced pre-operation snapshot budget was reached. |
+| 429 | `RESTORE_COOLDOWN` | Snapshot restore cooldown hasn't elapsed. |
+
+See [rate limits](/api-reference/introduction#how-is-the-api-rate-limited) for the full breakdown of budgets per plan.
+
+## General
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | A parameter, query or body field failed validation; `details.path` names the field. |
+| 400 | `INVALID_PARAMS` / `INVALID_PAYLOAD` / `INVALID_RANGE` | The request shape or a specific field is invalid for this route. |
+| 403 | `FORBIDDEN` | The account isn't allowed to perform this action on this resource. |
+| 400 | `MISSING_HEADERS` | A header the route requires wasn't sent. |
+| 500 | `INTERNAL_SERVER_ERROR` | Something failed on the platform side. Retry; if it persists, contact support with the request time. |
+
+<Note>
+  This catalog lists every code from the public API contract. A route can still answer other
+  standard HTTP errors (like a generic `404` for an unknown path) that don't carry one of these
+  `code` values.
+</Note>

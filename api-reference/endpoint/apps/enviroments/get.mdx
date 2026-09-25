@@ -1,0 +1,100 @@
+---
+title: Get Application Environment Variables
+sidebarTitle: Get Environment Variables
+api: GET https://api.vertracloud.app/v1/apps/{id}/envs
+authMethod: bearer
+description: Retrieves all environment variables for an application by its ID.
+---
+
+{/* @see APIApplicationEnvironment[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to retrieve environment variables.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="array">
+  An array of environment variable objects.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The environment variable ID.
+  </ResponseField>
+
+  <ResponseField name="key" type="string">
+    The environment variable key.
+  </ResponseField>
+
+  <ResponseField name="value" type="string">
+    The environment variable value (decrypted).
+  </ResponseField>
+
+  <ResponseField name="note" type="string | null">
+    The optional note or description for the environment variable.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the environment variable was created.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "env-abc123",
+      "key": "API_KEY",
+      "value": "secret123",
+      "note": "API key for external service",
+      "created_at": "2026-03-20T19:58:00Z"
+    },
+    {
+      "id": "env-xyz789",
+      "key": "DATABASE_URL",
+      "value": "mysql://user:pass@database-host/db",
+      "note": null,
+      "created_at": "2026-03-20T19:58:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or does not have sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>

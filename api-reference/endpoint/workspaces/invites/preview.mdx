@@ -1,0 +1,53 @@
+---
+title: Preview Invite
+sidebarTitle: Preview
+api: GET https://api.vertracloud.app/v1/workspaces/invites/{token}
+authMethod: bearer
+description: Shows what an invite leads to, before accepting. Any logged-in account; an API key needs the `workspaces:invites` scope.
+---
+
+{/* @see APIWorkspaceInvitePreview, RESTGetAPIWorkspaceInvitePreviewResponse — @vertracloud/api-types */}
+<Note>
+  An API key needs the `workspaces:invites` scope. Rate-limited at **10 requests per
+  minute**, keyed by session + IP together — the token is guessable in theory (32 random bytes,
+  but still a bearer secret in the URL), so this route gets a tighter bucket than the rest of
+  `/v1/workspaces`.
+</Note>
+
+Any logged-in account can call this — the token itself is the credential, not workspace
+membership.
+
+<Info>
+  `410 WORKSPACE_INVITE_EXPIRED` means the invite existed and its time ran out — `404
+  WORKSPACE_INVITE_NOT_FOUND` covers revoked, already accepted, and exhausted (`max_uses` link),
+  because those three should read differently to whoever's holding the link than "you're too
+  late."
+</Info>
+
+### Path
+
+<ParamField path="token" type="string" required>
+  The invite token from the URL/e-mail. Opaque, 16–128 characters.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIWorkspaceInvitePreview">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="workspace" type="object">`{ id, name }`.</ResponseField>
+  <ResponseField name="inviter" type="object">`{ display_name }`.</ResponseField>
+  <ResponseField name="role_name" type="string" />
+  <ResponseField name="kind" type="'email' | 'link'" />
+  <ResponseField name="expires_at" type="string" format="date-time" />
+
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key that lacks the `workspaces:invites` scope. |
+| 404 | `WORKSPACE_INVITE_NOT_FOUND` | Token doesn't exist, or the invite was revoked, accepted or exhausted. |
+| 410 | `WORKSPACE_INVITE_EXPIRED` | Invite existed but its expiry has passed. |

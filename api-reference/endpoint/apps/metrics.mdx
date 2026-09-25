@@ -1,0 +1,100 @@
+---
+title: Application Metrics
+sidebarTitle: Application Metrics
+api: GET https://api.vertracloud.app/v1/apps/{id}/metrics
+authMethod: bearer
+description: Retrieves metrics for an application by its ID, including CPU usage, RAM, storage, and network over the last 24 hours.
+---
+
+{/* @see APIApplicationMetric[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to retrieve metrics. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="array">
+  An array of metric objects for the application over the last 24 hours.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="cpu" type="number">
+    CPU usage percentage.
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    RAM usage in MB.
+  </ResponseField>
+
+  <ResponseField name="storage" type="number">
+    Storage usage in MB.
+  </ResponseField>
+
+  <ResponseField name="network" type="array">
+    An array containing two numbers: `[network_in, network_out]` representing inbound and outbound network traffic in bytes.
+  </ResponseField>
+
+  <ResponseField name="date" type="string" format="date-time">
+    The timestamp when the metric was recorded.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "cpu": 25.5,
+      "ram": 512,
+      "storage": 1024,
+      "network": [1048576, 524288],
+      "date": "2026-03-20T19:58:00Z"
+    },
+    {
+      "cpu": 30.2,
+      "ram": 510,
+      "storage": 1024,
+      "network": [2097152, 1048576],
+      "date": "2026-03-20T19:59:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or does not have sufficient permissions.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,35 @@
+---
+title: Data Tab Errors
+sidebarTitle: Errors
+description: Stable error codes returned by every /data endpoint, and what causes each one.
+---
+
+Every endpoint under `/v1/databases/{id}/data` needs the **Intermediary** plan or higher on the
+database owner's account, is reachable only from a dashboard session (never with an API key), and answers with the platform envelope: `{ response }` on
+success, `{ code }` on failure. The `code` is stable — the dashboard translates it — and never carries
+a driver message, a connection string, a password or a stack trace.
+
+| Code | HTTP | Meaning |
+|---|:--:|---|
+| `DATABASE_NOT_FOUND` | 404 | No database with that ID. |
+| `USER_NOT_FOUND` | 401 | No session on the request. |
+| `API_KEY_SCOPE_DENIED` | 403 | The request was authenticated with an API key. The Data tab is dashboard-session only, whatever the key's scopes. |
+| `ACCESS_DENIED` | 403 | You are not the owner and your workspace role is not enough. Reads need any role; writes and the SQL console need **owner** or **admin**. |
+| `PLAN_RESTRICTED_FEATURE` | 403 | The **database owner's** plan is below Intermediary. Checked after ownership, so a database you cannot see answers `ACCESS_DENIED` instead. |
+| `VALIDATION_ERROR` | 400 | A parameter or body field is outside its limit — `per_page` above 200, an unknown filter operator, a non-numeric scan cursor, SQL above 64 KB or empty. |
+| `DB_NOT_RUNNING` | 409 | The database container is stopped. Start it and retry. |
+| `DB_CONNECT_FAILED` | 502 | The platform could not reach the engine. |
+| `OBJECT_NOT_FOUND` | 404 | The schema, table, column, collection or key does not exist in this database. |
+| `QUERY_TIMEOUT` | 504 | The statement hit the 10-second engine timeout. |
+| `QUERY_REJECTED` | 400 | The statement or filter was refused — for example a MongoDB filter using `$where`, `$function` or `$accumulator`. |
+| `PAYLOAD_TOO_LARGE` | 413 | The request body exceeded 1 MB. (SQL above the 64 KB ceiling is a `VALIDATION_ERROR`, not this — it is a field limit, checked by validation.) |
+| `DB_DATA_FAILED` | 502 | The database query failed without an engine error code. Unexpected — retry, then open a ticket. |
+| `INTERNAL_SERVER_ERROR` | 500 | An error on our side. Never carries the underlying message. |
+| `ENGINE_UNSUPPORTED` | 400 | The endpoint does not apply to this engine (asking for schemas on Redis, for example). |
+
+### Rate limits
+
+| Endpoint | Limit |
+|---|---|
+| `POST /data/query` | 30 requests/minute per user |
+| Every other `/data` endpoint | 120 requests/minute per user |

@@ -1,0 +1,90 @@
+---
+title: API Key Requests
+sidebarTitle: API Key Requests
+api: GET https://api.vertracloud.app/v1/users/me/api-key/requests
+authMethod: bearer
+description: Lists the requests made to the API with the authenticated user's API key in the last 30 days. Dashboard session only — an API key gets `403 API_KEY_SCOPE_DENIED`.
+---
+
+{/* @see APIUserApiKeyRequestEvent, RESTGetAPIUserApiKeyRequestsQuery — @vertracloud/api-types */}
+<Note>
+  This endpoint is readable only from a dashboard session. Calling it with an API key answers `403 API_KEY_SCOPE_DENIED`, so a leaked key cannot read its own history.
+</Note>
+
+### Query
+
+<ParamField query="api_key_id" type="string">
+  Filter to requests made with one key (`APIApiKey.id`).
+</ParamField>
+
+<ParamField query="from" type="string" format="date-time">
+  Start of the window (ISO 8601). Defaults to 30 days before `to`.
+</ParamField>
+
+<ParamField query="to" type="string" format="date-time">
+  End of the window (ISO 8601). Defaults to now. A window wider than 30 days answers `400 RANGE_EXCEEDS_RETENTION`.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="50">
+  Items per page, at most 200.
+</ParamField>
+
+<ParamField query="errors_only" type="boolean" default="false">
+  Only requests that answered `4xx`/`5xx`.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="PaginationMeta<APIUserApiKeyRequestEvent>">
+  Paginated list, newest first.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="data" type="APIUserApiKeyRequestEvent[]">
+    <Expandable title="Toggle object">
+
+    <ResponseField name="id" type="string">Event ID.</ResponseField>
+    <ResponseField name="api_key_id" type="string | null">ID of the key used (`APIApiKey.id`); `null` once the key has been deleted.</ResponseField>
+    <ResponseField name="api_key_prefix" type="string | null">Public prefix of the key used; `null` once the key has been regenerated.</ResponseField>
+    <ResponseField name="method" type="string">HTTP method.</ResponseField>
+    <ResponseField name="route" type="string">Registered route template (`/v1/apps/:id`).</ResponseField>
+    <ResponseField name="path" type="string | null">Concrete path, without query string.</ResponseField>
+    <ResponseField name="ip" type="string | null">Client IP.</ResponseField>
+    <ResponseField name="user_agent" type="string | null">`User-Agent` header, truncated to 512 characters.</ResponseField>
+    <ResponseField name="status" type="integer">HTTP status answered.</ResponseField>
+    <ResponseField name="duration_ms" type="integer">Time to answer, in milliseconds.</ResponseField>
+    <ResponseField name="bytes_in" type="integer | null">Request `Content-Length`; `null` when absent.</ResponseField>
+    <ResponseField name="bytes_out" type="integer | null">Response `Content-Length`; `null` for streams.</ResponseField>
+    <ResponseField name="error_code" type="string | null">The `code` of the error envelope, when the request failed.</ResponseField>
+    <ResponseField name="request_body" type="string | null">Request body as sent, only on routes that carry no secrets by construction (lifecycle, config, snapshots, network, public resource reads); JSON up to 4 KB, with secrets redacted. `null` elsewhere — environment variables, files, uploads, workspace data and credentials are never stored.</ResponseField>
+    <ResponseField name="response_body" type="string | null">Response body, same rules as `request_body`.</ResponseField>
+    <ResponseField name="occurred_at" type="string" format="date-time">When the request happened (ISO 8601).</ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="total_count" type="integer">Total items in the window.</ResponseField>
+  <ResponseField name="page" type="integer">Current page.</ResponseField>
+  <ResponseField name="limit" type="integer">Items per page.</ResponseField>
+  <ResponseField name="total_pages" type="integer">Total pages.</ResponseField>
+  <ResponseField name="has_next_page" type="boolean" />
+  <ResponseField name="has_previous_page" type="boolean" />
+
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_QUERY` | A query parameter has the wrong shape. |
+| 400 | `RANGE_EXCEEDS_RETENTION` | `to - from` is wider than 30 days. |
+| 403 | `API_KEY_SCOPE_DENIED` | The session is an API key. |
+
+<Note>
+  Query strings and headers other than `Content-Length` and `User-Agent` are never recorded. Bodies are recorded only on an explicit allowlist of routes that carry no secrets, capped at 4 KB and passed through secret redaction; on every other route both fields are `null`.
+</Note>

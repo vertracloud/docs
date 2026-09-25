@@ -1,0 +1,116 @@
+---
+title: 'Workspace Resource Organization'
+sidebarTitle: 'Folders and favorites'
+description: 'Organize a workspace applications and databases with individual folders and favorites.'
+---
+This API organizes the calling member's view. A workspace's folders and favorites are
+individual: each member can choose their own organization, without changing other members' view.
+
+## Scope and reading
+
+Use a Bearer token and the workspace ID in the path. The member's organization is returned in
+[`GET /v1/workspaces/:id`](/api-reference/endpoint/workspaces/get), in the
+`response.resource_organization` field.
+
+An API key needs `workspaces:read` to read the workspace and `workspaces:write` to change that
+workspace's organization.
+
+Folders and favorites only accept `application` and `database`. Folder colors are `neutral`,
+`red`, `orange`, `yellow`, `green`, `blue` and `purple`.
+
+## Create a folder
+
+```http
+POST /v1/workspaces/{id}/folders
+```
+
+```json
+{
+  "name": "Production",
+  "color": "green",
+  "position": 0
+}
+```
+
+`name` is required. `color` and `position` are optional. The response contains the created folder
+in `response`.
+
+## Rename, recolor or reorder a folder
+
+```http
+PATCH /v1/workspaces/{id}/folders/{folder_id}
+```
+
+```json
+{
+  "name": "Published production",
+  "color": "blue",
+  "position": 1
+}
+```
+
+Send only the fields you want to change. The response contains the updated folder in `response`.
+
+## Delete a folder
+
+```http
+DELETE /v1/workspaces/{id}/folders/{folder_id}
+```
+
+Deleting removes the folder's organization, but doesn't delete or unlink the application or
+database.
+
+## Put or remove a resource in a folder
+
+```http
+PUT /v1/workspaces/{id}/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Use `resource_type=application` or `resource_type=database`. `resource_id` identifies the
+resource the member can access. The body can contain the position within the folder:
+
+```json
+{
+  "position": 0
+}
+```
+
+To remove just the link:
+
+```http
+DELETE /v1/workspaces/{id}/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Putting the same resource in another folder moves it within that member's organization. The
+response of both operations returns the updated organization in `response`.
+
+## Favorite and unfavorite a resource
+
+```http
+PUT /v1/workspaces/{id}/favorites/{resource_type}/{resource_id}
+```
+
+```json
+{
+  "position": 0
+}
+```
+
+To unfavorite:
+
+```http
+DELETE /v1/workspaces/{id}/favorites/{resource_type}/{resource_id}
+```
+
+Favorite and folder are independent, and the operations return the updated organization in
+`response`. They can be repeated safely.
+
+## Activity
+
+Creating, editing or deleting a folder, moving a resource, and favoriting or unfavoriting
+generates an activity. This applies to actions in the dashboard and in workflows, as well as API
+key calls made through the CLI, MCP, or the extension. The client doesn't send `origin` or
+`author_id`; the API sets those fields.
+
+These folders aren't Flow groups. Groups organize elements on Flow's local canvas; they don't
+have a `group_id` shared with this API and aren't synced or migrated into folders.

@@ -1,0 +1,117 @@
+---
+title: 'Team Workspaces on Vertra Cloud: Permissions, Roles and Invites'
+sidebarTitle: 'Workspaces'
+description: 'Workspaces group applications and databases and share them with a team, on custom roles built from 19 granular permissions. Enterprise plan.'
+icon: 'users'
+---
+
+## What are Workspaces?
+
+Workspaces are collaborative spaces that group applications and databases and share them with a
+team. Creating one requires the **Enterprise** plan; the maximum number of members and custom
+roles both scale with plan tier.
+
+## Permissions, not fixed roles
+
+A member doesn't hold a fixed role like "Admin" or "Viewer" — they hold a **role you define**,
+and a role is just a name plus a chosen subset of **19 permissions**. Four roles are seeded when
+the workspace is created (Admin, Developer, Operator, Viewer), but they're ordinary roles from
+that point on: rename them, edit their permissions, or delete them like any other.
+
+The **owner** isn't a role either. Ownership is possession of the workspace itself: the owner
+always has every permission, without needing a role assignment, and only the owner can rename or
+delete the workspace, transfer ownership, or link/unlink an application or database.
+
+### Permission catalog
+
+| Group | Permissions |
+|---|---|
+| Apps | `apps:read`, `apps:manage`, `apps:lifecycle`, `apps:envs`, `apps:files`, `apps:delete` |
+| Databases | `databases:read`, `databases:manage`, `databases:lifecycle`, `databases:credentials`, `databases:data`, `databases:delete` |
+| Snapshots | `snapshots:read`, `snapshots:manage` |
+| Members | `members:read`, `members:manage` |
+| Roles | `roles:manage` |
+| Activities | `activities:read` |
+
+`apps:delete` and `databases:delete` are split out from `apps:manage`/`databases:manage` on
+purpose — deleting is the one action worth gating separately from day-to-day management, which
+is also why the seeded **Admin** role doesn't include `snapshots:manage` by default (restoring
+or deleting a snapshot is destructive enough that the owner opts in explicitly).
+
+<Note>
+  A member can't create or edit a role with permissions they don't themselves hold — including
+  the owner's exclusive actions, which no role can ever grant. This closes the obvious escalation
+  path: `roles:manage` lets you shape roles, not hand out access above your own.
+</Note>
+
+## Custom roles
+
+Create as many roles as your plan's tier allows (the four seed roles count toward that cap), pick
+any subset of the 19 permissions.
+
+A role that's assigned to a member or has a pending invite can't be deleted
+(`WORKSPACE_ROLE_IN_USE`) — reassign or revoke first.
+
+## Inviting members
+
+Invites replace the old single shared code entirely:
+
+- **By e-mail** — sent to a specific address, expires in 7 days, one pending invite per address.
+  Re-inviting the same address refreshes and resends it.
+- **By link** — a shareable URL, valid 24 hours, optionally capped at a number of uses.
+
+Both kinds assign a role up front and can carry an **access expiry**: the member who joins
+through that invite automatically loses access on that date, unless you set one later.
+Everything here — sending, listing, revoking — is a dashboard-only action; there's no API-key
+equivalent, so a leaked key can't add or remove people.
+
+See the full route reference in [API Reference → Workspaces → Invites](/api-reference/endpoint/workspaces/invites/create).
+
+## Requesting sensitive actions
+
+A member who wants to do something they don't have the permission for — delete an application,
+delete a database, create or restore a snapshot — can **request** it instead. Anyone holding the
+matching permission can approve or reject the request from the workspace's **Requests** tab.
+Approving re-runs the action for real, as the approver, using exactly the parameters that were
+submitted with the request — never anything resent at approval time. A request expires after 24
+hours unresolved.
+
+## Activity
+
+The **Activities** tab is scoped to the whole workspace instead of just your own actions, with a
+CSV export capped at a 90-day window per download.
+
+## Folders and favorites
+
+A workspace's folders and favorites are **individual** preferences. Each member organizes the
+applications and databases they can access in their own view; creating a folder, changing its
+name or color, moving a resource, and favoriting don't change other members' organization.
+
+Folders can contain applications and databases and use the colors `neutral`, `red`, `orange`,
+`yellow`, `green`, `blue` and `purple`. Favorites are independent from folders. These preferences
+are saved on the account, either personal-scoped or workspace-scoped, not in the browser's local
+storage.
+
+The same actions can be done through the dashboard, through workflows, or through clients that use
+an API key, such as the CLI, MCP, and the VS Code extension. Each action generates an activity in
+the history; the client doesn't need to send the origin or the author.
+
+<Note>
+  A folder and a Flow group are different concepts. The folder organizes applications and
+  databases on the account; the group organizes elements on Flow's local canvas. There's no sync
+  or migration between them.
+</Note>
+
+## Frozen workspaces
+
+If the owner's plan expires or drops below Enterprise, the workspace is **frozen, not deleted**:
+members, projects and roles all stay, but writes are refused — renaming, inviting,
+changing a role, linking a project. Reading, leaving, removing a member or a project, and
+deleting the workspace itself keep working. Everything unfreezes the moment the plan is
+current again; what's checked is the **owner's** plan, so a Free-plan member of someone else's
+paid workspace is unaffected.
+
+<Note>
+  Full endpoint-by-endpoint detail — bodies, permissions, error codes — lives in
+  [API Reference → Workspaces](/api-reference/endpoint/workspaces/get-all).
+</Note>

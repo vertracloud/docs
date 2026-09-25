@@ -1,0 +1,85 @@
+---
+title: Get Order Status
+sidebarTitle: Order Status
+api: GET https://api.vertracloud.app/v1/orders/{orderId}/status
+authMethod: bearer
+description: Retrieves the current status of a single order.
+---
+<ParamField path="orderId" type="string" required>
+  The order ID.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The order ID.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Order status. Possible values: `unpaid`, `paid`, `cancelled`, `expired`.
+  </ResponseField>
+
+  <ResponseField name="price" type="number">
+    The final price charged, after any coupon discount.
+  </ResponseField>
+
+  <ResponseField name="related_to" type="object">
+    The plan the order applies to.
+
+    <Expandable title="Toggle object">
+    <ResponseField name="plan" type="object">
+      <Expandable title="Toggle object">
+      <ResponseField name="name" type="string">The plan name.</ResponseField>
+      <ResponseField name="months" type="integer">Duration in months.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "order-abc123",
+    "status": "unpaid",
+    "price": 24.9,
+    "related_to": { "plan": { "name": "PRO", "months": 1 } }
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `USER_NOT_FOUND`: The authenticated user was not found.
+  - `ORDER_NOT_FOUND`: The specified order does not exist.
+  - `FORBIDDEN`: The order does not belong to the authenticated user.
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "ORDER_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

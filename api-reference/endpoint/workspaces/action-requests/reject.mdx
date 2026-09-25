@@ -1,0 +1,36 @@
+---
+title: Reject Action Request
+sidebarTitle: Reject
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/action-requests/{request_id}/reject
+authMethod: bearer
+description: Rejects a pending action request. Requires `members:manage`.
+---
+
+{/* @see RESTPostAPIWorkspaceActionRequestRejectResponse — @vertracloud/api-types */}
+<Note>
+  Dashboard session only — outside the API key scope catalog, so an API key gets
+  `403 API_KEY_SCOPE_DENIED`. Deciding a request is a human call, including when an agent
+  connected through MCP asked for it.
+</Note>
+
+Requires `members:manage`. Unlike approve, this never calls any domain service — it only
+changes the request's status.
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+<ParamField path="request_id" type="string" required>Action request ID.</ParamField>
+
+### Response
+
+Same shape as a [List Action Requests](/api-reference/endpoint/workspaces/action-requests/list) row, `status: "rejected"`.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `members:manage`. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |
+| 404 | `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | Request doesn't exist or belongs to another workspace. |
+| 410 | `WORKSPACE_ACTION_REQUEST_EXPIRED` | Past the 24h expiry. |

@@ -1,0 +1,155 @@
+---
+title: 'Connecting Vertra Cloud to AI Agents (MCP)'
+sidebarTitle: 'MCP'
+description: 'Official Vertra Cloud MCP server: gives your agent (Claude, Cursor, Codex) tools to operate apps, databases and logs with your API key.'
+icon: 'robot'
+---
+
+## What it is
+
+Vertra Cloud's official MCP server (`@vertracloud/mcp`) gives your AI assistant — Claude, Cursor,
+VS Code, n8n, and any other client that speaks the MCP protocol — the tools to deploy
+applications, read logs, create databases and restore snapshots, always on your account and with
+your API key. The assistant acts within what the key allows; nothing beyond that.
+
+Vertra doesn't host chat or an AI model: MCP is the official way for the agent **you** already use
+to read context and operate the platform. To call the API directly from your own code, instead of
+through an agent, use the [official SDKs](/sdks) (JavaScript, Python and Go).
+
+## Install locally
+
+Prerequisite: **Node 18 or newer**.
+
+1. In the dashboard, go to **Settings → API keys**, create a key, and check the scopes the
+   assistant will need (start with read scopes).
+2. Copy the key — it's shown only once.
+3. Configure your client:
+
+<CodeGroup>
+
+```bash Claude Code
+claude mcp add vertracloud -e VERTRA_API_KEY=your_key -- npx -y @vertracloud/mcp
+```
+
+```json Claude Desktop (claude_desktop_config.json)
+{
+  "mcpServers": {
+    "vertracloud": {
+      "command": "npx",
+      "args": ["-y", "@vertracloud/mcp"],
+      "env": { "VERTRA_API_KEY": "your_key" }
+    }
+  }
+}
+```
+
+```json Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "vertracloud": {
+      "command": "npx",
+      "args": ["-y", "@vertracloud/mcp"],
+      "env": { "VERTRA_API_KEY": "your_key" }
+    }
+  }
+}
+```
+
+```json VS Code (.vscode/mcp.json)
+{
+  "servers": {
+    "vertracloud": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@vertracloud/mcp"],
+      "env": { "VERTRA_API_KEY": "your_key" }
+    }
+  }
+}
+```
+
+</CodeGroup>
+
+Restart the client and ask for something like "list my apps on Vertra".
+
+## Connect via claude.ai
+
+Nothing to install in the browser:
+
+1. Open **Settings → Connectors → Add custom connector**.
+2. Enter the URL `https://mcp.vertracloud.app/mcp`.
+3. Click **Connect** and sign in to your Vertra account.
+4. A consent screen lists the requested scopes; check the ones you want to grant and confirm.
+
+Connecting this way creates a new API key, named after the connector with an `oauth:` prefix,
+visible and revocable under **Settings → API keys** like any other key. `apps:envs` and
+`databases:credentials` are shown highlighted and unchecked by default on the consent screen — you
+have to check them on purpose to grant access to environment variables or database credentials.
+
+<Note>
+  Tools marked "local only" in the table below don't appear in the browser connector: they read
+  and write files on your computer, which only makes sense in Claude Desktop, Claude Code, or
+  Cursor.
+</Note>
+
+## What the key and scope control
+
+Every tool requires a specific key scope (see [Scopes](/api-reference/introduction#scopes) for
+the full list). Without the scope, the call fails with `API_KEY_SCOPE_DENIED` instead of acting on
+the resource. This applies equally to a key pasted in manually and to a key created through
+claude.ai's OAuth flow.
+
+- **`list_envs` never returns the value of an environment variable** — only the names. There's no
+  tool that reads a variable's value or a database's connection string without the
+  `databases:credentials` scope explicitly checked.
+- **Orders and code redemption** use the billing scopes: `billing:read` lists orders and checks
+  status, `billing:write` creates a plan order and generates the PIX code, `redeem:write` redeems
+  a promo code. You're the one who pays the PIX, in your bank's app — the assistant never pays
+  anything.
+- **Workspaces**: `delete_workspace` requires `workspaces:delete`; listing/revoking, viewing,
+  accepting, and declining an invite require `workspaces:invites`. Both scopes only enter through
+  the `full` preset (or a custom selection) and appear unchecked on claude.ai's authorization
+  screen.
+- **Switching to a lower plan (downgrade) isn't a tool.** It remains a dashboard-only action, with
+  or without an API key.
+
+## Organize folders and favorites
+
+MCP can also organize applications and databases with folders and favorites persisted on the
+account. Personal organization uses `account:read`/`account:write`; organization within a
+workspace uses `workspaces:read`/`workspaces:write`.
+
+This organization is individual. An action done through MCP only changes the authenticated user's
+view within the chosen scope. MCP doesn't mix folders with Flow groups: groups remain elements of
+the local canvas and aren't synced or migrated.
+
+Creating, renaming, recoloring, or deleting a folder, moving an application or database, and
+favoriting or unfavoriting generates an activity. The tool doesn't receive or make up `origin` or
+`author_id`; the API logs the call by API key automatically.
+
+## What's left out
+
+The server only talks to Vertra Cloud's public API and has no permissions of its own — the key is
+the boundary of everything the assistant can do. These are always left out of every tool:
+
+- **Container terminal** and running commands inside the application.
+- **The database Data tab** (SQL console, collections, keys) — dashboard only.
+- **Creating a workspace invite, transferring ownership, and approving/rejecting action
+  requests** — dashboard only. The assistant can list and revoke invites, accept or decline an
+  invite, delete a workspace, and *request* an action, but a person always decides the request.
+- **GitHub linking** (authorizing, deauthorizing, choosing the auto-deploy repository).
+
+## Common issues
+
+| What shows up | What it is | What to do |
+|---|---|---|
+| `NOT_AUTHENTICATED` | The key is missing, wrong, or revoked | Check `VERTRA_API_KEY` in the client's configuration |
+| `API_KEY_SCOPE_DENIED` | The key doesn't have that tool's scope | Create a new key checking the needed scope |
+| `RATE_LIMIT_EXCEEDED` / `DAILY_QUOTA_EXCEEDED` | The plan's per-minute or per-day request limit | Wait for `retry_after` seconds and try again |
+| The upload tool doesn't show up | You're on the browser connector | Uploading files is local-only (Claude Desktop, Claude Code, Cursor) |
+| The server won't start | Node below 18 | Update Node |
+
+<Info>
+  The package is open source: [`@vertracloud/mcp`](https://www.npmjs.com/package/@vertracloud/mcp)
+  on npm, with the full tool list in the repository's README.
+</Info>

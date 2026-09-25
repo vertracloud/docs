@@ -1,0 +1,112 @@
+---
+title: Custom Domain DNS Records
+sidebarTitle: Custom Domain DNS Records
+api: GET https://api.vertracloud.app/v1/apps/{id}/network/dns
+authMethod: bearer
+description: Retrieves the DNS records required for configuring a custom domain for an application.
+---
+
+{/* @see dns_records — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the application to retrieve DNS records for.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="array">
+  An array of DNS record objects required for the custom domain.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="type" type="string">
+    The type of DNS record (`CNAME` or `TXT`).
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The name of the DNS record (e.g., `example.com` or `_acme-challenge.example.com`).
+  </ResponseField>
+
+  <ResponseField name="value" type="string | null">
+    The value to set for the DNS record. For TXT records, this is `null` if the record is already validated.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The status of the DNS record (`active` or `pending_validation`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "type": "CNAME",
+      "name": "example.com",
+      "value": "cname.vertraweb.app",
+      "status": "pending_validation"
+    },
+    {
+      "type": "TXT",
+      "name": "_acme-challenge.example.com",
+      "value": "v111d4af8cd74272a284831fbae14a8v",
+      "status": "pending_validation"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameter failed validation (`400`). The response also carries
+    `message` and `path`.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `NO_CUSTOM_DOMAIN`: The application does not have a custom domain configured (`404`).
+  - `CUSTOM_DOMAIN_RECORD_NOT_FOUND`: The domain's DNS records could not be read yet; retry in a few minutes (`404`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "NO_CUSTOM_DOMAIN"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Attach the domain first with
+  [Attach Custom Domain](/api-reference/endpoint/apps/network/customdomain) — without one this route
+  answers `NO_CUSTOM_DOMAIN`.
+</Note>
+
+<Note>
+  This route has its own budget of 10 requests per minute. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

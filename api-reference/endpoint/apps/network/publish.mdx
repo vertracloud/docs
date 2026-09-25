@@ -1,0 +1,172 @@
+---
+title: Publish Application on the Web
+sidebarTitle: Publish / Unpublish
+api: POST https://api.vertracloud.app/v1/apps/{id}/network/publish
+authMethod: bearer
+description: Turns web publishing on for an application created without it, and off again.
+---
+
+{/* @see RESTPostAPIApplicationWebPublishResponse / RESTDeleteAPIApplicationWebPublishResponse — @vertracloud/api-types */}
+An application created without a `subdomain` is private: it runs, but nothing routes to it from the
+internet. These two routes turn web publishing on and off at any time, without recreating the
+application.
+
+<Warning>
+  **Both routes recreate the container, so the application restarts.** The routing configuration and the
+  exposed port only exist from container creation, so publishing state cannot change in place.
+  Expect a short downtime on each call.
+</Warning>
+
+<Warning>
+  **Unpublishing releases the subdomain.** It is not held for you — anyone can register it right
+  afterwards, and you may not get it back. The custom domain, if any, is detached as well (including
+  its CDN hostname), and reconnecting it later means publishing the DNS records again.
+</Warning>
+
+<ParamField path="id" type="string" required>
+  The application ID. Only the application's owner can call this endpoint; workspace members are not accepted here yet.
+</ParamField>
+
+<ParamField body="subdomain" type="string">
+  The subdomain to publish under, without the `.vertraweb.app` suffix (e.g., `myapp`). Between 3 and
+  50 characters, matching `^[a-z0-9][a-z0-9-]*[a-z0-9]$`.
+
+  Optional. Omit it and the platform picks a subdomain for you. **Sending a value requires a plan
+  with custom subdomains**; picking one at random does not.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="subdomain" type="string | null">
+    The full subdomain now serving the application, or `null` once publishing is off.
+  </ResponseField>
+
+  <ResponseField name="custom_domain" type="string | null">
+    The attached custom domain, or `null`. Always `null` right after publishing — attach one with
+    [Attach Custom Domain](/api-reference/endpoint/apps/network/customdomain).
+  </ResponseField>
+
+  <ResponseField name="type" type="integer">
+    The application type after the change: `2` (website) when published, `1` (bot) when not.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (POST)
+{
+  "response": {
+    "subdomain": "myapp.vertraweb.app",
+    "custom_domain": null,
+    "type": 2
+  }
+}
+```
+
+```json Response (DELETE)
+{
+  "response": {
+    "subdomain": null,
+    "custom_domain": null,
+    "type": 1
+  }
+}
+```
+
+</ResponseExample>
+
+## Unpublish
+
+```http
+DELETE https://api.vertracloud.app/v1/apps/{id}/network/publish
+```
+
+Takes no body. It releases the subdomain, detaches the custom domain and turns the application back
+into a private one, then recreates the container. The response has the same shape, with `subdomain`
+and `custom_domain` set to `null` and `type` back to `1`.
+
+### Memory floor
+
+A published application needs at least **512 MB** of RAM. Memory is never raised for you here: if
+the application has less, the request fails with `MEMORY_BELOW_MINIMUM` and the current and required
+values come back in `details`. Raise it with
+[Update Application Config](/api-reference/endpoint/apps/updateconfig) and try again.
+
+```json Error Response (400)
+{
+  "code": "MEMORY_BELOW_MINIMUM",
+  "details": {
+    "current_mb": 256,
+    "minimum_mb": 512
+  }
+}
+```
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameter or the body failed validation (`400`). This is what a
+    malformed `subdomain` returns — 3 to 50 characters, `^[a-z0-9][a-z0-9-]*[a-z0-9]$`. The response
+    also carries `message` and `path`.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH`: The owner's plan does not include web publishing (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN`: A `subdomain` was sent but the owner's plan does not
+    allow choosing the name (`403`). Omit the field to get a random one.
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `APP_ALREADY_PUBLISHED`: The application already has a subdomain or a custom domain (`400`).
+  - `APP_NOT_PUBLISHED`: `DELETE` on an application that is not published (`400`).
+  - `MEMORY_BELOW_MINIMUM`: The application has less RAM than a published application requires
+    (`400`), with `details: { current_mb, minimum_mb }`.
+  - `SUBDOMAIN_FORBIDDEN`: The requested subdomain is on the platform's reserved list (`400`).
+  - `SUBDOMAIN_TAKEN`: Another application already uses that subdomain (`409`).
+  - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same application is running; the
+    container was not touched (`409`). Wait a few seconds and retry.
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "APP_ALREADY_PUBLISHED"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "SUBDOMAIN_TAKEN"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  **Two limits apply, and they are deliberately tight.** Publishing and unpublishing recreate the
+  container, so they share the per-application lifecycle budget with `start`, `stop`, `restart` and
+  dependency installs: **10 requests per minute for all of them together**, per application — not
+  one budget per route. On top of that, a successful publish starts a **5-minute cooldown on the
+  application's public address**, shared with
+  [Change Subdomain](/api-reference/endpoint/apps/network/subdomain): publishing again inside that
+  window returns `429 SUBDOMAIN_CHANGE_RATE_LIMITED`. Unpublishing and publishing under a new name
+  is an address change like any other and does not bypass it. Refusals do not consume the cooldown —
+  only a publish that actually happened does. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

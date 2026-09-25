@@ -1,0 +1,143 @@
+---
+title: Update Database
+sidebarTitle: Update Database
+api: PUT https://api.vertracloud.app/v1/databases/{id}
+authMethod: bearer
+description: Updates the name, description or RAM of a database by its ID.
+---
+
+{/* @see APIDatabase — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the database to update.
+</ParamField>
+
+
+<ParamField query="workspace_id" type="string">
+  If the database belongs to a workspace, the workspace's ID.
+</ParamField>
+
+<ParamField body="name" type="string">
+  The new name for the database. 1 to 50 characters.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  The new description, up to 128 characters. An empty string or `null` clears it.
+</ParamField>
+
+<ParamField body="ram" type="number">
+  The new RAM in MB, a positive integer. It must fit in the plan's free memory and respect the
+  engine's minimum (512 MB for Redis, 1024 MB for the others).
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The updated details of the database.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The ID of the database.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="number">
+    The database cluster ID.
+  </ResponseField>
+
+  <ResponseField name="type" type="number">
+    The type of the database.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The name of the database.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    The description of the database.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    The ID of the database owner.
+  </ResponseField>
+
+  <ResponseField name="owner_plan_id" type="number">
+    The owner's plan ID.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The status of the database (e.g., `up`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    The RAM allocated to the database in MB.
+  </ResponseField>
+
+  <ResponseField name="host" type="string">
+    The host address of the database.
+  </ResponseField>
+
+  <ResponseField name="port" type="number">
+    The port used by the database.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    The timestamp of the last snapshot, if available.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the database was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp when the database was last updated.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "00000000000000000000000000000001",
+    "cluster": 1,
+    "type": 1,
+    "name": "UpdatedDatabase",
+    "description": "Updated description",
+    "owner_id": "123456789012345678",
+    "owner_plan_id": 1,
+    "status": "up",
+    "ram": 256,
+    "host": "database.example.com",
+    "port": 5432,
+    "last_snapshot": "2026-03-14T19:58:00Z",
+    "created_at": "2026-03-14T19:58:00Z",
+    "updated_at": "2026-03-14T20:00:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `VALIDATION_ERROR`: A body or query field failed validation (`400`).
+  - `INVALID_RAM_LIMIT`: The requested RAM is outside what the engine and plan allow (`400`).
+  - `INSUFFICIENT_MEMORY`: The plan doesn't have enough free memory for the new RAM (`400`).
+  - `ACCESS_DENIED`: Your account can't act on this database (`403`).
+  - `DATABASE_NOT_FOUND`: The database does not exist (`404`).
+  - `OPERATION_IN_PROGRESS`: Another lifecycle operation is running on this database (`409`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

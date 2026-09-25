@@ -1,0 +1,41 @@
+---
+title: Update Member
+sidebarTitle: Update
+api: PUT https://api.vertracloud.app/v1/workspaces/{id}/members/{user_id}
+authMethod: bearer
+description: Changes a member's role or access expiry. Requires `members:manage`.
+---
+
+{/* @see RESTPutAPIWorkspaceMemberBody, RESTPutAPIWorkspaceMemberResponse — @vertracloud/api-types */}
+Requires the `members:manage` permission. An API key needs the `workspaces:write` scope.
+
+<Note>
+  Nobody can edit their own membership row through this endpoint — not even to change their own
+  `expires_at`. Without that, `members:manage` would be able to remove its own expiry and become
+  permanent unilaterally.
+</Note>
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+<ParamField path="user_id" type="string" required>Member's user ID.</ParamField>
+
+### Body
+
+At least one field required.
+
+<ParamField body="role_id" type="string">New role ID, must belong to this workspace.</ParamField>
+<ParamField body="expires_at" type="string | null" format="date-time">ISO datetime, or `null` to clear the expiry.</ParamField>
+
+### Response
+
+Same shape as [List Members](/api-reference/endpoint/workspaces/members/list) row.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | No field provided. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `members:manage`, or is editing their own row. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |
+| 404 | `WORKSPACE_ROLE_NOT_FOUND` | `role_id` doesn't belong to this workspace. |

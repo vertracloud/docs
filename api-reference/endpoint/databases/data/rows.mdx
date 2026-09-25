@@ -1,0 +1,68 @@
+---
+title: Browse and Edit Rows
+sidebarTitle: Rows
+api: GET https://api.vertracloud.app/v1/databases/{id}/data/tables/{table}/rows
+authMethod: bearer
+description: Reads a page of rows from a table, and creates, updates or deletes rows by primary key.
+---
+
+{/* @see APIDatabaseRowsPage — @vertracloud/api-types */}
+<Note>
+  Every `/data` endpoint needs the **Intermediary** plan or higher, on the **database owner's**
+  account — not the caller's. Below that the answer is `PLAN_RESTRICTED_FEATURE` (403).
+  It is also **dashboard-session only**: an API key gets `API_KEY_SCOPE_DENIED` (403) here, regardless of
+  its scopes.
+</Note>
+
+PostgreSQL and MySQL only. Schema, table, sort column and filter columns are all matched against the
+engine's own catalog before any statement is built; an unknown name answers `OBJECT_NOT_FOUND`.
+
+<ParamField path="id" type="string" required>The ID of the database.</ParamField>
+<ParamField path="table" type="string" required>Table name, URL-encoded.</ParamField>
+<ParamField query="schema" type="string" required>Schema the table belongs to.</ParamField>
+<ParamField query="page" type="number">1-based page. Defaults to `1`.</ParamField>
+<ParamField query="per_page" type="number">Rows per page. Maximum **200**; above that the request is rejected with `400`.</ParamField>
+<ParamField query="sort" type="string">Column to order by. Must exist in the table.</ParamField>
+<ParamField query="direction" type="string">`asc` (default) or `desc`.</ParamField>
+<ParamField query="filter" type="string">Free text; used with `filter_field` as a "contains" match.</ParamField>
+<ParamField query="filter_field" type="string">Column the `filter` text applies to.</ParamField>
+<ParamField query="filters" type="string">
+  JSON array of `{ column, op, value }`, up to 20 entries. `op` is one of
+  `=`, `!=`, `<`, `<=`, `>`, `>=`, `LIKE`, `IS NULL`, `IS NOT NULL` — no raw SQL is accepted.
+</ParamField>
+<ParamField query="workspace" type="string">Workspace the database belongs to.</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+  <ResponseField name="columns" type="object[]">Column metadata, same shape as the columns endpoint.</ResponseField>
+  <ResponseField name="rows" type="object[]">The page of rows, keyed by column name.</ResponseField>
+  <ResponseField name="total" type="number">Rows matching the filter.</ResponseField>
+  <ResponseField name="page" type="number">Page returned.</ResponseField>
+  <ResponseField name="per_page" type="number">Page size applied.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Create, update and delete
+
+Mutations require **owner** or **admin** in the workspace (the database owner always qualifies) and
+are recorded in the database activity log — the operation and the table, never the content.
+
+<ParamField header="POST" type="string">`/v1/databases/{id}/data/rows`</ParamField>
+
+Body: `{ schema, table, values }`.
+
+<ParamField header="PUT" type="string">`/v1/databases/{id}/data/rows`</ParamField>
+
+Body: `{ schema, table, primary_key, values }`. The row is always identified by its **complete**
+primary key (`{ "id": 42 }`, or composite `{ "tenant_id": 1, "user_id": 9 }`) — never by its position
+on the page. A request without a primary key is rejected.
+
+<ParamField header="DELETE" type="string">`/v1/databases/{id}/data/rows`</ParamField>
+
+Body: `{ schema, table, primary_keys }` — up to 200 keys.
+
+All three answer `{ "response": { "affected": <number> } }`. Request bodies are capped at 1 MB.

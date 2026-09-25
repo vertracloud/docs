@@ -1,0 +1,187 @@
+---
+title: Application Details
+sidebarTitle: Get Application
+api: GET https://api.vertracloud.app/v1/apps/{id}
+authMethod: bearer
+description: Retrieves detailed information about an application by its ID.
+---
+
+{/* @see APIApplication — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to retrieve details. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The application details.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The application ID.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="integer">
+    The application cluster ID.
+  </ResponseField>
+
+  <ResponseField name="type" type="integer">
+    The application type.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The application name.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    The application description.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    The application owner ID.
+  </ResponseField>
+
+  <ResponseField name="owner_plan_id" type="integer">
+    The owner's plan ID.
+  </ResponseField>
+
+  <ResponseField name="language" type="string">
+    The application programming language (e.g., `javascript`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="integer">
+    The application RAM in MB.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The application status (e.g., `up`).
+  </ResponseField>
+
+  <ResponseField name="subdomain" type="string | null">
+    The application subdomain, if applicable.
+  </ResponseField>
+
+  <ResponseField name="custom_domain" type="string | null">
+    The custom domain of the application, if applicable.
+  </ResponseField>
+
+  <ResponseField name="public_url" type="string | null">
+    The application's canonical public URL, already computed by the server from `custom_domain`
+    and `subdomain` (`null` when the app has neither, i.e. it is not web-published). Build links
+    from this field, never from `subdomain` directly — a self-hosted deployment behind a
+    non-standard edge may return a different host or scheme here.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    The timestamp of the application's last snapshot.
+  </ResponseField>
+
+  <ResponseField name="main_file" type="string">
+    The main file of the application.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    The runtime version (e.g., `recommended` or `latest`).
+  </ResponseField>
+
+  <ResponseField name="start_command" type="string | null">
+    The startup command for the application, if specified.
+  </ResponseField>
+
+  <ResponseField name="build_command" type="string | null">
+    The build command, if specified. Runs after dependency installation and before the
+    application starts, in an isolated build environment. `null` when no build command is set.
+  </ResponseField>
+
+  <ResponseField name="offline_since" type="string | null" format="date-time">
+    The timestamp since the application went offline, if applicable.
+  </ResponseField>
+
+  <ResponseField name="shield_cooldown" type="object | null">
+    Present while Vertra Shield has paused the application. Includes `until` (the cooldown end time),
+    `reason` (`burst` or `rate_limit`), and `direction` (`in` or `out`); `null` when no cooldown is active.
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    Linked GitHub repository (`repo_owner`, `repo_name`) when auto-deploy is connected; `null`
+    when the app was created from a zip or snapshot. The webhook URL is not included — use
+    `GET /v1/apps/{id}/deploys/webhook` for that.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the application was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp when the application was last updated.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "cluster": 1,
+    "type": 1,
+    "name": "API Simples",
+    "description": "I have a description :)",
+    "owner_id": "user-123456789012345678",
+    "owner_plan_id": 1,
+    "language": "javascript",
+    "ram": 128,
+    "status": "up",
+    "subdomain": "myapp.vertraweb.app",
+    "custom_domain": null,
+    "public_url": "https://myapp.vertraweb.app",
+    "last_snapshot": "2026-03-09T15:51:47.234Z",
+    "main_file": "index.js",
+    "version": "recommended",
+    "start_command": "node index.js",
+    "build_command": null,
+    "offline_since": null,
+    "shield_cooldown": null,
+    "github": null,
+    "created_at": "2026-03-09T15:51:47.234Z",
+    "updated_at": "2026-03-20T15:06:41.449Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or does not have sufficient permissions.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+</ResponseExample>

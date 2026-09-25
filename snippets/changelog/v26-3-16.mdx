@@ -1,0 +1,33 @@
+### Auto-restart fields removed from the API
+
+Auto-restart has been on for every application on every plan since September 17. The leftover fields
+are now gone:
+
+- **Responses:** applications no longer include `auto_restart`. If your integration reads it, treat
+  auto-restart as always on.
+- **Requests:** `autorestart` in `POST /v1/apps` and `auto_restart` in
+  `PATCH /v1/apps/{id}/config` are no longer part of the API. Clients that still send them keep
+  working — the field is simply ignored.
+- **SDKs and CLI:** the JavaScript, Python and Go SDKs drop the field, and the CLI drops the
+  `--autorestart` flag.
+- **`vertracloud.config`:** an old `AUTORESTART` line is ignored and doesn't block the upload.
+
+### The runtime version you choose is the one that runs
+
+The runtime version picked in the wizard, in the Config tab, in `VERSION` or through the API is now
+the version the application runs.
+
+- **Choosing the latest version runs the latest version.** Before, picking Node.js 24.5.0 or Ruby 3.4
+  (the `latest` of each) could silently build the application on the recommended version instead.
+- **The version you confirm wins.** When a `.zip` has a `VERSION` in `vertracloud.config`, the
+  wizard pre-fills it; if you pick another one before creating, the application now runs the one you
+  picked — before, the file's value could override your choice.
+- **Unknown versions are refused.** A version that doesn't exist for the application's language
+  answers `400 INVALID_VERSION` instead of quietly falling back to another one. See
+  [List Runtimes](/api-reference/endpoint/apps/runtimes) for the valid values.
+
+<Warning>
+  An application created with Node.js 24.5.0 or Ruby 3.4 that was running on the recommended version
+  switches to the version it chose on its **next deploy, rebuild or restart**. If it depends on the
+  older runtime, set the version to `recommended` in the Config tab before restarting.
+</Warning>

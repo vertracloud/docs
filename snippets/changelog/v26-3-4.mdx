@@ -1,0 +1,55 @@
+### Redesigned data manager
+
+The **Data** tab for databases now organizes the object browser and its contents into a single
+workspace, with a clearer hierarchy and better use of space on desktop and mobile.
+
+SQL tables, MongoDB collections and Redis keys got easier-to-find actions, explicit filters,
+compact summaries and simple pagination with range, page size and current position. The repeated
+header and unnecessary color highlights were also removed.
+
+### Fix: silent console when reinstalling dependencies during a fast restart
+
+When restarting an application after changing its runtime (or any restart that reinstalls
+dependencies), if the installation finished quickly the dashboard console showed nothing of it —
+no start notice, no installer lines. The app came back online already ready, with no explanation
+on screen in the meantime.
+
+The console now detects when an installation is in progress during a restart and streams its logs
+live, the same way it already did when creating an application.
+
+### Change the language of an existing application
+
+Previously, choosing the wrong language when creating an application was final: the only way out
+was recreating the app from scratch, which erased its volume and entire deploy history. The
+runtime can now be changed at any time, under the app's **General → Environment** settings.
+
+Before confirming the switch, the dashboard shows the real risks of the change:
+
+- it only takes effect from the **next restart** — the running container stays on the old runtime
+  until then;
+- the **entry file** and **start command** don't change automatically: an `index.js` written for
+  Node won't run as a Python application, for example;
+- the **runtime version** resets to the recommended version for the new language, because the old
+  version may not exist there;
+- no project file is deleted by this operation.
+
+The new runtime's dependencies are installed automatically on the first restart after the switch —
+that already happened and still does. What was missing was space: the old runtime's packages (a
+`node_modules` folder after switching to Python, for example) stayed on the volume taking up plan
+quota, with no automatic reinstall or removal. Now, in the "restart now?" dialog that appears
+after saving the switch, an optional checkbox lets you delete known artifact directories from the
+language being left behind before installing the new ones — never a project code file.
+
+### Snapshots keep the project name
+
+Every snapshot now keeps the **name the project had at the moment it was taken**. In the snapshot
+list, opening a project shows, besides the date, the name it used on that date — useful when the
+project was renamed and a two-week-old snapshot belongs to an "api-staging" that's now called
+something else. When the name hasn't changed, nothing is repeated: only the difference shows.
+
+Snapshots of **already-deleted** projects also stop showing up as a code. Previously, deleting the
+project removed the name from the list, leaving only the identifier; now the last known name
+stays, with a marker that the project no longer exists.
+
+Snapshots taken before this change remain without their own name — today's name wasn't written
+retroactively onto old dates, because that would record information that wasn't true on that day.

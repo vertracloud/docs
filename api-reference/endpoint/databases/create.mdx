@@ -1,0 +1,180 @@
+---
+title: Create Database
+sidebarTitle: Create Database
+api: POST https://api.vertracloud.app/v1/databases
+authMethod: bearer
+description: Creates a new database with the provided engine, RAM and optional snapshot source.
+---
+
+{/* @see APIDatabase, RESTPostAPIDatabaseCreateBody — @vertracloud/api-types */}
+The body is **JSON**, not multipart — unlike `POST /v1/apps`. The database is created **empty** by
+default; to create it from an existing snapshot, send `snapshot_id`.
+
+<ParamField body="name" type="string" required>
+  The database display name. Maximum 50 characters.
+</ParamField>
+
+<ParamField body="description" type="string">
+  A database description. Maximum 128 characters.
+</ParamField>
+
+<ParamField body="type" type="integer">
+  The database engine: `1` (PostgreSQL), `2` (MongoDB), `3` (Redis) or `4` (MySQL).
+
+  **Required when `snapshot_id` is omitted.** When `snapshot_id` is present, this field is optional; the engine comes from the snapshot `resource_type`. If provided, it must match or creation fails
+  with `SNAPSHOT_TYPE_MISMATCH`.
+</ParamField>
+
+<ParamField body="ram" type="integer" required>
+  The amount of RAM to allocate to the database, in MB. Minimum 1,024 MB (512 MB for Redis, `type: 3`).
+  Provisioned storage is always `ram × 3`.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  The ID of the workspace to associate with the database, if applicable.
+</ParamField>
+
+<ParamField body="snapshot_id" type="string">
+  Creates the database from an existing **database** snapshot. The engine comes from the snapshot
+  `resource_type`, and its volume is restored after provisioning. If restoration fails after the
+  database is created, the new database is deleted instead of leaving an empty database that could be
+  mistaken for the restored copy.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  Details of the created database.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The database ID.
+  </ResponseField>
+
+  <ResponseField name="type" type="number">
+    The database engine.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The database name.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    The database description.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    The database owner ID.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The database status (for example, `up`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    The amount of RAM allocated to the database, in MB.
+  </ResponseField>
+
+  <ResponseField name="host" type="string">
+    The database host address.
+  </ResponseField>
+
+  <ResponseField name="port" type="number">
+    The database port.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The database creation timestamp.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp of the last database update.
+  </ResponseField>
+
+  <ResponseField name="offline_since" type="string | null" format="date-time">
+    The timestamp when the database went offline, if applicable.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    The timestamp of the most recent snapshot, if available.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "00000000000000000000000000000001",
+    "cluster": 1,
+    "type": 1,
+    "name": "MyDatabase",
+    "description": "I have a description :)",
+    "owner_id": "123456789012345678",
+    "owner_plan_id": 1,
+    "status": "up",
+    "ram": 1024,
+    "host": "database.example.com",
+    "port": 5432,
+    "offline_since": null,
+    "last_snapshot": null,
+    "created_at": "2026-03-20T19:58:00Z",
+    "updated_at": "2026-03-20T19:58:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `VALIDATION_ERROR`: The body failed validation (`400`), including a missing `type` when
+    `snapshot_id` is omitted.
+  - `USER_NOT_FOUND`: The request is not authenticated (`401`).
+  - `MAX_DATABASES_REACHED`: The plan's database limit has been reached (`403`).
+  - `INVALID_RAM_LIMIT`: `ram` is below the minimum for this database type — 1,024 MB, or 512 MB for
+    Redis (`400`).
+  - `USER_LIMITS_NOT_FOUND`: The owner's limits could not be loaded (`404`).
+  - `INSUFFICIENT_MEMORY`: The requested RAM exceeds the memory remaining on the plan (`400`).
+  - `SNAPSHOT_NOT_FOUND`: The `snapshot_id` does not exist or does not belong to the caller (`404`).
+  - `SNAPSHOT_TYPE_MISMATCH`: The snapshot is for an application, not a database, or the supplied `type` does not
+    match its engine (`400`).
+  - `SNAPSHOT_TOO_LARGE`: The snapshot exceeds the same size limit as database creation (`400`).
+  - `DB_CREATION_FAILED`: The platform could not provision the database (`500`).
+  - `DATABASE_PERSISTENCE_FAILED`: The database was created but could not be read back (`500`).
+  - `INTERNAL_SERVER_ERROR`: An unexpected failure occurred (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message with additional error details. Present for `VALIDATION_ERROR` and
+  `INVALID_RAM_LIMIT`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "INVALID_RAM_LIMIT",
+  "message": "Minimum RAM for this database type is 1024MB"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "SNAPSHOT_TYPE_MISMATCH"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "MAX_DATABASES_REACHED",
+  "message": "Your plan allows a maximum of 1 database(s)"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,117 @@
+---
+title: Create Order
+sidebarTitle: Create Order
+api: POST https://api.vertracloud.app/v1/orders
+authMethod: bearer
+description: Creates an order to purchase, renew or upgrade a plan.
+---
+<ParamField body="type" type="string" default="purchase">
+  What the order is for. Possible values: `purchase`, `renew`, `upgrade`.
+</ParamField>
+
+<ParamField body="plan" type="string" required>
+  The plan slug being purchased, renewed or upgraded to.
+</ParamField>
+
+<ParamField body="months" type="integer" required>
+  How many months to purchase.
+</ParamField>
+
+<ParamField body="coupon" type="string">
+  An optional discount coupon code.
+</ParamField>
+
+<Note>
+  A `renew` order requires the target plan to match the account's current plan; an `upgrade`
+  order requires it to be strictly larger. Use `type: "purchase"` when there's no active plan of
+  that kind yet.
+</Note>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The order ID.
+  </ResponseField>
+
+  <ResponseField name="code" type="string | null">
+    The redeem code, when the order was created for a code-based flow; `null` otherwise.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Always `unpaid` right after creation.
+  </ResponseField>
+
+  <ResponseField name="plan" type="string">
+    The plan name.
+  </ResponseField>
+
+  <ResponseField name="duration" type="integer">
+    Duration in months.
+  </ResponseField>
+
+  <ResponseField name="discount" type="object">
+    <Expandable title="Toggle object">
+    <ResponseField name="percent" type="number | null">Discount percentage applied, if any.</ResponseField>
+    <ResponseField name="coupon" type="string | null">The coupon code applied, if any.</ResponseField>
+    <ResponseField name="price" type="number">The price before the discount.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="price" type="number">
+    The final price, after the discount.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null" format="date-time">
+    When the order (and its PIX charge, once generated) expires unpaid.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "order-abc123",
+    "code": null,
+    "status": "unpaid",
+    "plan": "PRO",
+    "duration": 1,
+    "discount": { "percent": null, "coupon": null, "price": 24.9 },
+    "price": 24.9,
+    "expires_at": "2026-09-22T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `USER_NOT_FOUND`: The authenticated user was not found.
+  - `INVALID_PAYLOAD`: The request body failed validation.
+  - `MISSING_PLAN_OR_MONTHS`: `plan` or `months` is missing.
+  - `INVALID_MONTHS`: The requested duration is not an accepted number of months.
+  - `INVALID_PLAN`: The plan slug does not exist.
+  - `NOT_AN_UPGRADE`: For `type: "upgrade"`, the target plan is not larger than the current one.
+  - `PLAN_MISMATCH_FOR_RENEWAL`: For `type: "renew"`, the target plan does not match the current one.
+  - `PENDING_ORDER_LIMIT_REACHED`: Too many unpaid orders already open.
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "INVALID_PLAN"
+}
+```
+
+</ResponseExample>

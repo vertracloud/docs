@@ -1,0 +1,67 @@
+---
+title: 'Find Out Why Your Application Crashes'
+sidebarTitle: 'Debug a crashing app'
+description: 'Read the logs, recognise out-of-memory kills, crash loops and silent exits, and fix the causes behind most failed deploys.'
+icon: 'bug'
+---
+
+When an application goes to **Error** or keeps restarting, the answer is almost always in its output.
+This guide shows where to look and how to read what you find.
+
+## Where the logs are
+
+- **Dashboard**: the application's **Logs** tab shows the live output, including the dependency
+  installation and the build.
+- **CLI**: `vertra logs -f` follows the output from the terminal. See [CLI](/cli).
+- **API**: [Get Logs](/api-reference/endpoint/apps/logs).
+
+Always read from the **first** error line, not the last: the last line is usually a consequence.
+
+## What the platform does when the app crashes
+
+Auto-restart is always on. An exit with code `0` is treated as a normal stop and isn't restarted;
+any other exit is. If the application crashes **5 times in 10 minutes**, auto-restart is paused for
+24 hours and the application stays stopped: fix the cause and start it by hand.
+
+## Match the symptom
+
+<AccordionGroup>
+  <Accordion title="The process stops right away, with no error">
+    Exit code `0`: the program simply finished. A server must keep listening and a bot must stay
+    logged in. Check the entry point in **Config** points to the right file.
+  </Accordion>
+  <Accordion title="It dies without a stack trace, often under load">
+    That's an out-of-memory kill. Watch the memory graph on the **Overview** tab: if it climbs to the limit
+    before each crash, raise the RAM in **Config** or reduce what the process holds in memory. Java,
+    headless browsers and big caches need 512 MB or more.
+  </Accordion>
+  <Accordion title="Cannot find module / ModuleNotFoundError">
+    The dependency isn't declared. Node.js: it's in `devDependencies` or missing from `package.json`.
+    Python: missing from `requirements.txt`. The container only installs what the manifest lists.
+  </Accordion>
+  <Accordion title="The deploy fails before the app starts">
+    `INSTALL_TIMEOUT` means dependency installation passed 15 minutes; `BUILD_FAILED` means your build
+    command exited with an error (the build output is in the logs); `BUILD_TIMEOUT` means it passed
+    10 minutes.
+  </Accordion>
+  <Accordion title="Online, but the site doesn't answer">
+    The server listens on `localhost` or a fixed port. Listen on `0.0.0.0` and read `PORT`:
+    ```javascript
+    app.listen(process.env.PORT || 80, '0.0.0.0');
+    ```
+  </Accordion>
+  <Accordion title="A variable is undefined">
+    `.env` files aren't read at runtime. Set the variable in **Config** and restart: a changed variable
+    only reaches the process after a restart.
+  </Accordion>
+  <Accordion title="Works locally, fails here">
+    Compare runtime versions (set `VERSION` in [Configuration](/configuration)), don't upload
+    `node_modules`/`venv` built on your machine, and remember file names are case-sensitive on Linux:
+    `./Config.js` and `./config.js` are different files.
+  </Accordion>
+</AccordionGroup>
+
+## Check before you deploy
+
+`vertra doctor` inspects the current directory for the most common problems before anything is sent.
+The full list of error codes is in [Common errors](/common-errors).

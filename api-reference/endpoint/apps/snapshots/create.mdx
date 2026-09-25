@@ -1,0 +1,138 @@
+---
+title: Create Application Snapshot
+sidebarTitle: Create Snapshot
+api: POST https://api.vertracloud.app/v1/users/{id}/snapshots
+authMethod: bearer
+description: Takes a snapshot of an application or database volume right now. The snapshot appears in the list and can be restored or downloaded like any other.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the application or database to snapshot.
+</ParamField>
+
+<ParamField query="scope" type="string" required>
+  The resource type. Possible values: `applications`, `databases`.
+</ParamField>
+
+<Note>
+  **Two limits apply to manual snapshots, on top of the route's 5 requests per minute.** The same
+  resource can be snapshotted once every **5 minutes**, and an account can create at most **10
+  snapshots per hour** across all its resources. Over either limit the API answers
+  `429 SNAPSHOT_RATE_LIMITED` with `details.scope` (`resource` or `account`) and
+  `details.retry_after` in seconds. Snapshots the platform takes on its own (before a delete or a
+  reset) do not count. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The snapshot that was created.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The snapshot ID. Use it with [restore](/api-reference/endpoint/apps/snapshots/restore) and
+    [download](/api-reference/endpoint/apps/snapshots/download).
+  </ResponseField>
+
+  <ResponseField name="resource_id" type="string">
+    The ID of the resource this snapshot belongs to.
+  </ResponseField>
+
+  <ResponseField name="type" type="number">
+    `1` for an application, `2` for a database.
+  </ResponseField>
+
+  <ResponseField name="size" type="number">
+    Size in kilobytes.
+  </ResponseField>
+
+  <ResponseField name="resource_name" type="string | null">
+    The name the resource had at the moment the snapshot was taken.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string">
+    When the snapshot was taken.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string">
+    When the snapshot will be deleted automatically.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "resource_id": "550e8400-e29b-41d4-a716-446655440001",
+    "type": 1,
+    "size": 1260,
+    "resource_name": "my-bot",
+    "created_at": "2026-09-16T15:00:00.000Z",
+    "expires_at": "2026-10-16T15:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `USER_NOT_FOUND`: The authenticated user was not found.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `DATABASE_NOT_FOUND`: The specified database does not exist.
+  - `ACCESS_DENIED`: The user does not own the resource.
+  - `PLAN_NOT_ALLOWED`: The account's plan does not include manual snapshots (`403`).
+  - `DATABASE_NOT_RUNNING`: The database must be running to take a snapshot (`409`). Redis has no such requirement.
+  - `SNAPSHOT_RATE_LIMITED`: The resource was snapshotted less than 5 minutes ago, or the account already created 10 snapshots this hour (`429`). Comes with `details.scope` and `details.retry_after`.
+  - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same resource is already running (`409`). Nothing was snapshotted — wait a few seconds and retry.
+  - `INTERNAL_SERVER_ERROR`: The snapshot could not be stored. Retry later.
+  - `UNKNOWN_ERROR`: An unexpected platform error occurred.
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "PLAN_NOT_ALLOWED"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "SNAPSHOT_RATE_LIMITED",
+  "details": {
+    "scope": "resource",
+    "retry_after": 212
+  }
+}
+```
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "DATABASE_NOT_RUNNING"
+}
+```
+
+</ResponseExample>

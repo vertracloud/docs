@@ -1,0 +1,1196 @@
+---
+title: "Vertra Cloud Knowledge Base"
+sidebarTitle: "Knowledge base"
+description: "Every Vertra Cloud fact in one place: plans, pricing, limits, languages, databases, MCP, workspaces, error codes and fixes."
+---
+
+This page brings together, in a single document, everything Vertra Cloud does and with what limits — plans and
+pricing, supported languages and databases, MCP, snapshots, workspaces, API, error codes
+and fixes for the most common problems. It is the source from which the other pages in this
+documentation are derived, and it was written to be read by both people and AI assistants.
+
+> **Mirror:** `plans-and-limits` publishes the plan, runtime, database, Data tab and
+> deploy limit tables from this page in summarized form. Changed a number here? Update
+> `plans-and-limits`, `overview` and `api-reference/limitations` in the same pass.
+
+---
+
+## 1. Overview
+
+Vertra Cloud is a Brazilian cloud hosting platform for deploying applications and managed databases. It supports 10+ languages, 4 database types, real-time monitoring, custom domains, an MCP server for your AI agent, collaborative workspaces and a VSCode extension.
+
+**SLA: 99.99%** availability, on every plan. This is the **only** SLA number the
+platform states — marketing, plan cards, the Enterprise page, the Terms of Use and the public docs all say
+99.99% and nothing else.
+
+- **Site**: https://vertracloud.app
+- **Dashboard**: https://vertracloud.app/dashboard
+- **API**: https://api.vertracloud.app
+- **Documentation**: https://docs.vertracloud.app
+- **CLI** ([guide](/cli)): `curl -fsSL https://cli.vertracloud.app/install | sh` on macOS/Linux,
+  `irm https://cli.vertracloud.app/install | iex` on Windows (PowerShell)
+- **MCP server** ([guide](/mcp)): remote endpoint `https://mcp.vertracloud.app/mcp` (OAuth), or local
+  with `npx -y @vertracloud/mcp` and a `VERTRA_API_KEY`
+- **SDKs** ([guide](/sdks)): `npm install @vertracloud/sdk-api` · `pip install vertracloud-sdk-api` ·
+  `go get github.com/vertracloud/sdk-api-go`
+- **VS Code extension** ([guide](/vscode-extension)): `code --install-extension VertraCloud.vertra-cloud`
+- **GitHub Actions** ([guide](/github-actions)): `vertracloud/github-action`
+
+---
+
+## 2. Supported Languages
+
+| Language | Recommended | Latest | Other |
+|-----------|:-----------:|:------:|:------:|
+| JavaScript | Node.js 22.18.0 | 24.5.0 | 20.18.0 |
+| TypeScript | Node.js 22 | 22 | 18, 20 |
+| Python | 3.13 | 3.13 | 3.12, 3.11 |
+| Go | 1.23 | 1.23 | 1.22, 1.21 |
+| Rust | 1.86 | 1.87 | 1.85 |
+| Java | Temurin JRE 21 | 21 | 17 |
+| Bun | 1.2.2 | 1.2.2 | 1.1.0 |
+| PHP | 8.3 | 8.3 | 8.2 |
+| Ruby | 3.3 | 3.4 | 3.2 |
+| Static | — | — | HTML/CSS/JS |
+
+---
+
+## 3. Databases
+
+| Database | Version | User | TLS | Authentication |
+|---|---|---|---|---|
+| PostgreSQL | 17 | `postgres` (database `postgres`) | Required | Password + client certificate |
+| MongoDB | 8.0.11 | `default` (auth database `admin`) | Required | Password + client certificate |
+| Redis | 7 | `default` | Required | Password + client certificate |
+| MySQL | 8.0 | `root` (database `default`) | Required | Password + X509 client certificate |
+
+The port is **unique per database** — not the engine's default — and is shown on the database page.
+
+All databases generate TLS certificates automatically (CA, server, client). **Every engine requires TLS
+and a client certificate** — a password alone never connects.
+
+### How to connect to each database
+
+- **Host**: `<database-id-without-hyphens>.db.usa1.vertraweb.app`. **Port**: unique per database
+  (not 5432/27017/6379/3306) — copy it from the database page or `GET /v1/databases/{id}`.
+- **Files** (Certificates tab or `GET /v1/databases/{id}/credentials/certificate`):
+  `certificate-<id>.crt` = client certificate, `certificate-<id>.key` = client private key,
+  `certificate-<id>.pem` = bundle of client key + client certificate + the CA. Use the `.pem` as the
+  CA file everywhere, and as the certificate-key file for MongoDB.
+- The server certificate matches the host, so full verification works.
+
+| Engine | Connection |
+|---|---|
+| PostgreSQL | `psql "host=<host> port=<port> dbname=postgres user=postgres password=<password> sslmode=verify-full sslrootcert=certificate.pem sslcert=certificate.crt sslkey=certificate.key"` |
+| MongoDB | `mongosh "mongodb://default:<password>@<host>:<port>/?authSource=admin" --tls --tlsCAFile certificate.pem --tlsCertificateKeyFile certificate.pem` |
+| Redis | `redis-cli -h <host> -p <port> -a <password> --tls --cacert certificate.pem --cert certificate.crt --key certificate.key` |
+| MySQL | `mysql -h <host> -P <port> -u root -p default --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.pem --ssl-cert=certificate.crt --ssl-key=certificate.key` |
+
+Node.js examples for each driver (pg, mongodb, ioredis, mysql2) are on the
+[Databases](/databases#how-do-i-connect-to-each-engine) page.
+
+**Minimum RAM**: 1,024 MB for PostgreSQL, MongoDB and MySQL; **512 MB for Redis**.
+
+**Storage**: 6 GB + 1 GB for every 512 MB of allocated RAM, rounded up to the GB — the quota
+is always a whole number of GB (e.g.: 512 MB → 7 GB; 1 GB → 8 GB; 2 GB → 10 GB;
+4 GB → 14 GB). No existing database loses space when the formula changes — the ceiling only grows.
+
+
+**Operations**: Start, Stop, Restart, Reset (destructive, limited to 1 per hour), Reset Password, Reset Certificates, Snapshot Download/Restore.
+
+### Data manager (the "Data" tab)
+
+Browse and edit the database's **content** from the dashboard (`/v1/databases/{id}/data/*`), without
+exposing the password or the connection string. **Dashboard session only**: an API key gets a 403 on these
+routes, regardless of scope. SQL: schemas, tables, columns, indexes, rows and a SQL console.
+MongoDB: collections, indexes and documents. Redis: keys via `SCAN`, value by type, TTL.
+
+| Limit | Value |
+|---|---|
+| Rows/documents/keys per page | 200 |
+| Operation timeout (including the SQL console) | 10 s, enforced by the engine itself |
+| Rows returned by the SQL console | 200 by default, 1000 maximum (above that you get `truncated`) |
+| Console SQL size | 64 KB |
+| Console result size | 5 MB serialized |
+| Write body (row, document, key value) | 1 MB |
+| Items in a Redis collection (list/set/zset/hash/stream) | 1000 (above that the value comes back with `truncated: true`) |
+| Concurrent console queries per database | 1 |
+| Rate limit — SQL console | 30/min per user |
+| Rate limit — other data routes | 120/min per user |
+
+**Minimum plan: Intermediary.** The entire tab (the 21 routes under `/v1/databases/{id}/data/*`) is
+unlocked from Intermediary up. The gate checks the plan of the database's **owner**, not the
+plan of whoever is accessing it — a workspace member on Free can use the Data tab on a database whose owner has the required plan, and
+an owner on Free doesn't get the feature by inviting someone on a higher plan. Below that the API returns
+`PLAN_RESTRICTED_FEATURE` (403) and the dashboard shows the plan card instead of the explorer.
+
+**Permission**: read access is granted to any workspace member; **write access and the SQL console are owner or admin
+only** (the database owner can always do it). Every mutation becomes an activity in the database log, with the operation
+and the object — never the content.
+
+**What deliberately doesn't exist**: an administrative command or arbitrary code execution
+in the Redis or Mongo console. In SQL the limit is time, size and concurrency.
+
+---
+
+## 4. Plans and Pricing
+
+| Plan | Price | RAM | vCPU | Max Projects |
+|-------|:-----:|:---:|:----:|:------------:|
+| Free ("suspended") | R\$0 | 100 MB "free" | 0.25 | 1 app, no databases |
+| Economy | R\$1.99/mo | 256 MB | 0.3 | limited by RAM |
+| Pro | R\$5.99/mo | 1,024 MB | 0.5 | limited by RAM |
+| Scale | R\$10.99/mo | 2,048 MB | 1 | limited by RAM |
+| Intermediary | R\$18.99/mo | 3,072 MB | 1.5 | limited by RAM |
+| Enterprise-4 | R\$23.99/mo | 4,096 MB | 2 | limited by RAM |
+| Enterprise-32 | R\$191.99/mo | 32,768 MB | 12 | limited by RAM |
+
+**A count ceiling only exists on Free (1 app, no databases).** On paid plans the real limit is the
+**plan's RAM**: from Economy up there is no count ceiling, and what refuses a creation is
+`INSUFFICIENT_MEMORY` — a 100 MB app fits 10 times in a Pro plan. Minimums that consume that RAM: application 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1,024 MB.
+
+### vCPU per Application
+
+The **vCPU** column in the table above is the ceiling per application on the plan, not a total split across the
+account's projects. An application with **2 GB (2,048 MB) or more of RAM** gets the plan's full
+vCPU. Below 2 GB, it gets **1/3 of the plan's vCPU, with a floor of 1 vCPU** — except when the
+plan's own vCPU is already lower than 1 (Free, Economy and Pro), in which case the application still gets the plan's
+full vCPU anyway (there's nothing to round down). More RAM never results in
+less vCPU.
+
+| Plan | Plan vCPU | App with < 2 GB RAM | App with ≥ 2 GB RAM |
+|---|---:|---:|---:|
+| Free | 0.25 | 0.25 | 0.25 |
+| Scale | 1 | 1 | 1 |
+| Intermediary | 1.5 | 1 | 1.5 |
+| Enterprise-4 | 2 | 1 | 2 |
+| Enterprise-32 | 12 | 1 | 12 |
+
+### AI Agents (MCP)
+
+Vertra doesn't host chat or an AI model. Connect Claude, Codex, Cursor or another MCP client to
+the official server to operate applications, databases, files, logs and deploys with your API key.
+Internal validations happen during the application's lifecycle, such as deploy, rebuild and
+restart; they are not a separate product surface.
+
+### Enterprise Pricing
+
+| Plan | Price/mo |
+|-------|----------:|
+| Enterprise-4 | R\$23.99 |
+| Enterprise-6 | R\$35.99 |
+| Enterprise-8 | R\$47.99 |
+| Enterprise-12 | R\$71.99 |
+| Enterprise-14 | R\$83.99 |
+| Enterprise-16 | R\$95.99 |
+| Enterprise-18 | R\$107.99 |
+| Enterprise-20 | R\$119.99 |
+| Enterprise-22 | R\$131.99 |
+| Enterprise-24 | R\$143.99 |
+| Enterprise-26 | R\$155.99 |
+| Enterprise-28 | R\$167.99 |
+| Enterprise-30 | R\$179.99 |
+| Enterprise-32 | R\$191.99 |
+
+> The Free plan is currently **"suspended"**; while it existed it ran with 100 MB of RAM "free".
+
+### Plan IDs (plan_id)
+
+| ID | Plan |
+|:--:|-------|
+| 1 | FREE |
+| 2 | ECONOMY |
+| 3 | PRO |
+| 4 | SCALE |
+| 9 | INTERMEDIARY |
+| 5 | ENTERPRISE_4 |
+| 19 | ENTERPRISE_6 |
+| 6 | ENTERPRISE_8 |
+| 10 | ENTERPRISE_12 |
+| 11 | ENTERPRISE_14 |
+| 7 | ENTERPRISE_16 |
+| 12 | ENTERPRISE_18 |
+| 13 | ENTERPRISE_20 |
+| 14 | ENTERPRISE_22 |
+| 15 | ENTERPRISE_24 |
+| 16 | ENTERPRISE_26 |
+| 17 | ENTERPRISE_28 |
+| 18 | ENTERPRISE_30 |
+| 8 | ENTERPRISE_32 |
+
+### Features by Plan
+
+| Feature | Free ("suspended") | Economy | Pro | Scale | Intermediary | Enterprise |
+|----------------|:----:|:-------:|:---:|:-----:|:------------:|:----------:|
+| Databases | — | — (Redis minimum 512 MB doesn't fit) | Yes | Yes | Yes | Yes |
+| Web publishing (site with `*.vertraweb.app` subdomain) | — | — | Yes | Yes | Yes | Yes |
+| Choose the subdomain name | — | — | — | Yes | Yes | Yes |
+| "Powered by Vertra Cloud" badge on the site | — | — | Yes | — | — | — |
+| Custom domain | — | — | — | — | Yes | Yes |
+| Auto-restart | Yes | Yes | Yes | Yes | Yes | Yes |
+| File manager | — | — | Yes | Yes | Yes | Yes |
+| Advanced metrics | — | — | Yes | Yes | Yes | Yes |
+| Daily backups | — | — | — | Yes | Yes | Yes |
+| Manual backups | — | — | — | Yes | Yes | Yes |
+| Database data manager | — | — | — | — | Yes | Yes |
+| Auto-deploy (GitHub) | — | — | — | — | Yes | Yes |
+| Vertra Flow (dashboard canvas) | Yes | Yes | Yes | Yes | Yes | Yes |
+| Workspaces (customizable roles, see §10) | — | — | — | — | — | Yes (5-24 members) |
+| Commit system | — | — | — | — | — | Yes |
+| Support | Discord | Specialized | Priority | Priority | Priority | Premium (E-32: dedicated agent + exclusive manager) |
+
+> The file manager is the dashboard's **Files tab** and its HTTP routes; ownership and
+> path rules follow the same rules across the API, the CLI and the MCP.
+
+**Three different things the docs often blur together:**
+
+- **Publish** (Pro+) — having a site: the application gets a `*.vertraweb.app` subdomain and becomes
+  reachable over the internet. On Pro the subdomain is **randomly assigned** by the platform.
+  On Pro, the site's HTML pages also show the **"Powered by Vertra Cloud"** badge in the bottom-right
+  corner; from Scale up it doesn't appear. Switching plans turns the badge on or off
+  immediately, without a redeploy.
+- **Choose the subdomain** (Scale+) — **choosing** the subdomain name, at creation or later
+  (`PATCH /v1/apps/{id}/network/subdomain`). Without it the user can publish, but can't choose the name.
+- **Custom domain** (Intermediary+) — pointing a domain you own to the application.
+
+### Free Plan Limits
+
+<Warning>
+  The Free plan is currently **"suspended"**. It stays documented here for reference, with
+  100 MB of RAM "free", but it isn't available right now — start on Economy or above.
+</Warning>
+
+Free is an **evaluation plan**: it exists to test the platform before using it in production.
+
+- Maximum 1 app — databases can't be created on Free
+- RAM: **100 MB "free"**
+- Projects inactive for 30+ days are automatically deleted
+- Email notifications on days 7, 23, 27 before deletion
+- No web publishing, no file manager
+
+---
+
+## 5. Application Types
+
+| Type | Code | Description |
+|------|:------:|-----------|
+| Bot | 1 | Background process, no HTTP port. Discord bots, automation, workers. |
+| Website | 2 | Accessible via HTTP/HTTPS, gets a subdomain. APIs, web apps, SPAs. |
+
+Display name limit for **application**, **database** and **workspace**: maximum **50 characters**.
+
+The type is **not decided once and for all at creation**. An application created without web publishing can be
+published later (`POST /v1/apps/{id}/network/publish`) and unpublished again
+(`DELETE /v1/apps/{id}/network/publish`), which switches the type between `1` and `2`. Two consequences
+users need to be told about:
+
+- **Turning it on and off recreates the container, so the application restarts** — network rules and the
+  exposed port only exist from the moment the container is created.
+- **When turning it off, the subdomain is released**: there is no reservation, someone else can claim it. The custom
+  domain is also removed (including the hostname on the CDN).
+
+Publishing requires **512 MB of RAM**. RAM doesn't increase on its own in this flow: with
+less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_mb, minimum_mb }`.
+
+### Storage
+
+Every application gets **10 GB of storage**, regardless of allocated RAM (before 09/14/2026 the
+ceiling was 6 GB + 2 GB for every 2 GB of RAM). Exceeding the ceiling refuses writes; lowering RAM doesn't
+lower the storage ceiling, which is fixed per application.
+
+### Bandwidth Limits by Memory
+
+| Allocated RAM | Bandwidth limit |
+|---|---:|
+| Up to 256 MB | 50 Mbit |
+| Up to 512 MB | 100 Mbit |
+| Up to 1,024 MB | 200 Mbit |
+| Up to 2,048 MB | 400 Mbit |
+| Up to 4,096 MB | 800 Mbit |
+| Up to 8,192 MB | 1,600 Mbit |
+| Up to 10,240 MB | 2,000 Mbit |
+
+Above 10 GB of RAM, the limit grows by roughly 50 Mbit per additional 256 MB.
+
+### Lifecycle
+```
+Creating → Starting → Online → Stopped (manual) or Error (crash)
+Error → Starting (auto-restart) or Stopped (crash loop: 5x in 10min)
+```
+
+### Build Command (build_command)
+
+An optional per-application field, available on **all plans**. It runs on every deploy — creation, zip upload,
+GitHub deploy, dependency reinstall or a change to the command itself —, always **after**
+dependency installation and **before** the application starts. A plain restart doesn't rerun the
+build if the previous build succeeded with the same command.
+
+The build runs in a **build environment** isolated from the application: 2× the application's RAM (minimum
+1,024 MB, maximum 4,096 MB), 2× the application's vCPU (minimum 1, maximum 2), with a
+**10-minute** time limit. If the command fails → the deploy fails and the application doesn't start (`BUILD_FAILED`);
+if it times out → `BUILD_TIMEOUT`.
+
+The build environment has **twice the application's bandwidth** (the same bandwidth-by-RAM table, ×2) —
+downloading dependencies weighs more than serving traffic, and the window is short. Exceeding it interrupts the deploy, the same as happens with the application
+while it's running.
+
+Common examples:
+
+| Framework | Build | Start |
+|---|---|---|
+| Next.js | `npm run build` | `npx next start -p 80` |
+| Nuxt | `npm run build` | `PORT=80 node .output/server/index.mjs` |
+| SvelteKit (adapter-node) | `npm run build` | `PORT=80 node build` |
+| Remix | `npm run build` | `npx remix-serve build/server/index.js` |
+| React Router v7 | `npm run build` | `npx react-router-serve ./build/server/index.js` |
+| Astro | `npm run build` | `npx astro preview --host 0.0.0.0 --port 80` |
+| Gatsby | `npm run build` | `npx gatsby serve --host 0.0.0.0 -p 80` |
+| Vite | `npm run build` | `npx vite preview --host 0.0.0.0 --port 80` |
+
+The application needs to listen on **port 80** — this applies to every Website-type application, with or
+without `build_command`. When creating an application from the dashboard from a zip, the platform suggests the
+build and start commands above based on the dependencies declared in `package.json` (Next.js, Nuxt,
+SvelteKit, Remix, React Router, Astro, Gatsby and Vite); the user can edit both before
+creating it. A project without a recognized framework starts from the main file, with no build command.
+
+### Configuration File (vertracloud.config)
+An optional `KEY=value` file at the root of the uploaded zip. It only **pre-fills** the
+creation/upload form — the actual configuration lives in the dashboard (Settings tab).
+Recognized keys: `NAME`, `DESCRIPTION`, `MAIN`, `MEMORY`, `START`, `BUILD`, `VERSION`,
+`SUBDOMAIN`; any other key (including the old `AUTORESTART`) is ignored. `VERSION` pre-fills the
+wizard on zip upload and is used on creation from a snapshot; the version confirmed in the wizard is
+the one the application runs, and a version that doesn't exist for the language is refused with
+`INVALID_VERSION`. `vertracloud.config.json` is also accepted, with lowercase keys.
+If the zip has `.env.production`, `.env.production.local`, `.env.local` or `.env` (in that order),
+the creation flow pre-fills the environment variables from the first non-empty one.
+```
+NAME=My App
+MAIN=index.js
+BUILD=npm run build
+START=npm start
+SUBDOMAIN=my-app
+VERSION=22
+MEMORY=512
+```
+**The file doesn't exist on the app's volume** (since 09/14/2026). It is discarded when the
+zip is extracted and **generated from the database** with the current values when downloading the project or creating a snapshot — that's
+why a downloaded zip or a restored snapshot always comes back up with the current configuration. It doesn't
+appear in the file manager; a file with that name created by hand is ignored and
+overwritten on download.
+
+### Subdomains
+- Format: `your-app.vertraweb.app`
+- Unique per application
+- Web publishing (getting a subdomain) available from the **Pro** plan
+- **Choosing the name** of the subdomain requires the **Scale+** plan; below that the
+  platform assigns a random name
+- Accepted format when choosing: 3 to 50 characters, `^[a-z0-9][a-z0-9-]*[a-z0-9]$`
+- Renamable later via `PATCH /v1/apps/{id}/network/subdomain` (minimum 5 minutes between changes)
+
+### Custom Domains
+- Available from the Intermediary plan
+- Configure a CNAME record in DNS pointing to the provided address
+- SSL provisioned automatically after DNS validation
+- Limit: 1 custom domain per application
+
+---
+
+## 6. Auto-Restart and Crash Loop Detection
+
+- Containers that crash are restarted automatically — **the default on every plan,
+  including Free, always on, with no option to turn it off**
+- Exit code 0 (normal termination) does NOT trigger a restart
+- **Crash loop**: 5 crashes in 10 minutes → auto-restart disabled for 24 hours
+- **Cooldown**: Minimum 1 hour between consecutive restarts
+- **Stability**: The container needs to stay online for 60+ seconds to count as stable
+
+---
+
+## 7. Platform Protections (Vertra Shield)
+
+Vertra Shield protects every application and database on the platform. In situations that could
+affect availability, Shield may pause an application temporarily; the dashboard shows the reason
+and a countdown.
+
+### Shield Cooldown (visible pause)
+
+When Shield pauses an application, the dashboard shows a notice with the reason and the time
+remaining, and the start and restart actions become temporarily unavailable. The cooldown can grow after
+repeated occurrences, up to a limit of 1 hour. Shield only **stops** the application — it never deletes it, its files or its data.
+Start, restart, deploy, configuration changes and deleting the application wait until the pause ends.
+
+---
+
+## 8. SSL/TLS
+
+- All sites get automatic SSL/TLS certificates
+- Automatic renewal before expiration
+- HTTP → HTTPS redirect enabled by default
+- Custom domains also get automatic SSL
+- All database connections require TLS
+
+---
+
+## 9. Snapshots
+
+- Manual snapshot creation for apps and databases — at most **1 every 5 minutes on the same
+  project** and **10 per hour across every resource on the account**; exceeding either
+  returns `SNAPSHOT_RATE_LIMITED` (429) with `details: { scope: "resource" | "account", retry_after }`
+- Restore from any earlier snapshot (30-second cooldown)
+- Download the snapshot content as a ZIP
+- Available from the Scale plan (manual backups)
+- **Deleting or resetting a database automatically takes a safety snapshot before
+  destroying the data**, on every plan. If the backup fails, the action is blocked (`SNAPSHOT_FAILED`)
+  and the database is neither deleted nor reset. This forced snapshot has its own ceiling, separate from the
+  manual-creation one: at most 2 attempts per hour on the same database, and 10 per hour across all
+  databases on the account — exceeding either returns `FORCED_SNAPSHOT_RATE_LIMIT` and also
+  blocks the action. It only applies to databases (delete and reset); applications don't have this
+  behavior.
+
+---
+
+## 10. Workspaces
+
+Team collaboration with granular permissions and customizable roles. **Available only
+on the Enterprise plan.** The workspace owner retains control over owner-exclusive management actions.
+
+### The 19 permissions
+
+| Permission | Group | What it unlocks |
+|---|---|---|
+| `apps:read` | apps | View app details, status, metrics, logs |
+| `apps:manage` | apps | Edit config, environment variables except the secret value, subdomain, domain |
+| `apps:lifecycle` | apps | Start, stop, restart |
+| `apps:envs` | apps | Read and write environment variables |
+| `apps:files` | apps | App's file manager |
+| `apps:delete` | apps | Delete app |
+| `databases:read` | databases | View database details, status, metrics |
+| `databases:manage` | databases | Edit database config |
+| `databases:lifecycle` | databases | Start, stop, restart, reset |
+| `databases:credentials` | databases | View/reset certificate and credentials |
+| `databases:data` | databases | Data tab (SQL console, collections, keys) |
+| `databases:delete` | databases | Delete database |
+| `snapshots:read` | snapshots | View snapshots |
+| `snapshots:manage` | snapshots | Create and restore a snapshot |
+| `members:read` | members | View members and roles |
+| `members:manage` | members | Invite, remove, change a member's role/expiration |
+| `roles:manage` | roles | Create, edit, delete a custom role |
+| `activities:read` | activities | View and export the workspace activity log |
+
+Actions that are **owner-only**, regardless of any role: linking/unlinking a project,
+renaming/deleting the workspace, transferring ownership, GitHub deploy webhook and turning
+web publishing on/off.
+
+### Seed roles
+
+Every workspace is born with 4 roles, which are renamable and deletable (they become ordinary roles; they count toward
+the tier ceiling just like any other):
+
+| Role | Permissions |
+|---|---|
+| Admin | All of them, **except `snapshots:manage`** (the owner enables it separately — too destructive an action to inherit by default) |
+| Developer | `apps:*` (except `apps:delete`), `databases:*` (except `databases:delete`), `snapshots:read`, `members:read`, `activities:read` |
+| Operator | `apps:read`, `apps:lifecycle`, `databases:read`, `databases:lifecycle`, `snapshots:read`, `members:read`, `activities:read` |
+| Viewer | `apps:read`, `databases:read`, `snapshots:read`, `members:read`, `activities:read` |
+
+### Custom role ceiling by tier (Enterprise)
+
+The 4 seed roles count toward the ceiling.
+
+| Tier | Role ceiling |
+|---|:-:|
+| ENTERPRISE_4 / ENTERPRISE_6 / ENTERPRISE_8 | 4 |
+| ENTERPRISE_12 / ENTERPRISE_14 / ENTERPRISE_16 | 6 |
+| ENTERPRISE_18 / ENTERPRISE_20 / ENTERPRISE_22 / ENTERPRISE_24 | 8 |
+| ENTERPRISE_26 / ENTERPRISE_28 / ENTERPRISE_30 | 10 |
+| ENTERPRISE_32 and above | 12 |
+
+### Members by tier (Enterprise)
+
+The progression never decreases when moving up a tier (5 at the lowest and 24 at the highest). A pending invite counts.
+
+| Tier | Members |
+|---|:-:|
+| ENTERPRISE_4 | 5 |
+| ENTERPRISE_6 / ENTERPRISE_8 | 10 |
+| ENTERPRISE_12 | 13 |
+| ENTERPRISE_14 | 14 |
+| ENTERPRISE_16 | 15 |
+| ENTERPRISE_18 | 16 |
+| ENTERPRISE_20 | 17 |
+| ENTERPRISE_22 | 18 |
+| ENTERPRISE_24 | 19 |
+| ENTERPRISE_26 | 20 |
+| ENTERPRISE_28 | 21 |
+| ENTERPRISE_30 | 22 |
+| ENTERPRISE_32 | 24 |
+
+### Invites
+
+Two forms, both requiring `members:manage`:
+
+- **Email**: tied to a specific address, expires in **7 days**. `WORKSPACE_INVITE_EMAIL_MISMATCH`
+  if accepted by an account with a different email.
+- **Link**: multi-use, fixed **24h** expiration, optional `max_uses`. Revocable at any time.
+
+An invite can carry `expires_in_days` — an access expiration applied to the member who joins through
+it; `null`/absent = no expiration. **A pending invite counts toward the plan's member limit.**
+Every account has the `workspace_invites_enabled` toggle (`APIUser`) to refuse email invites;
+when off, a new email invite for that account fails with `WORKSPACE_INVITES_DISABLED`.
+
+### Folders and favorites
+
+Folders and favorites organize applications and databases without changing the resources. The organization is
+persisted on the account and has two scopes:
+
+- **Personal**: the account's individual view, returned by `GET /v1/users/me`.
+- **Workspace**: the member's individual view inside a workspace, returned by
+  `GET /v1/workspaces/:id`. It is not shared with the other members.
+
+A folder has a name, color, position and references to applications or databases. The allowed colors are
+`neutral`, `red`, `orange`, `yellow`, `green`, `blue` and `purple`. `resource_type` only accepts
+`application` and `database`. Favorites and folders are independent of each other.
+
+Creating, editing, deleting, moving and favoriting generates an activity. The action can come from the dashboard, a
+workflow or a client authenticated with an API key, such as the CLI, the MCP and the VS Code extension.
+The client doesn't send `origin` or `author_id`; the API records the origin and the author automatically.
+
+The project list and Flow use the same persisted organization. In Flow, the folder and the favorite
+show up alongside the resources, but groups created on the canvas remain local and independent.
+
+Folders are not Flow groups. A group organizes elements on Flow's local canvas, while a
+folder organizes resources within the account or workspace. There is no `group_id`, sync or migration between
+the two concepts.
+
+### Action requests
+
+A member who lacks the permission for a sensitive action (`app_delete`, `database_delete`,
+`snapshot_create`, `snapshot_restore`) can open an **action request**; whoever has
+`members:manage` **and** the permission for that action approves or rejects it. It expires in **24h** without a decision
+(`WORKSPACE_ACTION_REQUEST_EXPIRED`).
+
+### Retention
+
+Deleting a workspace is a logical deletion: the name becomes available again for a new workspace;
+an expired Enterprise plan **freezes writes** (invite, action, edit), never deletes data.
+
+### Route → permission
+
+| Route | Permission / rule |
+|---|---|
+| `POST /v1/workspaces` | Owner (Enterprise plan) |
+| `GET /v1/workspaces` | Any member |
+| `GET /v1/workspaces/:id` | Any member |
+| `PUT /v1/workspaces/:id` | Owner |
+| `DELETE /v1/workspaces/:id` | Owner |
+| `POST /v1/workspaces/:id/transfer-ownership` | Owner |
+| `GET .../members` | `members:read` |
+| `PUT .../members/:user_id` | `members:manage` |
+| `DELETE .../members/:user_id` | `members:manage` or the member themself |
+| `GET .../roles` | `members:read` |
+| `POST .../roles` | `roles:manage` |
+| `PUT .../roles/:role_id` | `roles:manage` |
+| `DELETE .../roles/:role_id` | `roles:manage` |
+| `GET .../invites` | `members:manage` |
+| `POST .../invites` | `members:manage` |
+| `DELETE .../invites/:invite_id` | `members:manage` |
+| `GET /v1/workspaces/invites/:token` | Authenticated user |
+| `POST .../invites/:token/accept` or `decline` | Authenticated user |
+| `POST`/`DELETE .../apps/:app_id`, `.../databases/:db_id` | Owner |
+| `GET .../action-requests` | `members:manage` |
+| `POST .../action-requests` | Any member |
+| `POST .../action-requests/:rid/approve` | `members:manage` and the permission for the action |
+| `POST .../action-requests/:rid/reject` | `members:manage` |
+
+### Error codes
+
+| Code | HTTP |
+|---|:-:|
+| `WORKSPACE_NOT_FOUND` | 404 |
+| `WORKSPACE_NAME_ALREADY_EXISTS` | 400 |
+| `WORKSPACE_MEMBER_LIMIT_REACHED` | 400 |
+| `WORKSPACE_ROLE_LIMIT_REACHED` | 400 |
+| `WORKSPACE_ROLE_IN_USE` | 400 |
+| `WORKSPACE_ROLE_NOT_FOUND` | 404 |
+| `WORKSPACE_PERMISSION_DENIED` | 403 |
+| `WORKSPACE_PERMISSION_ESCALATION` | 403 |
+| `WORKSPACE_INVITE_NOT_FOUND` | 404 |
+| `WORKSPACE_INVITE_EXPIRED` | 410 |
+| `WORKSPACE_INVITE_EMAIL_MISMATCH` | 403 |
+| `WORKSPACE_INVITES_DISABLED` | 400 |
+| `WORKSPACE_ALREADY_MEMBER` | 409 |
+| `WORKSPACE_OWNER_ONLY` | 403 |
+| `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | 404 |
+| `WORKSPACE_ACTION_REQUEST_EXPIRED` | 410 |
+| `PLAN_RESTRICTED_FEATURE` | 403 |
+
+---
+
+## 11. File Manager
+
+- Available from the Pro plan
+- Browse and edit files directly in the dashboard
+- Syntax highlighting for all languages
+- Upload via drag-and-drop (files or ZIP)
+- File tree up to 6 levels deep
+- Create, edit, move, delete files and folders
+- Lists every directory of the project, including dependency folders such as `node_modules`; only the file tree endpoint (`GET /v1/apps/{id}/files/tree`) skips dependency and build folders to stay small
+- `vertracloud.config` doesn't exist on the volume: it's generated from the database on download and on snapshot (see §Configuration File)
+- Storage: 10 GB fixed per application (see §5 Storage)
+
+---
+
+## 12. Deploy
+
+### Methods
+1. **ZIP upload** via dashboard or API
+2. **GitHub integration** — repository selection (including private ones)
+3. **GitHub webhooks** — automatic deploy on push (Intermediary+ plans)
+4. **VSCode extension** — deploy straight from the editor
+
+### Process
+Code upload → Dependency installation → Build (if there's a `build_command`) → Container startup → Subdomain assignment → SSL provisioning
+
+### Upload Limits
+- Maximum ZIP size: 100 MB
+- Maximum dependency install time: 15 minutes (`INSTALL_TIMEOUT` if exceeded)
+- Maximum build command time: 10 minutes (`BUILD_TIMEOUT` if exceeded)
+- 1 exposed port per application
+
+### Deploy-per-Hour Limit
+
+A per-account ceiling, renewed on a 3,600-second window. Counted: creating an application, uploading a zip, deploying
+via GitHub (manual or via push), reinstalling dependencies and changing the build command. Not counted:
+restarting and stopping.
+
+| Plan | Deploys/hour |
+|---|---:|
+| Free | 5 |
+| Economy | 10 |
+| Pro | 20 |
+| Scale | 40 |
+| Intermediary | 60 |
+| Enterprise (any tier) | 60 |
+
+If exceeded → `429 DEPLOY_RATE_LIMITED` with `details.limit`, `details.window_seconds` (3,600) and
+`details.retry_after` (seconds until it clears). A GitHub push arriving beyond the limit is
+**ignored** (it doesn't get queued) and appears in the activity history.
+
+### Files Excluded from the ZIP
+
+The dashboard automatically strips from the zip, before uploading: `node_modules`, `.local`, `venv`, `.venv`,
+`__pycache__`, `.next`, `vendor`, `.bundle`, `target` and `.gradle`.
+
+- **JavaScript/TypeScript**: `node_modules`, `.npm`, `package-lock.json`, `.next`
+- **Python**: `venv`, `.venv`, `.cache`, `__pycache__`, `.env`
+- **Go**: `vendor`
+- **Rust**: `target`
+- **Java**: `target`, `.gradle`
+- **PHP/Ruby**: `vendor`
+
+> `dist/` and `build/` (build output) are **not** removed automatically — if your `main`/`start` points inside them (common in projects that bundle before deploying), the platform needs these files. Only exclude them from the zip if the real entry point is outside of them.
+
+---
+
+## 13. Plan Downgrade
+
+- Available via dashboard or API: `POST /v1/users/me/downgrade`
+- **Formula**: `newDays = remainingDays × (currentPrice / targetPrice)`
+- **Restrictions**: FREE and ECONOMY cannot downgrade
+- **Checks**: Memory usage must fit the target plan, rate limit (1x every 3 hours)
+- **Impact**: Reduced memory limit, higher-plan features disabled, workspaces lost when leaving Enterprise
+
+---
+
+## 14. VSCode Extension
+
+- Available on the VS Code Marketplace (search "Vertra Cloud")
+- Features: Quick deploy, app management, file management, real-time monitoring
+- Requirements: VS Code 1.80+, active Vertra account, internet connection
+- Deploy via the command palette: `Ctrl+Shift+P` → "Vertra: Deploy"
+
+---
+
+## 15. Authentication Methods
+
+- **Discord OAuth** — Login and account linking
+- **GitHub OAuth** — Login and account linking
+- **Google OAuth** — Login and account linking
+- **Magic Link** — Passwordless authentication by email
+- **API key** — For programmatic access (managed from the dashboard settings); up to 10
+  keys per account, each with a name, scopes and optional allowed IPs. New format
+  `vc_live_` + 48 hex characters, shown only once; older keys (64 hex) remain valid with
+  all scopes. Full detail in §16.
+- **Account switching** — Up to 5 saved accounts in the same browser
+
+---
+
+## 16. API Reference
+
+### Authentication
+
+Send an API key in the `Authorization` header as a Bearer token:
+
+```http
+Authorization: Bearer YOUR_API_KEY
+```
+
+### API Keys
+
+A new key has the `vc_live_` prefix followed by 48 hexadecimal characters and is shown only once when it is created or rotated. Older keys with 64 hexadecimal characters remain valid.
+An account can have up to **10 keys**, each with a name, access scopes and an optional list of
+up to **20 allowed IPs or CIDRs**. An empty list allows calls from any IP address.
+
+The key needs the scope required by the endpoint. The `read`, `write` and `full` presets select
+common sets; scopes can also be chosen individually.
+
+| Scope | What it allows |
+|---|---|
+| `billing:read` | List orders and check their status |
+| `billing:write` | Create a plan order and generate a PIX payment |
+| `redeem:write` | Redeem a promo code |
+| `apps:read` | Check status, metrics, logs, deploys, downloads and network for the application |
+| `apps:write` | Create, start, stop, restart, configure, publish and manage deploys |
+| `apps:delete` | Delete an application |
+| `apps:envs` | Read, create and delete environment variables |
+| `apps:files` | Read, edit and upload files |
+| `databases:read` | Check database status and metrics |
+| `databases:write` | Create, update, start, stop and reset databases |
+| `databases:delete` | Delete a database |
+| `databases:credentials` | View or reset certificate and credentials |
+| `snapshots:read` | List and download snapshots |
+| `snapshots:write` | Create and restore snapshots |
+| `account:read` | View profile, sessions and personal organization |
+| `account:write` | Update profile and personal organization |
+| `workspaces:read` | List and view workspaces, including individual organization |
+| `workspaces:write` | Create and update workspaces, manage members/roles/resources and request actions |
+| `workspaces:delete` | Delete a workspace (owner only) |
+| `workspaces:invites` | List and revoke invites; check, accept and decline invites by token |
+
+Workspace permissions also apply to key-authenticated calls. Key management, browsing the
+Data tab, downgrade, new invites, ownership transfer, deciding on action requests and
+querying/exporting activities all require a dashboard session.
+
+A key without the required scope gets `403 API_KEY_SCOPE_DENIED`; a disallowed IP gets
+`403 API_KEY_IP_DENIED`. An invalid key gets `401 API_KEY_INVALID`. Key management is done
+from the dashboard.
+
+### Rate Limiting
+
+The API applies fixed per-route limits, plus per-minute and per-day per-account limits for
+API key calls. The daily quota renews at midnight, Brasília time. Key-authenticated responses
+include `x-ratelimit-limit`, `x-ratelimit-remaining`, `x-ratelimit-reset`, `x-quota-limit`,
+`x-quota-remaining` and `x-quota-reset`. When a limit is hit, the response is `429
+RATE_LIMIT_EXCEEDED` or `429 DAILY_QUOTA_EXCEEDED`, with details and the time to retry.
+The fixed per-route limits cover lifecycle operations, database reset, subdomain changes,
+data queries and activity export.
+
+| Plan | Requests/min | Requests/day |
+|---|---:|---:|
+| Free | 30 | 1,000 |
+| Economy | 60 | 5,000 |
+| Pro | 120 | 20,000 |
+| Scale | 180 | 86,400 |
+| Intermediary | 240 | 115,200 |
+| Enterprise-4 | 300 | 144,000 |
+| Enterprise-6 | 300 | 180,000 |
+| Enterprise-8 | 300 | 216,000 |
+| Enterprise-12 | 480 | 324,000 |
+| Enterprise-14 | 480 | 378,000 |
+| Enterprise-16 | 480 | 432,000 |
+| Enterprise-18 | 480 | 486,000 |
+| Enterprise-20 | 480 | 540,000 |
+| Enterprise-22 | 480 | 594,000 |
+| Enterprise-24 | 480 | 648,000 |
+| Enterprise-26 | 480 | 702,000 |
+| Enterprise-28 | 480 | 756,000 |
+| Enterprise-30 | 480 | 810,000 |
+| Enterprise-32 | 480 | 864,000 |
+
+### Response Format
+
+- **Success**: `{ "response": { ... } }`
+- **Error**: `{ "code": "ERROR_CODE", "message": "..." }`
+
+### Common Error Codes
+
+| Code | Description |
+|---|---|
+| `NOT_AUTHENTICATED` | Missing, invalid or revoked authentication |
+| `API_KEY_INVALID` | Invalid API key |
+| `API_KEY_SCOPE_DENIED` | The key doesn't include the required scope |
+| `API_KEY_IP_DENIED` | The IP address isn't allowed for the key |
+| `API_KEY_LIMIT_REACHED` | Per-account key limit reached |
+| `API_KEY_INVALID_NAME` | Invalid key name |
+| `API_KEY_INVALID_SCOPES` | Empty or invalid scopes |
+| `API_KEY_INVALID_IPS` | Invalid IP address or CIDR |
+| `APP_NOT_FOUND` | Application not found |
+| `DATABASE_NOT_FOUND` | Database not found |
+| `ACCESS_DENIED` | No permission to access this resource |
+| `PLAN_RESTRICTED_FEATURE` | Feature not available on the current plan |
+| `INSUFFICIENT_MEMORY` | Insufficient memory on the plan |
+| `MAX_APPS_REACHED` | Plan's application limit reached |
+| `MAX_DATABASES_REACHED` | Plan's database limit reached |
+| `VALIDATION_ERROR` | Invalid body, parameter or query |
+| `FILE_TOO_LARGE` | File above the upload limit |
+| `INVALID_ZIP` | Uploaded file is not a valid ZIP |
+| `MAIN_FILE_NOT_FOUND` | Main file not found |
+| `INSTALL_TIMEOUT` | Dependency installation exceeded the time limit |
+| `BUILD_FAILED` | Build command exited with an error |
+| `BUILD_TIMEOUT` | Build command exceeded the time limit |
+| `DEPLOY_RATE_LIMITED` | Deploy limit reached |
+| `OPERATION_IN_PROGRESS` | Another operation on the resource is still in progress |
+| `SNAPSHOT_FAILED` | Safety snapshot failed; the resource was not changed |
+| `APPLICATION_SHIELD_COOLDOWN` | Application temporarily paused by Vertra Shield |
+| `STORAGE_ABOVE_NEW_LIMIT` | Current storage exceeds the new limit |
+| `RATE_LIMIT_EXCEEDED` | Request limit reached |
+| `DAILY_QUOTA_EXCEEDED` | API key's daily quota reached |
+| `SNAPSHOT_RATE_LIMITED` | Snapshot creation limit reached |
+| `SNAPSHOT_IMPORT_FAILED` | Snapshot restore failed |
+| `SNAPSHOT_ENGINE_MISMATCH` | Snapshot and target database use different engines |
+| `SUBDOMAIN_TAKEN` | Subdomain already in use |
+| `INVALID_SUBDOMAIN_FORMAT` | Invalid subdomain format |
+| `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH` | Plan doesn't include web publishing |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN` | Plan doesn't include custom domains |
+| `APP_ALREADY_PUBLISHED` | Application is already published |
+| `APP_NOT_PUBLISHED` | Application is not published |
+| `MEMORY_BELOW_MINIMUM` | Memory below the minimum for the operation |
+| `MEMORY_LIMIT_EXCEEDED` | Requested memory exceeds the plan limit |
+| `DOMAIN_ALREADY_IN_USE` | Domain already linked to another application |
+| `PURGE_FAILED` | Unable to purge the cache |
+| `API_KEY_NOT_FOUND` | API key not found on the account |
+| `FILE_IS_BINARY` | The requested file is binary |
+| `FORBIDDEN_PATH` | Reserved platform path |
+| `INVALID_GITHUB_URL` | URL is not a valid GitHub repository |
+| `INVALID_PATH` | Invalid path or outside the project |
+| `INVALID_QUERY` | Invalid query parameter |
+| `NOT_A_FILE` | The requested path is not a file |
+| `RANGE_EXCEEDS_RETENTION` | Query range exceeds available retention |
+| `REPOSITORY_FILE_NOT_FOUND` | File not found in the repository |
+| `WORKSPACE_ACTION_NOT_NEEDED` | The member already has permission to perform the action |
+| `WORKSPACE_ACTION_REQUEST_EXPIRED` | Action request expired |
+| `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | Action request not found |
+| `WORKSPACE_ALREADY_MEMBER` | The account is already part of the workspace |
+| `WORKSPACE_INVITES_DISABLED` | Invites are disabled on the workspace |
+| `WORKSPACE_INVITE_EMAIL_MISMATCH` | Account email doesn't match the invite |
+| `WORKSPACE_INVITE_EXPIRED` | Invite expired |
+| `WORKSPACE_INVITE_NOT_FOUND` | Invite not found or already used |
+| `WORKSPACE_MEMBER_LIMIT_REACHED` | Plan's member limit reached |
+| `WORKSPACE_NAME_ALREADY_EXISTS` | An active workspace with that name already exists |
+| `WORKSPACE_NOT_FOUND` | Workspace not found or no access |
+| `WORKSPACE_OWNER_ONLY` | The action is only available to the owner |
+| `WORKSPACE_PERMISSION_DENIED` | Required permission not granted |
+| `WORKSPACE_PERMISSION_ESCALATION` | The requested role grants permissions the author doesn't have |
+| `WORKSPACE_ROLE_IN_USE` | The role is assigned to a member or a pending invite |
+| `WORKSPACE_ROLE_LIMIT_REACHED` | Plan's role limit reached |
+| `WORKSPACE_ROLE_NOT_FOUND` | Role not found in this workspace |
+| `ARCHIVE_TOO_LARGE` | Decompressed ZIP content exceeds the limit |
+| `ARCHIVE_TOO_MANY_ENTRIES` | ZIP exceeds the file count limit |
+| `NO_FIELDS_TO_UPDATE` | Request contains no fields to update |
+| `TARGET_IS_DIRECTORY` | Selected path is a folder |
+| `SUBDOMAIN_ALREADY_IN_USE` | Subdomain already in use |
+| `INSTALL_SHIELD_BLOCKED` | Dependency installation paused by Shield's protection limits |
+| `FORCED_SNAPSHOT_RATE_LIMIT` | Safety snapshot limit reached |
+| `CLEANUP_LANGUAGE_SAME_AS_CURRENT` | The requested language is already selected |
+| `DATABASE_NOT_RUNNING` | Database needs to be running for this operation |
+| `SUBDOMAIN_FORBIDDEN` | Subdomain reserved by the platform |
+| `SUBDOMAIN_CHANGE_RATE_LIMITED` | Subdomain changed recently |
+| `APP_HAS_NO_SUBDOMAIN` | Application has no published subdomain |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | Plan doesn't include choosing a subdomain |
+| `FREE_PLAN_NO_WEB_PUBLISH` | Free plan doesn't allow web publishing |
+| `NO_CUSTOM_DOMAIN` | Application has no custom domain |
+| `INVALID_CUSTOM_DOMAIN_FORMAT` | Invalid custom domain format |
+| `FORBIDDEN_DOMAIN` | Domain not allowed |
+| `INVALID_HOSTNAME_FOR_APP` | Hostname doesn't belong to the application |
+| `NO_AUTHORIZED_PATHS` | No provided path belongs to the application |
+| `INTERNAL_SERVER_ERROR` | Internal server error |
+
+### Main Endpoints
+
+The list below corresponds to the public API endpoints. Request and response schemas are in the
+[API Reference](/api-reference/introduction). Per-route limits are detailed in [API Limitations](/api-reference/limitations#api-request-limits).
+
+#### Applications
+
+| Method | Route |
+|---|---|
+| POST | `/v1/apps` |
+| GET | `/v1/apps/runtimes` |
+| POST | `/v1/apps/scan` |
+| GET | `/v1/apps/status` |
+| GET | `/v1/apps/{app_id}/deploys` |
+| DELETE | `/v1/apps/{app_id}/deploys/webhook` |
+| GET | `/v1/apps/{app_id}/deploys/webhook` |
+| POST | `/v1/apps/{app_id}/deploys/webhook` |
+| DELETE | `/v1/apps/{id}` |
+| GET | `/v1/apps/{id}` |
+| PATCH | `/v1/apps/{id}/config` |
+| GET | `/v1/apps/{id}/download` |
+| GET | `/v1/apps/{id}/envs` |
+| POST | `/v1/apps/{id}/envs` |
+| DELETE | `/v1/apps/{id}/envs/{env_id}` |
+| DELETE | `/v1/apps/{id}/files` |
+| GET | `/v1/apps/{id}/files` |
+| PATCH | `/v1/apps/{id}/files` |
+| PUT | `/v1/apps/{id}/files` |
+| GET | `/v1/apps/{id}/files/content` |
+| GET | `/v1/apps/{id}/files/tree` |
+| POST | `/v1/apps/{id}/files/upload` |
+| GET | `/v1/apps/{id}/logs` |
+| GET | `/v1/apps/{id}/metrics` |
+| POST | `/v1/apps/{id}/network/custom` |
+| GET | `/v1/apps/{id}/network/dns` |
+| POST | `/v1/apps/{id}/network/publish` |
+| POST | `/v1/apps/{id}/network/purge-cache` |
+| PATCH | `/v1/apps/{id}/network/subdomain` |
+| GET | `/v1/apps/{id}/realtime` |
+| POST | `/v1/apps/{id}/restart` |
+| POST | `/v1/apps/{id}/start` |
+| GET | `/v1/apps/{id}/status` |
+| POST | `/v1/apps/{id}/stop` |
+| GET | `/v1/users/{id}/snapshots` |
+| POST | `/v1/users/{id}/snapshots` |
+| GET | `/v1/users/{id}/snapshots/{snapshot_id}/download` |
+| POST | `/v1/users/{id}/snapshots/{snapshot_id}/restore` |
+
+#### Databases
+
+| Method | Route |
+|---|---|
+| POST | `/v1/databases` |
+| GET | `/v1/databases/status` |
+| DELETE | `/v1/databases/{id}` |
+| GET | `/v1/databases/{id}` |
+| PUT | `/v1/databases/{id}` |
+| GET | `/v1/databases/{id}/credentials/certificate` |
+| POST | `/v1/databases/{id}/credentials/certificate/reset` |
+| POST | `/v1/databases/{id}/credentials/reset` |
+| GET | `/v1/databases/{id}/data/collections` |
+| GET | `/v1/databases/{id}/data/collections/{name}/documents` |
+| GET | `/v1/databases/{id}/data/info` |
+| GET | `/v1/databases/{id}/data/keys` |
+| GET | `/v1/databases/{id}/data/overview` |
+| POST | `/v1/databases/{id}/data/query` |
+| GET | `/v1/databases/{id}/data/schemas` |
+| GET | `/v1/databases/{id}/data/tables` |
+| GET | `/v1/databases/{id}/data/tables/{table}/rows` |
+| GET | `/v1/databases/{id}/metrics` |
+| POST | `/v1/databases/{id}/reset` |
+| POST | `/v1/databases/{id}/start` |
+| GET | `/v1/databases/{id}/status` |
+| POST | `/v1/databases/{id}/stop` |
+
+#### Users and account
+
+| Method | Route |
+|---|---|
+| GET | `/v1/users/me` |
+| PATCH | `/v1/users/me` |
+| GET | `/v1/users/me/api-key/requests` |
+| GET | `/v1/users/me/api-keys` |
+| POST | `/v1/users/me/api-keys` |
+| DELETE | `/v1/users/me/api-keys/{id}` |
+| PATCH | `/v1/users/me/api-keys/{id}` |
+| POST | `/v1/users/me/api-keys/{id}/rotate` |
+| GET | `/v1/users/me/sessions` |
+| GET | `/v1/users/snapshots` |
+
+#### Workspaces
+
+| Method | Route |
+|---|---|
+| GET | `/v1/workspaces` |
+| POST | `/v1/workspaces` |
+| GET | `/v1/workspaces/invites/{token}` |
+| POST | `/v1/workspaces/invites/{token}/accept` |
+| POST | `/v1/workspaces/invites/{token}/decline` |
+| DELETE | `/v1/workspaces/{id}` |
+| GET | `/v1/workspaces/{id}` |
+| PUT | `/v1/workspaces/{id}` |
+| GET | `/v1/workspaces/{id}/action-requests` |
+| POST | `/v1/workspaces/{id}/action-requests` |
+| POST | `/v1/workspaces/{id}/action-requests/{request_id}/approve` |
+| POST | `/v1/workspaces/{id}/action-requests/{request_id}/reject` |
+| DELETE | `/v1/workspaces/{id}/apps/{app_id}` |
+| POST | `/v1/workspaces/{id}/apps/{app_id}` |
+| DELETE | `/v1/workspaces/{id}/databases/{db_id}` |
+| POST | `/v1/workspaces/{id}/databases/{db_id}` |
+| GET | `/v1/workspaces/{id}/invites` |
+| POST | `/v1/workspaces/{id}/invites` |
+| DELETE | `/v1/workspaces/{id}/invites/{invite_id}` |
+| GET | `/v1/workspaces/{id}/members` |
+| DELETE | `/v1/workspaces/{id}/members/{user_id}` |
+| PUT | `/v1/workspaces/{id}/members/{user_id}` |
+| GET | `/v1/workspaces/{id}/roles` |
+| POST | `/v1/workspaces/{id}/roles` |
+| DELETE | `/v1/workspaces/{id}/roles/{role_id}` |
+| PUT | `/v1/workspaces/{id}/roles/{role_id}` |
+| POST | `/v1/workspaces/{id}/transfer-ownership` |
+
+#### Billing
+
+| Method | Route |
+|---|---|
+| GET | `/v1/orders` |
+| POST | `/v1/orders` |
+| POST | `/v1/orders/{orderId}/initiate/pix` |
+| GET | `/v1/orders/{orderId}/status` |
+
+#### Redeem
+
+| Method | Route |
+|---|---|
+| POST | `/v1/redeem/{code}` |
+
+#### Services
+
+| Method | Route |
+|---|---|
+| GET | `/v1/status` |
+
+## 17. Environment Variables
+
+- Injected into the container at startup
+- Managed via dashboard or API
+- Limits: Maximum 25 variables, key max 100 characters, value max 1,000 characters
+- Encrypted at rest
+- Forbidden keys: `PORT`, `HOST`, `PATH`, `HOME`, `USER`, `SHELL`
+- The platform sets `PORT=80` and `HOST=0.0.0.0` in the container
+
+---
+
+## 18. Automatic Cleanup (Free Plan)
+
+The Free plan is currently **"suspended"**; this rule applies to Free projects that still exist.
+
+Free-plan projects inactive for more than 30 days are automatically deleted:
+
+| Day | Action |
+|:---:|------|
+| 7 | First email notification |
+| 23 | Second warning |
+| 27 | Final warning with a reactivation link |
+| 30 | Automatic deletion (irreversible) |
+
+---
+
+## 19. Common Problems and Fixes
+
+### Platform
+
+- **App crashing / OOMKilled**: Insufficient memory. Increase the allocated RAM. Java/Puppeteer need 512 MB+.
+- **Crash loop (auto-restart disabled)**: 5 crashes in 10 min. Check the logs, fix the root error, redeploy.
+- **App stops immediately (exit code 0)**: The process has nothing keeping it alive. Make sure the bot is logged in or the server is listening.
+- **ZIP too large**: Exclude `node_modules`, `venv`, `.git`, `vendor`, `target`, `__pycache__`.
+- **Dependency installation exceeds 15 minutes (`INSTALL_TIMEOUT`)**: Remove unnecessary dependencies.
+- **Build command exceeds 10 minutes (`BUILD_TIMEOUT`)**: Simplify the `build_command` or the framework's build step.
+- **Site times out**: Bind to `0.0.0.0` (not `localhost`). Use the `PORT` value.
+- **Custom domain doesn't work**: Intermediary+ plan, correct CNAME, wait for DNS propagation.
+- **Database connection refused**: TLS is required. Download certificates from the dashboard.
+- **Project limit**: Free ("suspended") = 1 app, no databases. Upgrade for more.
+- **Email not received**: Check spam. Try another method (Discord, GitHub, Google).
+
+### Node.js / JavaScript
+
+- **`Cannot find module 'xxx'`**: The package isn't in `package.json`'s `dependencies` (it may be in `devDependencies`).
+- **`missing script: start`**: Add `"start": "node index.js"` under `scripts` in `package.json`.
+- **`Cannot use import statement outside a module`**: Add `"type": "module"` to `package.json`, or use `require()`.
+- **`ERR_REQUIRE_ESM`**: The package only supports ESM. Use ESM or an older version (e.g.: `node-fetch@2`).
+- **`ERESOLVE dependency tree`**: Create `.npmrc` with `legacy-peer-deps=true`.
+- **`EADDRINUSE`**: Port already in use. Only one `app.listen()` in the code.
+- **Native modules fail** (better-sqlite3): Don't upload `node_modules/`. The platform compiles for Linux.
+
+### TypeScript
+
+- **`tsx / ts-node: command not found`**: Add `tsx` to `dependencies`.
+- **`TSError: Unable to compile`**: Include `tsconfig.json`. Fix TS errors before deploying.
+
+### Python
+
+- **`ModuleNotFoundError`**: The module isn't in `requirements.txt`. Generate it with `pip freeze > requirements.txt`.
+- **`requirements.txt` not found**: Check the exact name and extension (watch out for `.txt.txt` on Windows).
+- **`SyntaxError: invalid syntax`**: The selected Python version doesn't support the feature used. Upgrade the version.
+- **`UnicodeDecodeError`**: Save files as UTF-8. Use `encoding='utf-8'` when opening files.
+- **Flask/Django not reachable**: Use Gunicorn: `gunicorn app:app --bind 0.0.0.0:80`.
+
+### Go
+
+- **`go.mod not found`**: Run `go mod init` and `go mod tidy`. Include `go.mod` and `go.sum`.
+- **Incompatible binary**: Compile for Linux: `GOOS=linux GOARCH=amd64 go build`.
+
+### Java
+
+- **`no main manifest attribute`**: Configure the build tool to create a fat JAR with Main-Class.
+- **`OutOfMemoryError`**: Java needs 512 MB+. Use flags: `-Xmx256m -Xms128m`.
+
+### Discord Bots
+
+- **`Invalid token` / `Improper token`**: Generate a new token in the Developer Portal. Set it as an environment variable.
+- **`DisallowedIntents`**: Enable privileged intents in the Developer Portal (Message Content, Server Members, Presence).
+- **`ClientMissingIntents`**: Specify intents in your code: `new Client({ intents: [...] })`.
+- **Bot goes offline randomly**: Insufficient memory or an outdated discord.js/discord.py.
+- **`on_message` doesn't fire (discord.py)**: Missing `intents.message_content = True` + enabling it in the Developer Portal.
+
+### Environment Variables
+
+- **Undefined/null values**: Configure via the dashboard, don't rely on a `.env` file.
+- **`.env` doesn't work**: The platform doesn't read `.env`. Use the dashboard's variables interface.
+
+---
+
+## 20. Discount Coupons
+
+A coupon can be percentage-based or a fixed amount (applied once to the total, never taking the price
+negative), can have a validity window, redemption limit and plan or duration restrictions. An order of
+R\$0 (a 100% coupon) is delivered instantly, without PIX. A coupon rejected at checkout returns one of the
+codes `COUPON_INVALID`, `COUPON_INACTIVE`, `COUPON_NOT_STARTED`, `COUPON_EXPIRED`,
+`COUPON_EXHAUSTED`, `COUPON_USER_LIMIT`, `COUPON_AUDIENCE`, `COUPON_PLAN`, `COUPON_DURATION`.
+
+---
+
+## 21. Data Retention
+
+What Vertra Cloud keeps about your account and projects, and for how long. The legal text is the
+[Privacy Policy](https://vertracloud.app/privacy); this table is the practical summary.
+
+| Data | What is recorded | Retention |
+|---|---|---|
+| Account data | Name, email, language, avatar and connected login providers | While the account exists; deleted or anonymized within 30 days after it's closed, except what the law requires keeping |
+| Project content | Files, environment variables and database data | While the project exists |
+| Snapshots | Manual, daily, plan-expiry and safety snapshots of an app or database | 30 days after creation |
+| Requests made with your API keys | Method, route, path, IP, user agent, status, duration, size and error code; on some routes, a **redacted** excerpt of the request and response body (up to 4 KB) | 30 days |
+| Hosted application traffic | Method, status, duration and size of each request — **no path, no IP and no content** | 30 days |
+| Protection incidents (Vertra Shield) | Reason, traffic direction, time and length of the pause | 90 days |
+| Activity history | Actions on the account and projects; for the file manager, path and size only, **never content** | 30 days, including after the project is deleted |
+| Login sessions | Login method, IP, approximate location and device | Until the session expires |
+| Access records | IP, date and time of each login and of API key use (one record per key, IP and day) | 6 months, as required by Brazil's Marco Civil da Internet (art. 15) |
+| Inactive Free projects | — | Deleted after 30 days without activity, with email warnings on days 7, 23 and 27 |
+
+Your API key requests are visible to you in the dashboard, and the activity history lists lifecycle
+events, file manager changes, restored snapshots, domains, protection incidents, purchases, code
+redemptions and actions started by a connected agent.
+
+---
+
+## 22. Glossary
+
+| Term | Definition |
+|-------|-----------|
+| Application | A deployed project (bot or website) running on Vertra Cloud |
+| Database | A managed instance (PostgreSQL, MongoDB, Redis, MySQL) |
+| Workspace | A team collaboration space with granular permissions and customizable roles (Enterprise) |
+| Permission (workspace) | One of the 19 atomic actions in the catalog (`apps:read`, `members:manage`...) that makes up a role |
+| Role (workspace) | A named set of permissions assigned to a member; 4 seed roles per workspace, customizable |
+| Invite (workspace) | A way to join a workspace, by email (7 days, tied to the address) or link (24h, multi-use) |
+| Action request (workspace) | A request for a sensitive action by a member who lacks the permission, decided by whoever has `members:manage` and the permission for that action |
+| Snapshot | A saved copy of an application's or database's state |
+| MCP | Vertra's Model Context Protocol server (`@vertracloud/mcp` locally or `mcp.vertracloud.app/mcp`): gives the user's AI agent the platform's tools using their API key |
+| Subdomain | An automatically assigned URL: `app-name.vertraweb.app` |
+| Custom domain | A user's own domain connected to an application |
+| Auto-restart | Automatic container restart on crash; default on every plan, always on |
+| Crash loop | 5 crashes in 10 minutes — disables auto-restart for 24 hours |
+| vertracloud.config | An optional `KEY=value` file in the uploaded zip; pre-fills the form. Generated from the database on download and on snapshot, never stored on the volume |
+| Deploy | The process of uploading and publishing code on the platform |
+| Build | An optional step, defined by `build_command`, that runs after dependency installation and before the application starts |
+| Build environment | The environment isolated from the application where `build_command` runs (2× RAM, 2× vCPU, 10-minute time limit) |
+| Container | The isolated environment where the application or database runs |

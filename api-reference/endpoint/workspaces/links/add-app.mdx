@@ -1,0 +1,38 @@
+---
+title: Link Application
+sidebarTitle: Link App
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/apps/{app_id}
+authMethod: bearer
+description: Links one of your applications to the workspace. Owner only.
+---
+
+{/* @see RESTPostAPIWorkspaceResourceLinkResponse — @vertracloud/api-types */}
+Only the workspace **owner** can call this — not a permission, no role grants it. An API key
+needs the `workspaces:write` scope.
+
+<Warning>
+  The application must be owned by the same user calling this (`owner_id` is checked against the
+  caller). Without that check, anyone could link someone else's app into their own workspace and
+  gain access to it through workspace membership.
+</Warning>
+
+A resource belongs to at most one workspace at a time; linking it to a new one implicitly
+removes it from the old one.
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+<ParamField path="app_id" type="string" required>Application ID. Must be owned by the caller.</ParamField>
+
+### Response
+
+Empty response on success.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `WORKSPACE_OWNER_ONLY` | Caller isn't the workspace owner. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | Owner's plan is frozen. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |
+| 404 | `APP_NOT_FOUND` | Application doesn't exist or isn't owned by the caller. |

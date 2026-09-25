@@ -1,0 +1,42 @@
+---
+title: Transfer Ownership
+sidebarTitle: Transfer Ownership
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/transfer-ownership
+authMethod: bearer
+description: Transfers workspace ownership to another member. Owner only, dashboard session only.
+---
+
+{/* @see RESTPostAPIWorkspaceTransferOwnershipBody, RESTPostAPIWorkspaceTransferOwnershipResponse — @vertracloud/api-types */}
+<Note>
+  Dashboard session only — outside the API key scope catalog, so an API key gets `403 API_KEY_SCOPE_DENIED`. A key that could transfer
+  ownership could be used to take over the workspace.
+</Note>
+
+Ownership is possession, not a role: `owner_id` grants the full permission catalog without a row
+in `workspace_member`. Transferring it removes the new owner's member row and creates one for
+the previous owner — seeded with the Admin role if it still exists, otherwise the first role by
+display position.
+
+### Path
+
+<ParamField path="id" type="string" required>
+  Workspace ID.
+</ParamField>
+
+### Body
+
+<ParamField body="user_id" type="string" required>
+  Must already be a member of the workspace.
+</ParamField>
+
+### Response
+
+Same shape as [Get Workspace](/api-reference/endpoint/workspaces/get), with the new `owner_id`.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Caller isn't the current owner. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or is soft-deleted. |

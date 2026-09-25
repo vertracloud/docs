@@ -1,0 +1,41 @@
+---
+title: Create Workspace
+sidebarTitle: Create
+api: POST https://api.vertracloud.app/v1/workspaces
+authMethod: bearer
+description: Creates a workspace with the four seed roles (Admin, Developer, Operator, Viewer). Requires the Enterprise plan.
+---
+
+{/* @see APIWorkspace, RESTPostAPIWorkspaceCreateBody — @vertracloud/api-types */}
+Any logged-in account can call this — creation itself isn't gated by a permission, it's gated by
+**plan**. An API key needs the `workspaces:write` scope.
+
+<Note>
+  Four seed roles are created with the workspace: **Admin** (every permission except
+  `snapshots:manage` — restoring/deleting a snapshot is too destructive to grant by default),
+  **Developer**, **Operator** and **Viewer**. They're ordinary roles from the moment they're
+  created — renamable, editable, deletable — and count toward the plan's role cap like any other.
+</Note>
+
+### Body
+
+<ParamField body="name" type="string" required>
+  1–50 characters. Unique per owner among your active (non-deleted) workspaces.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Up to 200 characters.
+</ParamField>
+
+
+
+### Response
+
+Same shape as [Get Workspace](/api-reference/endpoint/workspaces/get) minus `members`/`roles`/`applications`/`databases`/`permissions`/`is_owner` — see [List Workspaces](/api-reference/endpoint/workspaces/get-all) for the fields.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `PLAN_RESTRICTED_FEATURE` | Your plan doesn't include workspaces (below Enterprise). |
+| 409 | `WORKSPACE_NAME_ALREADY_EXISTS` | You already own an active workspace with this name. |

@@ -1,0 +1,46 @@
+---
+title: Create Action Request
+sidebarTitle: Create
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/action-requests
+authMethod: bearer
+description: Asks for a sensitive action you don't have the permission to run yourself. Any member; an API key needs the `workspaces:write` scope.
+---
+
+{/* @see RESTPostAPIWorkspaceActionRequestBody, RESTPostAPIWorkspaceActionRequestResponse — @vertracloud/api-types */}
+<Note>
+  An API key needs the `workspaces:write` scope. The request is only decided in the dashboard —
+  approving and rejecting are not available to API keys.
+</Note>
+
+Any member can call this — the real check is that the caller does **not** already have the
+permission the action maps to; if they do, run the action directly instead.
+
+| `action` | requires permission |
+|---|---|
+| `app_delete` | `apps:delete` |
+| `database_delete` | `databases:delete` |
+| `snapshot_create` | `snapshots:manage` |
+| `snapshot_restore` | `snapshots:manage` |
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+
+### Body
+
+<ParamField body="action" type="string" required>One of `app_delete`, `database_delete`, `snapshot_create`, `snapshot_restore`.</ParamField>
+<ParamField body="resource_id" type="string" required>The application or database this action targets. Must belong to this workspace.</ParamField>
+<ParamField body="params" type="object">Action-specific parameters, persisted as-is — these are exactly what runs if approved, nothing sent on approve is used. `snapshot_restore` requires `{ "snapshot_id": "<uuid>" }` (a snapshot of this resource); the other actions take none (`{}` or omitted). Any other key returns `WORKSPACE_ACTION_INVALID_PARAMS`.</ParamField>
+
+### Response
+
+Same shape as a [List Action Requests](/api-reference/endpoint/workspaces/action-requests/list) row, `status: "pending"`.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `WORKSPACE_ACTION_NOT_NEEDED` | Caller already has the permission the action maps to — run it directly instead of requesting it. |
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key that lacks the `workspaces:write` scope. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |
+| 404 | `APP_NOT_FOUND` / `DATABASE_NOT_FOUND` | `resource_id` doesn't belong to this workspace. |

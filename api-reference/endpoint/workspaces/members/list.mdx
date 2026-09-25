@@ -1,0 +1,58 @@
+---
+title: List Members
+sidebarTitle: List
+api: GET https://api.vertracloud.app/v1/workspaces/{id}/members
+authMethod: bearer
+description: Lists workspace members. Requires the `members:read` permission.
+---
+
+{/* @see APIWorkspaceMember, RESTGetAPIWorkspaceMembersResponse — @vertracloud/api-types */}
+Requires the `members:read` permission (owner always passes). An API key needs the
+`workspaces:read` scope.
+
+### Path
+
+<ParamField path="id" type="string" required>
+  Workspace ID.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIWorkspaceMember[]">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="user_id" type="string" />
+  <ResponseField name="role_id" type="string" />
+  <ResponseField name="role_name" type="string" />
+  <ResponseField name="joined_at" type="string" format="date-time" />
+  <ResponseField name="expires_at" type="string | null" format="date-time">Access expiry. `null` = no expiry. A member past this date is treated as not a member on every read — the weekly sweep only cleans up the row afterwards, it isn't the gate.</ResponseField>
+  <ResponseField name="user" type="object">`{ display_name, email }`.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "user_id": "123456789012345678",
+      "role_id": "c1a2...",
+      "role_name": "Developer",
+      "joined_at": "2026-09-01T12:00:00Z",
+      "expires_at": null,
+      "user": { "display_name": "Bob", "email": "bob@example.com" }
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `members:read`. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist, is soft-deleted, or you're not a member. |

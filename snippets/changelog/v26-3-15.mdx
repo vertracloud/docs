@@ -1,0 +1,35 @@
+### Standardized empty responses and validation errors
+
+Three adjustments to API response formats, so every route follows the same envelope:
+
+- **An empty response is `{ "response": null }`.** Removing an environment variable, saving,
+  moving and deleting a file, removing a custom domain, clearing the cache, removing a deploy
+  webhook and deleting an application used to respond `{}`. They now respond
+  `{ "response": null }`, matching what workspace routes already did.
+- **The invalid field moves to `details.path`.** A `400 VALIDATION_ERROR` used to include `path`
+  loose at the top of the response; it now comes as
+  `{ "code": "VALIDATION_ERROR", "message": "...", "details": { "path": "..." } }`.
+- **File manager client errors are `400`, not `500`.** Uploading with no file
+  (`NO_FILE_UPLOADED`) or an unreadable zip (`INVALID_ZIP_STRUCTURE`) used to respond `500`; it
+  now responds with the correct `4xx` status.
+
+Also:
+
+- `GET /v1/apps/runtimes` responds with just `{ "response": { ... } }`, without the extra
+  `status` field.
+- `PATCH /v1/users/me` only accepts `pt-br`, `en-us` or `es-es` for `language`.
+- `POST /v1/users/{id}/snapshots/{snapshot_id}/restore` rejects an invalid `resource_id` with
+  `400`.
+- `POST /v1/orders/{orderId}/initiate/pix` always returns `transaction_amount` as a number.
+
+If your integration read `path` at the top level of an error or treated `{}` as success, update to
+the formats above. The `@vertracloud/api-types` types already describe the new format.
+
+Error codes related to applications and databases were also standardized.
+
+### File content always base64
+
+File content returned by [Get Application File Content](/api-reference/endpoint/apps/filemanager/content)
+and the SDKs is now always standard base64, with the response's `size` field reflecting the real
+byte size of the file rather than the length of the encoded string. Previously the format varied
+by file type. If your integration branched on content format, that branch is no longer needed.

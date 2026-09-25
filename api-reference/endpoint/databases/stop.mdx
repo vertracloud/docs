@@ -1,0 +1,65 @@
+---
+title: Stop Database
+sidebarTitle: Stop Database
+api: POST https://api.vertracloud.app/v1/databases/{id}/stop
+authMethod: bearer
+description: Stops a database by its ID.
+---
+
+{/* @see success — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the database to stop. If the database belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the database belongs to a workspace, the workspace's ID. Required for workspace members acting on a database they don't own.
+</ParamField>
+
+<Note>
+  **Stopping is idempotent.** Stopping a database that is already stopped is a success, not an error: the API answers `200` and makes sure the recorded state is `down`. You do not have to read the status first to decide whether the call is safe.
+</Note>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The response containing the operation status.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="status" type="string">
+    The operation status (`success`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "status": "success"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `DATABASE_NOT_FOUND`: The specified database does not exist.
+  - `ACCESS_DENIED`: The user does not have permission to act on the database.
+  - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same database is already running (`409`). The container was not touched — wait a few seconds and retry. See [Common Error Codes](/api-reference/introduction#what-error-codes-can-the-api-return).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+</ResponseExample>

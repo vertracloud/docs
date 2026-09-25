@@ -1,0 +1,153 @@
+---
+title: 'How to Host an Application on Vertra Cloud'
+sidebarTitle: 'First deploy'
+description: 'Create a project on Vertra Cloud through the dashboard: upload a .zip or a GitHub repository, review build, environment and network, and deploy.'
+icon: 'cloud-arrow-up'
+---
+
+To host an application on Vertra Cloud, log into the dashboard, click **New Project**, upload
+the code (a `.zip` or a GitHub repository), check what the platform detected, and deploy. The
+platform installs the dependencies, runs the build command if there is one, and starts the
+container.
+
+<Info>
+  Prefer the terminal? The [CLI](/cli) does the same with `vertra deploy`, and the
+  [VS Code extension](/vscode-extension) deploys the folder open in the editor.
+</Info>
+
+## Create an account
+
+The account is created on first login at [vertracloud.app/login](https://vertracloud.app/login),
+with no separate sign-up form. You can sign in with **Discord**, **GitHub**, **Google**, or a
+**magic link** sent by email.
+
+The Free plan is currently **"suspended"**. While it existed, it was for testing the platform before
+using it in production: one application (no databases) with 100 MB of RAM "free", and no web publishing. See what each plan unlocks in [Plans and limits](/plans-and-limits).
+
+## What does the New Project flow look like?
+
+The **New Project** button opens a one-step-at-a-time flow. The first screen asks what you want
+to create and where the code comes from:
+
+<CardGroup cols={2}>
+  <Card title="Upload a .zip" icon="file-zipper">
+    Drag in the project's `.zip`. Folders like `node_modules` and `venv` are removed before upload.
+  </Card>
+  <Card title="Import from GitHub" icon="github">
+    Paste the repository URL or choose from your account's repositories, including private ones.
+  </Card>
+  <Card title="Restore a snapshot" icon="clock-rotate-left">
+    Create a new project from a snapshot of another project of yours.
+  </Card>
+  <Card title="Create a database" icon="database">
+    Managed PostgreSQL, MongoDB, Redis, or MySQL, with mandatory TLS.
+  </Card>
+</CardGroup>
+
+At the top of the flow, you choose which **workspace** the project is created in (your own
+account or a workspace you're part of) and, optionally, a **folder** to organize it in the project
+list.
+
+## Create an application
+
+<Steps>
+  <Step title="Source code">
+    Upload the `.zip` or provide the GitHub repository. The project name comes from the file or
+    the repository and can be changed here, along with an optional description.
+
+    While reading the code, the platform already suggests the runtime, memory, and build and start
+    commands. If the `.zip` has a [`vertracloud.config`](/configuration), its values take priority
+    over the suggestion.
+  </Step>
+  <Step title="Build">
+    Check the **main file** (chosen from a list of the project's files), the **runtime** and
+    **version**, and the **memory**.
+
+    **Advanced settings** holds the **start command** and the **build command**. The build runs
+    before start, on every deploy; if it fails, the application doesn't come up. Next.js, Nuxt,
+    SvelteKit, Remix, React Router, Astro, Gatsby and Vite projects already arrive with both
+    commands filled in. If a declared dependency is missing, the step shows a warning without
+    blocking you from continuing.
+  </Step>
+  <Step title="Environment">
+    Add the environment variables (up to 25). `PORT`, `HOST`, `PATH`, `HOME`, `USER` and `SHELL`
+    are reserved. Details in [Configuration](/configuration).
+  </Step>
+  <Step title="Network">
+    Decide whether the application will have **web publishing**. With it on, the application gets
+    a `*.vertraweb.app` address and needs to listen on **port 80**. Without it, the application
+    runs in the background, like a bot or a worker.
+
+    - Web publishing requires the **Pro** plan or higher and at least **512 MB** of memory.
+    - On Pro the subdomain is assigned at random. **Choosing** the name requires the **Scale**
+      plan or higher.
+    - A **custom domain** requires the **Intermediary** plan or higher.
+
+    Publishing can be turned on or off later, from the application's **Config** tab.
+  </Step>
+  <Step title="Review and deploy">
+    Review the summary and confirm. If the platform rejects a value (subdomain in use, memory
+    above the plan), the flow goes back to the step where it's edited.
+  </Step>
+</Steps>
+
+### What happens during deploy
+
+1. The code is uploaded to the platform.
+2. Dependencies are installed (such as `npm install` or `pip install -r requirements.txt`), with
+   a **15-minute** limit.
+3. The build command runs, if there is one, with a **10-minute** limit.
+4. The container starts with the chosen memory and the start command.
+5. With web publishing, the subdomain is assigned and the TLS certificate is issued.
+
+The `.zip` can be up to **100 MB**. Creating an application, uploading code, and deploying via
+GitHub all count toward the plan's
+[deploys-per-hour limit](/plans-and-limits#deploys-per-hour-limit).
+
+<Warning>
+  Don't upload `node_modules`, `venv`, `.venv`, `__pycache__`, `.next`, `vendor`, `.bundle`,
+  `target`, `.gradle` or `.local`. The dashboard removes these folders from the `.zip` before
+  upload, but they make the file bigger and the upload slower. Build output folders (`dist/`,
+  `build/`) are **not** removed, because the main file is sometimes inside them.
+</Warning>
+
+## Create a database
+
+Choose the engine and the memory, then review. Storage is calculated from the memory and shown
+right below the control. The minimum memory is **512 MB** for Redis and **1,024 MB** for
+PostgreSQL, MongoDB and MySQL. Once created, credentials and certificates are on the database's
+page. See [Databases](/databases).
+
+## After deploy
+
+The application's page has these tabs:
+
+- **Overview**: status and CPU, memory, storage and network metrics.
+- **Logs**: the application's output in real time, with platform events (restart and temporary
+  pause by Vertra Shield, when applicable).
+- **Files**: the application's files, with an in-browser editor (Pro plan or higher).
+- **Activity**: the history of what was done on the application and by whom.
+- **Snapshots**: create, restore and download copies of the project (Scale plan or higher).
+- **Config**: runtime, memory, start and build commands, environment variables, web publishing,
+  subdomain, and custom domain.
+
+To update the code, upload a new `.zip`, deploy via GitHub, or use `vertra deploy`. A plain
+restart doesn't reinstall dependencies or redo the build; for that, use **Reinstall dependencies**
+or **Force build**.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="sliders" href="/configuration">
+    Every `vertracloud.config` key, the editable fields, and environment variables.
+  </Card>
+  <Card title="Deploy via GitHub" icon="github" href="/deploy-github">
+    Automatic redeploy on every push.
+  </Card>
+  <Card title="Tutorials" icon="graduation-cap" href="/tutorials/introduction">
+    Guides by language, framework, and bot type.
+  </Card>
+  <Card title="Common errors" icon="triangle-exclamation" href="/common-errors">
+    Symptom, cause, and fix for the most frequent deploy errors.
+  </Card>
+</CardGroup>

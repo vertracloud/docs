@@ -1,0 +1,78 @@
+---
+title: Create API Key
+sidebarTitle: Create
+api: POST https://api.vertracloud.app/v1/users/me/api-keys
+authMethod: bearer
+description: Creates a new API key. Dashboard session only — an API key gets `403 API_KEY_SCOPE_DENIED`.
+---
+
+{/* @see APIApiKeyCreated, RESTPostAPIUserApiKeyCreateBody — @vertracloud/api-types */}
+<Note>
+  The full secret is returned only in this response — copy it now. From then on the key is stored as a hash and every other endpoint returns just `prefix`/`last4`.
+</Note>
+
+Accounts can hold up to **10 keys**. Past that, this endpoint answers `409 API_KEY_LIMIT_REACHED` — delete an unused key first.
+
+### Body
+
+<ParamField body="name" type="string" required>
+  1–40 characters.
+</ParamField>
+
+<ParamField body="scopes" type="string[]" required>
+  At least one scope from the [catalog](/api-reference/introduction#scopes). Presets `read`/`write`/`full` on the dashboard expand to these before the request is sent.
+</ParamField>
+
+<ParamField body="allowed_ips" type="string[]">
+  IPs or CIDRs allowed to use the key, up to 20 entries. Omitted or empty means any IP.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIApiKeyCreated">
+  Same shape as [List API Keys](/api-reference/endpoint/users/api-keys/list), plus the secret.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string" />
+  <ResponseField name="name" type="string" />
+  <ResponseField name="prefix" type="string" />
+  <ResponseField name="last4" type="string" />
+  <ResponseField name="scopes" type="string[]" />
+  <ResponseField name="allowed_ips" type="string[]" />
+  <ResponseField name="created_at" type="string" format="date-time" />
+  <ResponseField name="last_used_at" type="null" />
+  <ResponseField name="api_key" type="string">The full secret (`vc_live_` + 48 hex). Shown once, never recoverable afterwards.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (201)
+{
+  "response": {
+    "id": "b7e2d1a4-...",
+    "name": "CI deploy",
+    "prefix": "vc_live_a1b2c3d4",
+    "last4": "9f0e",
+    "scopes": ["apps:read", "apps:write"],
+    "allowed_ips": [],
+    "created_at": "2026-09-11T12:00:00Z",
+    "last_used_at": null,
+    "api_key": "vc_live_a1b2c3d4...9f0e"
+  }
+}
+```
+
+</ResponseExample>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `API_KEY_INVALID_NAME` | Name is empty or longer than 40 characters. |
+| 400 | `API_KEY_INVALID_SCOPES` | `scopes` is empty or has an entry outside the catalog. |
+| 400 | `API_KEY_INVALID_IPS` | An entry in `allowed_ips` isn't a valid IP/CIDR, or there are more than 20. |
+| 403 | `API_KEY_SCOPE_DENIED` | The session is an API key. |
+| 409 | `API_KEY_LIMIT_REACHED` | The account already has 10 keys. |

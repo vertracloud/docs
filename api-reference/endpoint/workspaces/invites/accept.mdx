@@ -1,0 +1,42 @@
+---
+title: Accept Invite
+sidebarTitle: Accept
+api: POST https://api.vertracloud.app/v1/workspaces/invites/{token}/accept
+authMethod: bearer
+description: Accepts an invite and joins the workspace. Any logged-in account; an API key needs the `workspaces:invites` scope.
+---
+
+{/* @see RESTPostAPIWorkspaceInviteAcceptResponse — @vertracloud/api-types */}
+<Note>
+  An API key needs the `workspaces:invites` scope and acts as the account that owns it: an
+  e-mail invite only matches if that account's e-mail is the invited one. Same 10/min session+IP
+  rate limit as [Preview Invite](/api-reference/endpoint/workspaces/invites/preview).
+</Note>
+
+For an **e-mail** invite, the accepting account's e-mail must match the invited address
+(compared NFKC-normalized, case-insensitive) — otherwise `WORKSPACE_INVITE_EMAIL_MISMATCH`. A
+**link** invite has no such check.
+
+<Note>
+  Accepting is idempotent if you're already a member: you get `200` back, not a `409` — clicking
+  an old invite link you already used doesn't error.
+</Note>
+
+### Path
+
+<ParamField path="token" type="string" required>The invite token.</ParamField>
+
+### Response
+
+Same shape as [Get Workspace](/api-reference/endpoint/workspaces/get) — the workspace just joined.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key that lacks the `workspaces:invites` scope. |
+| 403 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | (e-mail invite) Caller's e-mail doesn't match the invited address. |
+| 403 | `WORKSPACE_INVITES_DISABLED` | Workspace has invites turned off. |
+| 404 | `WORKSPACE_INVITE_NOT_FOUND` | Token doesn't exist, or the invite was revoked or exhausted. |
+| 409 | `WORKSPACE_MEMBER_LIMIT_REACHED` | Owner's plan member cap reached. |
+| 410 | `WORKSPACE_INVITE_EXPIRED` | Invite existed but its expiry has passed. |

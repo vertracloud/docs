@@ -1,0 +1,147 @@
+---
+title: Update Application Configuration
+sidebarTitle: Update Configuration
+api: PATCH https://api.vertracloud.app/v1/apps/{id}/config
+authMethod: bearer
+description: Updates the stored configuration of an application by its ID.
+---
+
+{/* @see RESTPostAPIApplicationUpdateConfigResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to update. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<Note>
+  **Send only the fields you want to change.** Every body field is optional, but at least one must be present — an empty body is rejected. Fields you omit keep their current value.
+</Note>
+
+<ParamField body="name" type="string">
+  The application display name. Maximum 50 characters.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  The application description. Maximum 128 characters. Send `null` to clear it.
+</ParamField>
+
+<ParamField body="main_file" type="string">
+  The entrypoint file of the application (e.g., `index.js`). Cannot be empty.
+</ParamField>
+
+<ParamField body="language" type="string">
+  The application's runtime language. One of `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`. Any other value is rejected.
+</ParamField>
+
+<Note>
+  **Changing the language resets the version.** When `language` differs from the application's current language, `version` is forced to `recommended` in the same update, even if the request body also sends an explicit `version` — the version stored for the old language may not exist for the new one. `main_file` and `start_command` are not adjusted automatically; an entrypoint or start command written for the old language may not run under the new one.
+</Note>
+
+<ParamField body="version" type="string">
+  The runtime version. Accepts `recommended`, `latest`, `auto` or an explicit version string supported by the application's language. Cannot be empty.
+</ParamField>
+
+<ParamField body="start_command" type="string | null">
+  A custom start command (e.g., `node index.js`). Maximum 512 characters. Send `null` to fall back to the default command for the language.
+</ParamField>
+
+<ParamField body="build_command" type="string | null">
+  An optional build command (e.g., `npm run build`). Maximum 512 characters. Send `null` to
+  remove it. Runs on the next deploy, after dependency installation and before the application
+  starts, in an isolated build environment (2× the application's RAM, min 1,024 MB max 4,096 MB;
+  2× its vCPU, min 1 max 2; 10-minute timeout). Available on every plan. A plain restart does not
+  re-run the build if the previous one succeeded with the same command.
+</ParamField>
+
+<ParamField body="ram" type="integer">
+  The memory allocated to the application, in MB. Must be an integer of at least `100`. Applications published on the web (with a subdomain or a custom domain) require at least `512`.
+</ParamField>
+
+<Note>
+  **Changing the memory changes the application's disk ceiling.** The volume quota is derived from the allocated memory, so lowering `ram` lowers how much the application is allowed to store — which is why lowering it can be refused with `409 STORAGE_ABOVE_NEW_LIMIT`. See [Common Error Codes](/api-reference/introduction#what-error-codes-can-the-api-return).
+</Note>
+
+<Note>
+  **Changing `build_command` counts against the account's hourly deploy budget**, the same one
+  creating an application or uploading a ZIP draws from. See [Deploy rate limits](/api-reference/introduction).
+</Note>
+
+### Response
+
+<ResponseField name="response" type="string">
+  The operation status (`success`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": "success"
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `USER_NOT_FOUND`: The request is not authenticated (`401`).
+  - `VALIDATION_ERROR`: A field failed validation — wrong type, over the length limit, or an empty body (`400`). The response carries `message` and `path` pointing at the offending field.
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `APPLICATION_SHIELD_COOLDOWN`: Vertra Shield temporarily paused the application; retry after the cooldown (`403`).
+  - `OWNER_APP_WITHOUT_LIMITS`: The plan limits of the application owner could not be read, so the requested memory cannot be validated (`404`).
+  - `MEMORY_BELOW_MINIMUM`: The requested memory is below the minimum for this application — `512` MB for a web-published application (`400`).
+  - `MEMORY_LIMIT_EXCEEDED`: The requested memory does not fit in the plan's remaining memory, counting every other resource of the owner (`400`).
+  - `STORAGE_ABOVE_NEW_LIMIT`: The volume already holds more than the disk ceiling implied by the requested memory (`409`). Nothing was changed. See below.
+  - `DEPLOY_RATE_LIMITED`: A `build_command` change was requested and the account's hourly deploy budget for its plan was already reached (`429`).
+  - `INTERNAL_SERVER_ERROR`: The configuration could not be updated (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseField name="details" type="object">
+  Present on `STORAGE_ABOVE_NEW_LIMIT`. Carries `used_mb`, `limit_mb` and `free_mb` — how much the volume holds, the ceiling the requested memory would impose, and how much has to be deleted before the change is accepted.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "MEMORY_LIMIT_EXCEEDED"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "STORAGE_ABOVE_NEW_LIMIT",
+  "details": {
+    "used_mb": 2048,
+    "limit_mb": 1024,
+    "free_mb": 1024
+  }
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route writes configuration; it does not restart or rebuild the container. The new values take effect on the next rebuild of the application.
+</Note>

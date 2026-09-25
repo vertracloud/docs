@@ -1,0 +1,109 @@
+---
+title: 'Connect Your Application to a Managed Database'
+sidebarTitle: 'Connect a database'
+description: 'Create a PostgreSQL, MongoDB, Redis or MySQL database, ship its certificates with your app, and keep the credentials in environment variables.'
+icon: 'plug'
+---
+
+Databases on Vertra Cloud require TLS **and** a client certificate: a password alone never connects.
+This guide takes an application from "no database" to a verified connection, with the secrets kept
+out of your code.
+
+## Before you start
+
+<Check>A paid plan: Free doesn't create databases.</Check>
+<Check>Enough free RAM: 1,024 MB for PostgreSQL, MongoDB and MySQL; 512 MB for Redis.</Check>
+
+## Step by step
+
+<Steps>
+  <Step title="Create the database">
+    In the dashboard, click **New Project**, choose **Database** and pick the engine. It's ready when
+    its status turns **Online**.
+  </Step>
+  <Step title="Collect host, port and password">
+    All three are on the database page. The port is **unique per database**: never assume 5432,
+    27017, 6379 or 3306.
+  </Step>
+  <Step title="Download the certificates">
+    In the **Certificates** tab, download the three files and rename them to something stable:
+
+    | Downloaded | Rename to | Role |
+    |---|---|---|
+    | `certificate-<id>.crt` | `certs/db.crt` | client certificate |
+    | `certificate-<id>.key` | `certs/db.key` | client key |
+    | `certificate-<id>.pem` | `certs/db.pem` | CA file |
+  </Step>
+  <Step title="Ship the certificates with the application">
+    Put the `certs/` folder in the project you upload. If you deploy from GitHub, add `certs/` to
+    `.gitignore` and upload the folder through the application's **Files** tab instead: the key
+    authenticates as you and must never live in a repository.
+  </Step>
+  <Step title="Store the credentials as environment variables">
+    In the application's **Config** tab, add:
+
+    ```ini
+    DB_HOST=<host>
+    DB_PORT=<port>
+    DB_PASSWORD=<password>
+    ```
+
+    Restart the application so the process sees them.
+  </Step>
+  <Step title="Connect">
+    Read everything from the environment. PostgreSQL with Node.js:
+
+    ```javascript
+    const fs = require('fs');
+    const { Pool } = require('pg');
+
+    const pool = new Pool({
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT),
+      user: 'postgres',
+      database: 'postgres',
+      password: process.env.DB_PASSWORD,
+      ssl: {
+        ca: fs.readFileSync('certs/db.pem'),
+        cert: fs.readFileSync('certs/db.crt'),
+        key: fs.readFileSync('certs/db.key'),
+        rejectUnauthorized: true,
+      },
+    });
+
+    pool.query('select 1').then(() => console.log('database ok'));
+    ```
+
+    The same pattern for Python, MongoDB, Redis and MySQL is on the
+    [Databases](/databases#how-do-i-connect-to-each-engine) page.
+  </Step>
+</Steps>
+
+## Test from your machine first
+
+The connection works the same from your computer, which is the fastest way to tell a code problem
+from a credential problem:
+
+```bash
+psql "host=<host> port=<port> dbname=postgres user=postgres password=<password> sslmode=verify-full sslrootcert=certs/db.pem sslcert=certs/db.crt sslkey=certs/db.key"
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection refused or timeout">
+    Check the port on the database page and that the database is **Online**.
+  </Accordion>
+  <Accordion title="SSL or certificate errors">
+    TLS must be on, and the three files must be the current ones. After **Reset Certificates**, the
+    old files stop working: download them again and redeploy them.
+  </Accordion>
+  <Accordion title="Authentication failed">
+    Copy the password again; after **Reset Password**, update `DB_PASSWORD` and restart the app.
+    MongoDB also needs `authSource=admin` in the URI.
+  </Accordion>
+  <Accordion title="ENOENT: no such file certs/db.pem">
+    The path is relative to the process's working directory, the project root. Check the folder
+    exists in the **Files** tab.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,281 @@
+---
+title: Create Application
+sidebarTitle: Create Application
+api: POST https://api.vertracloud.app/v1/apps
+authMethod: bearer
+description: Creates a new application with the provided configuration and files.
+---
+
+{/* @see APIApplication, RESTPostAPIApplicationCreateBody — @vertracloud/api-types */}
+The application has **two mutually exclusive sources** — send exactly one of `file` or
+`snapshot_id`. Neither → `SOURCE_REQUIRED`; both → `SOURCE_CONFLICT`.
+
+<ParamField body="file" type="file">
+  The ZIP file containing the application code (maximum size: 100 MB). Absent when the source is
+  `snapshot_id`.
+</ParamField>
+
+<ParamField body="snapshot_id" type="string">
+  Alternative source to `file`: the id of an **application** snapshot to create the app from. The
+  platform downloads the snapshot (which already carries the `vertracloud.config`) and builds the
+  app from it. Sent as a text field of the multipart body — same size limit as `file` (100 MB).
+</ParamField>
+
+<ParamField body="memory" type="string">
+  The amount of RAM to allocate for the application in MB. Minimum 100 MB. Required with `file`; with `snapshot_id` it is optional and falls back to the snapshot's `vertracloud.config`. When a `subdomain` is
+  requested the value is raised to at least 512 MB automatically — web applications have their own
+  memory floor.
+</ParamField>
+
+<ParamField body="start" type="string">
+  The application startup command.
+</ParamField>
+
+<ParamField body="build" type="string">
+  An optional build command, up to 512 characters (e.g. `npm run build`). Runs after dependency
+  installation and before the application starts, in an isolated build environment — 2× the
+  application's RAM (min 1,024 MB, max 4,096 MB) and 2× its vCPU (min 1, max 2), with a 10-minute
+  timeout. Available on every plan. See [Update Application Configuration](/api-reference/endpoint/apps/updateconfig) to change it later.
+</ParamField>
+
+<ParamField body="main" type="string">
+  The main file of the application. Required with `file`; with `snapshot_id` it is optional and falls back to the snapshot's `vertracloud.config`.
+</ParamField>
+
+<ParamField body="version" type="string">
+  Required with `file`; with `snapshot_id` it falls back to the snapshot's `vertracloud.config`. The application runtime version: `recommended`, `latest`, or a specific version supported by the
+  detected runtime (e.g. `22`).
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  The application display name. Maximum 50 characters.
+</ParamField>
+
+<ParamField body="description" type="string">
+  An application description.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  The workspace ID to associate with the application, if applicable.
+</ParamField>
+
+<ParamField body="subdomain" type="string">
+  The subdomain for the application (e.g., `myapp`). Whitespace is replaced with `-` and the value is
+  lowercased before validation; the accepted format is `^[a-z0-9-]+$`. Send `random` to let the
+  platform pick one for you. Omit the field entirely to create a private application with no web
+  publishing — you can turn it on later with
+  [Publish Application on the Web](/api-reference/endpoint/apps/network/publish).
+
+  Requires plan support for web publishing.
+</ParamField>
+
+<ParamField body="envs" type="string">
+  A JSON string containing an array of environment variables, each with `key`, `value` and an
+  optional `note`. Maximum key length 255, maximum value length 3072, maximum note length 50.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The details of the created application.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The application ID.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    The application owner ID.
+  </ResponseField>
+
+  <ResponseField name="owner_plan_id" type="integer">
+    The owner's plan ID.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The application name.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    The application description.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="integer">
+    The application cluster ID.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    The application status (e.g., `up`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="integer">
+    The application RAM in MB.
+  </ResponseField>
+
+  <ResponseField name="type" type="integer">
+    The application type.
+  </ResponseField>
+
+  <ResponseField name="language" type="string">
+    The application programming language (e.g., `javascript`).
+  </ResponseField>
+
+  <ResponseField name="subdomain" type="string | null">
+    The application subdomain, if applicable.
+  </ResponseField>
+
+  <ResponseField name="custom_domain" type="string | null">
+    The custom domain of the application, if applicable.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the application was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    The timestamp when the application was last updated.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    The timestamp of the application's last snapshot.
+  </ResponseField>
+
+  <ResponseField name="main_file" type="string">
+    The main file of the application.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    The runtime version (e.g., `recommended` or `latest`).
+  </ResponseField>
+
+  <ResponseField name="start_command" type="string | null">
+    The startup command for the application, if specified.
+  </ResponseField>
+
+  <ResponseField name="build_command" type="string | null">
+    The build command, if specified. Runs after dependency installation and before the
+    application starts.
+  </ResponseField>
+
+  <ResponseField name="offline_since" type="string | null" format="date-time">
+    The timestamp since the application went offline, if applicable.
+  </ResponseField>
+
+  <ResponseField name="shield_cooldown" type="object | null">
+    Present while Vertra Shield has paused the application. Includes `until` (the cooldown end time),
+    `reason` (`burst` or `rate_limit`), and `direction` (`in` or `out`); `null` when no cooldown is active.
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    Linked GitHub repository (`repo_owner`, `repo_name`) when auto-deploy is connected; `null`
+    when the app was created from a zip or snapshot. The webhook URL is not included — use
+    `GET /v1/apps/{id}/deploys/webhook` for that.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "owner_id": "user-123456789012345678",
+    "owner_plan_id": 1,
+    "name": "API Simples",
+    "description": "I have a description :)",
+    "cluster": 1,
+    "status": "up",
+    "ram": 128,
+    "type": 2,
+    "language": "javascript",
+    "subdomain": "myapp.vertraweb.app",
+    "custom_domain": null,
+    "last_snapshot": "2026-03-20T19:58:00Z",
+    "main_file": "index.js",
+    "version": "recommended",
+    "start_command": null,
+    "build_command": null,
+    "offline_since": null,
+    "shield_cooldown": null,
+    "github": null,
+    "created_at": "2026-03-20T19:58:00Z",
+    "updated_at": "2026-03-20T19:58:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The multipart body failed validation (`400`). The response also carries
+    `message` and `path` pointing at the offending field.
+  - `USER_NOT_FOUND`: The request is not authenticated (`403`), or the owner's limits could not be
+    resolved (`404`).
+  - `MAX_APPS_REACHED`: The plan's application limit has been reached (`403`).
+  - `INVALID_ZIP`: The uploaded file is not a readable ZIP (truncated or corrupted) (`400`).
+  - `MAIN_FILE_NOT_FOUND`: The file named in `main` does not exist inside the ZIP (`400`).
+  - `ZIP_TOO_SMALL`: The uploaded file is smaller than 100 bytes (`400`).
+  - `FILE_TOO_LARGE`: The uploaded file exceeds the 100 MB limit (`400`).
+  - `SOURCE_REQUIRED`: Neither `file` nor `snapshot_id` was sent (`400`).
+  - `SOURCE_CONFLICT`: Both `file` and `snapshot_id` were sent (`400`).
+  - `SNAPSHOT_NOT_FOUND`: The `snapshot_id` doesn't exist or doesn't belong to the caller (`404`).
+  - `SNAPSHOT_TYPE_MISMATCH`: The snapshot is a database snapshot, not an application one (`400`).
+  - `SNAPSHOT_TOO_LARGE`: The snapshot exceeds the same 100 MB creation ceiling as `file` (`400`).
+  - `MEMORY_REQUIRED`: `memory` was omitted and the snapshot's `vertracloud.config` has no usable `MEMORY` (`400`).
+  - `FREE_PLAN_NO_WEB_PUBLISH`: A `subdomain` was requested but the owner's plan does not include
+    web publishing (`403`).
+  - `INVALID_MEMORY_FORMAT`: `memory` is not a number (`400`).
+  - `MEMORY_MUST_BE_INTEGER`: `memory` is not an integer (`400`).
+  - `MEMORY_BELOW_MINIMUM`: `memory` is below the minimum for the application type (`400`).
+  - `MEMORY_LIMIT_EXCEEDED`: The requested memory exceeds the memory still available on the plan (`400`).
+  - `SUBDOMAIN_ALREADY_IN_USE`: The requested subdomain is already taken (`400`).
+  - `SUBDOMAIN_FORBIDDEN`: The requested subdomain is on the platform's reserved list (`400`).
+  - `USER_LIMITS_NOT_FOUND`: The owner's limits record could not be loaded (`404`).
+  - `INVALID_LANGUAGE`: The application language could not be determined (`500`).
+  - `INTERNAL_SERVER_ERROR`: The application was created but could not be read back (`500`).
+  - `INSTALL_TIMEOUT`: Dependency installation exceeded 15 minutes (`422`). The application is not created.
+  - `BUILD_FAILED`: The `build` command exited with an error (`422`). The application is not created.
+  - `BUILD_TIMEOUT`: The `build` command exceeded 10 minutes (`422`). The application is not created.
+  - `DEPLOY_RATE_LIMITED`: The account's hourly deploy budget for its plan was reached (`429`). See [API Reference Introduction](/api-reference/introduction).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error. Present on `VALIDATION_ERROR`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Main file is required",
+  "path": "main"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "MAIN_FILE_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "FREE_PLAN_NO_WEB_PUBLISH"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  An application created without `subdomain` stays private. You can turn web publishing on later
+  with [Publish Application on the Web](/api-reference/endpoint/apps/network/publish), and off again
+  with the same route.
+</Note>

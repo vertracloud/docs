@@ -1,0 +1,169 @@
+---
+title: 'How to Host a Django Application on Vertra Cloud'
+sidebarTitle: 'Django'
+description: 'Deploy a Django project to Vertra Cloud: Gunicorn, ALLOWED_HOSTS with your subdomain, static files, migrations and a managed database.'
+icon: 'python'
+---
+
+## Requirements
+
+- Python 3.11+ installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+- `requirements.txt` file at project root
+
+## Project Structure
+
+```
+my-django-project/
+├── manage.py
+├── my_project/
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── my_apps/
+│   ├── models.py
+│   ├── views.py
+│   └── urls.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+## Configuration
+
+### requirements.txt
+
+```txt
+django==4.2.0
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+python-decouple==3.8
+whitenoise==6.5.0
+```
+
+<Note>
+  The platform automatically runs `pip install -r requirements.txt`. Do not include `venv` or `__pycache__` in the upload.
+</Note>
+
+### settings.py
+
+Configure your `settings.py` for production:
+
+```python
+import os
+from pathlib import Path
+from decouple import config
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Security
+SECRET_KEY = config('SECRET_KEY', default='dev-key-change-in-production')
+DEBUG = config('DEBUG', default=False, cast=bool)
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+
+# Applications
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'my_apps',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add WhiteNoise
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+]
+
+ROOT_URLCONF = 'my_project.urls'
+
+# Database
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME', default='postgres'),
+        'USER': config('DB_USER', default='postgres'),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT'),  # unique per database, copy it from the dashboard
+        # Vertra databases require TLS and the client certificate (see /databases)
+        'OPTIONS': {
+            'sslmode': 'verify-full',
+            'sslrootcert': config('DB_SSL_PEM', default='certificate.pem'),
+            'sslcert': config('DB_SSL_CRT', default='certificate.crt'),
+            'sslkey': config('DB_SSL_KEY', default='certificate.key'),
+        },
+    }
+}
+
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# HTTPS
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+```
+
+### vertracloud.config
+
+```ini
+MAIN=manage.py
+START=gunicorn --bind 0.0.0.0:$PORT my_project.wsgi:application
+VERSION=recommended
+```
+
+<Warning>
+  Before deployment, run `python manage.py collectstatic --noinput` locally to compile static files.
+</Warning>
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compress the project into a `.zip` (folders like `node_modules`, `venv` and `target` are removed automatically) or push it to GitHub.
+    2. In the dashboard, click **New Project** and upload the `.zip` or paste the repository URL.
+    3. In **Build**, check the runtime (**Python**), the main file (`manage.py`) and the memory. Start and build commands are under **Advanced settings**.
+    4. Add your environment variables in **Environment**.
+    5. In **Network**, turn on **web publishing** so the app gets a `*.vertraweb.app` address (Pro plan or higher, 512 MB of memory). The app must listen on port 80.
+    6. Review and deploy. Follow the output in the **Logs** tab.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra deploy
+    vertra logs -f
+    ```
+    See [CLI](/cli) for installation and login.
+  </Tab>
+  <Tab title="VS Code">
+    Open the folder with the Vertra Cloud extension installed and run **Deploy current project**. See [VS Code extension](/vscode-extension).
+  </Tab>
+</Tabs>
+
+The full walkthrough is in [First deploy](/how-to-host).
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 3.13 | Recommended and latest | Python 3.13 LTS (recommended for production) |
+| 3.12 | Stable | Python 3.12 with extended support |
+| 3.11 | Legacy | Python 3.11 with limited support |
+
+## Notes
+
+- **Production server**: Use `gunicorn` to serve the Django application
+- **Static files**: Run `collectstatic` and configure `WhiteNoise` before deployment
+- **Database**: Configure `psycopg2-binary` for PostgreSQL
+- **Migrations**: Run `python manage.py migrate` before first deployment
+- **Environment variables**: Configure `SECRET_KEY`, database credentials and `DEBUG=False`
+- **Auto-restart**: Enabled by default

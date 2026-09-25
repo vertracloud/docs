@@ -1,0 +1,108 @@
+### CLI installer for macOS, Linux and Windows
+
+The CLI is now a single, dependency-free binary that installs with one command:
+
+- **macOS and Linux:** `curl -fsSL https://cli.vertracloud.app/install | sh`
+- **Windows (PowerShell):** `irm https://cli.vertracloud.app/install | iex`
+
+The installer picks the right build for your system and processor (x64 or ARM), verifies the file
+checksum, and puts the `vertra` command on your PATH. To update, run the same command again.
+
+See the [CLI](/cli) page to connect your account and make your first deploy.
+
+### Usage and AI credits removed
+
+Usage credits and AI credits no longer exist on Vertra Cloud. `POST /v1/orders` only accepts
+plan-type orders, and no payload carries `use_credits` or `credits_used` anymore. Legacy credit
+orders from before this change no longer appear in the user's order history.
+
+### Simplified custom domain response
+
+The routes that read and attach a custom domain (`GET` and `POST /v1/apps/{id}/network/custom`)
+now return just `{ "domain": "example.com" }`, matching what the public type already described.
+DNS record validation status remains on the
+[Custom Domain DNS Records](/api-reference/endpoint/apps/network/dns) route.
+
+Two custom domain error codes were renamed to `CUSTOM_DOMAIN_REGISTRATION_FAILED` and
+`CUSTOM_DOMAIN_RECORD_NOT_FOUND`.
+
+If your integration compares these codes, update to the new names.
+
+### Docs refresh: first deploy and configuration
+
+The documentation was refreshed to match today's dashboard:
+
+- **First deploy** rewritten to follow the current New Project flow: source, build, environment,
+  network, review and deploy, including creating from a snapshot.
+- New **[Configuration](/configuration)** page: every `vertracloud.config` key, what can change
+  after deploy, start and build commands by framework, port, environment variables and an
+  application's limits.
+- **GitHub deploy** now explains automatic deploys as they actually work today: Vertra creates the
+  webhook on your repository for you, and only pushes to `main` or `master` publish.
+- Tutorials now use the same deploy walkthrough, whether through the dashboard, the CLI or VS
+  Code.
+- The API reference gained pages for deleting a database, updating a profile and listing all of an
+  account's snapshots, and fixed the delete-environment-variable route, the database update body,
+  and authentication error codes.
+
+### "Powered by Vertra Cloud" badge on Pro
+
+On the **Pro** plan, published HTML pages now show a small **"Powered by Vertra Cloud"** badge in
+the bottom-right corner, linking back to Vertra. It doesn't appear on Scale and above, and
+switching plans turns it on or off immediately, without a redeploy.
+
+### SDKs and GitHub Actions pages on the site
+
+The developer tools section got two new pages on the site:
+
+- [SDKs](https://vertracloud.app/sdks): installation and examples for JavaScript, TypeScript,
+  Python and Go, available features and FAQs.
+- [GitHub Actions](https://vertracloud.app/github-actions): a copyable workflow, secrets
+  configuration and options for updating an existing application.
+
+The pages are available in Portuguese, English and Spanish, with access from the menu and footer.
+
+### Official JavaScript, Python and Go SDKs
+
+#### SDKs
+
+- **`@vertracloud/sdk-api` (npm), `vertracloud-sdk-api` (PyPI) and `github.com/vertracloud/sdk-api-go`**
+  arrive as official clients for the public API. One method per route, authentication via the
+  same scoped API key, and coverage for applications, databases, snapshots, account, workspaces
+  and billing — with no caching, automatic retries or internal state. See [SDKs](/sdks).
+- All three expose **live output streaming** for an application (`apps.realtime`): an async
+  generator in JavaScript, an iterable stream in Python, and an iterator (`Next`/`Event`) in Go.
+- Every error response becomes a **structured error**, always with an accessible `code`: in
+  JavaScript and Python, one exception class per HTTP status (`AuthenticationError`,
+  `NotFoundError`, `ValidationError`, `RateLimitError`, among others); in Go, a single
+  `*rest.APIError` with methods like `IsNotFoundError()` and `IsRateLimitError()`.
+- What remains dashboard-only — activity history, notifications, API key management, workspace
+  invites, the database **Data** tab, plan downgrades and workspace deletion/transfer — is listed
+  in [SDKs → What you can't do with an API key](/sdks).
+
+#### API
+
+- **The deploy webhook creation path is now `/deploys/webhook`, singular** — matching the query
+  and delete routes that already used that form. Reference updated at
+  [Create Deploy Webhook](/api-reference/endpoint/apps/deploys/create).
+- **Activity history is dashboard-only** and has no equivalent in the public API or SDKs.
+
+### Workspaces by API key and MCP
+
+More workspace actions are now available outside the dashboard — through the SDKs, the CLI, the
+VS Code extension and the MCP server:
+
+- **Delete a workspace** with the new `workspaces:delete` scope. Only the workspace owner can,
+  same as in the dashboard.
+- **Invites** with the new `workspaces:invites` scope: list and revoke a workspace's invites, and
+  view, accept or decline an invite by token. The key acts as the account that owns it, so an
+  email invite is only accepted if it matches that account's email.
+- **Action requests**: `workspaces:read` lists requests and `workspaces:write` creates one for
+  someone with approval permission.
+
+The two new scopes aren't included in the `read` and `write` presets — only in `full` or a custom
+selection — and appear unchecked on the connected-app authorization screen. Workspace role
+permissions still apply to the key.
+
+Some workspace operations remain dashboard-only, including creating invites, transferring
+ownership, approving or rejecting action requests, and exporting activity.

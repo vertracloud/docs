@@ -1,0 +1,130 @@
+---
+title: Create or Edit Application Environment Variables
+sidebarTitle: Create/Edit Environment Variables
+api: POST https://api.vertracloud.app/v1/apps/{id}/envs
+authMethod: bearer
+description: Creates or updates environment variables for an application by its ID.
+---
+
+{/* @see APIApplicationEnvironment[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The ID of the application to create or update environment variables for.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<ParamField body="environments" type="array" required>
+  An array of environment variable objects.
+
+  <Expandable title="Toggle object">
+
+  <ParamField name="key" type="string" required>
+    The key of the environment variable (max 100 characters).
+  </ParamField>
+
+  <ParamField name="value" type="string" required>
+    The value of the environment variable (max 1000 characters).
+  </ParamField>
+
+  <ParamField name="note" type="string">
+    An optional note or description for the environment variable.
+  </ParamField>
+
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="array">
+  An array of environment variable objects after creation or update.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The ID of the environment variable.
+  </ResponseField>
+
+  <ResponseField name="key" type="string">
+    The key of the environment variable.
+  </ResponseField>
+
+  <ResponseField name="value" type="string">
+    The value of the environment variable (decrypted).
+  </ResponseField>
+
+  <ResponseField name="note" type="string | null">
+    The optional note or description for the environment variable.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    The timestamp when the environment variable was created.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "env123",
+      "key": "API_KEY",
+      "value": "secret123",
+      "note": "API key for external service",
+      "created_at": "2026-03-14T19:58:00Z"
+    },
+    {
+      "id": "env456",
+      "key": "DATABASE_URL",
+      "value": "mysql://user:pass@database-host/db",
+      "note": null,
+      "created_at": "2026-03-14T19:58:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or lacks sufficient permissions.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `INVALID_BODY`: The request body is not a valid array or is empty.
+  - `INVALID_ENVIRONMENT`: One or more environment variables are invalid or use forbidden keys.
+  - `ENV_VARIABLE_TOO_LONG`: An environment variable key or value exceeds length limits.
+  - `ENV_LIMIT_EXCEEDED`: The total number of environment variables exceeds the limit of 25.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "INVALID_BODY"
+}
+```
+
+</ResponseExample>

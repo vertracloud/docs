@@ -1,0 +1,63 @@
+---
+title: "Download Application"
+sidebarTitle: "Download Application"
+api: "GET https://api.vertracloud.app/v1/apps/{id}/download"
+authMethod: "bearer"
+description: "Downloads the application files as a ZIP file by its ID."
+---
+
+{/* @see binary zip — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to download. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+The response is a binary ZIP file containing the application files plus a `vertracloud.config` generated from the current settings (name, main file, memory, version, start command, auto-restart, subdomain), so the ZIP can be uploaded again with the same configuration.
+
+- **Content-Type**: `application/zip`
+- **Content-Disposition**: `attachment; filename="{id}.zip"`
+- **Content-Length**: O tamanho do arquivo ZIP em bytes.
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+
+  - `UNAUTHORIZED`: The user is not authenticated or does not have sufficient permissions.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+  - `DOWNLOAD_FAILED`: The application files could not be downloaded.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+
+```json Error Response (403)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+
+```json Error Response (400)
+{
+  "code": "DOWNLOAD_FAILED"
+}
+```
+
+</ResponseExample>

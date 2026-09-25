@@ -1,0 +1,58 @@
+---
+title: List API Keys
+sidebarTitle: List
+api: GET https://api.vertracloud.app/v1/users/me/api-keys
+authMethod: bearer
+description: Lists every API key on the authenticated account. Dashboard session only — an API key gets `403 API_KEY_SCOPE_DENIED`.
+---
+
+{/* @see APIApiKey, RESTGetAPIUserApiKeysResponse — @vertracloud/api-types */}
+<Note>
+  Key management is readable and writable only from a dashboard session. Calling any `/v1/users/me/api-keys*` route with an API key answers `403 API_KEY_SCOPE_DENIED` — a leaked key can't list, create or edit keys for itself.
+</Note>
+
+### Response
+
+<ResponseField name="response" type="APIApiKey[]">
+  Every key on the account. The secret itself is never included — only `prefix` and `last4`.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">Key ID.</ResponseField>
+  <ResponseField name="name" type="string">1–40 characters.</ResponseField>
+  <ResponseField name="prefix" type="string">Public start of the key (`vc_live_a1b2c3d4`; 8 hex for keys created before that format).</ResponseField>
+  <ResponseField name="last4" type="string | null">Last 4 characters; `null` for keys generated before the `vc_live_` format.</ResponseField>
+  <ResponseField name="scopes" type="string[]">Scopes the key carries. See [Scopes](/api-reference/introduction#scopes).</ResponseField>
+  <ResponseField name="allowed_ips" type="string[]">Allowed IPs/CIDRs. Empty means any IP.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time" />
+  <ResponseField name="last_used_at" type="string | null" format="date-time">`null` if the key has never been used.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "b7e2d1a4-...",
+      "name": "CI deploy",
+      "prefix": "vc_live_a1b2c3d4",
+      "last4": "9f0e",
+      "scopes": ["apps:read", "apps:write"],
+      "allowed_ips": [],
+      "created_at": "2026-09-11T12:00:00Z",
+      "last_used_at": "2026-09-11T13:30:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | The session is an API key. |

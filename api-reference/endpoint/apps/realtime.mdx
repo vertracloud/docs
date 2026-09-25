@@ -1,0 +1,74 @@
+---
+title: Real-Time Application Logs
+sidebarTitle: Real-Time Application Logs
+api: GET https://api.vertracloud.app/v1/apps/{id}/realtime
+authMethod: bearer
+description: Retrieves real-time logs for an application by its ID, streamed as a text event stream.
+---
+
+{/* @see SSE stream — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  The application ID to retrieve real-time logs. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+The response is streamed as a text event stream (`text/event-stream`). Each log entry is sent as an event with the following format:
+
+- **Event Type**: `logs` for log messages, `system` for stream and platform notices (e.g., `install_note:started`), `heartbeat` for keep-alive events with no content.
+- **Data**: Plain text (not JSON). A `logs` event carries one or more lines separated by newlines, each an ISO 8601 timestamp followed by the log message.
+
+While dependencies are being installed, the stream carries installation output preceded by the
+`install_note:started` system event.
+The installation runs outside the plan's memory limit and the application starts as soon as it finishes.
+
+<ResponseExample>
+
+```text Response
+event: logs
+data: 2026-03-20T19:58:00Z [INFO] Application iniciada com sucesso
+
+event: logs
+data: 2026-03-20T19:58:01Z [DEBUG] Connected to database
+
+event: logs
+data: 2026-03-20T19:58:02Z [ERROR] Failed to process request
+
+event: system
+data: 2026-03-20T19:58:03Z Connection Closed
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated or does not have sufficient permissions.
+  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `FORBIDDEN`: The user does not have permission to access the application.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

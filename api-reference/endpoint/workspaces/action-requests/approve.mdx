@@ -1,0 +1,48 @@
+---
+title: Approve Action Request
+sidebarTitle: Approve
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/action-requests/{request_id}/approve
+authMethod: bearer
+description: Approves and executes a pending action request, as the approver. Requires `members:manage` plus the action's own permission.
+---
+
+{/* @see RESTPostAPIWorkspaceActionRequestApproveResponse — @vertracloud/api-types */}
+<Note>
+  Dashboard session only — outside the API key scope catalog, so an API key gets
+  `403 API_KEY_SCOPE_DENIED`. Deciding a request is a human call, including when an agent
+  connected through MCP asked for it.
+</Note>
+
+Requires `members:manage` **and** the permission the action maps to (see the table on
+[Create Action Request](/api-reference/endpoint/workspaces/action-requests/create)).
+
+<Warning>
+  There's no body on this endpoint — it re-runs the real domain service using the `params`
+  **persisted at creation time**, with the **approver's** identity and permission, never the
+  requester's. This closes two holes at once: nobody can retarget the action by sending a
+  different `resource_id` on approve, and the action never executes under a lesser-privileged
+  identity than the one that actually authorized it.
+</Warning>
+
+If the underlying domain action fails (e.g. the app is already gone), the request **stays
+`pending`** — it doesn't flip to `approved` or `rejected` — so it can be retried until it
+succeeds or expires. Only a successful domain call decides the outcome.
+
+### Path
+
+<ParamField path="id" type="string" required>Workspace ID.</ParamField>
+<ParamField path="request_id" type="string" required>Action request ID.</ParamField>
+
+### Response
+
+Same shape as a [List Action Requests](/api-reference/endpoint/workspaces/action-requests/list) row, `status: "approved"`.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Called with an API key. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Caller lacks `members:manage` or the action's own permission. |
+| 404 | `WORKSPACE_NOT_FOUND` | Workspace doesn't exist or you're not a member. |
+| 404 | `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | Request doesn't exist or belongs to another workspace. |
+| 410 | `WORKSPACE_ACTION_REQUEST_EXPIRED` | Past the 24h expiry — nothing is executed. |
