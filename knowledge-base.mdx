@@ -400,10 +400,14 @@ overwritten on download.
 
 - Containers that crash are restarted automatically — **the default on every plan,
   including Free, always on, with no option to turn it off**
-- Exit code 0 (normal termination) does NOT trigger a restart
-- **Crash loop**: 5 crashes in 10 minutes → auto-restart disabled for 24 hours
-- **Cooldown**: Minimum 1 hour between consecutive restarts
-- **Stability**: The container needs to stay online for 60+ seconds to count as stable
+- Exit code 0 (normal termination) does NOT trigger a restart. Neither do errors a restart can't fix:
+  syntax errors, missing modules, out of memory, a failed install or build, or a Vertra Shield pause
+- **Every other crash is restarted**, even if the application was up for only a few seconds, with a
+  growing wait between attempts: immediately, then 10 s, 30 s, 60 s and 2 min
+- **Crash loop**: up to 5 automatic restarts in a 10-minute window. The 6th crash in that window
+  suspends auto-restart for 24 hours: the application stays stopped and the dashboard says why
+- **Starting or restarting the application manually** clears the crash count and lifts the suspension
+- An application that stays up for 10 minutes leaves the window, so older crashes stop counting
 
 ---
 
@@ -722,7 +726,6 @@ The dashboard automatically strips from the zip, before uploading: `node_modules
   keys per account, each with a name, scopes and optional allowed IPs. New format
   `vc_live_` + 48 hex characters, shown only once; older keys (64 hex) remain valid with
   all scopes. Full detail in §16.
-- **Account switching** — Up to 5 saved accounts in the same browser
 
 ---
 
