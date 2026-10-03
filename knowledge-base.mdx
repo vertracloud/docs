@@ -222,6 +222,9 @@ restart; they are not a separate product surface.
 
 | Feature | Free ("suspended") | Economy | Pro | Scale | Intermediary | Enterprise |
 |----------------|:----:|:-------:|:---:|:-----:|:------------:|:----------:|
+| Billing periods | — | 1 month | 1, 3 or 12 months | 1, 3 or 12 months | 1, 3 or 12 months | 1, 3 or 12 months |
+| Payment | — | PIX | PIX or card | PIX or card | PIX or card | PIX or card |
+| Automatic renewal (card) | — | — | Yes | Yes | Yes | Yes |
 | Databases | — | — (Redis minimum 512 MB doesn't fit) | Yes | Yes | Yes | Yes |
 | Web publishing (site with `*.vertraweb.app` subdomain) | — | — | Yes | Yes | Yes | Yes |
 | Choose the subdomain name | — | — | — | Yes | Yes | Yes |
@@ -267,6 +270,38 @@ Free is an **evaluation plan**: it exists to test the platform before using it i
 - Projects inactive for 30+ days are automatically deleted
 - Email notifications on days 7, 23, 27 before deletion
 - No web publishing, no file manager
+
+### Billing Periods and Payment
+
+- **Periods:** 1, 3 or 12 months. A 3-month purchase gets **5% off** and a 12-month purchase gets
+  **15% off** the monthly price. Economy is monthly only.
+- **Payment methods:** PIX or credit card (Visa and Mastercard). Economy accepts **PIX only**, so it
+  never renews by itself. A coupon can restrict an order to one method.
+- **Prices** are always in R\$. The website shows an approximate US dollar amount next to the price
+  (≈ \$) for reference only; the charge is in reais.
+- **Card = automatic renewal.** A card is saved to the account and the plan renews on the default
+  card, with no loyalty period. Three days before the plan expires the card is charged and an
+  email is sent the same day. If the charge fails it is retried on each of the next 2 days and on
+  the expiration day; if every attempt fails, the plan expires normally. If the bank asks for
+  confirmation, you receive an email to confirm the payment. To stop automatic renewal, use
+  **Cancel renewal** on the Plan card in Billing: the plan stays active until its expiry date and the
+  card stays saved.
+- **PIX doesn't renew.** You only get the usual expiration notice and pay again when you want to.
+- **Billing details are required to buy a plan.** They are needed to issue the service invoice
+  (NFS-e). In Brazil: name, CPF or CNPJ and the full address (CEP, street, number and neighborhood;
+  city and state are filled from the CEP). Outside Brazil: name, street, city, country and postal
+  code. The phone is optional. Set them under Billing; if they are missing, the checkout asks for
+  them before payment. Through the API, an order without them fails with `BILLING_DETAILS_INCOMPLETE`.
+- **Where payment data lives.** Card number, expiry and CVV are typed into a Stripe field and
+  tokenized in the browser; they never reach Vertra. Billing details (name, address, phone, CPF/CNPJ)
+  are stored by Stripe, not by Vertra. Vertra keeps only the card brand, last 4 digits and expiry, to
+  list saved cards.
+- **Refunds.** The first purchase of a paid plan can be refunded in full within 7 days. An
+  **automatic card renewal** can also be refunded in full within 7 days of the charge; the plan goes
+  back to its previous expiration date. Renewals you make yourself, upgrades and plan changes aren't
+  refundable. Requests go to support@vertracloud.app.
+- **Invoices (NFS-e):** the Brazilian service invoice (NFS-e) is issued automatically for every
+  paid order and delivered **by email**, issued in the name and CPF/CNPJ of your billing details. A full refund cancels the invoice.
 
 ---
 
@@ -749,7 +784,7 @@ common sets; scopes can also be chosen individually.
 | Scope | What it allows |
 |---|---|
 | `billing:read` | List orders and check their status |
-| `billing:write` | Create a plan order and generate a PIX payment |
+| `billing:write` | Create a plan order (1, 3 or 12 months) and generate a PIX payment |
 | `redeem:write` | Redeem a promo code |
 | `apps:read` | Check status, metrics, logs, deploys, downloads and network for the application |
 | `apps:write` | Create, start, stop, restart, configure, publish and manage deploys |
@@ -1145,7 +1180,9 @@ A coupon can be percentage-based or a fixed amount (applied once to the total, n
 negative), can have a validity window, redemption limit and plan or duration restrictions. An order of
 R\$0 (a 100% coupon) is delivered instantly, without PIX. A coupon rejected at checkout returns one of the
 codes `COUPON_INVALID`, `COUPON_INACTIVE`, `COUPON_NOT_STARTED`, `COUPON_EXPIRED`,
-`COUPON_EXHAUSTED`, `COUPON_USER_LIMIT`, `COUPON_AUDIENCE`, `COUPON_PLAN`, `COUPON_DURATION`.
+`COUPON_EXHAUSTED`, `COUPON_USER_LIMIT`, `COUPON_AUDIENCE`, `COUPON_PLAN`, `COUPON_DURATION`. A coupon
+that excludes the chosen payment method returns `COUPON_PAYMENT_METHOD`. Billing-period discounts
+(3 months −5%, 12 months −15%) are applied before the coupon.
 
 ---
 
@@ -1164,6 +1201,9 @@ What Vertra Cloud keeps about your account and projects, and for how long. The l
 | Protection incidents (Vertra Shield) | Reason, traffic direction, time and length of the pause | 90 days |
 | Activity history | Actions on the account and projects; for the file manager, path and size only, **never content** | 30 days, including after the project is deleted |
 | Login sessions | Login method, IP, approximate location and device | Until the session expires |
+| Saved cards | Brand, last 4 digits and expiry (the card itself is stored by Stripe) | Until you remove the card or close the account |
+| Billing details | Name, address, CPF/CNPJ and optional phone — stored by **Stripe**, not by Vertra | Until you change them or close the account |
+| Payment and tax records | Orders, transactions and service invoices (NFS-e) | 5 years, as required by tax law |
 | Access records | IP, date and time of each login and of API key use (one record per key, IP and day) | 6 months, as required by Brazil's Marco Civil da Internet (art. 15) |
 | Inactive Free projects | — | Deleted after 30 days without activity, with email warnings on days 7, 23 and 27 |
 

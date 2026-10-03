@@ -9,6 +9,9 @@ description: Generates the PIX charge (QR code) for an unpaid order.
   The order ID.
 </ParamField>
 
+The QR code expires with the order (`expires_at`). Calling this again while the QR code is still
+valid returns the same one.
+
 ### Response
 
 <ResponseField name="response" type="object">
@@ -62,7 +65,12 @@ description: Generates the PIX charge (QR code) for an unpaid order.
   - `USER_NOT_FOUND`: The authenticated user was not found.
   - `ORDER_NOT_FOUND`: The specified order does not exist.
   - `FORBIDDEN`: The order does not belong to the authenticated user.
-  - `ORDER_NOT_PAYABLE`: The order is already paid, cancelled, or has expired.
+  - `ORDER_NOT_PAYABLE`: The order is already paid, cancelled, or has expired (400), or a card payment
+    of the order is still being confirmed (409).
+  - `COUPON_PAYMENT_METHOD`: The order's coupon doesn't allow PIX.
+  - `PAYMENT_METHOD_UNAVAILABLE`: Online payment is temporarily unavailable.
+  - `INVALID_PARAMS`: The `orderId` is malformed.
+  - `RATE_LIMIT_EXCEEDED`: Another payment of the account is being started. Try again shortly.
   - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
 </ResponseField>
 

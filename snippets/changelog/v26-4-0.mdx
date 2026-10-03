@@ -1,0 +1,48 @@
+### Account menu
+
+The account menu now opens a grouped panel: profile, appearance, language, settings, billing, CLI, VS Code, MCP, changelog, docs, support, workspace switching and sign out.
+
+### Pay by card, with automatic renewal
+
+You can now pay for a plan with a Visa or Mastercard credit card, in addition to PIX, without leaving
+the Vertra checkout.
+
+- A card is saved to your account and your plan **renews automatically** on your default card. The
+  card is charged 3 days before the plan expires, and you get an email the same day. If the charge
+  fails, it is retried on each of the next 2 days and on the expiration day; if every attempt fails,
+  the plan expires normally. If your bank asks for confirmation, you receive an email to confirm it.
+- There is no loyalty period. To stop automatic renewal, use **Cancel renewal** on the Plan card under Billing: your plan stays active until its expiry date, your card stays saved, and you can turn renewal back on at any time.
+- PIX payments don't renew by themselves; you keep getting the usual expiration notice.
+- The Economy plan is paid with PIX only, so it never renews automatically.
+- Vertra never sees or stores your card number: the card and your billing details are stored by
+  Stripe, and Vertra keeps only the brand, last 4 digits and expiry.
+
+### Billing details
+
+Buying a plan now requires billing details, because they are needed to issue the service invoice
+(NFS-e). In Brazil: name, CPF or CNPJ and the full address (CEP, street, number and neighborhood; city
+and state are filled from the CEP). Outside Brazil: name, street, city, country and postal code. The
+phone is optional. Set them under Billing; if they are missing, the checkout asks for them before
+payment. Saving a new card doesn't change them.
+
+### Billing periods: 1, 3 or 12 months
+
+Plans can be bought for 1, 3 or 12 months. A 3-month purchase gets 5% off and a 12-month purchase
+gets 15% off the monthly price. The 6-month option was removed. Prices stay in R\$, and the website
+now shows an approximate US dollar amount next to them for reference.
+
+### Automatic service invoices (NFS-e)
+
+The Brazilian service invoice (NFS-e) is issued automatically for every paid order and delivered
+**by email**, issued in the name and CPF or CNPJ of your billing details. Issuance can take a few minutes, and a full refund cancels the
+invoice. Free orders and redeem codes don't generate one.
+
+### API changes
+
+- `POST /v1/orders` only accepts `months` of `1`, `3` or `12`; any other value returns
+  `400 INVALID_MONTHS`. The Economy plan only accepts `1`.
+- Creating an order and checking its status now return `allowed_payment_methods`. For the Economy
+  plan it is `["pix"]`.
+- `POST /v1/orders/{orderId}/initiate/pix` returns the same QR code while it is still valid, and the
+  QR code expires with the order. It returns `409 ORDER_NOT_PAYABLE` while a card payment of the same
+  order is being confirmed.

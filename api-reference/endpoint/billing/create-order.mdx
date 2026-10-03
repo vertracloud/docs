@@ -14,7 +14,9 @@ description: Creates an order to purchase, renew or upgrade a plan.
 </ParamField>
 
 <ParamField body="months" type="integer" required>
-  How many months to purchase.
+  How many months to purchase: `1`, `3` or `12`. The Economy plan only accepts `1`. Any other value
+  returns `INVALID_MONTHS`. A 3-month order gets 5% off and a 12-month order gets 15% off the
+  monthly price; `price` and `discount` already include it.
 </ParamField>
 
 <ParamField body="coupon" type="string">
@@ -68,6 +70,11 @@ description: Creates an order to purchase, renew or upgrade a plan.
     When the order (and its PIX charge, once generated) expires unpaid.
   </ResponseField>
 
+  <ResponseField name="allowed_payment_methods" type="string[]">
+    Payment methods the order accepts. The Economy plan returns `["pix"]`; a coupon restricted to
+    one method narrows the list too.
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -83,7 +90,8 @@ description: Creates an order to purchase, renew or upgrade a plan.
     "duration": 1,
     "discount": { "percent": null, "coupon": null, "price": 24.9 },
     "price": 24.9,
-    "expires_at": "2026-09-22T12:00:00.000Z"
+    "expires_at": "2026-09-22T12:00:00.000Z",
+    "allowed_payment_methods": ["pix"]
   }
 }
 ```
@@ -98,7 +106,7 @@ description: Creates an order to purchase, renew or upgrade a plan.
   - `USER_NOT_FOUND`: The authenticated user was not found.
   - `INVALID_PAYLOAD`: The request body failed validation.
   - `MISSING_PLAN_OR_MONTHS`: `plan` or `months` is missing.
-  - `INVALID_MONTHS`: The requested duration is not an accepted number of months.
+  - `INVALID_MONTHS`: `months` is not `1`, `3` or `12`, or is not `1` for the Economy plan.
   - `INVALID_PLAN`: The plan slug does not exist.
   - `NOT_AN_UPGRADE`: For `type: "upgrade"`, the target plan is not larger than the current one.
   - `PLAN_MISMATCH_FOR_RENEWAL`: For `type: "renew"`, the target plan does not match the current one.
