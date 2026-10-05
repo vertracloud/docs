@@ -1,0 +1,99 @@
+---
+title: Update Billing Details
+sidebarTitle: Update Billing Details
+api: PUT https://api.vertracloud.app/v1/users/me/billing
+authMethod: bearer
+description: Replaces the billing details of the account. Requires the billing:write scope.
+---
+Billing details are used on receipts and invoices, and an order needs them complete. The request
+replaces the saved details. It carries personal data (name, address and CPF/CNPJ), so only send
+values the account owner provided.
+
+<ParamField body="name" type="string" required>
+  The name on receipts and invoices.
+</ParamField>
+
+<ParamField body="address" type="object" required>
+  <Expandable title="Toggle object">
+  <ParamField body="line1" type="string" required>Street name.</ParamField>
+  <ParamField body="number" type="string">Street number, or `S/N`. Required in Brazil.</ParamField>
+  <ParamField body="line2" type="string">Complement, for example `Apt 2`.</ParamField>
+  <ParamField body="district" type="string">Neighborhood (bairro). Required in Brazil.</ParamField>
+  <ParamField body="city" type="string" required>City.</ParamField>
+  <ParamField body="city_code" type="string">Seven-digit IBGE city code. Required in Brazil.</ParamField>
+  <ParamField body="state" type="string">Two-letter state code in Brazil, for example `CE`. Required in Brazil.</ParamField>
+  <ParamField body="postal_code" type="string">Postal code. In Brazil, the 8-digit CEP is required.</ParamField>
+  <ParamField body="country" type="string" required>Two-letter ISO country code, for example `BR`.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="phone" type="string | null">
+  Optional phone number, in E.164 format, for example `+5585999990000`. `null` or omitted removes
+  the saved phone.
+</ParamField>
+
+<ParamField body="tax_id" type="object | null">
+  The CPF or CNPJ. Required in Brazil for the details to be complete. `null` removes the saved
+  document; omitting the field keeps it.
+  <Expandable title="Toggle object">
+  <ParamField body="type" type="string" required>`cpf` or `cnpj`.</ParamField>
+  <ParamField body="value" type="string" required>The document number.</ParamField>
+  </Expandable>
+</ParamField>
+
+Outside Brazil, `line1`, `city` and `postal_code` are enough.
+
+### Response
+
+The saved details, with the document masked, and `complete`. See
+[Get Billing Details](/api-reference/endpoint/billing/get-billing-details) for the fields. The
+response is never cached.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "name": "Ana Souza",
+    "address": {
+      "line1": "Rua das Flores",
+      "number": "120",
+      "line2": null,
+      "district": "Centro",
+      "city": "Fortaleza",
+      "city_code": "2304400",
+      "state": "CE",
+      "postal_code": "60000000",
+      "country": "BR"
+    },
+    "phone": "+5585999990000",
+    "tax_id": { "type": "cpf", "masked": "CPF ••• 47" },
+    "complete": true
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `USER_NOT_FOUND`: The authenticated user was not found.
+  - `BILLING_DETAILS_INVALID`: A field failed validation; its name is in `details.path` (`400`).
+  - `TAX_ID_INVALID`: The CPF or CNPJ is not valid (`400`).
+  - `PAYMENT_METHOD_UNAVAILABLE`: Online payment is temporarily unavailable (`400`).
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "BILLING_DETAILS_INVALID",
+  "details": { "path": "address.postal_code" }
+}
+```
+
+</ResponseExample>

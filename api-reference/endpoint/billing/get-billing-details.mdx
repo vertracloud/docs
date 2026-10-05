@@ -1,0 +1,96 @@
+---
+title: Get Billing Details
+sidebarTitle: Get Billing Details
+api: GET https://api.vertracloud.app/v1/users/me/billing
+authMethod: bearer
+description: Returns the billing details of the account. Requires the billing:read scope.
+---
+An order needs complete billing details. Check `complete` before creating one.
+
+### Response
+
+`response` is `null` until billing details are saved. The response is never cached.
+
+<ResponseField name="response" type="object | null">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="name" type="string | null">
+    The name on receipts and invoices.
+  </ResponseField>
+
+  <ResponseField name="address" type="object | null">
+    <Expandable title="Toggle object">
+    <ResponseField name="line1" type="string">Street name.</ResponseField>
+    <ResponseField name="number" type="string | null">Street number, or `S/N`.</ResponseField>
+    <ResponseField name="line2" type="string | null">Complement, for example `Apt 2`.</ResponseField>
+    <ResponseField name="district" type="string | null">Neighborhood (bairro).</ResponseField>
+    <ResponseField name="city" type="string">City.</ResponseField>
+    <ResponseField name="city_code" type="string | null">Seven-digit IBGE city code.</ResponseField>
+    <ResponseField name="state" type="string | null">Two-letter state code in Brazil.</ResponseField>
+    <ResponseField name="postal_code" type="string | null">Postal code (CEP in Brazil).</ResponseField>
+    <ResponseField name="country" type="string">Two-letter ISO country code.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="phone" type="string | null">
+    Optional phone number, in E.164 format.
+  </ResponseField>
+
+  <ResponseField name="tax_id" type="object | null">
+    <Expandable title="Toggle object">
+    <ResponseField name="type" type="string">`cpf` or `cnpj`.</ResponseField>
+    <ResponseField name="masked" type="string">The document, masked. The full number is never returned.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="complete" type="boolean">
+    `true` when the details are enough to create an order (in Brazil, including the CPF/CNPJ).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "name": "Ana Souza",
+    "address": {
+      "line1": "Rua das Flores",
+      "number": "120",
+      "line2": null,
+      "district": "Centro",
+      "city": "Fortaleza",
+      "city_code": "2304400",
+      "state": "CE",
+      "postal_code": "60000000",
+      "country": "BR"
+    },
+    "phone": "+5585999990000",
+    "tax_id": { "type": "cpf", "masked": "CPF ••• 47" },
+    "complete": true
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `UNAUTHORIZED`: The user is not authenticated.
+  - `USER_NOT_FOUND`: The authenticated user was not found.
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "UNAUTHORIZED"
+}
+```
+
+</ResponseExample>
