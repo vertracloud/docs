@@ -3,7 +3,7 @@ title: Upload Files to Application
 sidebarTitle: Upload Files
 api: POST https://api.vertracloud.app/v1/apps/{id}/files/upload
 authMethod: bearer
-description: Uploads a single file or a ZIP archive to an application. Optionally restarts the app after upload.
+description: Uploads a single file or a ZIP archive to a folder of an application. Optionally restarts the app after upload.
 ---
 
 {/* @see success/error — @vertracloud/api-types */}
@@ -15,6 +15,10 @@ description: Uploads a single file or a ZIP archive to an application. Optionall
   If set to `"true"`, the application will automatically restart after the upload completes.
 </ParamField>
 
+<ParamField query="path" type="string">
+  The destination folder, relative to the application's root. Leave it empty or omit it to upload to the root. A ZIP is extracted inside this folder, and a loose file is written to `path/<filename>`. Folders in the path are created if they don't exist. Path segments such as `..` are rejected.
+</ParamField>
+
 <ParamField query="workspace_id" type="string">
   If the application belongs to a workspace, the workspace's ID. Members with an Owner, Admin or Developer role can use the file manager on a workspace app they don't own; without this, only the app's own owner can.
 </ParamField>
@@ -22,7 +26,7 @@ description: Uploads a single file or a ZIP archive to an application. Optionall
 <ParamField body="file" type="file" required>
   The file to upload — either a single loose file (written at its target path as-is) or a ZIP archive.
 
-  A ZIP is **extracted on top of** the application's existing volume: files it contains overwrite the matching paths, but files already on disk that aren't in the ZIP are left untouched — it's a merge, not a replace. Forbidden directories (`node_modules`, `.git`, `.local`, and similar) are stripped from the ZIP on the server before extraction, regardless of what the archive contains.
+  A ZIP is **extracted on top of** the destination folder (`path`, or the application's root): files it contains overwrite the matching paths, but files already on disk that aren't in the ZIP are left untouched — it's a merge, not a replace. Forbidden directories (`node_modules`, `.git`, `.local`, and similar) are stripped from the ZIP on the server before extraction, regardless of what the archive contains.
 
   Multipart upload is capped at 100 MB; a ZIP is also capped at 512 MB once decompressed.
 </ParamField>
@@ -52,6 +56,9 @@ description: Uploads a single file or a ZIP archive to an application. Optionall
   - `APP_NOT_FOUND`: The specified application does not exist.
   - `NO_FILE_UPLOADED`: No file was provided in the request (`400`).
   - `INVALID_ZIP_STRUCTURE`: The zip could not be read (`400`).
+  - `INVALID_PATH`: The `path` query parameter is malformed or tries to leave the application's root, for example with `..` (`400`).
+  - `FORBIDDEN_PATH`: The destination is a folder reserved by the platform (`403`).
+  - `PATH_IS_FILE`: The destination exists and is a file, not a folder (`409`).
   - `UNKNOWN_ERROR`: An unexpected platform error occurred.
   - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
 </ResponseField>
