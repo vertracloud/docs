@@ -42,6 +42,9 @@ restarts.
 | Environment variables | Stay as they are, unless you ask for them to come back |
 | Process | Restarts. The build command runs again if the application has one |
 
+A rollback rebuilds the application from that release's source code; dependencies are reinstalled only when they
+changed.
+
 **The code goes back; your data does not.** A rollback never touches what the application created while running.
 If you also need earlier data, restore a [snapshot](/guides/backups-snapshots).
 
@@ -152,24 +155,6 @@ run twice for a short time.
 - **Overlap at the switch.** The two versions can both answer for a few seconds around the switch. For an
   application that was started before zero-downtime deploys were turned on, the first switch can drop a few
   requests.
-
-## Compared with Railway
-
-Railway documents a similar set of tools. This table describes how each platform behaves according to its
-documentation, which was consulted on **October 11, 2026**. Both change over time, so check the linked pages.
-
-| | Vertra Cloud | Railway |
-|---|---|---|
-| Replacing a deployment | Zero downtime on Enterprise: the new version starts next to the running one and traffic switches when it is healthy | By default the previous deployment is stopped and removed after the new one deploys. Overlap time and draining time are configurable ([deployment teardown](https://docs.railway.com/deployments/deployment-teardown)) |
-| Health check | Any HTTP response counts, including `404`. Failure is a refused connection, a timeout or a `5xx`. Configurable path | Any `2xx` response counts. Configurable path and timeout, 300 seconds by default ([healthchecks](https://docs.railway.com/deployments/healthchecks)) |
-| Failed new version | Discarded after about 2 minutes; the previous version keeps running | The deploy is marked failed; with a health check, the previous deployment keeps serving ([healthchecks](https://docs.railway.com/deployments/healthchecks), [roll back a bad deploy](https://docs.railway.com/guides/roll-back-bad-deploy)) |
-| Applications with a volume | Deploys without downtime on Enterprise; both processes share the application's folder | A service with an attached volume has a small amount of downtime on redeploy, even with a health check, to avoid two deployments mounting the same volume ([healthchecks](https://docs.railway.com/deployments/healthchecks)) |
-| Manual rollback | Restores the code of an earlier release. Variables optional, with a names-only preview. Files the application writes at runtime are kept | Restores the previous deployment's Docker image and its custom variables, within the plan's retention ([deployment actions](https://docs.railway.com/deployments/deployment-actions), [roll back a bad deploy](https://docs.railway.com/guides/roll-back-bad-deploy)) |
-| After a crash or a bad deploy | Automatic rollback to the previous version within 60 seconds of a deploy, on Intermediary and above; auto-restart for crashes | Restart policy: `Always`, `On Failure` (default, up to 10 restarts) or `Never` ([restart policy](https://docs.railway.com/deployments/restart-policy)) |
-
-The artifact is different. Railway rolls back to the image that was already built. Vertra Cloud keeps the
-source code of each release, and a rollback rebuilds from it; reinstalling dependencies is skipped when they did
-not change. Each approach has its own trade-offs, and which one fits depends on the application.
 
 ## Related
 
