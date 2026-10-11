@@ -35,9 +35,10 @@ What the rollback does:
 - **Restart:** the application restarts with a forced build, so its build command runs again if it has one.
 - **Release history:** the version that was running becomes `rolled_back`, and the new release becomes the active one. Its `rollback.from` is the release you restored.
 
-Two more rules apply:
+More rules apply:
 
-- A rollback does not count toward your plan's hourly deploy limit, but two rollbacks of the same application need at least 30 seconds between them.
+- A rollback does not use your plan's deploy slots, but two rollbacks of the same application need at least 30 seconds between them. Rollbacks also have their own hourly limit per account, equal to your plan's hourly deploy limit. Going over it returns `429 DEPLOY_RATE_LIMITED`, with `details.limit`, `details.window_seconds` and `details.retry_after`, and does not use any deploy slot.
+- If the release's code cannot be restored, the request fails with `INTERNAL_SERVER_ERROR`. Nothing changes.
 - If the restart fails after the files were restored, the response is the restart's error (for example `BUILD_FAILED`). The application already runs the restored code, so fix the cause and restart it.
 
 Only the releases your plan keeps can be restored. See [Deploy history and rollback limits](/plans-and-limits#deploy-history-and-rollback-limits).
@@ -150,6 +151,7 @@ Possible error codes:
 - `RELEASE_EXPIRED`: The code of this release is no longer kept, because it expired or is older than the number of releases your plan keeps (`410`).
 - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same application is already running (`409`). Nothing was changed; wait a few seconds and retry.
 - `RESTORE_COOLDOWN`: The previous rollback of this application was less than 30 seconds ago (`429`). Wait and retry.
+- `DEPLOY_RATE_LIMITED`: The account's hourly rollback limit was reached (`429`). `details` carries `limit`, `window_seconds` and `retry_after`. Wait and retry.
 </ResponseField>
 
 <ResponseField name="message" type="string">
