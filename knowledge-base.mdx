@@ -726,6 +726,11 @@ then switch over, so an application that receives web traffic stays reachable du
   together for a while, so a bot can answer the same event twice.
 - `off`: the running version stops before the new one starts.
 
+Health check: the platform calls the new version over HTTP on `deploy.health_check_path` (`/` by default). Any HTTP
+response counts as healthy, including `404`; a refused connection, a timeout (5 seconds per attempt) or a `5xx`
+response fails the check. The version must answer well twice in a row and still be running before traffic moves.
+An application that only listens on `127.0.0.1` fails the check.
+
 Known limits:
 
 - Both versions use the **same folder**, and the two processes run together for up to about 2 minutes. Data
@@ -736,6 +741,9 @@ Known limits:
 - If the new version does not become healthy within about 2 minutes, it is discarded and the previous version
   keeps running. If the second copy can't be started at that moment, the deploy falls back to stopping
   the running version first.
+  The owner gets a notice with the log of the discarded version.
+- While the new version is prepared, the terminal still shows the running version, not the build. The two versions
+  can both answer for a few seconds around the switch.
 
 ### Deploy-per-Hour Limit
 

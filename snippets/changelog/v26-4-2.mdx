@@ -1,3 +1,14 @@
+### Zero-downtime deploys on Enterprise
+
+On Enterprise, a deploy can now start the new version next to the running one, check that it is healthy, and only then switch over, so an application that receives web traffic stays reachable while it is updated. The old version receives a shutdown request once the new one has taken over.
+
+- **Modes:** `auto` (the default) uses it for applications that receive web traffic; `on` forces it, including for applications without web traffic; `off` keeps the previous behavior of stopping the running version first. Bots and other applications without web traffic stay on stop-and-start in `auto`, because two copies of a bot would answer the same event twice.
+- **Health check path:** set the path the platform calls on the new version, `/` by default, with the new `deploy.health_check_path` field of [Update Application Configuration](/api-reference/endpoint/apps/updateconfig) or in the application's settings. Any HTTP response counts as healthy, including `404`; a refused connection, a timeout or a `5xx` response does not.
+- **Discarded deploys:** if the new version does not become healthy within about 2 minutes, it is discarded, you get a notice with its log, and the previous version keeps running. The live log shows the same notice.
+- **Fallback:** if the second copy can't be started at that moment, the deploy falls back to stopping the running version first.
+
+Both versions share the application's folder for a short time, so read the [limitations](/guides/rollback-and-zero-downtime-deploys#known-limitations) before turning it on for an application that writes data files or reads its files on every request. The new [rollback and zero-downtime guide](/guides/rollback-and-zero-downtime-deploys) covers how releases, rollback and zero-downtime deploys work together.
+
 ### Automatic rollback when a new version fails to start
 
 On Intermediary and Enterprise, an application that stops within 60 seconds after a deploy now goes back to its previous version by itself, so a broken deploy no longer leaves the application down.

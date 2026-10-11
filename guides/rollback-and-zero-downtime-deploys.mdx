@@ -1,0 +1,178 @@
+---
+title: 'Roll Back and Deploy Without Downtime'
+sidebarTitle: 'Rollback and zero downtime'
+description: 'How releases, manual and automatic rollback and zero-downtime deploys work, what each one restores, and the limits to know before relying on them.'
+icon: 'rotate-ccw'
+---
+
+Every time your application's code changes, Vertra Cloud records a **release**. Releases are what make
+three things possible: going back to an earlier version, going back automatically when a new version
+fails to start, and, on Enterprise, replacing the running version without taking it offline.
+
+| Feature | What it does | Plans |
+|---|---|---|
+| Deploy history | Lists every release with status, message, author and date | Every plan (read-only on Free and Economy) |
+| Manual rollback | Returns the code to an earlier release | Pro and above |
+| Automatic rollback | Goes back by itself if a new version stops right after a deploy | Intermediary and above |
+| Zero-downtime deploys | Starts the new version next to the running one and switches when it is healthy | Enterprise |
+
+## What a release is
+
+A release is a complete version of your application's code at a point in time, whatever its source: a push to
+GitHub, the CLI, an upload from the dashboard or the API, or an edit in the file manager. Each one shows its
+status, message, author, date and build time.
+
+- **Dashboard:** open the application and go to the **Deploys** tab.
+- **API:** [List releases](/api-reference/endpoint/apps/releases/list) returns the versions and
+  [release log](/api-reference/endpoint/apps/releases/log) returns the log of one of them.
+
+The history starts with the first code submission after the feature was released, so an application has no
+releases from before that. Add a short message to each deploy (an optional field in the upload dialog,
+`vertra app commit -m "..."` in the CLI, or `message` in the API) and the history becomes much easier to read.
+
+## Manual rollback
+
+In the **Deploys** tab, pick an earlier version and confirm. The application returns to that version's code and
+restarts.
+
+| | After a rollback |
+|---|---|
+| Code | Returns to the version you picked. Files that version did not have are removed |
+| Data the app wrote to disk | Stays as it is (a database file, uploads) |
+| Environment variables | Stay as they are, unless you ask for them to come back |
+| Process | Restarts. The build command runs again if the application has one |
+
+**The code goes back; your data does not.** A rollback never touches what the application created while running.
+If you also need earlier data, restore a [snapshot](/guides/backups-snapshots).
+
+**Environment variables are optional.** Check the variables option and the version's saved variables replace
+the current ones. Before you confirm, the dialog lists only the **names** of the variables that would be added,
+changed or removed. Values are never shown. The same preview is available in the
+[rollback preview](/api-reference/endpoint/apps/releases/rollback-preview) endpoint; the
+[rollback](/api-reference/endpoint/apps/releases/rollback) endpoint applies it.
+
+**A rollback is a new release.** The history stays linear, so if the older version was not what you wanted, roll
+back to the version you came from. Two rollbacks of the same application need 30 seconds between them.
+
+### What your plan keeps
+
+Each application keeps a limited number of previous versions, for a limited time. The running version never
+expires, and a previous version's time **starts when it stops being the running one**, not when it was created.
+
+| Plan | Previous versions kept | Validity |
+|---|---:|---:|
+| Free, Economy | History only, no rollback | — |
+| Pro | 3 | 7 days |
+| Scale | 5 | 14 days |
+| Intermediary | 10 | 30 days |
+| Enterprise | 15 to 30, by tier | 30 days |
+
+See [Plans and Limits](/plans-and-limits#deploy-history-and-rollback-limits) for the Enterprise tiers.
+Moving to a higher plan does not bring back versions that were already removed.
+
+## Automatic rollback
+
+On Intermediary and Enterprise, a broken deploy no longer leaves the application down.
+
+- **Window:** it acts only if the new version stops within **60 seconds** after a deploy. A stop after that is a
+  normal crash, handled by auto-restart.
+- **Once only:** the platform goes back one time. If the previous version also stops, the application stays
+  stopped and you are told.
+- **Code only:** environment variables are not restored. If a variable change was the cause, use the manual
+  rollback with the variables option.
+- **You are always told:** you get a notification, the Deploys tab marks the failed version with its log, the
+  rollback shows up as a new release authored by Vertra Cloud, and the live log shows the same notices.
+- **Turning it off:** it is on by default on the plans that include it. Switch it off in the application's
+  settings, or send `deploy.auto_rollback: false` to
+  [Update Application Configuration](/api-reference/endpoint/apps/updateconfig). Changing it does not restart
+  the application.
+
+On Pro and below, a version that fails to start follows normal auto-restart behavior, and you can still roll
+back by hand.
+
+## Zero-downtime deploys
+
+By default a deploy stops the running version and starts the new one, which leaves the application offline for
+a few seconds. On **Enterprise**, a deploy can instead work like this:
+
+1. The new version is installed, built and started **next to** the running one. The running version keeps
+   serving.
+2. The platform checks that the new version is healthy.
+3. Only then does traffic switch to the new version, and the old one receives a request to shut down.
+4. If the new version does not become healthy within about **2 minutes**, it is discarded, you get a notice with
+   its log, and the previous version keeps running.
+
+### How health is decided
+
+The platform calls your application over HTTP, on the path set in `deploy.health_check_path` (`/` by default;
+change it in the application's settings or with
+[Update Application Configuration](/api-reference/endpoint/apps/updateconfig)).
+
+- **Any HTTP response counts as healthy**, including `404`. The check asks whether the process is answering, not
+  whether a given page exists.
+- **A check fails** on a refused connection, a timeout (5 seconds per attempt) or a `5xx` response.
+- The version must answer well twice in a row and still be running before traffic moves.
+- An application that only listens on `127.0.0.1` fails the check, because nothing outside the container can
+  reach it. Listen on all interfaces (`0.0.0.0`).
+
+### Choose a mode
+
+`deploy.zero_downtime` has three values:
+
+| Mode | Behavior |
+|---|---|
+| `auto` (default) | Zero downtime only for applications that receive web traffic |
+| `on` | Always, including applications without web traffic |
+| `off` | Stop the running version first, then start the new one |
+
+If the second copy can't be started at that moment, the deploy falls back to stopping the running version
+first, and automatic rollback still protects it. The second process does not count against your plan's memory.
+
+### Why Discord bots do not use it by default
+
+A bot does not receive traffic from the platform. It connects out to Discord, so there is no route to switch and
+blue-green would add nothing. It would also cause harm: two processes logged in with the same token receive the
+same events. A prefix command is answered twice, a slash command in one of the two fails with "interaction
+already acknowledged", and scheduled jobs run twice. That is why `auto` leaves bots and workers on the standard
+stop-and-start deploy, protected by automatic rollback. Choose `on` only if your application tolerates being
+run twice for a short time.
+
+### Known limitations
+
+- **Same folder.** Both versions use the application's folder, and the two processes run together for up to
+  about 2 minutes. A data file written by both at once, such as a JSON file, can be corrupted. SQLite usually
+  copes.
+- **Migrations.** A database migration that runs when the new version starts runs while the previous version is
+  still serving.
+- **Mixed files.** An application that reads files on every request (PHP, static sites, a built Next.js or Nuxt
+  app, late imports in Python) can serve a mix of old and new files while the deploy installs dependencies and
+  builds. For those applications, use `off`.
+- **Terminal.** While the new version is prepared, the terminal still shows the running version, not the
+  build. Follow the install and build output in the logs.
+- **Overlap at the switch.** The two versions can both answer for a few seconds around the switch. For an
+  application that was started before zero-downtime deploys were turned on, the first switch can drop a few
+  requests.
+
+## Compared with Railway
+
+Railway documents a similar set of tools. This table describes how each platform behaves according to its
+documentation, which was consulted on **October 11, 2026**. Both change over time, so check the linked pages.
+
+| | Vertra Cloud | Railway |
+|---|---|---|
+| Replacing a deployment | Zero downtime on Enterprise: the new version starts next to the running one and traffic switches when it is healthy | By default the previous deployment is stopped and removed after the new one deploys. Overlap time and draining time are configurable ([deployment teardown](https://docs.railway.com/deployments/deployment-teardown)) |
+| Health check | Any HTTP response counts, including `404`. Failure is a refused connection, a timeout or a `5xx`. Configurable path | Any `2xx` response counts. Configurable path and timeout, 300 seconds by default ([healthchecks](https://docs.railway.com/deployments/healthchecks)) |
+| Failed new version | Discarded after about 2 minutes; the previous version keeps running | The deploy is marked failed; with a health check, the previous deployment keeps serving ([healthchecks](https://docs.railway.com/deployments/healthchecks), [roll back a bad deploy](https://docs.railway.com/guides/roll-back-bad-deploy)) |
+| Applications with a volume | Deploys without downtime on Enterprise; both processes share the application's folder | A service with an attached volume has a small amount of downtime on redeploy, even with a health check, to avoid two deployments mounting the same volume ([healthchecks](https://docs.railway.com/deployments/healthchecks)) |
+| Manual rollback | Restores the code of an earlier release. Variables optional, with a names-only preview. Files the application writes at runtime are kept | Restores the previous deployment's Docker image and its custom variables, within the plan's retention ([deployment actions](https://docs.railway.com/deployments/deployment-actions), [roll back a bad deploy](https://docs.railway.com/guides/roll-back-bad-deploy)) |
+| After a crash or a bad deploy | Automatic rollback to the previous version within 60 seconds of a deploy, on Intermediary and above; auto-restart for crashes | Restart policy: `Always`, `On Failure` (default, up to 10 restarts) or `Never` ([restart policy](https://docs.railway.com/deployments/restart-policy)) |
+
+The artifact is different. Railway rolls back to the image that was already built. Vertra Cloud keeps the
+source code of each release, and a rollback rebuilds from it; reinstalling dependencies is skipped when they did
+not change. Each approach has its own trade-offs, and which one fits depends on the application.
+
+## Related
+
+- [Find Out Why Your Application Crashes](/guides/debug-crashing-app)
+- [Backups and snapshots](/guides/backups-snapshots)
+- [Plans and Limits](/plans-and-limits)
