@@ -56,3 +56,43 @@ vertra logs -f  # follows the application output live
 ```
 
 Add `--json` to any command for structured output ready for automation.
+
+To give a deploy a message in the [deploy history](/guides/rollback-and-zero-downtime-deploys#what-a-release-is),
+use `vertra app commit -m "fix login"`. Without `-m`, inside a git repository, the CLI uses the subject of
+the latest commit.
+
+## Releases and rollback
+
+```bash
+vertra app releases                      # versions of the linked application, newest first
+vertra app releases log <release-id>     # log of a version that failed
+vertra app rollback <release-id>         # go back to that version and restart
+vertra app rollback <release-id> --env   # also restore its environment variables
+```
+
+Each command takes an optional application ID before the release ID; without it, the CLI uses the linked
+application or lets you pick one. `releases` accepts `--page` and `--limit`, and shows which versions can still
+be restored.
+
+`rollback` is available from the Pro plan. Before it runs, the CLI shows what will happen and asks you to
+confirm. With `--env`, it lists only the **names** of the variables that would be added, changed or removed,
+never their values. Without `--env`, your current variables stay as they are. In CI, or anywhere without a
+terminal, pass `--yes` (`-y`); without it the command fails instead of rolling back unasked.
+
+Listing and reading logs need an API key with the `apps:read` scope. Rolling back needs `apps:write`, plus
+`apps:envs` for `--env`.
+
+## Deploy behavior
+
+```bash
+vertra app config <id> --zero-downtime auto    # auto | on | off
+vertra app config <id> --auto-rollback on      # on | off
+vertra app config <id> --health-path /health   # or --clear-health-path
+```
+
+- `--zero-downtime`: `on` needs the Enterprise plan.
+- `--auto-rollback`: needs Intermediary or above.
+- `--health-path`: starts with `/`, no spaces, up to 200 characters. `vertra app info` shows the current values.
+
+See [Roll back and deploy without downtime](/guides/rollback-and-zero-downtime-deploys) for what each setting
+does.

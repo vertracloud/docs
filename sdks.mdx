@@ -97,6 +97,72 @@ runtimes, err := client.Apps.Runtimes(ctx)
 
 </CodeGroup>
 
+### Releases and rollback
+
+Listing releases and reading a log need `apps:read`. The preview needs `apps:envs` and returns only variable
+names, never values. A rollback needs `apps:write`, plus `apps:envs` to restore variables, and is available from
+the Pro plan. See the [guide](/guides/rollback-and-zero-downtime-deploys) for what a rollback restores.
+
+<CodeGroup>
+
+```javascript JavaScript
+const { data } = await client.apps.releases.list("app-abc123", { limit: 10 });
+const target = data.find((r) => r.status !== "active" && r.rollback.available);
+
+const preview = await client.apps.releases.previewRollback("app-abc123", target.id);
+await client.apps.releases.rollback("app-abc123", target.id, { restore_environment: false });
+```
+
+```python Python
+page = client.apps.releases.list("app-abc123", limit=10)
+target = next(r for r in page["data"] if r["status"] != "active" and r["rollback"]["available"])
+
+preview = client.apps.releases.preview_rollback("app-abc123", target["id"])
+client.apps.releases.rollback("app-abc123", target["id"], {"restore_environment": False})
+```
+
+```go Go
+page, err := client.Apps.Releases().List(ctx, "app-abc123", vertracloud.ApplicationReleasesListParams{})
+// pick releaseID from page, then:
+preview, err := client.Apps.Releases().Preview(ctx, "app-abc123", releaseID)
+_, err = client.Apps.Releases().Rollback(ctx, "app-abc123", releaseID, vertracloud.ApplicationRollbackBody{})
+```
+
+</CodeGroup>
+
+Deploy settings go through the application's configuration. A message on an upload appears in the release
+history.
+
+<CodeGroup>
+
+```javascript JavaScript
+await client.apps.updateConfig("app-abc123", {
+  deploy: { zero_downtime: "auto", auto_rollback: true, health_check_path: "/health" },
+});
+await client.apps.files.upload("app-abc123", zip, "app.zip", { message: "fix login" });
+```
+
+```python Python
+client.apps.update_config(
+    "app-abc123",
+    {"deploy": {"zero_downtime": "auto", "auto_rollback": True, "health_check_path": "/health"}},
+)
+client.apps.files.upload("app-abc123", file=zip_bytes, filename="app.zip", message="fix login")
+```
+
+```go Go
+off := vertracloud.ApplicationZeroDowntimeOff
+_, err = client.Apps.UpdateConfig(ctx, "app-abc123", vertracloud.ApplicationUpdateConfigBody{
+	Deploy: &vertracloud.ApplicationDeploySettingsUpdate{
+		ZeroDowntime:    &off,
+		HealthCheckPath: vertracloud.NullableValue("/health"),
+	},
+})
+// uploads: client.Apps.Files().Upload(ctx, "app-abc123", vertracloud.ApplicationFileUploadParams{..., Message: "fix login"})
+```
+
+</CodeGroup>
+
 ### Databases
 
 <CodeGroup>
