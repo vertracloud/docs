@@ -22,6 +22,12 @@ The response is streamed as a text event stream (`text/event-stream`). Each log 
 - **Event Type**: `logs` for log messages, `system` for stream and platform notices (e.g., `install_note:started`), `heartbeat` for keep-alive events with no content.
 - **Data**: Plain text (not JSON). A `logs` event carries one or more lines separated by newlines, each an ISO 8601 timestamp followed by the log message.
 
+After a deploy, `system` events can also report what happened to the new version. The notice names the releases involved by their ID, as listed in [List Application Releases](/api-reference/endpoint/apps/releases/list):
+
+- `deploy_note:failed:<release_id>`: the new version stopped right after it started. The log of the failure is available on that release.
+- `deploy_note:rollback:<from>:<to>`: the platform went back to the previous version automatically, because the new one stopped within 60 seconds of the deploy. `<from>` is the release that failed and `<to>` is the one that is running again.
+- `deploy_note:discarded:<release_id>`: on the Enterprise plan, the new version did not become healthy and was discarded; the previous version kept running.
+
 While dependencies are being installed, the stream carries installation output preceded by the
 `install_note:started` system event.
 The installation runs outside the plan's memory limit and the application starts as soon as it finishes.

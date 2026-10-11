@@ -241,11 +241,17 @@ restart; they are not a separate product surface.
 | Manual rollback (code + optional environment variables) | — | — | Yes | Yes | Yes | Yes |
 | Previous versions kept | — | — | 3 | 5 | 10 | 15–30 (by tier) |
 | Version validity | — | — | 7 days | 14 days | 30 days | 30 days |
+| Automatic rollback | — | — | — | — | Yes | Yes |
+| Zero-downtime deploys | — | — | — | — | — | Yes |
 | Vertra Flow (dashboard canvas) | Yes | Yes | Yes | Yes | Yes | Yes |
 | Workspaces (customizable roles, see §10) | — | — | — | — | — | Yes (5-24 members) |
 | Support | Discord | Specialized | Priority | Priority | Priority | Premium (E-32: dedicated agent + exclusive manager) |
 
 > **Previous versions kept** counts the versions besides the one running now. **Version validity** counts from the moment a version stops being the running one; the running version never expires. Enterprise keeps 15 versions on tiers E-4, E-6 and E-8, 20 on E-12, E-14 and E-16, 25 on E-18 to E-24, and 30 on E-26 to E-32.
+
+> **Automatic rollback** and **Zero-downtime deploys** are deploy settings, changed in the application's settings
+> or with `PATCH /v1/apps/{id}/config` (`deploy`). Asking for either on a plan that doesn't include it fails with
+> `403 PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` or `403 PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`; turning them off is always allowed.
 
 > The file manager is the dashboard's **Files tab** and its HTTP routes; ownership and
 > path rules follow the same rules across the API, the CLI and the MCP.
@@ -700,6 +706,37 @@ Code upload → Dependency installation → Build (if there's a `build_command`)
 - Maximum build command time: 10 minutes (`BUILD_TIMEOUT` if exceeded)
 - 1 exposed port per application
 
+### Automatic Rollback (Intermediary+)
+
+If the new version of an application stops within **60 seconds** after a deploy, the platform goes back to the
+previous version **once** and notifies the owner, with a link to the log of the failed version. Only the code
+files go back, not the environment variables. If the previous version also stops, the application stays stopped
+and the owner is notified. During those 60 seconds auto-restart does not restart the new version, so the two
+don't compete. A crash after the first minute is treated as a normal crash. It is on by default on the plans
+that include it (`deploy.auto_rollback`, `true` by default) and can be turned off.
+
+### Zero-Downtime Deploys (Enterprise)
+
+On Enterprise, a deploy can start the new version next to the running one, wait for it to be healthy, and only
+then switch over, so an application that receives web traffic stays reachable during the deploy. The setting is
+`deploy.zero_downtime`:
+
+- `auto` (default): zero downtime only for applications that receive web traffic.
+- `on`: always, including applications without web traffic, such as bots. Two processes of the application run
+  together for a while, so a bot can answer the same event twice.
+- `off`: the running version stops before the new one starts.
+
+Known limits:
+
+- Both versions use the **same folder**, and the two processes run together for up to about 2 minutes. Data
+  written by both at once, such as a JSON file, can be corrupted; SQLite usually copes. A database migration run at
+  startup runs while the previous version is still serving.
+- An application that reads files on every request (PHP, static sites, a built Next.js or Nuxt app, late imports
+  in Python) can serve a mix of old and new files while the deploy installs and builds. For those, use `off`.
+- If the new version does not become healthy within about 2 minutes, it is discarded and the previous version
+  keeps running. If the second copy can't be started at that moment, the deploy falls back to stopping
+  the running version first.
+
 ### Deploy-per-Hour Limit
 
 A per-account ceiling, renewed on a 3,600-second window. Counted: creating an application, uploading a zip, deploying
@@ -741,7 +778,7 @@ The dashboard automatically strips from the zip, before uploading: `node_modules
 - **Formula**: `newDays = remainingDays × (currentPrice / targetPrice)`
 - **Restrictions**: FREE and ECONOMY cannot downgrade
 - **Checks**: Memory usage must fit the target plan, rate limit (1x every 3 hours)
-- **Impact**: Reduced memory limit, higher-plan features disabled, workspaces lost when leaving Enterprise
+- **Impact**: Reduced memory limit, higher-plan features disabled, workspaces lost when leaving Enterprise. The saved automatic rollback and zero-downtime settings stay on the application but only act on a plan that includes them
 
 ---
 
@@ -938,6 +975,8 @@ data queries and activity export.
 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | Subdomain changed recently |
 | `APP_HAS_NO_SUBDOMAIN` | Application has no published subdomain |
 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | Plan doesn't include choosing a subdomain |
+| `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | Plan doesn't include automatic rollback (Intermediary+) |
+| `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | Plan doesn't include forcing zero-downtime deploys (Enterprise) |
 | `FREE_PLAN_NO_WEB_PUBLISH` | Free plan doesn't allow web publishing |
 | `FREE_PLAN_SUSPENDED` | Free plan can't create new applications or databases |
 | `NO_CUSTOM_DOMAIN` | Application has no custom domain |

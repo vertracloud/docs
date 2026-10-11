@@ -63,10 +63,51 @@ description: Updates the stored configuration of an application by its ID.
   **Changing the memory changes the application's disk ceiling.** The volume quota is derived from the allocated memory, so lowering `ram` lowers how much the application is allowed to store — which is why lowering it can be refused with `409 STORAGE_ABOVE_NEW_LIMIT`. See [Common Error Codes](/api-reference/introduction#what-error-codes-can-the-api-return).
 </Note>
 
+<ParamField body="deploy" type="object">
+  How a new deploy is applied and what happens if it fails. Send only the subfields you want to change.
+
+  <Expandable title="deploy properties">
+    <ParamField body="zero_downtime" type="string">
+      How a deploy replaces the running version. One of `auto`, `on` or `off`. `auto` (the default) deploys without downtime only when the application receives web traffic; `on` always deploys without downtime; `off` stops the running version before the new one starts. `on` requires the Enterprise plan.
+    </ParamField>
+
+    <ParamField body="auto_rollback" type="boolean">
+      When `true`, if the new version stops within 60 seconds after a deploy, the platform goes back to the previous version, once, and notifies you. Only the code files go back, not the environment variables. Defaults to `true`. `true` requires Intermediary or higher.
+    </ParamField>
+
+    <ParamField body="health_check_path" type="string | null">
+      The HTTP path the platform calls on a new version to check that it is healthy. Must start with `/`, have at most 200 characters and contain no control characters. Send `null` to clear it and go back to `/`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<Note>
+  **Plan gates for `deploy`.** `zero_downtime: "on"` below Enterprise fails with `403 PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`, and `auto_rollback: true` below Intermediary fails with `403 PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK`. The check applies even when the value you send equals the value already saved. `zero_downtime: "off"`, `zero_downtime: "auto"` and `auto_rollback: false` are always accepted. A saved value stays on the application after a downgrade, but only takes effect on a plan that includes the feature.
+</Note>
+
+<Note>
+  **Changing `deploy` does not restart the application.** The new settings apply from the next deploy. The `deploy` object returned by [Get Application](/api-reference/endpoint/apps/get) shows what applies right now.
+</Note>
+
 <Note>
   **Changing `build_command` counts against the account's hourly deploy budget**, the same one
   creating an application or uploading a ZIP draws from. See [Deploy rate limits](/api-reference/introduction).
 </Note>
+
+### Request example
+
+```bash
+curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deploy": {
+      "auto_rollback": true,
+      "zero_downtime": "auto",
+      "health_check_path": "/health"
+    }
+  }'
+```
 
 ### Response
 
@@ -92,6 +133,8 @@ description: Updates the stored configuration of an application by its ID.
   - `VALIDATION_ERROR`: A field failed validation — wrong type, over the length limit, or an empty body (`400`). The response carries `message` and `path` pointing at the offending field.
   - `APP_NOT_FOUND`: The specified application does not exist (`404`).
   - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK`: `deploy.auto_rollback: true` was sent and the owner's plan is below Intermediary (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`: `deploy.zero_downtime: "on"` was sent and the owner's plan is not Enterprise (`403`).
   - `APPLICATION_SHIELD_COOLDOWN`: Vertra Shield temporarily paused the application; retry after the cooldown (`403`).
   - `OWNER_APP_WITHOUT_LIMITS`: The plan limits of the application owner could not be read, so the requested memory cannot be validated (`404`).
   - `MEMORY_BELOW_MINIMUM`: The requested memory is below the minimum for this application — `512` MB for a web-published application (`400`).
@@ -143,5 +186,5 @@ description: Updates the stored configuration of an application by its ID.
 </ResponseExample>
 
 <Note>
-  This route writes configuration; it does not restart or rebuild the container. The new values take effect on the next rebuild of the application.
+  This route writes configuration; it does not restart or rebuild the container. The new values take effect on the next rebuild of the application. The `deploy` settings take effect on the next deploy.
 </Note>
