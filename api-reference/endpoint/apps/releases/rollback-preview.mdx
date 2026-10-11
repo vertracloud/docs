@@ -1,0 +1,108 @@
+---
+title: Preview Application Rollback
+sidebarTitle: Preview Rollback
+api: GET https://api.vertracloud.app/v1/apps/{id}/releases/{release_id}/rollback
+authMethod: bearer
+description: Previews which environment variables a rollback to this release would add, change or remove, with names and kinds of change only, never values.
+---
+
+{/* @see APIApplicationRollbackPreview — @vertracloud/api-types */}
+Returns which environment variables would change if you rolled the application back to this release and restored its variables. Only the variable names and the kind of change come back, never the values. Nothing is changed.
+
+Rolling back does not restore variables unless you ask it to. Check this preview first, then send the [rollback](/api-reference/endpoint/apps/releases/rollback) request with `restore_environment: true` if the changes are the ones you want.
+
+<ParamField path="id" type="string" required>
+  The ID of the application. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField path="release_id" type="string" required>
+  The ID of the release you would roll back to, as returned by the [release list](/api-reference/endpoint/apps/releases/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID.
+</ParamField>
+
+Each change is compared with the variables the application runs with now:
+
+- `added`: the release has the variable, and the running version does not.
+- `removed`: the running version has the variable, and the release does not.
+- `modified`: both have the variable, with different values.
+
+The list is sorted by key. It is empty when the release has no saved variables, or when restoring them would change nothing.
+
+Requires the `apps:envs` scope when called with an API key. For a workspace member, it requires the `apps:envs` permission.
+
+### Response
+
+<ResponseField name="response" type="object">
+  The variable changes a rollback would make.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="environment_changes" type="object[]">
+    The variables that would change. Each item has:
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="key" type="string">
+    The variable name. The value is never returned.
+    </ResponseField>
+
+    <ResponseField name="change" type="string">
+    `added`, `modified` or `removed`.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+{
+  "response": {
+    "environment_changes": [
+      { "key": "DISCORD_TOKEN", "change": "modified" },
+      { "key": "NEW_FEATURE", "change": "removed" }
+    ]
+  }
+}
+```
+
+```json Response (nothing to change)
+{
+  "response": {
+    "environment_changes": []
+  }
+}
+```
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+Possible error codes:
+- `UNAUTHORIZED`: User is not authenticated or lacks permissions.
+- `APP_NOT_FOUND`: The application does not exist, or it is not owned by this account or workspace (`404`).
+- `RELEASE_NOT_FOUND`: The release does not exist, or it belongs to another application (`404`).
+- `PLAN_DOES_NOT_SUPPORT_ROLLBACK`: Your plan does not include rolling back to earlier releases (`403`). Rollback starts on Pro.
+- `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:envs` scope (`403`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "code": "RELEASE_NOT_FOUND"
+}
+```
+</ResponseExample>
+
+<Note>
+  A release keeps the variables the application was started with. Releases created before this feature launched have none saved, so their preview is always empty.
+</Note>

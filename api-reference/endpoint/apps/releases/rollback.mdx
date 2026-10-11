@@ -1,0 +1,171 @@
+---
+title: Roll Back Application to a Release
+sidebarTitle: Roll Back
+api: POST https://api.vertracloud.app/v1/apps/{id}/releases/{release_id}/rollback
+authMethod: bearer
+description: Rolls an application back to an earlier release, restoring its code, removing files it did not have and restarting it, with optional variables.
+---
+
+{/* @see RESTPostAPIApplicationRollbackBody, RESTPostAPIApplicationRollbackResponse — @vertracloud/api-types */}
+Rolls the application back to the code it had in this release, then restarts it. The rollback is recorded as a new release with `source: "rollback"`, so you can undo it the same way. Optionally, it also restores the environment variables saved with that release.
+
+Rolling back does not touch the data the application created while running, such as a database file or uploads. To bring data back, use a [snapshot](/api-reference/endpoint/apps/snapshots/restore).
+
+<ParamField path="id" type="string" required>
+  The ID of the application. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField path="release_id" type="string" required>
+  The ID of the release to roll back to, as returned by the [release list](/api-reference/endpoint/apps/releases/list). It must be a release whose code is still kept (`rollback.available` is `true`).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID.
+</ParamField>
+
+<ParamField body="restore_environment" type="boolean" default="false">
+  Optional. `true` also replaces the application's environment variables with the ones saved with that release. The default `false` keeps the variables the application has now. Check the changes first with the [rollback preview](/api-reference/endpoint/apps/releases/rollback-preview).
+</ParamField>
+
+What the rollback does:
+
+- **Code:** every code file of the release is restored exactly as it was. Code files the release did not have are deleted.
+- **Data:** files the application created while running are not changed or deleted.
+- **Variables:** unchanged unless `restore_environment` is `true`.
+- **Restart:** the application restarts with a forced build, so its build command runs again if it has one.
+- **Release history:** the version that was running becomes `rolled_back`, and the new release becomes the active one. Its `rollback.from` is the release you restored.
+
+Two more rules apply:
+
+- A rollback does not count toward your plan's hourly deploy limit, but two rollbacks of the same application need at least 30 seconds between them.
+- If the restart fails after the files were restored, the response is the restart's error (for example `BUILD_FAILED`). The application already runs the restored code, so fix the cause and restart it.
+
+Only the releases your plan keeps can be restored. See [Deploy history and rollback limits](/plans-and-limits#deploy-history-and-rollback-limits).
+
+Requires the `apps:write` scope when called with an API key. If `restore_environment` is `true`, the key also needs the `apps:envs` scope, and without it the request returns `403 API_KEY_SCOPE_DENIED`. For a workspace member, it requires the `apps:files` and `apps:lifecycle` permissions, plus `apps:envs` when restoring variables.
+
+### Response
+
+<ResponseField name="response" type="object">
+  The new release created by the rollback.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+  The ID of the new release.
+  </ResponseField>
+
+  <ResponseField name="source" type="string">
+  Always `rollback` for this response.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+  `active`, the version the application runs now.
+  </ResponseField>
+
+  <ResponseField name="rollback" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="available" type="boolean">
+  `false` for the active release.
+  </ResponseField>
+
+  <ResponseField name="from" type="string">
+  The ID of the release that was restored.
+  </ResponseField>
+
+  </Expandable>
+  </ResponseField>
+
+  <ResponseField name="message" type="string | null">
+  The release message. `null` when none was given.
+  </ResponseField>
+
+  <ResponseField name="files_changed" type="integer">
+  Number of files changed by the operation that produced this release.
+  </ResponseField>
+
+  <ResponseField name="build_duration_ms" type="integer | null">
+  Time, in milliseconds, spent building and starting the application.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+  ISO timestamp of when the rollback was made.
+  </ResponseField>
+
+  <ResponseField name="author" type="string">
+  The name of the user who made the rollback.
+  </ResponseField>
+
+  <ResponseField name="app_id" type="string">
+  The ID of the application.
+  </ResponseField>
+
+  <ResponseField name="github" type="null">
+  `null`, because a rollback is not a GitHub push.
+  </ResponseField>
+
+  <ResponseField name="has_log" type="boolean">
+  `true` when a crash log was recorded for this release.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+{
+  "response": {
+    "id": "5b8e3f10-2c4a-4d9b-a7e1-0f3c6b9d2e54",
+    "app_id": "7a52e0d4-19b3-4f8e-b6c2-0d9e4a1f5c73",
+    "source": "rollback",
+    "status": "active",
+    "message": null,
+    "author": "octocat",
+    "github": null,
+    "files_changed": 4,
+    "rollback": {
+      "available": false,
+      "expires_at": null,
+      "from": "3f1c2a9e-8b7d-4c21-9e0a-5d6f7a8b9c01"
+    },
+    "has_log": false,
+    "build_duration_ms": 12450,
+    "created_at": "2026-10-11T15:02:37.000Z"
+  }
+}
+```
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+Possible error codes:
+- `UNAUTHORIZED`: User is not authenticated or lacks permissions.
+- `APP_NOT_FOUND`: The application does not exist, or it is not owned by this account or workspace (`404`).
+- `RELEASE_NOT_FOUND`: The release does not exist, or it belongs to another application (`404`).
+- `PLAN_DOES_NOT_SUPPORT_ROLLBACK`: Your plan does not include rolling back to earlier releases (`403`). Rollback starts on Pro.
+- `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:write` scope, or it lacks `apps:envs` while `restore_environment` is `true` (`403`).
+- `RELEASE_ALREADY_ACTIVE`: The release is already the one the application runs (`409`).
+- `RELEASE_EXPIRED`: The code of this release is no longer kept, because it expired or is older than the number of releases your plan keeps (`410`).
+- `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same application is already running (`409`). Nothing was changed; wait a few seconds and retry.
+- `RESTORE_COOLDOWN`: The previous rollback of this application was less than 30 seconds ago (`429`). Wait and retry.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+```json Error Response (410)
+{
+  "code": "RELEASE_EXPIRED"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RESTORE_COOLDOWN"
+}
+```
+</ResponseExample>
