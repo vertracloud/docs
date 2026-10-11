@@ -1,0 +1,185 @@
+---
+title: List Application Releases
+sidebarTitle: List Releases
+api: GET https://api.vertracloud.app/v1/apps/{id}/releases
+authMethod: bearer
+description: Lists the code versions of an application, newest first, with their source, status, message, author and rollback availability.
+---
+
+{/* @see APIApplicationRelease, RESTGetAPIApplicationReleasesQuery — @vertracloud/api-types */}
+Returns the release history of an application: one entry for each version of its code, newest first. Each entry says how the version was created, whether it is the one running now, and whether it can be restored.
+
+<Note>
+  The history starts with the first code submission made after this feature launched. Releases created from a snapshot do not appear in it.
+</Note>
+
+<ParamField path="id" type="string" required>
+  The ID of the application. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number, starting at `1`.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="20">
+  Releases per page. Capped at `50`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID.
+</ParamField>
+
+Requires the `apps:read` scope when called with an API key.
+
+### Response
+
+<ResponseField name="response" type="object">
+  Paginated list, newest first.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="data" type="APIApplicationRelease[]">
+    <Expandable title="Toggle object">
+
+    <ResponseField name="id" type="string">
+    The release ID. Pass it to the [release log](/api-reference/endpoint/apps/releases/log) endpoint.
+    </ResponseField>
+
+    <ResponseField name="app_id" type="string">
+    The ID of the application.
+    </ResponseField>
+
+    <ResponseField name="source" type="string">
+    How the release was created: `github` (push to the connected repository), `cli` (the Vertra CLI), `upload` (upload from the dashboard, an SDK or an extension), `editor` (edit made in the file manager), `rollback` (restores an earlier release) or `env_change` (environment variables changed, with no code change).
+    </ResponseField>
+
+    <ResponseField name="status" type="string">
+    Where the release is in its lifecycle: `deploying` (being built and started), `active` (the version the application runs now; there is only one), `superseded` (replaced by a newer release), `failed` (the deploy did not start), `rolled_back` (replaced by a rollback) or `expired` (its code is no longer kept).
+    </ResponseField>
+
+    <ResponseField name="message" type="string | null">
+    The commit or upload message. `null` when none was given, and always `null` for file manager edits.
+    </ResponseField>
+
+    <ResponseField name="author" type="string">
+    The GitHub user who pushed, or the name of the user who uploaded or edited the files.
+    </ResponseField>
+
+    <ResponseField name="github" type="object | null">
+    The GitHub push that produced this release, with `app_id`, `commit_id`, `message`, `pusher`, `branch` and `created_at`. `null` for any other source.
+    </ResponseField>
+
+    <ResponseField name="files_changed" type="integer">
+    Number of files changed by the operation that produced this release.
+    </ResponseField>
+
+    <ResponseField name="rollback" type="object">
+    Restore information for this release.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="available" type="boolean">
+    `true` when you can roll the application back to this release. It is `false` for the active release, for an expired release, and when your plan does not allow rolling back to it.
+    </ResponseField>
+
+    <ResponseField name="expires_at" type="string | null">
+    When this release's code stops being kept, counted from the moment it stopped being the active release. `null` for the active release and when no code was kept.
+    </ResponseField>
+
+    <ResponseField name="from" type="string | null">
+    The release this one restores, when `source` is `rollback`. `null` otherwise.
+    </ResponseField>
+
+    </Expandable>
+    </ResponseField>
+
+    <ResponseField name="has_log" type="boolean">
+    `true` when a crash log was recorded for this release. The log can still expire; see the release log endpoint.
+    </ResponseField>
+
+    <ResponseField name="build_duration_ms" type="integer | null">
+    Time, in milliseconds, spent installing dependencies, building and starting this release. `null` when it was not deployed with a build, for example files committed without a restart.
+    </ResponseField>
+
+    <ResponseField name="created_at" type="string" format="date-time">
+    ISO timestamp of when the release was created.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="total_count" type="integer">Total releases in the history.</ResponseField>
+  <ResponseField name="page" type="integer">Current page.</ResponseField>
+  <ResponseField name="limit" type="integer">Releases per page.</ResponseField>
+  <ResponseField name="total_pages" type="integer">Total pages.</ResponseField>
+  <ResponseField name="has_next_page" type="boolean" />
+  <ResponseField name="has_previous_page" type="boolean" />
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+{
+  "response": {
+    "data": [
+      {
+        "id": "3f1c2a9e-8b7d-4c21-9e0a-5d6f7a8b9c01",
+        "app_id": "7a52e0d4-19b3-4f8e-b6c2-0d9e4a1f5c73",
+        "source": "github",
+        "status": "active",
+        "message": "Fix checkout total",
+        "author": "octocat",
+        "github": {
+          "app_id": "7a52e0d4-19b3-4f8e-b6c2-0d9e4a1f5c73",
+          "commit_id": "a3f9c1e7b2d4568f0e1c9a7b3d5f2e8c4a6b1d90",
+          "message": "Fix checkout total",
+          "pusher": "octocat",
+          "branch": "main",
+          "created_at": "2026-10-10T14:22:05.000Z"
+        },
+        "files_changed": 3,
+        "rollback": {
+          "available": false,
+          "expires_at": null,
+          "from": null
+        },
+        "has_log": false,
+        "build_duration_ms": 48210,
+        "created_at": "2026-10-10T14:22:05.000Z"
+      }
+    ],
+    "total_count": 1,
+    "page": 1,
+    "limit": 20,
+    "total_pages": 1,
+    "has_next_page": false,
+    "has_previous_page": false
+  }
+}
+```
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+Possible error codes:
+- `UNAUTHORIZED`: User is not authenticated or lacks permissions.
+- `APP_NOT_FOUND`: The application does not exist, or it is not owned by this account or workspace (`404`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+</ResponseExample>
+
+<Note>
+  Entries in this list are kept permanently. The code of older releases, however, is kept only for a period that depends on your plan, and that period starts when a release stops being the active one, not when it was created. Once that code expires, the entry shows `status: "expired"` and `rollback.available: false`.
+</Note>

@@ -1,0 +1,77 @@
+---
+title: Get Application Release Log
+sidebarTitle: Get Release Log
+api: GET https://api.vertracloud.app/v1/apps/{id}/releases/{release_id}/log
+authMethod: bearer
+description: Returns the crash log recorded for one release of an application, or null when there is no log or it has expired.
+---
+
+{/* @see APIApplicationReleaseLog — @vertracloud/api-types */}
+Returns the crash log recorded for one release, so you can see why it failed or crashed after starting. The `content` is `null` when the release has no log or the log has expired. Check `has_log` in the [release list](/api-reference/endpoint/apps/releases/list) to know beforehand.
+
+<ParamField path="id" type="string" required>
+  The ID of the application. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField path="release_id" type="string" required>
+  The ID of the release, as returned by the [release list](/api-reference/endpoint/apps/releases/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID.
+</ParamField>
+
+Requires the `apps:read` scope when called with an API key.
+
+### Response
+
+<ResponseField name="response" type="object">
+  Contains the release log.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="content" type="string | null">
+  The log text, or `null` when there is no log for this release or it has expired.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+{
+  "response": {
+    "content": "Error: Cannot find module 'express'\n    at Module._resolveFilename"
+  }
+}
+```
+
+```json Response (no log)
+{
+  "response": {
+    "content": null
+  }
+}
+```
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+Possible error codes:
+- `UNAUTHORIZED`: User is not authenticated or lacks permissions.
+- `APP_NOT_FOUND`: The application does not exist, or it is not owned by this account or workspace (`404`).
+- `RELEASE_NOT_FOUND`: The release does not exist, or it belongs to another application (`404`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A descriptive message providing additional details about the error.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "code": "RELEASE_NOT_FOUND"
+}
+```
+</ResponseExample>
