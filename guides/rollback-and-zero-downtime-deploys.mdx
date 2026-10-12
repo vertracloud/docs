@@ -85,8 +85,8 @@ On Intermediary and Enterprise, a broken deploy no longer leaves the application
   rollback with the variables option.
 - **You are always told:** you get a notification, the Rollbacks tab marks the failed version with its log, the
   rollback shows up as a new release authored by Vertra Cloud, and the live log shows the same notices.
-- **Turning it off:** it is on by default on the plans that include it. Switch it off in the application's
-  settings, or send `deploy.auto_rollback: false` to
+- **Turning it on:** it is off by default, including for applications created before the feature existed.
+  Switch it on in the application's settings, or send `deploy.auto_rollback: true` to
   [Update Application Configuration](/api-reference/endpoint/apps/updateconfig). Changing it does not restart
   the application.
 
@@ -146,18 +146,19 @@ This also makes manual restarts and rollbacks cleaner, not only blue-green deplo
 
 ### Choose a mode
 
-`deploy.zero_downtime` has three values:
+Zero-downtime deploys are **off by default**, including for applications created before the feature existed.
+Turn them on in the application's settings. `deploy.zero_downtime` has three values:
 
 | Mode | Behavior |
 |---|---|
-| `auto` (default) | Zero downtime only for applications that receive web traffic |
+| `off` (default) | Stop the running version first, then start the new one |
+| `auto` | Zero downtime only for applications that receive web traffic |
 | `on` | Always, including applications without web traffic |
-| `off` | Stop the running version first, then start the new one |
 
 If the second copy can't be started at that moment, the deploy falls back to stopping the running version
 first, and automatic rollback still protects it. The second process does not count against your plan's memory.
 
-### Why Discord bots do not use it by default
+### Why `auto` leaves Discord bots out
 
 A bot does not receive traffic from the platform. It connects out to Discord, so there is no route to switch and
 blue-green would add nothing. It would also cause harm: two processes logged in with the same token receive the

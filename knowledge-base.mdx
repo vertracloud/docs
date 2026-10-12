@@ -712,19 +712,19 @@ If the new version of an application stops within **60 seconds** after a deploy,
 previous version **once** and notifies the owner, with a link to the log of the failed version. Only the code
 files go back, not the environment variables. If the previous version also stops, the application stays stopped
 and the owner is notified. During those 60 seconds auto-restart does not restart the new version, so the two
-don't compete. A crash after the first minute is treated as a normal crash. It is on by default on the plans
-that include it (`deploy.auto_rollback`, `true` by default) and can be turned off.
+don't compete. A crash after the first minute is treated as a normal crash. It is off by default, including
+for applications created before the feature (`deploy.auto_rollback`, `false` by default); the owner turns it on.
 
 ### Zero-Downtime Deploys (Enterprise)
 
 On Enterprise, a deploy can start the new version next to the running one, wait for it to be healthy, and only
 then switch over, so an application that receives web traffic stays reachable during the deploy. The setting is
-`deploy.zero_downtime`:
+`deploy.zero_downtime`, off by default:
 
-- `auto` (default): zero downtime only for applications that receive web traffic.
+- `off` (default): stop the running version first, then start the new one.
+- `auto`: zero downtime only for applications that receive web traffic.
 - `on`: always, including applications without web traffic, such as bots. Two processes of the application run
   together for a while, so a bot can answer the same event twice.
-- `off`: the running version stops before the new one starts.
 
 Health check: the platform calls the new version over HTTP on `deploy.health_check_path` (`/` by default). Any HTTP
 response counts as healthy, including `404`; a refused connection, a timeout (5 seconds per attempt) or a `5xx`
