@@ -1,7 +1,7 @@
 ---
-title: 'Roll Back and Deploy Without Downtime'
-sidebarTitle: 'Rollback and zero downtime'
-description: 'How releases, manual and automatic rollback and zero-downtime deploys work, what each one restores, and the limits to know before relying on them.'
+title: 'Rollbacks and Zero-Downtime (Blue-Green) Deploys on Vertra Cloud'
+sidebarTitle: 'Rollbacks and blue-green'
+description: 'How releases, manual and automatic rollbacks and blue-green deploys work on Vertra Cloud, what each one restores and how to make your app safe for them.'
 icon: 'rotate-ccw'
 ---
 
@@ -11,7 +11,7 @@ fails to start, and, on Enterprise, replacing the running version without taking
 
 | Feature | What it does | Plans |
 |---|---|---|
-| Deploy history | Lists every release with status, message, author and date | Every plan (read-only on Free and Economy) |
+| Release history (Rollbacks tab) | Lists every release with status, message, author and date | Every plan (read-only on Free and Economy) |
 | Manual rollback | Returns the code to an earlier release | Pro and above |
 | Automatic rollback | Goes back by itself if a new version stops right after a deploy | Intermediary and above |
 | Zero-downtime deploys | Starts the new version next to the running one and switches when it is healthy | Enterprise |
@@ -22,7 +22,7 @@ A release is a complete version of your application's code at a point in time, w
 GitHub, the CLI, an upload from the dashboard or the API, or an edit in the file manager. Each one shows its
 status, message, author, date and build time.
 
-- **Dashboard:** open the application and go to the **Deploys** tab.
+- **Dashboard:** open the application and go to the **Rollbacks** tab.
 - **API:** [List releases](/api-reference/endpoint/apps/releases/list) returns the versions and
   [release log](/api-reference/endpoint/apps/releases/log) returns the log of one of them.
 
@@ -32,7 +32,7 @@ releases from before that. Add a short message to each deploy (an optional field
 
 ## Manual rollback
 
-In the **Deploys** tab, pick an earlier version and confirm. The application returns to that version's code and
+In the **Rollbacks** tab, pick an earlier version and confirm. The application returns to that version's code and
 restarts.
 
 | | After a rollback |
@@ -83,7 +83,7 @@ On Intermediary and Enterprise, a broken deploy no longer leaves the application
   stopped and you are told.
 - **Code only:** environment variables are not restored. If a variable change was the cause, use the manual
   rollback with the variables option.
-- **You are always told:** you get a notification, the Deploys tab marks the failed version with its log, the
+- **You are always told:** you get a notification, the Rollbacks tab marks the failed version with its log, the
   rollback shows up as a new release authored by Vertra Cloud, and the live log shows the same notices.
 - **Turning it off:** it is on by default on the plans that include it. Switch it off in the application's
   settings, or send `deploy.auto_rollback: false` to
@@ -96,12 +96,13 @@ back by hand.
 ## Zero-downtime deploys
 
 By default a deploy stops the running version and starts the new one, which leaves the application offline for
-a few seconds. On **Enterprise**, a deploy can instead work like this:
+a few seconds. On **Enterprise**, a deploy can instead work like this, a pattern known as a **blue-green deploy**:
 
 1. The new version is installed, built and started **next to** the running one. The running version keeps
    serving.
 2. The platform checks that the new version is healthy.
-3. Only then does traffic switch to the new version, and the old one receives a request to shut down.
+3. Only then does traffic switch to the new version, all at once. The old version is asked to shut down right
+   away (`SIGTERM`) and has **10 seconds** to finish before it is stopped.
 4. If the new version does not become healthy within about **2 minutes**, it is discarded, you get a notice with
    its log, and the previous version keeps running.
 
@@ -117,6 +118,31 @@ change it in the application's settings or with
 - The version must answer well twice in a row and still be running before traffic moves.
 - An application that only listens on `127.0.0.1` fails the check, because nothing outside the container can
   reach it. Listen on all interfaces (`0.0.0.0`).
+
+### Shut down gracefully
+
+The one request a switch can lose is one the old version is **in the middle of answering** when it is asked to
+stop. Most frameworks stop at once on `SIGTERM` and drop it. Handle the signal instead: stop accepting new
+connections, let the open requests finish, then exit. Ten seconds is the limit.
+
+<CodeGroup>
+```javascript Node.js
+const server = app.listen(80, "0.0.0.0");
+
+process.on("SIGTERM", () => {
+  // Stops accepting new connections and exits once the open requests finish.
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 9000).unref();
+});
+```
+
+```python Python (Gunicorn)
+# gunicorn.conf.py — Gunicorn already drains on SIGTERM; keep the timeout under 10 s.
+graceful_timeout = 9
+```
+</CodeGroup>
+
+This also makes manual restarts and rollbacks cleaner, not only blue-green deploys.
 
 ### Choose a mode
 
@@ -152,9 +178,8 @@ run twice for a short time.
   builds. For those applications, use `off`.
 - **Terminal.** While the new version is prepared, the terminal still shows the running version, not the
   build. Follow the install and build output in the logs.
-- **Overlap at the switch.** The two versions can both answer for a few seconds around the switch. For an
-  application that was started before zero-downtime deploys were turned on, the first switch can drop a few
-  requests.
+- **At the switch.** A request the old version was already answering when it was asked to stop can fail once.
+  See [Shut down gracefully](#shut-down-gracefully).
 
 ## From the CLI, SDKs and MCP
 
