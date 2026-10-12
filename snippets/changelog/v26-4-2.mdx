@@ -1,8 +1,8 @@
 ### Zero-downtime deploys on Enterprise
 
-On Enterprise, a deploy can now start the new version next to the running one, check that it is healthy, and only then switch over, so an application that receives web traffic stays reachable while it is updated. The old version receives a shutdown request once the new one has taken over.
+On Enterprise, a deploy or a restart can now start the new version next to the running one, check that it is healthy, and only then switch over, so an application that receives web traffic stays reachable while it is updated. The old version receives a shutdown request as soon as the new one has taken over.
 
-- **Modes:** `auto` (the default) uses it for applications that receive web traffic; `on` forces it, including for applications without web traffic; `off` keeps the previous behavior of stopping the running version first. Bots and other applications without web traffic stay on stop-and-start in `auto`, because two copies of a bot would answer the same event twice.
+- **Modes:** `off` (the default, including for applications created before this update) keeps stopping the running version first; `auto` uses zero downtime for applications that receive web traffic; `on` forces it, including for applications without web traffic. Bots and other applications without web traffic stay on stop-and-start in `auto`, because two copies of a bot would answer the same event twice. Turn it on in the application's settings, under **Deploy**; it applies from the next restart or deploy.
 - **Health check path:** set the path the platform calls on the new version, `/` by default, with the new `deploy.health_check_path` field of [Update Application Configuration](/api-reference/endpoint/apps/updateconfig) or in the application's settings. Any HTTP response counts as healthy, including `404`; a refused connection, a timeout or a `5xx` response does not.
 - **Discarded deploys:** if the new version does not become healthy within about 2 minutes, it is discarded, you get a notice with its log, and the previous version keeps running. The live log shows the same notice.
 - **Fallback:** if the second copy can't be started at that moment, the deploy falls back to stopping the running version first.
@@ -17,9 +17,17 @@ On Intermediary and Enterprise, an application that stops within 60 seconds afte
 - **Once only:** the platform goes back one time. If the previous version also stops, the application stays stopped and you are notified.
 - **What comes back:** the code files, not the environment variables. To bring variables back, use the manual rollback with the variables option.
 - **You are told:** you get a notification, the Rollbacks tab marks the failed version with its log, and the automatic rollback appears as a new version authored by Vertra Cloud. The application's live log shows the same notices.
-- **Setting:** it is on by default on the plans that include it. Turn it off in the application's settings or with the new `deploy.auto_rollback` field of [Update Application Configuration](/api-reference/endpoint/apps/updateconfig). Changing it does not restart the application.
+- **Setting:** it is off by default, including for applications created before this update. Turn it on in the application's settings, under **Deploy**, or with the new `deploy.auto_rollback` field of [Update Application Configuration](/api-reference/endpoint/apps/updateconfig). Changing it does not restart the application.
 
 [Get Application](/api-reference/endpoint/apps/get) now returns a `deploy` object with the saved deploy settings. After a downgrade the saved value stays, but it only acts on a plan that includes the feature.
+
+### Safety snapshot when deleting an application
+
+On Pro and above, deleting an application now takes a safety snapshot of it first, as deleting a database already did. The snapshot is kept for 30 days in **Snapshots**, where you can download it.
+
+- **If the snapshot fails,** the application is not deleted and the request answers `SNAPSHOT_FAILED`; contact support. Too many safety snapshots in a short time answer `FORCED_SNAPSHOT_RATE_LIMIT`.
+- **On Free and Economy,** the application is deleted right away with no copy. The delete dialog says so and offers to download the project first.
+- **Plan expiry** still takes a snapshot of every project before removing it, on every plan.
 
 ### Roll back an application to an earlier version
 
@@ -37,7 +45,7 @@ The API has a [preview](/api-reference/endpoint/apps/releases/rollback-preview) 
 
 Each application now has a **Rollbacks** tab in the dashboard. It lists every version of the application's code, whatever its source: a push to GitHub, the CLI, an upload from the dashboard or the API, or an edit in the file manager. Each entry shows its status, message, author, date and build time. The tab is available on every plan.
 
-The history starts with the first code submission after this update. Applications created from a snapshot do not get an initial entry. Edits made in the file manager are grouped into the history at the next restart or code submission.
+The history starts with the first code submission after this update. Applications created from a snapshot do not get an initial entry. Edits made in the file manager are grouped into the history at the next restart or code submission. Files sent without a restart show as **Awaiting restart** until the application restarts, because until then it keeps running the previous version.
 
 You can write a message for each version:
 

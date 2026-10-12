@@ -3,8 +3,13 @@ title: Delete Application
 sidebarTitle: Delete Application
 api: DELETE https://api.vertracloud.app/v1/apps/{id}
 authMethod: bearer
-description: Deletes an application by its ID.
+description: Deletes an application by its ID. On Pro and above, a safety snapshot is taken first.
 ---
+On **Pro and above** (the owner's plan), deleting an application first takes an automatic **safety
+snapshot**, kept for 30 days in Snapshots. If that snapshot fails, nothing is deleted and the request
+answers `SNAPSHOT_FAILED`; contact support. On Free and Economy the application is deleted right away,
+with no copy.
+
 
 {/* @see success/error — @vertracloud/api-types */}
 <ParamField path="id" type="string" required>
@@ -36,6 +41,8 @@ description: Deletes an application by its ID.
   - `APP_SHIELD_COOLDOWN`: Vertra Shield paused the application; it can't be deleted until the pause ends (`403`). `details.until` says when.
   - `APP_ID_REQUIRED`: The application ID was not provided.
   - `INTERNAL_SERVER_ERROR`: The application could not be deleted.
+  - `FORCED_SNAPSHOT_RATE_LIMIT`: Too many safety snapshots were attempted recently on this application or on your account; the application was not deleted (`429`).
+  - `SNAPSHOT_FAILED`: The safety snapshot could not be taken; the application was not deleted. Contact support (`500`).
   - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same application is already running (`409`). Nothing was deleted — wait a few seconds and retry. See [Common Error Codes](/api-reference/introduction#what-error-codes-can-the-api-return).
 </ResponseField>
 

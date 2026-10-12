@@ -235,6 +235,7 @@ restart; they are not a separate product surface.
 | Advanced metrics | — | — | Yes | Yes | Yes | Yes |
 | Daily backups | — | — | — | Yes | Yes | Yes |
 | Manual backups | — | — | — | Yes | Yes | Yes |
+| Safety snapshot when deleting an application | — | — | Yes | Yes | Yes | Yes |
 | Database data manager | — | — | — | — | Yes | Yes |
 | Auto-deploy (GitHub) | — | — | — | — | Yes | Yes |
 | Deploy history (Rollbacks tab) | Read-only | Read-only | Yes | Yes | Yes | Yes |
@@ -493,10 +494,13 @@ Start, restart, deploy, configuration changes and deleting the application wait 
 - **Deleting or resetting a database automatically takes a safety snapshot before
   destroying the data**, on every plan. If the backup fails, the action is blocked (`SNAPSHOT_FAILED`)
   and the database is neither deleted nor reset. This forced snapshot has its own ceiling, separate from the
-  manual-creation one: at most 2 attempts per hour on the same database, and 10 per hour across all
-  databases on the account — exceeding either returns `FORCED_SNAPSHOT_RATE_LIMIT` and also
-  blocks the action. It only applies to databases (delete and reset); applications don't have this
-  behavior.
+  manual-creation one: at most 2 attempts per hour on the same project, and 10 per hour across all
+  projects on the account — exceeding either returns `FORCED_SNAPSHOT_RATE_LIMIT` and also
+  blocks the action.
+- **Deleting an application takes the same safety snapshot from the Pro plan up** (the owner's plan).
+  If it fails, the application is not deleted (`SNAPSHOT_FAILED`); the same ceiling applies. On Free and
+  Economy the application is deleted right away with no copy, and the dashboard offers to download the
+  project first. Plan expiry still snapshots every project before removing it, on every plan.
 
 ---
 
@@ -739,11 +743,10 @@ Known limits:
 - An application that reads files on every request (PHP, static sites, a built Next.js or Nuxt app, late imports
   in Python) can serve a mix of old and new files while the deploy installs and builds. For those, use `off`.
 - If the new version does not become healthy within about 2 minutes, it is discarded and the previous version
-  keeps running. If the second copy can't be started at that moment, the deploy falls back to stopping
-  the running version first.
-  The owner gets a notice with the log of the discarded version.
-- While the new version is prepared, the terminal still shows the running version, not the build. The two versions
-  can both answer for a few seconds around the switch.
+  keeps running. The owner gets a notice with the log of the discarded version.
+- If the second copy can't be started at that moment, the deploy falls back to stopping the running version first.
+- While the new version is prepared, the terminal still shows the running version, not the build. A request the old
+  version was already answering when it was asked to stop can fail once; handling `SIGTERM` gracefully avoids it.
 
 ### Deploy-per-Hour Limit
 
