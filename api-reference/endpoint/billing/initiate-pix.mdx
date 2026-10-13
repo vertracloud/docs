@@ -9,8 +9,9 @@ description: Generates the PIX charge (QR code) for an unpaid order.
   The order ID.
 </ParamField>
 
-The QR code expires with the order (`expires_at`). Calling this again while the QR code is still
-valid returns the same one.
+Each QR code is valid for up to 30 minutes (`expires_at`), never past the order's own expiry.
+Calling this again while the QR code is still valid returns the same one. After it expires,
+calling this again while the order is still open returns a new QR code for the same order.
 
 ### Response
 
@@ -27,6 +28,10 @@ valid returns the same one.
 
   <ResponseField name="txid" type="string">
     The PIX transaction ID.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null">
+    When this QR code stops being payable, in ISO 8601 (up to 30 minutes after it was generated, never after the order expires).
   </ResponseField>
 
   <ResponseField name="qrcode" type="object">
@@ -47,6 +52,7 @@ valid returns the same one.
     "transaction_amount": 24.9,
     "external_reference": "order-abc123",
     "txid": "9c2b1e3a-...-000",
+    "expires_at": "2026-10-13T15:30:00.000Z",
     "qrcode": {
       "copy": "00020126...6304ABCD",
       "base64": "iVBORw0KGgoAAAANSUhEUgAA..."
