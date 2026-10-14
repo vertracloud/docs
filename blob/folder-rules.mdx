@@ -1,0 +1,85 @@
+---
+title: 'Blob Storage Folder Rules: Defaults and Limits per Folder'
+sidebarTitle: 'Folder rules'
+description: 'Set default visibility, expiry, size limits, allowed extensions, cache and automatic deletion for every file under a folder prefix.'
+icon: 'folder-tree'
+---
+
+A folder rule applies defaults and limits to every new file whose path starts with a prefix, so your app does not have to repeat them on each upload. Prefixes are saved with a trailing `/`, and when several rules match, **the longest prefix wins**.
+
+| Field | Effect |
+|---|---|
+| `visibility` | Default for new files in the folder |
+| `expire_seconds` | Default expiry of each new file |
+| `max_size` | Largest file allowed, from 512 bytes to 10 GB |
+| `extensions` | Only these extensions are accepted (1 to 50, lowercase, no dot) |
+| `cache_control` | Default cache header |
+| `delete_after_days` | Delete files after 1 to 3650 days |
+
+`delete_after_days` starts counting **24 hours after the rule is saved**, which gives you time to undo a mistake. The rule's `active_from` field shows when it begins to apply.
+
+The number of rules per account depends on the plan: 5, 10 or 20 ([limits](/blob/limits-and-quotas)). Exceeding it answers `BLOB_RULE_LIMIT`. A rule must set at least one field; `expire_seconds` can't be below the plan's minimum expiration (7 days, or 1 hour on Enterprise-26 or higher); `extensions` takes 1 to 50 items of 1 to 16 lowercase characters, without the dot. Replacing the whole list takes at most 100 rules.
+
+## Editing safely with `If-Match`
+
+Reading the rules returns the list and an `etag`. Replacing the whole list requires that etag in an `If-Match` header; if another tab or script changed the rules meanwhile, you get `BLOB_RULES_CONFLICT` instead of silently erasing their work. Single-rule routes (put and delete by prefix) return the full list with a new etag.
+
+<CodeGroup>
+
+```bash cURL
+# read
+curl "https://blob.vertracloud.app/v1/rules" -H "Authorization: Bearer $VERTRA_API_KEY"
+
+# add or change one rule (prefix is URL-encoded: tmp/ -> tmp%2F)
+curl -X PUT "https://blob.vertracloud.app/v1/rules/tmp%2F" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "delete_after_days": 30 }'
+
+# replace everything
+curl -X PUT "https://blob.vertracloud.app/v1/rules" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "If-Match: $ETAG" \
+  -H "Content-Type: application/json" -d '{ "rules": [] }'
+```
+
+```javascript JavaScript
+const { rules, etag } = await blob.rules.get();
+
+// replace the whole list; a stale etag fails with BLOB_RULES_CONFLICT
+await blob.rules.set([{ prefix: "avatars/", maxSize: 2_000_000, extensions: ["png", "jpg"] }], etag);
+
+// create or change one folder
+await blob.rules.put("tmp/", { deleteAfterDays: 30 });
+await blob.rules.delete("tmp/");
+```
+
+```python Python
+current = client.blob.rules.get()  # {"rules": [...], "etag": "..."}
+
+# replace the whole list; a stale etag fails with BLOB_RULES_CONFLICT
+client.blob.rules.set(
+    [{"prefix": "avatars/", "max_size": 2_000_000, "extensions": ["png", "jpg"]}],
+    current["etag"],
+)
+
+client.blob.rules.put("tmp/", delete_after_days=30)
+client.blob.rules.delete("tmp/")
+```
+
+```go Go
+current, err := client.Blob.Rules.Get(ctx)
+
+// replace the whole list; a stale etag fails with BLOB_RULES_CONFLICT
+maxSize := int64(2_000_000)
+_, err = client.Blob.Rules.Set(ctx, []vertracloud.BlobRuleEntry{{
+    Prefix: "avatars/",
+    BlobRuleInput: vertracloud.BlobRuleInput{MaxSize: &maxSize, Extensions: []string{"png", "jpg"}},
+}}, current.ETag)
+
+days := 30
+_, err = client.Blob.Rules.Put(ctx, "tmp/", vertracloud.BlobRuleInput{DeleteAfterDays: &days})
+_, err = client.Blob.Rules.Delete(ctx, "tmp/")
+```
+
+</CodeGroup>
+
+Reference: [Get rules](/api-reference/endpoint/blob/rules/get), [Replace rules](/api-reference/endpoint/blob/rules/replace), [Put rule](/api-reference/endpoint/blob/rules/put), [Delete rule](/api-reference/endpoint/blob/rules/delete).

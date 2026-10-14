@@ -1,0 +1,116 @@
+---
+title: "Get Blob Upload Status for Resume"
+sidebarTitle: "Get upload status"
+api: "GET https://blob.vertracloud.app/v1/uploads/{upload_id}"
+authMethod: bearer
+description: "Returns the status of one direct upload and the parts already stored, so an interrupted upload can resume. Accepts an upload token."
+---
+
+{/* @see RESTGetAPIBlobUploadResponse, APIBlobUpload — @vertracloud/api-types */}
+
+Returns one direct upload with `uploaded_parts`, the part numbers already stored. Send only the missing parts after an interruption. Use it to resume an upload. An upload that has expired returns `BLOB_UPLOAD_EXPIRED`.
+
+**Scope:** `blob:write`. Accepts an upload token.
+
+**Upload token:** this route also accepts an upload token (`Authorization: Bearer vcup_...`) instead of an API key.
+
+<ParamField path="upload_id" type="string" required>
+  The upload ID returned when the upload was started.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl "https://blob.vertracloud.app/v1/uploads/7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  The upload and the parts already stored.
+  <Expandable title="properties">
+  <ResponseField name="id" type="string">Upload ID. Use it for status, parts, complete and abort.</ResponseField>
+  <ResponseField name="path" type="string">Final path, including the random suffix when one was requested.</ResponseField>
+  <ResponseField name="mode" type="string">`single` (one `PUT` of the whole file to `url`) or `multipart` (several parts, each with its own URL).</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `completed`, `aborted` or `expired`.</ResponseField>
+  <ResponseField name="size" type="number">Declared size in bytes. The stored bytes must match it at `complete`.</ResponseField>
+  <ResponseField name="expires_at" type="string">When the URLs and the reserved storage expire, as an ISO 8601 timestamp.</ResponseField>
+  <ResponseField name="url" type="string">Only in `single` mode: the URL to `PUT` the whole file to.</ResponseField>
+  <ResponseField name="headers" type="object">Headers the `PUT` must send exactly as given, because they are part of the signature.</ResponseField>
+  <ResponseField name="part_size" type="number">Only in `multipart` mode: the fixed part size in bytes. The last part can be smaller.</ResponseField>
+  <ResponseField name="part_count" type="number">Only in `multipart` mode: how many parts the file has.</ResponseField>
+  <ResponseField name="uploaded_parts" type="number[]">Part numbers already stored. Use them to resume an interrupted upload.</ResponseField>
+  <ResponseField name="created_at" type="string">ISO 8601 creation time.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f",
+    "path": "videos/demo.mp4",
+    "mode": "multipart",
+    "status": "pending",
+    "size": 2147483648,
+    "expires_at": "2026-10-14T13:00:00.000Z",
+    "headers": {
+      "content-type": "video/mp4"
+    },
+    "part_size": 67108864,
+    "part_count": 32,
+    "uploaded_parts": [],
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): The upload token doesn't exist, has expired or was revoked (only with an upload token).
+  - `BLOB_UPLOAD_NOT_FOUND` (`404`): No upload with that ID in this account, or it was already completed or aborted.
+  - `BLOB_UPLOAD_EXPIRED` (`410`): The upload's time limit has passed.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (410)
+{
+  "code": "BLOB_UPLOAD_EXPIRED"
+}
+```
+
+</ResponseExample>

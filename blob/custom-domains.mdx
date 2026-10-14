@@ -1,0 +1,66 @@
+---
+title: 'Serve Blob Storage Files from Your Own Domain'
+sidebarTitle: 'Custom domains'
+description: 'Serve public Blob Storage files from a subdomain you own, like cdn.example.com, with a CNAME to custom.vertracloud.dev. Enterprise plans only.'
+icon: 'globe'
+---
+
+On Enterprise plans, public files can be served from your own subdomain, for example `cdn.example.com/images/logo.png`, with HTTPS issued and renewed for you.
+
+| Plan | Domains |
+|---|---|
+| Economy to Intermediary | 0 |
+| Enterprise-4, 6 and 8 | 1 |
+| Enterprise-12 to 24 | 3 |
+| Enterprise-26 to 32 | 10 |
+
+Without the right plan the call answers `PLAN_RESTRICTED_FEATURE`. `BLOB_CUSTOM_DOMAIN_LIMIT` is only for a plan that has domains and has used them all.
+
+<Steps>
+  <Step title="Add the hostname">
+    Use a subdomain only; a bare root domain is not accepted. Optionally set a `prefix` so the domain serves a single folder.
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl -X POST "https://blob.vertracloud.app/v1/domains" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+      -d '{ "hostname": "cdn.example.com", "prefix": "images/" }'
+    ```
+
+    ```javascript JavaScript
+    const domain = await blob.domains.add("cdn.example.com");
+    ```
+
+    ```python Python
+    domain = client.blob.domains.add("cdn.example.com")
+    ```
+
+    ```go Go
+    domain, err := client.Blob.Domains.Add(ctx, "cdn.example.com", "")
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Create the CNAME record">
+    At your DNS provider:
+
+    | Type | Name | Value |
+    |---|---|---|
+    | `CNAME` | `cdn` | `custom.vertracloud.dev` |
+  </Step>
+  <Step title="Create the ownership TXT record">
+    While the domain is `pending`, the response carries a `verification` object with the TXT record that proves the hostname is yours. Create it next to the CNAME:
+
+    | Type | Name | Value |
+    |---|---|---|
+    | `TXT` | `verification.name` | `verification.value` |
+
+    The domain never becomes `active` on the CNAME alone. Once it is `active`, `verification` is no longer returned.
+  </Step>
+  <Step title="Verify">
+    The domain starts as `pending`. When the CNAME and the ownership TXT record both resolve and the certificate is issued it becomes `active`. Force a new check with [Verify domain](/api-reference/endpoint/blob/domains/verify); `ssl_status` shows certificate progress. A `failed` status means the CNAME or the TXT record was not found. DNS changes can take a few minutes to propagate. You can read `verification` again at any time from [List](/api-reference/endpoint/blob/domains/list).
+  </Step>
+</Steps>
+
+A hostname already used elsewhere answers `BLOB_CUSTOM_DOMAIN_TAKEN`. Invalid hostnames answer `INVALID_CUSTOM_DOMAIN_FORMAT`. Remove a domain with [Delete domain](/api-reference/endpoint/blob/domains/delete); see also [List](/api-reference/endpoint/blob/domains/list) and [Add](/api-reference/endpoint/blob/domains/add).

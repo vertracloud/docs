@@ -1,0 +1,70 @@
+---
+title: 'Blob Storage Limits, Quotas and Plan Features'
+sidebarTitle: 'Limits and quotas'
+description: 'Storage quota and features per plan for Blob Storage, what happens when you exceed the quota after a downgrade, and the 72-hour grace period before deletion.'
+icon: 'gauge'
+---
+
+Your Blob Storage quota depends on your plan and belongs to the account owner (workspace members share the owner's quota). The numbers live in the [knowledge base](/knowledge-base); this page is the Blob Storage view.
+
+## Per plan
+
+| Plan | Quota | Folder rules | Custom domains | Image transformations / month |
+|---|---|---|---|---|
+| Economy | 1 GB | 5 | 0 | none |
+| Pro | 5 GB | 5 | 0 | none |
+| Scale | 15 GB | 5 | 0 | 600 |
+| Intermediary | 20 GB | 5 | 0 | 1,000 |
+| Enterprise-4 | 30 GB | 5 | 1 | 1,500 |
+| Enterprise-6 | 50 GB | 5 | 1 | 2,000 |
+| Enterprise-8 | 100 GB | 5 | 1 | 2,500 |
+| Enterprise-12 and 14 | 150 GB | 10 | 3 | 4,000 |
+| Enterprise-16 to 24 | 250 GB | 10 | 3 | 5,000 |
+| Enterprise-26 to 32 | 250 GB | 20 | 10 | 10,000 |
+
+Features that only some plans include:
+
+| Feature | Available from |
+|---|---|
+| Upload rate of more than one per second | Enterprise-12 |
+| Metadata (up to 5 keys, 512 bytes total) | Enterprise-12 |
+| Password on [shares](/blob/sharing) | Enterprise-12 |
+| `no-cache` as `cache_control` | Enterprise-26 |
+| Expiration shorter than 7 days (minimum 1 hour) | Enterprise-26 |
+
+Below Enterprise-12, uploads are limited to **one per second** per account. A gated feature answers `PLAN_RESTRICTED_FEATURE`.
+
+## Limits for every plan
+
+| Limit | Value |
+|---|---|
+| Largest file | 10 GB |
+| Simple upload | 100 MB |
+| Parts per get-part-URLs call | 100 |
+| Objects per batch update | 100 |
+| Objects per batch delete | 1,000 |
+| Listing page | 1 to 1000 (default 100) |
+| Temporary link | 60 s to 24 h |
+| Upload token lifetime | 60 s to 1 h |
+
+Read your live values from `limits` in [Get stats](/api-reference/endpoint/blob/account/stats) instead of hardcoding them.
+
+## Exceeding the quota
+
+Uploads stop with `STORAGE_QUOTA_EXCEEDED` as soon as used space plus reserved space plus the new file would pass your quota. Nothing is deleted.
+
+If you **downgrade** and your usage is above the new quota, your files stay. Uploads stay blocked until you are back under the quota, and the overage is billed at **R$ 0,20 per started GB** on the next renewal. [Get stats](/api-reference/endpoint/blob/account/stats) shows `over_quota_bytes` and `estimated_overage_cents`. See [Plan downgrade](/plan-downgrade).
+
+## Expiration and deletion
+
+When your plan expires or is canceled, your files enter a **72-hour grace period**:
+
+- Uploads and other writes are blocked and answer `BLOB_NAMESPACE_SUSPENDED`.
+- Public files, temporary links and share pages keep working until the grace period ends.
+- You receive e-mail reminders during the period.
+- Renewing during the grace period restores everything immediately.
+- After 72 hours the files are **permanently deleted, without a backup**.
+
+A suspension for abuse is different: suspended files go offline right away.
+
+<Warning>Deletion after the grace period cannot be undone. Download or move what you need before your plan expires.</Warning>

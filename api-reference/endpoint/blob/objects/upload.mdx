@@ -1,0 +1,195 @@
+---
+title: "Upload Blob Object in One Request"
+sidebarTitle: "Upload object"
+api: "POST https://blob.vertracloud.app/v1/objects"
+authMethod: bearer
+description: "Uploads one file of up to 100 MB in a single multipart request and stores it at a path. Accepts an upload token."
+---
+
+{/* @see RESTPostAPIBlobObjectQuery, RESTPostAPIBlobObjectResponse, APIBlobObject — @vertracloud/api-types */}
+
+Uploads one file of up to 100 MB in a single `multipart/form-data` request and stores it at `path`. For larger files use [Start a direct upload](/api-reference/endpoint/blob/uploads/create). Responds with `201` and the new object.
+
+**Scope:** `blob:write`. Accepts an upload token.
+
+**Upload token:** this route also accepts an upload token (`Authorization: Bearer vcup_...`) instead of an API key.
+
+<ParamField query="path" type="string" required>
+  Destination path in the account. 1–1024 characters, up to 16 segments of `[A-Za-z0-9._ -]` (1–255 characters each), no leading or trailing `/`, no `//` or `..`, and an extension is required. Rejected paths return `VALIDATION_ERROR`; they are never changed silently.
+</ParamField>
+
+<ParamField query="visibility" type="string">
+  `public` or `private`. Default `private`.
+</ParamField>
+
+<ParamField query="overwrite" type="boolean">
+  Replace an object already at `path`. Default `false`: a taken path returns `BLOB_OBJECT_ALREADY_EXISTS`.
+</ParamField>
+
+<ParamField query="random_suffix" type="boolean">
+  Insert `-` plus 10 random base-36 characters before the extension. Default `false`. Forced to `true` for an upload token without a fixed `path`.
+</ParamField>
+
+<ParamField query="cache_control" type="string">
+  `immutable`, `max-age=<seconds>` or `no-cache` (Enterprise-26 or higher). Default: no value set.
+</ParamField>
+
+<ParamField query="content_disposition" type="string">
+  `inline` or `attachment`. Default: `inline`. Files ending in `.html`, `.htm`, `.svg`, `.xml` or `.xhtml` are always served as `attachment`.
+</ParamField>
+
+<ParamField query="filename" type="string">
+  Name suggested when the file is downloaded. Default: the last segment of `path`.
+</ParamField>
+
+<ParamField query="expires_at" type="string">
+  ISO 8601 timestamp when the object is deleted. Must be at least the plan's minimum from now (7 days, or 1 hour on Enterprise-26 or higher).
+</ParamField>
+
+<ParamField query="metadata" type="string">
+  JSON object, URL-encoded: up to 5 keys, each `[a-z0-9-]{1,64}`, 512 bytes in total. Enterprise-12 or higher.
+</ParamField>
+
+<ParamField query="checksum_sha256" type="string">
+  Hex SHA-256 of the file. A mismatch returns `BLOB_CHECKSUM_MISMATCH` and nothing is stored.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  The file, as the only `multipart/form-data` part. Up to 100 MB; the plan's limit applies.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/objects?path=images/logo.png&visibility=public" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -F "file=@./logo.png"
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  The stored object. Responds with `201`.
+  <Expandable title="properties">
+  <ResponseField name="id" type="string">Stable ID of the object. It never changes, even when the path, visibility or expiration does.</ResponseField>
+  <ResponseField name="path" type="string">Full path inside the account, for example `images/avatars/joao.png`.</ResponseField>
+  <ResponseField name="size" type="number">Size in bytes.</ResponseField>
+  <ResponseField name="content_type" type="string">MIME type, derived on the server from the file extension.</ResponseField>
+  <ResponseField name="etag" type="string">Entity tag of the stored content.</ResponseField>
+  <ResponseField name="sha256" type="string | null">SHA-256 of the content in hex, when the upload sent a checksum. `null` otherwise.</ResponseField>
+  <ResponseField name="visibility" type="string">`public` (readable through its public URL) or `private` (needs a temporary link or a share).</ResponseField>
+  <ResponseField name="url" type="string | null">Public URL. `null` while the object is private.</ResponseField>
+  <ResponseField name="cache_control" type="string | null">`immutable`, `max-age=<seconds>` or `no-cache` (`no-cache` needs Enterprise-26 or higher). `null` means the default.</ResponseField>
+  <ResponseField name="content_disposition" type="string">`inline` (shown by the browser) or `attachment` (downloaded). HTML, SVG and XML are always `attachment`.</ResponseField>
+  <ResponseField name="filename" type="string | null">Name suggested on download. `null` uses the last segment of `path`.</ResponseField>
+  <ResponseField name="metadata" type="object">Up to 5 keys, each `[a-z0-9-]{1,64}`, 512 bytes in total. Enterprise-12 or higher; `{}` on other plans.</ResponseField>
+  <ResponseField name="expires_at" type="string | null">When the object is deleted, as an ISO 8601 timestamp. `null` means no expiration.</ResponseField>
+  <ResponseField name="created_at" type="string">ISO 8601 creation time.</ResponseField>
+  <ResponseField name="updated_at" type="string">ISO 8601 time of the last change.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+    "path": "images/logo.png",
+    "size": 48213,
+    "content_type": "image/png",
+    "etag": "9b2cf535f27731c974343645a3085d39",
+    "sha256": null,
+    "visibility": "public",
+    "url": "https://blob.vertracloud.dev/k7p2m9x4qa/images/logo.png",
+    "cache_control": null,
+    "content_disposition": "inline",
+    "filename": null,
+    "metadata": {},
+    "expires_at": null,
+    "created_at": "2026-10-14T12:00:00.000Z",
+    "updated_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): The upload token doesn't exist, has expired or was revoked (only with an upload token).
+  - `BLOB_CHECKSUM_MISMATCH` (`400`): The `checksum_sha256` doesn't match the file. Nothing was stored.
+  - `VALIDATION_ERROR` (`400`): A query parameter failed validation, for example an invalid `path`. `details.path` names it.
+  - `BLOB_OBJECT_ALREADY_EXISTS` (`409`): `path` is taken and `overwrite` is not `true`.
+  - `BLOB_FILE_TOO_LARGE` (`413`): The file is above 100 MB, the plan's limit for this route, or the rule's or token's `max_size`.
+  - `STORAGE_QUOTA_EXCEEDED` (`403`): Storing the file would exceed the plan's blob quota.
+  - `BLOCKED_FILE_TYPE` (`422`): The extension is blocked, not allowed by the folder rule or token, or the file is an executable.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): The account's blob storage is suspended, or its plan expired. Uploads and other writes are refused from the start of the 72-hour grace period.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` (below Enterprise-12) or `cache_control: no-cache` (below Enterprise-26) isn't included in the plan.
+  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Only with an upload token: the path, size or extension is outside what the token allows.
+  - `BLOB_UPLOAD_TOKEN_EXHAUSTED` (`401`): Only with an upload token: it has used all its uses.
+  - `RATE_LIMIT_EXCEEDED` (`429`): Below Enterprise-12, uploads are limited to 1 per second. `details.retry_after` gives the wait.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "BLOB_CHECKSUM_MISMATCH"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_OBJECT_ALREADY_EXISTS"
+}
+```
+
+```json Error Response (413)
+{
+  "code": "BLOB_FILE_TOO_LARGE"
+}
+```
+
+```json Error Response (422)
+{
+  "code": "BLOCKED_FILE_TYPE"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RATE_LIMIT_EXCEEDED"
+}
+```
+
+</ResponseExample>

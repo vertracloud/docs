@@ -1,0 +1,107 @@
+---
+title: "List Share Links"
+sidebarTitle: "List shares"
+api: "GET https://blob.vertracloud.app/v1/shares"
+authMethod: bearer
+description: "Lists the share links of the account, or only those of one object."
+---
+
+{/* @see RESTGetAPIBlobSharesQuery, RESTGetAPIBlobSharesResponse, APIBlobShare — @vertracloud/api-types */}
+
+Lists the share links of the account, newest first. Pass `object_id` to list only the shares of one object. Revoked and expired shares are not listed.
+
+**Scope:** `blob:read`.
+
+<ParamField query="object_id" type="string">
+  Only the shares of this object.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl "https://blob.vertracloud.app/v1/shares?object_id=0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  The share links.
+  <Expandable title="properties">
+  <ResponseField name="id" type="string">Share ID. Use it to revoke the share.</ResponseField>
+  <ResponseField name="object_id" type="string">The object the share gives access to.</ResponseField>
+  <ResponseField name="url" type="string">Share page URL. Send it to whoever should download the file.</ResponseField>
+  <ResponseField name="expires_at" type="string">When the share stops working, as an ISO 8601 timestamp.</ResponseField>
+  <ResponseField name="max_downloads" type="number | null">Download limit. `null` means no limit.</ResponseField>
+  <ResponseField name="remaining_downloads" type="number | null">Downloads left. `null` when there is no limit.</ResponseField>
+  <ResponseField name="has_password" type="boolean">Whether the share asks for a password.</ResponseField>
+  <ResponseField name="object_is_public" type="boolean">`true` when the object is public. A public object is reachable by its URL, so the share doesn't protect it.</ResponseField>
+  <ResponseField name="created_at" type="string">ISO 8601 creation time.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "3e4f5a6b-7c8d-4e9f-a0b1-c2d3e4f5a6b7",
+      "object_id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+      "url": "https://vertracloud.app/share/xK3mP9qLwT2vN8rY",
+      "expires_at": "2026-10-15T12:00:00.000Z",
+      "max_downloads": 10,
+      "remaining_downloads": 10,
+      "has_password": false,
+      "object_is_public": false,
+      "created_at": "2026-10-14T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `VALIDATION_ERROR` (`400`): A parameter or body field failed validation. `details.path` names the field.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,106 @@
+---
+title: 'Blob Storage Links: Public URLs, Temporary Links and Visibility'
+sidebarTitle: 'Links and visibility'
+description: 'How to serve a Blob Storage file: permanent public URL, temporary download link up to 24 hours, or a share page, plus cache, filename and expiry controls.'
+icon: 'link'
+---
+
+A file can be reached three ways: a permanent public URL, a temporary link, or a [share page](/blob/sharing). Pick by who needs access and for how long.
+
+| | Public URL | Temporary link | Share page |
+|---|---|---|---|
+| File must be | Public | Public or private | Private (for protection) |
+| Lifetime | Permanent | 60 s to 24 h (default 1 h) | 60 s to 30 days (default 24 h) |
+| Revocable | Make the file private | **No**, it expires on its own | Yes |
+| Limits | None | None | Download count, password |
+| Cached by the CDN | Yes | No | No |
+
+## Public URL
+
+A public file is served at `https://blob.vertracloud.dev/<namespace>/<path>`. The `url` field of the file object already contains it, with the path correctly encoded. Because it is permanent and cached, use it for avatars, site images and downloads that anyone may fetch.
+
+## Temporary link
+
+[Download](/api-reference/endpoint/blob/objects/download) creates a link on `blob.vertracloud.dev` that works without credentials until `expires_at`. By default the route answers `302` and redirects; pass `redirect=false` to get `{ url, expires_at }` instead.
+
+| Parameter | Meaning |
+|---|---|
+| `expires_in` | 60 to 86400 seconds, default 3600 |
+| `disposition` | `inline` or `attachment` |
+| `filename` | Name the browser saves the file as |
+| `redirect` | `false` returns JSON instead of a redirect |
+
+<Warning>A temporary link cannot be revoked. Anyone who has it can download until it expires, so keep `expires_in` as short as the use allows. If you need to cut access early, use a [share](/blob/sharing) instead.</Warning>
+
+<CodeGroup>
+
+```bash cURL
+curl "https://blob.vertracloud.app/v1/objects/$OBJECT_ID/download?expires_in=300&disposition=attachment&filename=invoice.pdf&redirect=false" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+```javascript JavaScript
+const { url } = await blob.downloadUrl(id, {
+  expiresIn: 300,
+  disposition: "attachment",
+  filename: "invoice.pdf",
+});
+```
+
+```python Python
+link = client.blob.download_url(id, expires_in=300, disposition="attachment", filename="invoice.pdf")
+```
+
+```go Go
+link, err := client.Blob.DownloadURL(ctx, id, &vertracloud.BlobDownloadOptions{
+    ExpiresIn:   300,
+    Disposition: "attachment",
+    Filename:    "invoice.pdf",
+})
+// link.URL, link.ExpiresAt
+```
+
+</CodeGroup>
+
+## Changing visibility
+
+Switching a file between public and private never changes its `id`, only whether the `url` exists. Making a file private takes it off the CDN immediately and clears the cached copy.
+
+<CodeGroup>
+
+```bash cURL
+curl -X PATCH "https://blob.vertracloud.app/v1/objects/$OBJECT_ID" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "visibility": "private" }'
+```
+
+```javascript JavaScript
+await blob.update(id, { visibility: "private" });
+await blob.updateMany(ids, { visibility: "private" }); // up to 100 at once
+```
+
+```python Python
+client.blob.update(id, visibility="private")
+client.blob.update_many(ids, visibility="private")
+```
+
+```go Go
+_, err := client.Blob.Update(ctx, id, vertracloud.BlobUpdate{Visibility: "private"})
+_, err = client.Blob.UpdateMany(ctx, ids, vertracloud.BlobUpdate{Visibility: "private"})
+```
+
+</CodeGroup>
+
+## Cache, filename and disposition
+
+| Field | Values |
+|---|---|
+| `cache_control` | `immutable`, `max-age=N`, or `no-cache` on the highest Enterprise tiers; `null` restores the default |
+| `content_disposition` | `inline` shows in the browser, `attachment` downloads. HTML, SVG and XML are always `attachment` |
+| `filename` | The name used when the file is downloaded |
+
+Use `immutable` for files whose path embeds a hash or a random suffix, since they never change. Folder-wide defaults live in [folder rules](/blob/folder-rules).
+
+## Expiration
+
+Set `expires_at` and the file is deleted automatically after that time. The shortest expiration allowed is 7 days; Enterprise-26 and above can go down to 1 hour. Send `expires_at: null` in an update to keep the file forever.

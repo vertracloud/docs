@@ -1,0 +1,61 @@
+---
+title: 'Resize and Convert Images on the Fly with Blob Storage'
+sidebarTitle: 'Image transformations'
+description: 'Resize, crop and convert public images by adding query parameters to the URL; available from the Scale plan with a monthly limit.'
+icon: 'image'
+---
+
+For **public images**, add query parameters to the file URL and the platform returns a resized or converted copy, served from the CDN:
+
+```text
+https://blob.vertracloud.dev/<namespace>/images/logo.png?w=400&h=300&fit=cover&format=webp&q=80
+```
+
+| Parameter | Meaning |
+|---|---|
+| `w`, `h` | Target width and height in pixels, `1` to `4096` |
+| `fit` | How the image fills the box: `scale-down`, `contain`, `cover`, `crop` or `pad` |
+| `format` | Output format: `webp`, `avif`, `jpeg`, `png` or `auto` (picks AVIF or WebP from the browser's `Accept` header) |
+| `q` | Quality, `1` to `100` |
+
+Invalid or unknown parameters are ignored. Only public JPEG, PNG, WebP, AVIF and GIF images are transformed; SVG and other files are always served as stored.
+
+<CodeGroup>
+
+```bash cURL
+curl -o logo-400.webp "https://blob.vertracloud.dev/<namespace>/images/logo.png?w=400&format=webp"
+```
+
+```javascript JavaScript
+const url = blob.imageUrl(obj, { width: 400, format: "webp" });
+```
+
+```python Python
+url = obj["url"] + "?w=400&format=webp"
+```
+
+```go Go
+url := *obj.URL + "?w=400&format=webp" // URL is nil for a private object
+```
+
+</CodeGroup>
+
+## Plans and monthly limits
+
+Image transformations start at the **Scale** plan. On Economy and Pro the URL with parameters serves the original image.
+
+| Plan | Transformations per month |
+|---|---|
+| Economy, Pro | not included |
+| Scale | 600 |
+| Intermediary | 1,000 |
+| Enterprise-4 | 1,500 |
+| Enterprise-6 | 2,000 |
+| Enterprise-8 | 2,500 |
+| Enterprise-12 and 14 | 4,000 |
+| Enterprise-16 to 24 | 5,000 |
+| Enterprise-26 to 32 | 10,000 |
+
+Only **unique** transformations count: the same image with the same parameters counts once per month, and repeat requests served from the cache are free. Past the limit the URL keeps working and serves the **original** image, with no error. Your usage this month is `image_transformations_used` in [Get stats](/api-reference/endpoint/blob/account/stats).
+
+Private images are never transformed.

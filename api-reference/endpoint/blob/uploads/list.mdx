@@ -1,0 +1,103 @@
+---
+title: "List Blob Uploads in Progress"
+sidebarTitle: "List uploads"
+api: "GET https://blob.vertracloud.app/v1/uploads"
+authMethod: bearer
+description: "Lists the direct uploads of the account that are still in progress, so you can resume or abort them."
+---
+
+{/* @see RESTGetAPIBlobUploadsResponse, APIBlobUpload — @vertracloud/api-types */}
+
+Lists the direct uploads of the account that are still `pending`. Use it after an interruption to find an upload ID, then read its `uploaded_parts` with [Get upload status](/api-reference/endpoint/blob/uploads/get).
+
+**Scope:** `blob:write`.
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl "https://blob.vertracloud.app/v1/uploads" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  The uploads in progress.
+  <Expandable title="properties">
+  <ResponseField name="id" type="string">Upload ID. Use it for status, parts, complete and abort.</ResponseField>
+  <ResponseField name="path" type="string">Final path, including the random suffix when one was requested.</ResponseField>
+  <ResponseField name="mode" type="string">`single` (one `PUT` of the whole file to `url`) or `multipart` (several parts, each with its own URL).</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `completed`, `aborted` or `expired`.</ResponseField>
+  <ResponseField name="size" type="number">Declared size in bytes. The stored bytes must match it at `complete`.</ResponseField>
+  <ResponseField name="expires_at" type="string">When the URLs and the reserved storage expire, as an ISO 8601 timestamp.</ResponseField>
+  <ResponseField name="url" type="string">Only in `single` mode: the URL to `PUT` the whole file to.</ResponseField>
+  <ResponseField name="headers" type="object">Headers the `PUT` must send exactly as given, because they are part of the signature.</ResponseField>
+  <ResponseField name="part_size" type="number">Only in `multipart` mode: the fixed part size in bytes. The last part can be smaller.</ResponseField>
+  <ResponseField name="part_count" type="number">Only in `multipart` mode: how many parts the file has.</ResponseField>
+  <ResponseField name="uploaded_parts" type="number[]">Part numbers already stored. Use them to resume an interrupted upload.</ResponseField>
+  <ResponseField name="created_at" type="string">ISO 8601 creation time.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f",
+      "path": "videos/demo.mp4",
+      "mode": "multipart",
+      "status": "pending",
+      "size": 2147483648,
+      "expires_at": "2026-10-14T13:00:00.000Z",
+      "headers": {
+        "content-type": "video/mp4"
+      },
+      "part_size": 67108864,
+      "part_count": 32,
+      "uploaded_parts": [],
+      "created_at": "2026-10-14T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

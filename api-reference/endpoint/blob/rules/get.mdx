@@ -1,0 +1,96 @@
+---
+title: "Get Folder Rules and ETag"
+sidebarTitle: "Get rules"
+api: "GET https://blob.vertracloud.app/v1/rules"
+authMethod: bearer
+description: "Returns the folder rules of the account and the etag to send back when you replace them."
+---
+
+{/* @see RESTGetAPIBlobRulesResponse, APIBlobRules — @vertracloud/api-types */}
+
+Returns every folder rule of the account and the `etag` of the list. Read the list before you change it, and send the `etag` back in `If-Match` on [Replace all rules](/api-reference/endpoint/blob/rules/replace).
+
+**Scope:** `blob:read`.
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl "https://blob.vertracloud.app/v1/rules" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  The rule list and its etag.
+  <Expandable title="properties">
+  <ResponseField name="rules" type="object[]">Folder rules. The longest matching prefix applies.</ResponseField>
+  <ResponseField name="rules[].prefix" type="string">Folder prefix, always stored with a trailing `/`.</ResponseField>
+  <ResponseField name="rules[].visibility" type="string">Default visibility of new objects in the folder.</ResponseField>
+  <ResponseField name="rules[].expire_seconds" type="number">Default expiration of each new object, in seconds.</ResponseField>
+  <ResponseField name="rules[].max_size" type="number">Largest accepted file in bytes, 512 B to 10 GB.</ResponseField>
+  <ResponseField name="rules[].extensions" type="string[]">Accepted extensions, 1–50, lowercase, without the dot.</ResponseField>
+  <ResponseField name="rules[].cache_control" type="string">Default `cache_control` of new objects.</ResponseField>
+  <ResponseField name="rules[].delete_after_days" type="number">Objects are deleted this many days after they're uploaded, 1–3650.</ResponseField>
+  <ResponseField name="rules[].active_from" type="string">When `delete_after_days` starts to apply, set by the platform (24 hours after the rule is saved).</ResponseField>
+  <ResponseField name="rules[].created_at" type="string">ISO 8601 time the rule was created.</ResponseField>
+  <ResponseField name="etag" type="string">Version of the whole rule list. Send it back in `If-Match` when you replace the list.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "rules": [
+      {
+        "prefix": "tmp/",
+        "delete_after_days": 30,
+        "active_from": "2026-10-15T12:00:00.000Z",
+        "created_at": "2026-10-14T12:00:00.000Z"
+      }
+    ],
+    "etag": "3f9c1a7e"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,76 @@
+---
+title: "Delete a Blob Custom Domain"
+sidebarTitle: "Delete domain"
+api: "DELETE https://blob.vertracloud.app/v1/domains/{domain_id}"
+authMethod: bearer
+description: "Removes a custom domain from blob storage. The response is null."
+---
+
+{/* @see RESTDeleteAPIBlobDomainResponse — @vertracloud/api-types */}
+
+Removes a custom domain, so its hostname stops serving the account's files. The files themselves are not deleted. The response is `null` in the `response` field.
+
+**Scope:** `blob:write`.
+
+<ParamField path="domain_id" type="string" required>
+  The domain ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X DELETE "https://blob.vertracloud.app/v1/domains/9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Response
+
+Empty on success.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `BLOB_CUSTOM_DOMAIN_NOT_FOUND` (`404`): No domain with that ID in this account.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

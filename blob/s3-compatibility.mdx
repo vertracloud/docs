@@ -1,0 +1,109 @@
+---
+title: 'Use Blob Storage with aws-cli, rclone and boto3 (S3 Compatible)'
+sidebarTitle: 'S3 compatibility'
+description: 'Connect S3 tools to Blob Storage with credentials derived from your API key: endpoint, region auto, public and private buckets and supported operations.'
+icon: 'plug'
+---
+
+Blob Storage speaks the S3 protocol, so existing tools and libraries work without code changes. The endpoint is `https://s3.vertracloud.dev` and the region is `auto`. There are two buckets: `public` and `private`, matching a file's [visibility](/blob/links-and-visibility).
+
+Quota, blocked file types and a suspended account are enforced exactly as in the API. Files written over S3 show up in the dashboard and in [List objects](/api-reference/endpoint/blob/objects/list).
+
+## Get credentials
+
+The S3 key pair is derived from an API key, so the request needs an API key; a dashboard session can't get it (the dashboard explains how to create or find a key). A key with only `blob:read` gets read-only S3 credentials. You can request them 10 times per hour. Revoking the API key revokes the pair, and rotating the API key replaces it: the old pair stops working and you fetch a new one.
+
+<CodeGroup>
+
+```bash cURL
+curl "https://blob.vertracloud.app/v1/s3/credentials" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+```javascript JavaScript
+const s3 = await blob.s3Credentials();
+// { access_key_id, secret_access_key, endpoint, region: "auto", buckets: ["public", "private"], access }
+```
+
+```python Python
+s3 = client.blob.s3_credentials()
+```
+
+```go Go
+creds, err := client.Blob.S3Credentials(ctx)
+// creds.AccessKeyID, creds.SecretAccessKey, creds.Endpoint, creds.Buckets
+```
+
+</CodeGroup>
+
+Both path-style (`https://s3.vertracloud.dev/<bucket>/<key>`) and virtual-hosted-style (`https://<bucket>.s3.vertracloud.dev/<key>`) addressing work. The examples below use path-style.
+
+## aws-cli
+
+```bash
+export AWS_ACCESS_KEY_ID=...        # access_key_id
+export AWS_SECRET_ACCESS_KEY=...    # secret_access_key
+export AWS_DEFAULT_REGION=auto
+aws configure set default.s3.addressing_style path
+
+aws s3 ls s3://public/ --endpoint-url https://s3.vertracloud.dev
+aws s3 cp ./logo.png s3://public/images/logo.png --endpoint-url https://s3.vertracloud.dev
+```
+
+## rclone
+
+```ini
+[vertra]
+type = s3
+provider = Other
+access_key_id = ...
+secret_access_key = ...
+endpoint = https://s3.vertracloud.dev
+region = auto
+force_path_style = true
+```
+
+```bash
+rclone sync ./site-assets vertra:public/assets
+```
+
+## boto3
+
+```python
+import boto3
+from botocore.config import Config
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url="https://s3.vertracloud.dev",
+    region_name="auto",
+    aws_access_key_id="...",
+    aws_secret_access_key="...",
+    config=Config(s3={"addressing_style": "path"}),
+)
+s3.upload_file("logo.png", "public", "images/logo.png")
+```
+
+## Supported operations
+
+- **Buckets:** ListBuckets, HeadBucket, GetBucketLocation (always `auto`). CreateBucket succeeds only for `public` and `private`, which already exist; DeleteBucket is refused.
+- **Objects:** ListObjects and ListObjectsV2, GetObject (including range), HeadObject, PutObject, CopyObject, DeleteObject and DeleteObjects (up to 1,000 keys).
+- **Multipart:** CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts and ListMultipartUploads.
+- **Compatibility reads:** GetBucketVersioning (not enabled), GetBucketAcl and GetObjectAcl (your account has full control), GetBucketTagging and GetObjectTagging (empty).
+
+`Content-Type` is always derived from the key's extension; the one your client sends is ignored. Files ending in `.html`, `.htm`, `.svg`, `.xml` or `.xhtml` are always served as downloads, never rendered in the browser.
+
+Every other operation answers `501 NotImplemented`. S3 writes overwrite an existing key, like any S3 service.
+
+## Limits
+
+| | Limit |
+|---|---|
+| Object size | 10 GB |
+| Single PutObject | 100 MB (use multipart above that) |
+| Multipart parts | 5 MiB to 5 GiB each (the last may be smaller), up to 10,000 parts |
+| Presigned URLs | up to 7 days |
+| Requests per 10 seconds, per account | Economy and Pro: 100 · Scale and Intermediary: 200 · Enterprise-4 to Enterprise-8: 400 · Enterprise-12 and above: 600 |
+| CopyObject and UploadPartCopy | 20 per 10 seconds |
+
+Above the request limit the gateway answers `503 SlowDown` with `Retry-After`; S3 clients retry automatically. S3 requests do not count toward your plan's API request limit.

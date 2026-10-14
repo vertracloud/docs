@@ -1,0 +1,116 @@
+---
+title: "Get Part URLs for a Multipart Upload"
+sidebarTitle: "Get part URLs"
+api: "POST https://blob.vertracloud.app/v1/uploads/{upload_id}/parts"
+authMethod: bearer
+description: "Returns the upload URL for each requested part of a multipart upload, up to 100 parts per call. Accepts an upload token."
+---
+
+{/* @see RESTPostAPIBlobUploadPartsBody, RESTPostAPIBlobUploadPartsResponse, APIBlobUploadPart — @vertracloud/api-types */}
+
+Returns a signed upload URL for each part you ask for. Send each part's bytes with a `PUT` to its `url`, using exactly the `headers` returned. Part sizes are the `part_size` of the upload, except that the last part can be smaller. Part limits are in `limits` of [usage and limits](/api-reference/endpoint/blob/account/stats).
+
+**Scope:** `blob:write`. Accepts an upload token.
+
+**Upload token:** this route also accepts an upload token (`Authorization: Bearer vcup_...`) instead of an API key.
+
+<ParamField path="upload_id" type="string" required>
+  The multipart upload ID.
+</ParamField>
+
+<ParamField body="part_numbers" type="number[]" required>
+  Part numbers to get URLs for, starting at 1. Up to 100 per call.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/uploads/7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f/parts" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"part_numbers":[1,2]}'
+```
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  One URL per requested part.
+  <Expandable title="properties">
+  <ResponseField name="part_number" type="number">Part number, starting at 1.</ResponseField>
+  <ResponseField name="url" type="string">URL to `PUT` this part to.</ResponseField>
+  <ResponseField name="size" type="number">Exact size of this part in bytes.</ResponseField>
+  <ResponseField name="headers" type="object">Headers the `PUT` of this part must send exactly as given.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "part_number": 1,
+      "url": "https://storage.example/part-1",
+      "size": 67108864,
+      "headers": {
+        "content-length": "67108864"
+      }
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): The upload token doesn't exist, has expired or was revoked (only with an upload token).
+  - `VALIDATION_ERROR` (`400`): A parameter or body field failed validation. `details.path` names the field.
+  - `BLOB_UPLOAD_NOT_FOUND` (`404`): No upload with that ID in this account, or it was already completed or aborted.
+  - `BLOB_UPLOAD_EXPIRED` (`410`): The upload's time limit has passed.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (410)
+{
+  "code": "BLOB_UPLOAD_EXPIRED"
+}
+```
+
+</ResponseExample>

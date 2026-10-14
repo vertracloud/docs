@@ -1,0 +1,126 @@
+---
+title: "Add a Custom Domain for Blob Storage"
+sidebarTitle: "Add domain"
+api: "POST https://blob.vertracloud.app/v1/domains"
+authMethod: bearer
+description: "Adds a subdomain that serves public blob files. Returns 201; create the CNAME and TXT records to activate it."
+---
+
+{/* @see RESTPostAPIBlobDomainBody, RESTPostAPIBlobDomainResponse, APIBlobCustomDomain — @vertracloud/api-types */}
+
+Adds a subdomain, such as `cdn.example.com`, that serves the account's public blob files. Create a CNAME record of that hostname pointing to `cname_target` and the TXT record from `verification`, then call [Verify a custom domain](/api-reference/endpoint/blob/domains/verify). The number of domains depends on the plan: 0 below Enterprise-4, then 1, 3 and 10. Returns `201`.
+
+**Scope:** `blob:write`.
+
+<ParamField body="hostname" type="string" required>
+  Subdomain only, without a scheme or path.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  Serve only this folder on the domain. Omit it to serve the whole account.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/domains" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"hostname":"cdn.example.com","prefix":"images/"}'
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  The domain, still `pending` until the CNAME is found and the ownership TXT record is verified. It only becomes `active` after both. Responds with `201`.
+  <Expandable title="properties">
+  <ResponseField name="id" type="string">Domain ID.</ResponseField>
+  <ResponseField name="hostname" type="string">Subdomain only, for example `cdn.example.com`.</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `active`, `failed` or `suspended`. Only `active` serves files.</ResponseField>
+  <ResponseField name="ssl_status" type="string">Status of the TLS certificate for the hostname.</ResponseField>
+  <ResponseField name="cname_target" type="string">Point a CNAME record of `hostname` to this value.</ResponseField>
+  <ResponseField name="prefix" type="string | null">When set, the domain serves only this folder.</ResponseField>
+  <ResponseField name="verification" type="object | null">The TXT record that proves you own the hostname. Present only while the domain is not `active`; absent or `null` afterwards.
+    <Expandable title="properties">
+    <ResponseField name="type" type="string">Always `txt`.</ResponseField>
+    <ResponseField name="name" type="string">Name of the TXT record to create.</ResponseField>
+    <ResponseField name="value" type="string">Value of the TXT record.</ResponseField>
+    </Expandable>
+  </ResponseField>
+  <ResponseField name="created_at" type="string">ISO 8601 creation time.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5",
+    "hostname": "cdn.example.com",
+    "status": "pending",
+    "ssl_status": "pending_validation",
+    "cname_target": "custom.vertracloud.dev",
+    "prefix": "images/",
+    "verification": { "type": "txt", "name": "_vertra-challenge.cdn.example.com", "value": "3f9a1c7e-2b5d-4e8a-9c0d-6a1b2c3d4e5f" },
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `VALIDATION_ERROR` (`400`): A parameter or body field failed validation. `details.path` names the field.
+  - `INVALID_CUSTOM_DOMAIN_FORMAT` (`400`): The hostname isn't a valid subdomain.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): The plan has no custom domains (below Enterprise-4).
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): The account's blob storage is suspended, or its plan expired.
+  - `BLOB_CUSTOM_DOMAIN_LIMIT` (`409`): The plan includes custom domains and the limit is reached.
+  - `BLOB_CUSTOM_DOMAIN_TAKEN` (`409`): The hostname is already in use.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_CUSTOM_DOMAIN_LIMIT"
+}
+```
+
+</ResponseExample>

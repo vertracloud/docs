@@ -1,0 +1,191 @@
+---
+title: "Start a Direct Blob Upload"
+sidebarTitle: "Start direct upload"
+api: "POST https://blob.vertracloud.app/v1/uploads"
+authMethod: bearer
+description: "Starts an upload of up to 10 GB that goes straight to storage. Returns the URLs to send the bytes to. Accepts an upload token."
+---
+
+{/* @see RESTPostAPIBlobUploadBody, RESTPostAPIBlobUploadResponse, APIBlobUpload — @vertracloud/api-types */}
+
+Starts a direct upload: the bytes go from your client straight to storage, not through the API. Files up to the plan's single-part limit come back in `single` mode with one `url`. Larger files come back in `multipart` mode with a part size and count. Then send the bytes and call [Complete a direct upload](/api-reference/endpoint/blob/uploads/complete). The reserved storage counts toward the quota until the upload completes, aborts or expires.
+
+**Scope:** `blob:write`. Accepts an upload token.
+
+**Upload token:** this route also accepts an upload token (`Authorization: Bearer vcup_...`) instead of an API key.
+
+<ParamField body="path" type="string" required>
+  Destination path, with the same rules as [Upload in one request](/api-reference/endpoint/blob/objects/upload).
+</ParamField>
+
+<ParamField body="size" type="number" required>
+  Exact size of the file in bytes, from 1 up to 10 GB. The stored bytes must match it.
+</ParamField>
+
+<ParamField body="visibility" type="string">
+  `public` or `private`. Default `private`.
+</ParamField>
+
+<ParamField body="overwrite" type="boolean">
+  Replace an object already at `path`. Default `false`.
+</ParamField>
+
+<ParamField body="random_suffix" type="boolean">
+  Insert a random suffix before the extension. Default `false`; forced to `true` for an upload token without a fixed `path`.
+</ParamField>
+
+<ParamField body="cache_control" type="string">
+  `immutable`, `max-age=<seconds>` or `no-cache` (Enterprise-26 or higher).
+</ParamField>
+
+<ParamField body="content_disposition" type="string">
+  `inline` or `attachment`. HTML, SVG, XML, XHTML and HTM are always `attachment`.
+</ParamField>
+
+<ParamField body="filename" type="string">
+  Name suggested on download.
+</ParamField>
+
+<ParamField body="expires_at" type="string">
+  ISO 8601 timestamp for deletion, at least the plan's minimum from now.
+</ParamField>
+
+<ParamField body="checksum_sha256" type="string">
+  Hex SHA-256 of the whole file. Checked when the upload completes. Only valid for a direct upload sent in a single part; a multipart upload refuses it with `VALIDATION_ERROR`.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Up to 5 keys, each `[a-z0-9-]{1,64}`, 512 bytes in total. Enterprise-12 or higher.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/uploads" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"path":"videos/demo.mp4","size":2147483648,"visibility":"private"}'
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  The upload, with the URLs to send the bytes to.
+  <Expandable title="properties">
+  <ResponseField name="id" type="string">Upload ID. Use it for status, parts, complete and abort.</ResponseField>
+  <ResponseField name="path" type="string">Final path, including the random suffix when one was requested.</ResponseField>
+  <ResponseField name="mode" type="string">`single` (one `PUT` of the whole file to `url`) or `multipart` (several parts, each with its own URL).</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `completed`, `aborted` or `expired`.</ResponseField>
+  <ResponseField name="size" type="number">Declared size in bytes. The stored bytes must match it at `complete`.</ResponseField>
+  <ResponseField name="expires_at" type="string">When the URLs and the reserved storage expire, as an ISO 8601 timestamp.</ResponseField>
+  <ResponseField name="url" type="string">Only in `single` mode: the URL to `PUT` the whole file to.</ResponseField>
+  <ResponseField name="headers" type="object">Headers the `PUT` must send exactly as given, because they are part of the signature.</ResponseField>
+  <ResponseField name="part_size" type="number">Only in `multipart` mode: the fixed part size in bytes. The last part can be smaller.</ResponseField>
+  <ResponseField name="part_count" type="number">Only in `multipart` mode: how many parts the file has.</ResponseField>
+  <ResponseField name="uploaded_parts" type="number[]">Part numbers already stored. Use them to resume an interrupted upload.</ResponseField>
+  <ResponseField name="created_at" type="string">ISO 8601 creation time.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f",
+    "path": "videos/demo.mp4",
+    "mode": "multipart",
+    "status": "pending",
+    "size": 2147483648,
+    "expires_at": "2026-10-14T13:00:00.000Z",
+    "headers": {
+      "content-type": "video/mp4"
+    },
+    "part_size": 67108864,
+    "part_count": 32,
+    "uploaded_parts": [],
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): The upload token doesn't exist, has expired or was revoked (only with an upload token).
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): The account's blob storage is suspended, or its plan expired. Uploads and other writes are refused from the start of the 72-hour grace period.
+  - `VALIDATION_ERROR` (`400`): A parameter or body field failed validation. `details.path` names the field.
+  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Only with an upload token: the path, size or extension is outside what the token allows.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` (below Enterprise-12) or `cache_control: no-cache` (below Enterprise-26) isn't included in the plan.
+  - `BLOB_UPLOAD_LIMIT` (`409`): The account already has as many uploads in progress as its plan allows (`max_open_uploads`).
+  - `BLOB_OBJECT_ALREADY_EXISTS` (`409`): `path` is taken and `overwrite` is not `true`.
+  - `BLOB_FILE_TOO_LARGE` (`413`): `size` is above 10 GB, the folder rule's `max_size`, or the token's `max_size`.
+  - `STORAGE_QUOTA_EXCEEDED` (`403`): The reserved size plus what's already used would exceed the plan's blob quota.
+  - `BLOCKED_FILE_TYPE` (`422`): The extension is blocked or not allowed by the folder rule or token.
+  - `BLOB_UPLOAD_TOKEN_EXHAUSTED` (`401`): Only with an upload token: it has used all its uses.
+  - `RATE_LIMIT_EXCEEDED` (`429`): Below Enterprise-12, uploads are limited to 1 per second. `details.retry_after` gives the wait.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_UPLOAD_LIMIT"
+}
+```
+
+```json Error Response (413)
+{
+  "code": "BLOB_FILE_TOO_LARGE"
+}
+```
+
+```json Error Response (422)
+{
+  "code": "BLOCKED_FILE_TYPE"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RATE_LIMIT_EXCEEDED"
+}
+```
+
+</ResponseExample>

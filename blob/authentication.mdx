@@ -1,0 +1,108 @@
+---
+title: 'Blob Storage Authentication: API Keys, Upload Tokens and Workspaces'
+sidebarTitle: 'Authentication'
+description: 'Which credential to use for Blob Storage: API keys with blob:read and blob:write, browser upload tokens (vcup_) and workspace permissions.'
+icon: 'key'
+---
+
+Blob Storage accepts three credentials, all sent as `Authorization: Bearer <credential>`. Use an API key on your server, an upload token in a browser.
+
+| Credential | Where | What it can do |
+|---|---|---|
+| API key | Your backend, scripts, CI | Everything its scopes allow |
+| Upload token (`vcup_...`) | A browser or mobile app | Only the upload routes, and only inside the limits fixed when it was created |
+| S3 key pair | aws-cli, rclone, boto3 | Read and write through the [S3 endpoint](/blob/s3-compatibility) |
+
+## API keys
+
+Create keys under **Settings → API keys**. Two scopes control Blob Storage:
+
+| Scope | Allows |
+|---|---|
+| `blob:read` | List and read files, create temporary links, read stats, rules, shares, domains and S3 credentials |
+| `blob:write` | Upload, update, copy, move and delete files; create shares, upload tokens, rules and domains |
+
+The **full** preset includes both. Give automation the narrowest scope: a job that only serves downloads needs `blob:read`. A key missing a scope is refused with `API_KEY_SCOPE_DENIED`. See [Scopes](/api-reference/introduction#scopes).
+
+<CodeGroup>
+
+```bash cURL
+curl "https://blob.vertracloud.app/v1/stats" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+```javascript JavaScript
+import { BlobClient } from "@vertracloud/blob";
+const blob = new BlobClient({ apiKey: process.env.VERTRA_API_KEY });
+```
+
+```python Python
+from vertracloud import VertraClient
+client = VertraClient(api_key="your_key")
+client.blob.stats()
+```
+
+```go Go
+restClient, err := rest.NewClient(os.Getenv("VERTRA_API_KEY"))
+if err != nil {
+    log.Fatal(err)
+}
+client := vertracloud.New(restClient)
+
+stats, err := client.Blob.Stats(ctx)
+```
+
+</CodeGroup>
+
+## Upload tokens
+
+Never put an API key in a browser. Instead your backend asks for an **upload token**, which is short-lived, limited and bound to your API key (revoking the key kills its tokens). The token only works on the upload routes and carries the rules you fixed:
+
+- `path` (one exact file) or `prefix` (a folder), `visibility`, `cache_control`, `content_disposition`, `expires_at` and `metadata`;
+- `max_size` and `allowed_extensions` (1 to 20);
+- `overwrite` (default `false`): without it, an upload with the token never replaces an existing file;
+- `expires_in` from 60 to 3600 seconds (default 900) and `max_uses` from 1 to 100 (default 1).
+
+A token without a fixed `path` always adds a random suffix to the file name so users cannot overwrite each other. Using a token outside its limits answers `BLOB_UPLOAD_TOKEN_CONSTRAINT`; an expired or revoked one answers `BLOB_UPLOAD_TOKEN_INVALID`.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://blob.vertracloud.app/v1/upload-tokens" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "prefix": "avatars/", "max_size": 5000000, "allowed_extensions": ["png", "jpg"] }'
+```
+
+```javascript JavaScript
+const { token } = await blob.createUploadToken({ prefix: "avatars/", maxSize: 5_000_000 });
+// in the browser:
+const browserBlob = new BlobClient({ uploadToken: token });
+```
+
+```python Python
+token = client.blob.create_upload_token(prefix="avatars/", max_size=5_000_000)
+```
+
+```go Go
+token, err := client.Blob.CreateUploadToken(ctx, vertracloud.BlobUploadTokenInput{
+    Prefix:  "avatars/",
+    MaxSize: 5_000_000,
+})
+// hand token.Token to the browser
+```
+
+</CodeGroup>
+
+Full walkthrough in [Serve user uploads](/guides/serve-user-uploads).
+
+## Workspaces
+
+Add `?workspace_id=<id>` (or the SDK's workspace option) to act on the Blob Storage of a workspace's **owner**. Files and quota belong to the owner. A member needs a workspace permission:
+
+| Permission | Allows |
+|---|---|
+| `blob:read` | Read-only routes |
+| `blob:manage` | Write routes |
+
+Existing workspace roles do **not** receive these permissions automatically; the owner grants them explicitly. Without them the call answers `WORKSPACE_PERMISSION_DENIED`. See [Workspaces](/workspaces).

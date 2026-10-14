@@ -1,0 +1,101 @@
+---
+title: "Delete Many Blob Objects or a Folder"
+sidebarTitle: "Delete many objects"
+api: "DELETE https://blob.vertracloud.app/v1/objects"
+authMethod: bearer
+description: "Deletes up to 1,000 blob objects by ID, or everything under a folder prefix. Returns what was deleted."
+---
+
+{/* @see RESTDeleteAPIBlobObjectsBody, RESTDeleteAPIBlobObjectsResponse, APIBlobDeleteResult — @vertracloud/api-types */}
+
+Deletes up to 1,000 objects in one call, either by `ids` or by folder `prefix`. Send exactly one of them. Deletion is permanent. When more objects match a `prefix`, `remaining` is `true`; call again until it is `false`.
+
+**Scope:** `blob:write`.
+
+<ParamField body="ids" type="string[]">
+  Object IDs, up to 1,000. Don't send it together with `prefix`.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  Delete every object whose path starts with this folder prefix, up to 1,000 per call. Don't send it together with `ids`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X DELETE "https://blob.vertracloud.app/v1/objects" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prefix":"tmp/"}'
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  What was deleted in this call.
+  <Expandable title="properties">
+  <ResponseField name="deleted" type="string[]">IDs deleted in this call.</ResponseField>
+  <ResponseField name="not_found" type="string[]">IDs that didn't exist in this account.</ResponseField>
+  <ResponseField name="remaining" type="boolean">`true` when more objects match and another call is needed.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "deleted": [
+      "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c"
+    ],
+    "not_found": [],
+    "remaining": false
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `VALIDATION_ERROR` (`400`): A parameter or body field failed validation. `details.path` names the field.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

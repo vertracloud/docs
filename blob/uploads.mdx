@@ -1,0 +1,171 @@
+---
+title: 'Upload Files to Blob Storage: Simple, Direct and Multipart'
+sidebarTitle: 'Uploads'
+description: 'Upload up to 100 MB in one request, or up to 10 GB straight to storage in resumable parts, with checksums, random suffixes and overwrite control.'
+icon: 'upload'
+---
+
+There are two ways to upload. Use the simple upload for files up to 100 MB and the direct upload for anything larger, or when the bytes should not pass through the API. The JavaScript SDK's `put()` picks the right one for you.
+
+| | Simple | Direct |
+|---|---|---|
+| Size | Up to 100 MB | Up to 10 GB |
+| Requests | One (`multipart/form-data`) | Create, send, complete |
+| Bytes go through the API | Yes, streamed | No, straight to storage |
+| Resumable | No | Yes |
+| Route | [Upload object](/api-reference/endpoint/blob/objects/upload) | [Create upload](/api-reference/endpoint/blob/uploads/create) |
+
+## Simple upload
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://blob.vertracloud.app/v1/objects?path=docs/report.pdf&random_suffix=true" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -F "file=@./report.pdf"
+```
+
+```javascript JavaScript
+const obj = await blob.put("docs/report.pdf", file, { randomSuffix: true });
+```
+
+```python Python
+obj = client.blob.put("docs/report.pdf", open("report.pdf", "rb"), random_suffix=True)
+```
+
+```go Go
+f, _ := os.Open("report.pdf")
+info, _ := f.Stat()
+
+suffix := true
+obj, err := client.Blob.Put(ctx, "docs/report.pdf", f, info.Size(),
+    &vertracloud.BlobPutOptions{RandomSuffix: &suffix})
+```
+
+</CodeGroup>
+
+## Options
+
+These apply to both flows. On the simple upload they are query parameters.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `path` | required | Where the file lives, for example `images/avatars/joao.png` |
+| `visibility` | `private` | `public` or `private` |
+| `overwrite` | `false` | Replace an existing file at the same path; otherwise `BLOB_OBJECT_ALREADY_EXISTS` |
+| `random_suffix` | `false` | Insert `-` plus 10 random characters before the extension, so names never collide |
+| `cache_control` | none | `immutable` or `max-age=N` |
+| `content_disposition` | by type | `inline` or `attachment` |
+| `filename` | none | Name the browser suggests on download |
+| `expires_at` | none | When the file is deleted automatically |
+| `metadata` | none | Up to 5 keys, on plans that include it ([limits](/blob/limits-and-quotas)) |
+| `checksum_sha256` | none | The platform verifies the upload against it (`BLOB_CHECKSUM_MISMATCH` on failure). Only for the one-request upload and a direct upload sent in a single part; a multipart upload refuses it with `VALIDATION_ERROR` |
+
+### Path rules
+
+A path has 1 to 1024 characters and up to 16 segments. Each segment is 1 to 255 characters from `A-Z a-z 0-9 . _ - space`, cannot start with `.` or end with a space. No `//`, no leading or trailing `/`, no `..`, and the file must have an extension. An invalid path fails with `VALIDATION_ERROR`; the platform never rewrites it silently.
+
+## Direct upload
+
+<Steps>
+  <Step title="Create the upload">
+    Send the path and exact size. The response says whether the upload is `single` (one PUT) or `multipart`, and for multipart gives the fixed `part_size` and `part_count`.
+
+    ```bash
+    curl -X POST "https://blob.vertracloud.app/v1/uploads" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "path": "videos/launch.mp4", "size": 2147483648, "visibility": "public" }'
+    ```
+  </Step>
+  <Step title="Send the bytes">
+    For `single`, `PUT` the file to the returned `url`. For `multipart`, request URLs for up to 100 parts at a time with [Get part URLs](/api-reference/endpoint/blob/uploads/parts) and `PUT` each part. Send exactly the `headers` returned with each URL; they are part of the signature. Parts can go in parallel and the last one may be smaller.
+  </Step>
+  <Step title="Complete">
+    Call [Complete upload](/api-reference/endpoint/blob/uploads/complete). The platform checks the parts, the total size, the checksum and the file type, then creates the object. A mismatch answers `BLOB_UPLOAD_INCOMPLETE`.
+  </Step>
+</Steps>
+
+In the SDKs this is a single call:
+
+<CodeGroup>
+
+```javascript JavaScript
+const controller = new AbortController(); // controller.abort() cancels the upload
+
+await blob.put("videos/launch.mp4", file, {
+  visibility: "public",
+  onProgress: ({ loaded, total }) => console.log(`${Math.round((loaded / total) * 100)}%`),
+  signal: controller.signal,
+});
+```
+
+```python Python
+client.blob.put("videos/launch.mp4", open("launch.mp4", "rb"),
+                visibility="public", on_progress=lambda sent, total: print(sent, total))
+```
+
+```go Go
+f, _ := os.Open("launch.mp4")
+info, _ := f.Stat()
+obj, err := client.Blob.Put(ctx, "videos/launch.mp4", f, info.Size(), &vertracloud.BlobPutOptions{
+    Visibility: "public",
+    OnProgress: func(loaded, total int64) { fmt.Println(loaded, total) },
+})
+// cancelling ctx aborts the upload
+```
+
+</CodeGroup>
+
+### Resuming
+
+An interrupted direct upload can be resumed until it expires (`expires_at` on the upload). [Get upload](/api-reference/endpoint/blob/uploads/get) returns `uploaded_parts`; send only what is missing. [Abort upload](/api-reference/endpoint/blob/uploads/abort) cancels it and frees the reserved quota.
+
+<CodeGroup>
+
+```javascript JavaScript
+let uploadId;
+try {
+  await blob.put("videos/launch.mp4", file, { onUpload: (upload) => (uploadId = upload.id) });
+} catch {
+  await blob.resume(uploadId, file, { onProgress }); // sends only the missing parts
+}
+```
+
+```python Python
+open_uploads = client.blob.uploads()  # direct uploads still in progress
+client.blob.resume(open_uploads[0]["id"], open("launch.mp4", "rb"))  # sends only the missing parts
+```
+
+```go Go
+// f must give the same file from its first byte
+obj, err := client.Blob.Resume(ctx, uploadID, f, nil)
+```
+
+</CodeGroup>
+
+## Quota and reservations
+
+When you create an upload the declared size is reserved against your quota. If `used + reserved + new` would exceed the quota the upload is refused with `STORAGE_QUOTA_EXCEEDED`. Expired or aborted uploads release their reservation. Having too many uploads open at once answers `BLOB_UPLOAD_LIMIT`. The limit on open uploads and the other limits of your plan are in `limits` of [Get stats](/api-reference/endpoint/blob/account/stats).
+
+### Size limits
+
+- A simple upload takes files up to 100 MB.
+- In a multipart upload each part is 5 MiB to 5 GiB (the last part can be smaller), with at most 10,000 parts.
+- An object can be up to 10 GB.
+
+## Upload rate
+
+Plans below Enterprise-12 are limited to **one upload per second** per account; Enterprise-12 and above have no limit of their own beyond platform-wide abuse protection. Exceeding it answers `RATE_LIMIT_EXCEEDED` with a `Retry-After` header; wait that long and retry. The exact figure for your plan is `limits.uploads_per_second` in [Get stats](/api-reference/endpoint/blob/account/stats).
+
+## Common errors
+
+| Code | Cause |
+|---|---|
+| `BLOB_FILE_TOO_LARGE` | Above the plan limit, the simple-upload limit, a folder rule or the token |
+| `BLOCKED_FILE_TYPE` | Blocked extension, outside the rule/token, or an executable in disguise |
+| `BLOB_OBJECT_ALREADY_EXISTS` | Path taken and `overwrite` is `false` |
+| `BLOB_UPLOAD_EXPIRED` | The upload passed its deadline; start a new one |
+| `STORAGE_QUOTA_EXCEEDED` | Not enough quota |
+
+All codes are listed in the [error catalog](/api-reference/errors).

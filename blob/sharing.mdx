@@ -1,0 +1,60 @@
+---
+title: 'Share Blob Storage Files with Expiry, Password and Download Limits'
+sidebarTitle: 'Sharing'
+description: 'Create a share page for a private file, with an expiry up to 30 days, a download limit and a password, and revoke it at any time.'
+icon: 'share-nodes'
+---
+
+A share gives someone access to one private file through a page at `https://vertracloud.app/share/<token>`, without credentials and without making the file public. Unlike a [temporary link](/blob/links-and-visibility#temporary-link), a share can be revoked and limited.
+
+The page shows the file name and size, asks for the password when there is one, and offers a download button. Each download creates a short-lived link and is counted atomically.
+
+| Option | Range | Default |
+|---|---|---|
+| `expires_in` | 60 seconds to 30 days | 24 hours |
+| `max_downloads` | 1 to 10000 | unlimited |
+| `password` | 8 to 128 characters, plans with the feature ([limits](/blob/limits-and-quotas)) | none |
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://blob.vertracloud.app/v1/shares" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "object_id": "'"$OBJECT_ID"'", "expires_in": 86400, "max_downloads": 10 }'
+```
+
+```javascript JavaScript
+const share = await blob.shares.create(id, { expiresIn: 3600, maxDownloads: 10, password: "correct horse" });
+console.log(share.url);
+await blob.shares.list({ objectId: id });
+await blob.shares.revoke(share.id);
+```
+
+```python Python
+share = client.blob.shares.create(id, expires_in=3600, max_downloads=10, password="correct horse")
+print(share["url"])
+client.blob.shares.list(id)
+client.blob.shares.revoke(share["id"])
+```
+
+```go Go
+share, err := client.Blob.Shares.Create(ctx, vertracloud.BlobShareInput{
+    ObjectID:     id,
+    ExpiresIn:    3600,
+    MaxDownloads: 10,
+    Password:     "correct horse",
+})
+fmt.Println(share.URL)
+_, err = client.Blob.Shares.List(ctx, id)
+err = client.Blob.Shares.Revoke(ctx, share.ID)
+```
+
+</CodeGroup>
+
+The response includes `remaining_downloads` and `has_password`. Revoking a share ([Revoke share](/api-reference/endpoint/blob/shares/revoke)) stops the page immediately.
+
+<Warning>A **public** file is reachable by its URL no matter what. The response flags it with `object_is_public: true`; make the file private if the share must be the only way in.</Warning>
+
+A wrong password answers `BLOB_SHARE_PASSWORD_INVALID` (rate-limited per IP), an exhausted limit `BLOB_SHARE_EXHAUSTED`, and an expired or revoked share `BLOB_SHARE_NOT_FOUND`.
+
+See [Create share](/api-reference/endpoint/blob/shares/create) and [List shares](/api-reference/endpoint/blob/shares/list).

@@ -1,0 +1,156 @@
+---
+title: 'Blob Storage Quickstart: Upload and Serve Your First File'
+sidebarTitle: 'Quickstart'
+description: 'Create an API key, upload a file, list it, get a public URL and a temporary link, then delete it, with cURL, JavaScript, Python and Go.'
+icon: 'rocket'
+---
+
+In five minutes you will upload a file, make it public, create a temporary link and delete it.
+
+<Steps>
+  <Step title="Create an API key">
+    In the dashboard open **Settings → API keys** and create a key with the `blob:write` scope (it can also read your files through `blob:read`, which the **full** preset includes). Keep it in an environment variable:
+
+    ```bash
+    export VERTRA_API_KEY="your_key"
+    ```
+  </Step>
+  <Step title="Upload a file">
+    The simple upload takes one request for files up to 100 MB. Files are private unless you ask for `public`.
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl -X POST "https://blob.vertracloud.app/v1/objects?path=images/logo.png&visibility=public" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" \
+      -F "file=@./logo.png"
+    ```
+
+    ```javascript JavaScript
+    import { BlobClient } from "@vertracloud/blob";
+
+    const blob = new BlobClient({ apiKey: process.env.VERTRA_API_KEY });
+    const obj = await blob.put("images/logo.png", file, { visibility: "public" });
+    console.log(obj.url);
+    ```
+
+    ```python Python
+    obj = client.blob.put("images/logo.png", open("logo.png", "rb"), visibility="public")
+    print(obj["url"])
+    ```
+
+    ```go Go
+    f, err := os.Open("logo.png")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer f.Close()
+    info, _ := f.Stat()
+
+    obj, err := client.Blob.Put(ctx, "images/logo.png", f, info.Size(),
+        &vertracloud.BlobPutOptions{Visibility: "public"})
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(*obj.URL)
+    ```
+
+    </CodeGroup>
+
+    The response is the file object: its `id`, `size`, `content_type` and, for public files, the `url`.
+  </Step>
+  <Step title="List your files">
+    <CodeGroup>
+
+    ```bash cURL
+    curl "https://blob.vertracloud.app/v1/objects?prefix=images/&delimiter=/" \
+      -H "Authorization: Bearer $VERTRA_API_KEY"
+    ```
+
+    ```javascript JavaScript
+    for await (const obj of blob.list({ prefix: "images/" })) {
+      console.log(obj.path, obj.size);
+    }
+    ```
+
+    ```python Python
+    for obj in client.blob.list(prefix="images/"):
+        print(obj["path"], obj["size"])
+    ```
+
+    ```go Go
+    it := client.Blob.List(ctx, &vertracloud.BlobListOptions{Prefix: "images/"})
+    for it.Next(ctx) {
+        o := it.Object()
+        fmt.Println(o.Path, o.Size)
+    }
+    if err := it.Err(); err != nil {
+        log.Fatal(err)
+    }
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Open the public URL">
+    A public file lives at `https://blob.vertracloud.dev/<namespace>/images/logo.png`; the `url` field of the object already has it. Open it in a browser or use it in an `<img>` tag.
+  </Step>
+  <Step title="Create a temporary link for a private file">
+    <CodeGroup>
+
+    ```bash cURL
+    curl "https://blob.vertracloud.app/v1/objects/$OBJECT_ID/download?expires_in=600&redirect=false" \
+      -H "Authorization: Bearer $VERTRA_API_KEY"
+    ```
+
+    ```javascript JavaScript
+    const { url, expires_at } = await blob.downloadUrl(obj.id, { expiresIn: 600 });
+    ```
+
+    ```python Python
+    link = client.blob.download_url(obj["id"], expires_in=600)
+    ```
+
+    ```go Go
+    link, err := client.Blob.DownloadURL(ctx, obj.ID, &vertracloud.BlobDownloadOptions{ExpiresIn: 600})
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(link.URL, link.ExpiresAt)
+    ```
+
+    </CodeGroup>
+
+    The link works for 10 minutes. See [Links and visibility](/blob/links-and-visibility).
+  </Step>
+  <Step title="Delete the file">
+    <CodeGroup>
+
+    ```bash cURL
+    curl -X DELETE "https://blob.vertracloud.app/v1/objects/$OBJECT_ID" \
+      -H "Authorization: Bearer $VERTRA_API_KEY"
+    ```
+
+    ```javascript JavaScript
+    await blob.delete(obj.id);
+    ```
+
+    ```python Python
+    client.blob.delete(obj["id"])
+    ```
+
+    ```go Go
+    err = client.Blob.Delete(ctx, obj.ID)
+    if err != nil {
+        log.Fatal(err)
+    }
+    ```
+
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Where to go next
+
+- Large files and progress: [Uploads](/blob/uploads).
+- Letting browsers upload directly: [Serve user uploads](/guides/serve-user-uploads).
+- Every route: [Blob API reference](/api-reference/endpoint/blob/objects/upload).

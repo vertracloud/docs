@@ -1,0 +1,124 @@
+---
+title: "Replace All Folder Rules"
+sidebarTitle: "Replace rules"
+api: "PUT https://blob.vertracloud.app/v1/rules"
+authMethod: bearer
+description: "Replaces the whole list of folder rules. Send the etag from the last read in If-Match, so a change made elsewhere isn't overwritten."
+---
+
+{/* @see RESTPutAPIBlobRulesBody, RESTPutAPIBlobRulesHeaders, RESTPutAPIBlobRulesResponse, APIBlobRules — @vertracloud/api-types */}
+
+Replaces the whole list of folder rules with the list you send. The `If-Match` header must hold the `etag` from your last read; if the list changed since, the call fails with `BLOB_RULES_CONFLICT` and nothing is saved. To change a single rule, use [Create or update one rule](/api-reference/endpoint/blob/rules/put).
+
+**Scope:** `blob:write`.
+
+<ParamField header="If-Match" type="string" required>
+  The `etag` from the last read of the rule list.
+</ParamField>
+
+<ParamField body="rules" type="object[]" required>
+  The complete list of rules. Each item takes `prefix` (required) plus the fields of [Create or update one rule](/api-reference/endpoint/blob/rules/put). Up to 100 rules, and every rule needs at least one field besides the prefix. `expire_seconds` can't be below the plan's minimum expiration.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X PUT "https://blob.vertracloud.app/v1/rules" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "If-Match: 3f9c1a7e" \
+  -H "Content-Type: application/json" \
+  -d '{"rules":[{"prefix":"tmp/","delete_after_days":30}]}'
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  The saved list and its new etag.
+  <Expandable title="properties">
+  <ResponseField name="rules" type="object[]">Folder rules. The longest matching prefix applies.</ResponseField>
+  <ResponseField name="rules[].prefix" type="string">Folder prefix, always stored with a trailing `/`.</ResponseField>
+  <ResponseField name="rules[].visibility" type="string">Default visibility of new objects in the folder.</ResponseField>
+  <ResponseField name="rules[].expire_seconds" type="number">Default expiration of each new object, in seconds.</ResponseField>
+  <ResponseField name="rules[].max_size" type="number">Largest accepted file in bytes, 512 B to 10 GB.</ResponseField>
+  <ResponseField name="rules[].extensions" type="string[]">Accepted extensions, 1–50, lowercase, without the dot.</ResponseField>
+  <ResponseField name="rules[].cache_control" type="string">Default `cache_control` of new objects.</ResponseField>
+  <ResponseField name="rules[].delete_after_days" type="number">Objects are deleted this many days after they're uploaded, 1–3650.</ResponseField>
+  <ResponseField name="rules[].active_from" type="string">When `delete_after_days` starts to apply, set by the platform (24 hours after the rule is saved).</ResponseField>
+  <ResponseField name="rules[].created_at" type="string">ISO 8601 time the rule was created.</ResponseField>
+  <ResponseField name="etag" type="string">Version of the whole rule list. Send it back in `If-Match` when you replace the list.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "rules": [
+      {
+        "prefix": "tmp/",
+        "delete_after_days": 30,
+        "active_from": "2026-10-15T12:00:00.000Z",
+        "created_at": "2026-10-14T12:00:00.000Z"
+      }
+    ],
+    "etag": "3f9c1a7e"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `VALIDATION_ERROR` (`400`): A parameter or body field failed validation. `details.path` names the field; a missing `If-Match` header returns it with `details.path` set to `if-match`.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): The account's blob storage is suspended, or its plan expired.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): A rule sets `cache_control` to `no-cache` on a plan below Enterprise-26.
+  - `BLOB_RULES_CONFLICT` (`409`): The `If-Match` etag is out of date. Read the list again and retry.
+  - `BLOB_RULE_LIMIT` (`409`): The list has more rules than the plan allows: 5, 10 or 20.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_RULES_CONFLICT"
+}
+```
+
+</ResponseExample>

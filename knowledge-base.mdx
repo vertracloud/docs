@@ -246,6 +246,7 @@ restart; they are not a separate product surface.
 | Zero-downtime deploys | — | — | — | — | — | Yes |
 | Vertra Flow (dashboard canvas) | Yes | Yes | Yes | Yes | Yes | Yes |
 | Workspaces (customizable roles, see §10) | — | — | — | — | — | Yes (5-24 members) |
+| Blob Storage (quota) | — | 1 GB | 5 GB | 15 GB | 20 GB | 30–250 GB |
 | Support | Discord | Specialized | Priority | Priority | Priority | Premium (E-32: dedicated agent + exclusive manager) |
 
 > **Previous versions kept** counts the versions besides the one running now. **Version validity** counts from the moment a version stops being the running one; the running version never expires. Enterprise keeps 15 versions on tiers E-4, E-6 and E-8, 20 on E-12, E-14 and E-16, 25 on E-18 to E-24, and 30 on E-26 to E-32.
@@ -524,7 +525,7 @@ Start, restart, deploy, configuration changes and deleting the application wait 
 Team collaboration with granular permissions and customizable roles. **Available only
 on the Enterprise plan.** The workspace owner retains control over owner-exclusive management actions.
 
-### The 19 permissions
+### The 20 permissions
 
 | Permission | Group | What it unlocks |
 |---|---|---|
@@ -542,6 +543,8 @@ on the Enterprise plan.** The workspace owner retains control over owner-exclusi
 | `databases:delete` | databases | Delete database |
 | `snapshots:read` | snapshots | View snapshots |
 | `snapshots:manage` | snapshots | Create and restore a snapshot |
+| `blob:read` | blob | View the owner's Blob Storage files, shares, rules, domains and usage |
+| `blob:manage` | blob | Upload, change and delete Blob Storage files, shares, rules and domains |
 | `members:read` | members | View members and roles |
 | `members:manage` | members | Invite, remove, change a member's role/expiration |
 | `roles:manage` | roles | Create, edit, delete a custom role |
@@ -557,7 +560,7 @@ the tier ceiling just like any other):
 
 | Role | Permissions |
 |---|---|
-| Admin | All of them, **except `snapshots:manage`** (the owner enables it separately — too destructive an action to inherit by default) |
+| Admin | All of them, **except `snapshots:manage`, `blob:read` and `blob:manage`** (the owner enables them separately) |
 | Developer | `apps:*` (except `apps:delete`), `databases:*` (except `databases:delete`), `snapshots:read`, `members:read`, `activities:read` |
 | Operator | `apps:read`, `apps:lifecycle`, `databases:read`, `databases:lifecycle`, `snapshots:read`, `members:read`, `activities:read` |
 | Viewer | `apps:read`, `databases:read`, `snapshots:read`, `members:read`, `activities:read` |
@@ -865,6 +868,8 @@ common sets; scopes can also be chosen individually.
 | `databases:credentials` | View or reset certificate and credentials |
 | `snapshots:read` | List and download snapshots |
 | `snapshots:write` | Create and restore snapshots |
+| `blob:read` | Read Blob Storage files, links, shares, rules, domains and usage |
+| `blob:write` | Upload and change Blob Storage files, shares, rules and domains |
 | `account:read` | View profile, sessions and personal organization |
 | `account:write` | Update profile and personal organization |
 | `workspaces:read` | List and view workspaces, including individual organization |
@@ -1283,7 +1288,98 @@ redemptions and actions started by a connected agent.
 
 ---
 
-## 22. Glossary
+## 22. Blob Storage
+
+Blob Storage keeps files (images, videos, backups and other assets) for your projects. Public files get a
+public URL, private files are read through temporary links or share pages, and the same files can be reached with
+an S3-compatible client. It's available from Economy; the Free plan doesn't include it. Blob usage and its quota belong to
+the workspace owner, so a workspace uses its owner's quota.
+
+### Quota and limits by plan
+
+| Plan | Blob quota | Folder rules | Custom domains | Image transformations/month |
+|---|---:|---:|---:|---:|
+| Economy | 1 GB | 5 | 0 | none |
+| Pro | 5 GB | 5 | 0 | none |
+| Scale | 15 GB | 5 | 0 | 600 |
+| Intermediary | 20 GB | 5 | 0 | 1,000 |
+| Enterprise-4 | 30 GB | 5 | 1 | 1,500 |
+| Enterprise-6 | 50 GB | 5 | 1 | 2,000 |
+| Enterprise-8 | 100 GB | 5 | 1 | 2,500 |
+| Enterprise-12 / 14 | 150 GB | 10 | 3 | 4,000 |
+| Enterprise-16 to 24 | 250 GB | 10 | 3 | 5,000 |
+| Enterprise-26 to 32 | 250 GB | 20 | 10 | 10,000 |
+
+### Features that depend on the plan
+
+| Feature | Minimum plan |
+|---|---|
+| Custom domains for public files | Enterprise-4 (1 domain on Enterprise-4 to 8, 3 on Enterprise-12 to 24, 10 on Enterprise-26 to 32) |
+| Image transformations (resize, crop, format, quality) | Scale |
+| Uploads without the 1-per-second limit | Enterprise-12 (below it, 1 upload per second) |
+| Object metadata (up to 5 keys, 512 bytes) | Enterprise-12 |
+| Share links with a password | Enterprise-12 |
+| `no-cache` for objects and folder rules | Enterprise-26 |
+| Expiration shorter than 7 days (down to 1 hour) | Enterprise-26 |
+
+Image transformations are applied through URL parameters (`w`, `h`, `fit`, `format`, `q`) on public images. Each
+distinct transformation counts once per month. Above the monthly limit the original image is served, without an error.
+
+### Limits for every plan
+
+- **Simple upload:** one request up to 100 MB per file.
+- **Direct upload:** up to 10 GB per object, sent in parts straight to storage, with resume and abort.
+- **Path:** 1 to 1,024 characters, up to 16 folders, each part up to 255 characters of letters, digits, `.`, `_`, `-` and space. Every file needs an extension.
+- **Blocked types:** `exe`, `msi`, `dll`, `bat`, `cmd`, `com`, `scr`, `cpl`, `pif`, `hta`, `vbs`, `vbe`, `jse`, `wsf`, `wsh`, `msc`, `reg`, `lnk`, `sys`, `drv`, `ps1`, `apk`, `xpi`, `dmg`, `pkg`, `deb`, `rpm` and `appimage`. Executables are also detected from their content.
+- **HTML, HTM, SVG, XML and XHTML** are always downloaded (`attachment`), never shown inside the page.
+- **Folder rules** set defaults for a folder: visibility, expiration, maximum size, extensions, `Cache-Control`, and deletion after a number of days (1 to 3,650).
+
+### Quota, downgrades and grace period
+
+- A write that would take the account past its quota is blocked with `STORAGE_QUOTA_EXCEEDED`. Deleting objects frees space.
+- After a downgrade, your files stay. If they use more than the new quota, new uploads are blocked and the excess is charged at R\$0.20 per started GB on the next renewal.
+- When the plan expires, the account enters a **72-hour grace period**: uploads and other writes are blocked (`BLOB_NAMESPACE_SUSPENDED`), while public files, temporary links and share pages keep working. Renewing within those 72 hours reactivates everything. A suspension for abuse is different: the files go offline right away.
+- After the grace period the files are deleted. **Deletion is permanent and there is no backup.**
+- Share pages open on the website. A share can have an expiration, a download limit and, from Enterprise-12, a password. A share doesn't protect a public object.
+
+### Access
+
+- **API key scopes:** `blob:read` and `blob:write`. Workspace permissions: `blob:read` and `blob:manage`.
+- **Upload token:** a short-lived `vcup_` token for browsers. It fixes the path or folder, size, extensions and visibility, and it is accepted only on the upload routes.
+- **S3-compatible access:** `GET /v1/s3/credentials`, limited to 10 calls per hour. Revoking the API key that created it cuts S3 access at once. S3 gateway requests per 10 seconds per account: Economy/Pro 100, Scale/Intermediary 200, Enterprise-4 to 8: 400, Enterprise-12+: 600; CopyObject/UploadPartCopy 20. Above it: `503 SlowDown`.
+- Every route is documented on its own page under **API Reference > Blob Storage**.
+
+### Blob error codes
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `BLOB_OBJECT_NOT_FOUND` | No object with that ID in this account (or it belongs to another account). Check the ID. |
+| 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Another object already has that `path`. Send `overwrite: true` to replace it, or choose another path. |
+| 404 | `BLOB_UPLOAD_NOT_FOUND` | The upload doesn't exist, belongs to another account, or was already completed or aborted. Start a new upload. |
+| 410 | `BLOB_UPLOAD_EXPIRED` | The upload's time limit has passed. Start a new upload. |
+| 409 | `BLOB_UPLOAD_INCOMPLETE` | At `complete`, parts are missing or the stored size differs from the declared `size`. Upload the missing parts (see `uploaded_parts`) and retry. |
+| 409 | `BLOB_UPLOAD_LIMIT` | The account has more uploads in progress than its plan allows. Complete or abort some, then retry. |
+| 400 | `BLOB_CHECKSUM_MISMATCH` | The `checksum_sha256` you sent doesn't match the content. Compute it again from the file you are sending. |
+| 413 | `BLOB_FILE_TOO_LARGE` | The file is above the limit that applies: 100 MB on `POST /v1/objects`, 10 GB per object, or a folder rule's or upload token's `max_size`. |
+| 403 | `STORAGE_QUOTA_EXCEEDED` | Storing the file would exceed the blob quota of the plan. Delete objects or move to a plan with more storage. |
+| 422 | `BLOCKED_FILE_TYPE` | The extension is blocked, isn't allowed by the folder rule or upload token, or the content is an executable. |
+| 403 | `BLOB_NAMESPACE_SUSPENDED` | Blob storage is suspended, or the plan expired. Writes are refused from the start of the 72-hour grace period (files keep being served until it ends, unless the account is suspended for abuse). Renew the plan, or contact support if the account is suspended. |
+| 401 | `BLOB_UPLOAD_TOKEN_INVALID` | The upload token doesn't exist, has expired or was revoked. Create a new token. |
+| 401 | `BLOB_UPLOAD_TOKEN_EXHAUSTED` | The upload token has used all its uses. Create a new token with a higher `max_uses`. |
+| 403 | `BLOB_UPLOAD_TOKEN_NOT_ALLOWED` | An upload token was sent to a route other than the upload routes. Use an API key there. |
+| 403 | `BLOB_UPLOAD_TOKEN_CONSTRAINT` | The path, size or extension is outside what the upload token allows. Use a path, size and extension the token permits. |
+| 404 | `BLOB_SHARE_NOT_FOUND` | The share doesn't exist, was revoked, or has expired. |
+| 410 | `BLOB_SHARE_EXHAUSTED` | The share has used all its downloads. |
+| 401 | `BLOB_SHARE_PASSWORD_INVALID` | The password is wrong. Repeated attempts from the same IP are rate limited. |
+| 409 | `BLOB_RULES_CONFLICT` | The `If-Match` etag is out of date because the rules were saved after you read them. Read the rules again and retry. |
+| 409 | `BLOB_RULE_LIMIT` | The account has more folder rules than its plan allows (5, 10 or 20). Delete a rule first. |
+| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | The plan includes custom domains and the account already has as many as it allows. Below Enterprise-4 the answer is `PLAN_RESTRICTED_FEATURE` instead. |
+| 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | The hostname is already in use. |
+| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | The domain doesn't exist or belongs to another account. |
+
+---
+
+## 23. Glossary
 
 | Term | Definition |
 |-------|-----------|
@@ -1305,3 +1401,4 @@ redemptions and actions started by a connected agent.
 | Build | An optional step, defined by `build_command`, that runs after dependency installation and before the application starts |
 | Build environment | The environment isolated from the application where `build_command` runs (2× RAM, 2× vCPU, 10-minute time limit) |
 | Container | The isolated environment where the application or database runs |
+| Blob Storage | File storage for projects: public URLs, temporary links, share pages and an S3-compatible endpoint |

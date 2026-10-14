@@ -142,6 +142,36 @@ Every error uses the same envelope, described in the [API introduction](/api-ref
 | 413 | `PAYLOAD_TOO_LARGE` | The request body (upload) is larger than the limit for the route. |
 | 400 | `STORAGE_FULL` | The application's volume has no space left for this write. |
 
+## Blob Storage
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `BLOB_OBJECT_NOT_FOUND` | No object with that ID in this account (or it belongs to another account). Check the ID. |
+| 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Another object already has that `path`. Send `overwrite: true` to replace it, or choose another path. |
+| 404 | `BLOB_UPLOAD_NOT_FOUND` | The upload doesn't exist, belongs to another account, or was already completed or aborted. Start a new upload. |
+| 410 | `BLOB_UPLOAD_EXPIRED` | The upload's time limit has passed. Start a new upload. |
+| 409 | `BLOB_UPLOAD_INCOMPLETE` | At `complete`, parts are missing or the stored size differs from the declared `size`. Upload the missing parts (see `uploaded_parts`) and retry. |
+| 409 | `BLOB_UPLOAD_LIMIT` | The account has more uploads in progress than its plan allows. Complete or abort some, then retry. |
+| 400 | `BLOB_CHECKSUM_MISMATCH` | The `checksum_sha256` you sent doesn't match the content. Compute it again from the file you are sending. |
+| 413 | `BLOB_FILE_TOO_LARGE` | The file is above the limit that applies: 100 MB on `POST /v1/objects`, 10 GB per object, or a folder rule's or upload token's `max_size`. |
+| 403 | `STORAGE_QUOTA_EXCEEDED` | Storing the file would exceed the blob quota of the plan. Delete objects or move to a plan with more storage. |
+| 422 | `BLOCKED_FILE_TYPE` | The extension is blocked, isn't allowed by the folder rule or upload token, or the content is an executable. |
+| 403 | `BLOB_NAMESPACE_SUSPENDED` | Blob storage is suspended, or the plan expired. Writes are refused from the start of the 72-hour grace period (files keep being served until it ends, unless the account is suspended for abuse). Renew the plan, or contact support if the account is suspended. |
+| 401 | `BLOB_UPLOAD_TOKEN_INVALID` | The upload token doesn't exist, has expired or was revoked. Create a new token. |
+| 401 | `BLOB_UPLOAD_TOKEN_EXHAUSTED` | The upload token has used all its uses. Create a new token with a higher `max_uses`. |
+| 403 | `BLOB_UPLOAD_TOKEN_NOT_ALLOWED` | An upload token was sent to a route other than the upload routes. Use an API key there. |
+| 403 | `BLOB_UPLOAD_TOKEN_CONSTRAINT` | The path, size or extension is outside what the upload token allows. Use a path, size and extension the token permits. |
+| 404 | `BLOB_SHARE_NOT_FOUND` | The share doesn't exist, was revoked, or has expired. |
+| 410 | `BLOB_SHARE_EXHAUSTED` | The share has used all its downloads. |
+| 401 | `BLOB_SHARE_PASSWORD_INVALID` | The password is wrong. Repeated attempts from the same IP are rate limited. |
+| 409 | `BLOB_RULES_CONFLICT` | The `If-Match` etag is out of date because the rules were saved after you read them. Read the rules again and retry. |
+| 409 | `BLOB_RULE_LIMIT` | The account has more folder rules than its plan allows (5, 10 or 20). Delete a rule first. |
+| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | The plan includes custom domains and the account already has as many as it allows. Below Enterprise-4 the answer is `PLAN_RESTRICTED_FEATURE` instead. |
+| 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | The hostname is already in use. |
+| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | The domain doesn't exist or belongs to another account. |
+
+Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDED` (with `retry_after`, also used for the one-upload-per-second limit below Enterprise-12), `API_KEY_SCOPE_DENIED`, `WORKSPACE_PERMISSION_DENIED` and `INVALID_CUSTOM_DOMAIN_FORMAT`.
+
 ## Network & domains
 
 | Status | Code | Meaning & fix |

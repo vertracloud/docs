@@ -1,0 +1,141 @@
+---
+title: "Create an Upload Token for Browser Uploads"
+sidebarTitle: "Create upload token"
+api: "POST https://blob.vertracloud.app/v1/upload-tokens"
+authMethod: bearer
+description: "Creates a short-lived upload token that fixes the path or folder, size, extensions and visibility. Use it in browsers instead of your API key."
+---
+
+{/* @see RESTPostAPIBlobUploadTokenBody, RESTPostAPIBlobUploadTokenResponse, APIBlobUploadToken — @vertracloud/api-types */}
+
+Creates an upload token that a browser or another untrusted client can use to upload, without your API key. The token fixes every constraint you send: a `path` for one file or a `prefix` for any file in a folder, the largest size, the allowed extensions and the visibility. It works only on the upload routes, and it stops working when the API key that created it is revoked. The token is shown once.
+
+**Scope:** `blob:write`.
+
+<ParamField body="path" type="string">
+  Exact path the token can upload to. Use this or `prefix`, not both.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  Folder the token can upload into. The random suffix is forced. Use this or `path`, not both.
+</ParamField>
+
+<ParamField body="visibility" type="string">
+  `public` or `private`. Fixed by the token.
+</ParamField>
+
+<ParamField body="max_size" type="number">
+  Largest file the token accepts, in bytes.
+</ParamField>
+
+<ParamField body="allowed_extensions" type="string[]">
+  1–20 extensions, lowercase, without the dot.
+</ParamField>
+
+<ParamField body="cache_control" type="string">
+  Fixed `cache_control` for the uploaded objects.
+</ParamField>
+
+<ParamField body="content_disposition" type="string">
+  Fixed `inline` or `attachment` for the uploaded objects.
+</ParamField>
+
+<ParamField body="expires_at" type="string">
+  ISO 8601 timestamp for deletion of the uploaded objects.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Fixed metadata for the uploaded objects. Enterprise-12 or higher.
+</ParamField>
+
+<ParamField body="overwrite" type="boolean">
+  Let uploads with this token replace an existing file. Default `false`: without it, the token never overwrites a file that already exists.
+</ParamField>
+
+<ParamField body="expires_in" type="number">
+  Seconds the token stays valid, 60–3600. Default `900`.
+</ParamField>
+
+<ParamField body="max_uses" type="number">
+  How many uploads the token allows, 1–100. Default `1`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/upload-tokens" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prefix":"avatars/","max_size":5000000,"allowed_extensions":["png","jpg","webp"],"expires_in":900}'
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  The token. Shown once.
+  <Expandable title="properties">
+  <ResponseField name="token" type="string">Upload token, starting with `vcup_`. Shown once; store it only where the upload happens.</ResponseField>
+  <ResponseField name="expires_at" type="string">When the token stops working, as an ISO 8601 timestamp.</ResponseField>
+  <ResponseField name="max_uses" type="number">How many uploads the token allows.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "token": "vcup_9f2c7d1e4b8a6035c2f1d9e7a4b3c8d2",
+    "expires_at": "2026-10-14T12:15:00.000Z",
+    "max_uses": 1
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): The account's blob storage is suspended, or its plan expired. Uploads and other writes are refused from the start of the 72-hour grace period.
+  - `VALIDATION_ERROR` (`400`): A parameter or body field failed validation. `details.path` names the field.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` was sent on a plan below Enterprise-12.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>
