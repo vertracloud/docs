@@ -1,0 +1,112 @@
+---
+title: "Update a Blob Custom Domain"
+sidebarTitle: "Update domain"
+api: "PATCH https://blob.vertracloud.app/v1/domains/{domain_id}"
+authMethod: bearer
+description: "Turns web content on or off for a custom domain: whether it serves HTML, SVG and XML in the browser or always downloads them."
+---
+
+{/* @see RESTPatchAPIBlobDomainBody, RESTPatchAPIBlobDomainResponse, APIBlobCustomDomain — @vertracloud/api-types */}
+
+Changes `web_content` on a custom domain and returns the domain. With `true`, the domain serves `.html`, `.htm`, `.xhtml`, `.svg` and `.xml` files in the browser with their real type; pages run JavaScript in a sandbox with no forms, no cookies and no navigating the top tab. With `false` (the default), those types always download. The change takes effect within about a minute. The default public link always downloads these types, whatever this setting says. See [Custom domains](/blob/custom-domains#serve-web-pages) for the risks.
+
+**Scope:** `blob:write`.
+
+<ParamField path="domain_id" type="string" required>
+  The domain ID.
+</ParamField>
+
+<ParamField body="web_content" type="boolean">
+  Turns web content on (`true`) or off (`false`) for this domain.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X PATCH "https://blob.vertracloud.app/v1/domains/9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"web_content":true}'
+```
+
+### Response
+
+<ResponseField name="response" type="object">
+  The updated domain.
+  <Expandable title="properties">
+  <ResponseField name="id" type="string">Domain ID.</ResponseField>
+  <ResponseField name="hostname" type="string">Subdomain only, for example `cdn.example.com`.</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `active`, `failed` or `suspended`. Only `active` serves files.</ResponseField>
+  <ResponseField name="ssl_status" type="string">Status of the TLS certificate for the hostname.</ResponseField>
+  <ResponseField name="cname_target" type="string">Point a CNAME record of `hostname` to this value.</ResponseField>
+  <ResponseField name="prefix" type="string | null">When set, the domain serves only this folder.</ResponseField>
+  <ResponseField name="web_content" type="boolean">`true` when the domain serves `.html`, `.htm`, `.xhtml`, `.svg` and `.xml` in the browser (sandboxed); `false` when those types always download.</ResponseField>
+  <ResponseField name="verification" type="object | null">The TXT record that proves you own the hostname. Present only while the domain is not `active`; absent or `null` afterwards.
+    <Expandable title="properties">
+    <ResponseField name="type" type="string">Always `txt`.</ResponseField>
+    <ResponseField name="name" type="string">Name of the TXT record to create.</ResponseField>
+    <ResponseField name="value" type="string">Value of the TXT record.</ResponseField>
+    </Expandable>
+  </ResponseField>
+  <ResponseField name="created_at" type="string">ISO 8601 creation time.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5",
+    "hostname": "cdn.example.com",
+    "status": "active",
+    "ssl_status": "active",
+    "cname_target": "custom.vertracloud.dev",
+    "prefix": "images/",
+    "web_content": true,
+    "verification": null,
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING` (`401`): No `Authorization` header was sent.
+  - `API_KEY_INVALID` (`401`): The API key doesn't exist, was revoked, or its secret doesn't match.
+  - `API_KEY_SCOPE_DENIED` (`403`): The key lacks the scope this route needs (`blob:read` or `blob:write`); `details.required` names it.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Only with `workspace_id`: you're not a member, or your role lacks the blob permission.
+  - `WORKSPACE_NOT_FOUND` (`404`): Only with `workspace_id`: no workspace with that ID, or you're not a member.
+  - `VALIDATION_ERROR` (`400`): `web_content` is missing or isn't a boolean. `details.path` names the field.
+  - `BLOB_CUSTOM_DOMAIN_NOT_FOUND` (`404`): No domain with that ID in this account.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

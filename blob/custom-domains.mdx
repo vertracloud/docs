@@ -37,7 +37,7 @@ Without the right plan the call answers `PLAN_RESTRICTED_FEATURE`. `BLOB_CUSTOM_
     ```
 
     ```go Go
-    domain, err := client.Blob.Domains.Add(ctx, "cdn.example.com", "")
+    domain, err := client.Blob.Domains.Add(ctx, "cdn.example.com", "", false)
     ```
 
     </CodeGroup>
@@ -62,5 +62,40 @@ Without the right plan the call answers `PLAN_RESTRICTED_FEATURE`. `BLOB_CUSTOM_
     The domain starts as `pending`. When the CNAME and the ownership TXT record both resolve and the certificate is issued it becomes `active`. Force a new check with [Verify domain](/api-reference/endpoint/blob/domains/verify); `ssl_status` shows certificate progress. A `failed` status means the CNAME or the TXT record was not found. DNS changes can take a few minutes to propagate. You can read `verification` again at any time from [List](/api-reference/endpoint/blob/domains/list).
   </Step>
 </Steps>
+
+## Serve web pages
+
+By default a custom domain only serves files for download: `.html`, `.htm`, `.xhtml`, `.svg` and `.xml` always download, the same as on the default public link. Turn on `web_content` to serve those types in the browser with their real content type, for example to host a static page or show an SVG inline.
+
+Pages served this way run JavaScript in a sandbox: no forms, no cookies and no navigating the top tab. Even so, you are publishing content that visitors open in their browser, so turn it on only for domains whose files you control, and use a `prefix` to limit it to one folder. The default public link never serves these types in the browser, whatever the setting.
+
+<Steps>
+  <Step title="In the dashboard">
+    Open Blob Storage, go to Custom domains, and switch on web content for the domain. You can also set it when you add the domain.
+  </Step>
+  <Step title="With the API">
+    Set it when adding the domain, or change it later with [Update domain](/api-reference/endpoint/blob/domains/update).
+
+    ```bash cURL
+    curl -X PATCH "https://blob.vertracloud.app/v1/domains/$DOMAIN_ID" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+      -d '{ "web_content": true }'
+    ```
+
+    ```javascript JavaScript
+    await blob.domains.update(domain.id, { web_content: true });
+    ```
+
+    ```python Python
+    client.blob.domains.update(domain["id"], web_content=True)
+    ```
+
+    ```go Go
+    domain, err := client.Blob.Domains.Update(ctx, domain.ID, true)
+    ```
+  </Step>
+</Steps>
+
+The change takes effect within about a minute.
 
 A hostname already used elsewhere answers `BLOB_CUSTOM_DOMAIN_TAKEN`. Invalid hostnames answer `INVALID_CUSTOM_DOMAIN_FORMAT`. Remove a domain with [Delete domain](/api-reference/endpoint/blob/domains/delete); see also [List](/api-reference/endpoint/blob/domains/list) and [Add](/api-reference/endpoint/blob/domains/add).

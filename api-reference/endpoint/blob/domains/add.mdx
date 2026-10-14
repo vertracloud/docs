@@ -20,6 +20,10 @@ Adds a subdomain, such as `cdn.example.com`, that serves the account's public bl
   Serve only this folder on the domain. Omit it to serve the whole account.
 </ParamField>
 
+<ParamField body="web_content" type="boolean">
+  Defaults to `false`. When `true`, the domain serves `.html`, `.htm`, `.xhtml`, `.svg` and `.xml` files in the browser with their real type, sandboxed. See [Custom domains](/blob/custom-domains#serve-web-pages).
+</ParamField>
+
 <ParamField query="workspace_id" type="string">
   The workspace ID, when the blob belongs to a workspace. The call acts on the blob of the workspace owner and needs the `blob:read` workspace permission (`blob:manage` on routes that change data). Leave it out to act on your own blob.
 </ParamField>
@@ -30,7 +34,7 @@ Adds a subdomain, such as `cdn.example.com`, that serves the account's public bl
 curl -X POST "https://blob.vertracloud.app/v1/domains" \
   -H "Authorization: Bearer $VERTRA_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"hostname":"cdn.example.com","prefix":"images/"}'
+  -d '{"hostname":"cdn.example.com","prefix":"images/","web_content":false}'
 ```
 
 ### Response
@@ -44,6 +48,7 @@ curl -X POST "https://blob.vertracloud.app/v1/domains" \
   <ResponseField name="ssl_status" type="string">Status of the TLS certificate for the hostname.</ResponseField>
   <ResponseField name="cname_target" type="string">Point a CNAME record of `hostname` to this value.</ResponseField>
   <ResponseField name="prefix" type="string | null">When set, the domain serves only this folder.</ResponseField>
+  <ResponseField name="web_content" type="boolean">`true` when the domain serves `.html`, `.htm`, `.xhtml`, `.svg` and `.xml` in the browser (sandboxed); `false` when those types always download.</ResponseField>
   <ResponseField name="verification" type="object | null">The TXT record that proves you own the hostname. Present only while the domain is not `active`; absent or `null` afterwards.
     <Expandable title="properties">
     <ResponseField name="type" type="string">Always `txt`.</ResponseField>
@@ -66,6 +71,7 @@ curl -X POST "https://blob.vertracloud.app/v1/domains" \
     "ssl_status": "pending_validation",
     "cname_target": "custom.vertracloud.dev",
     "prefix": "images/",
+    "web_content": false,
     "verification": { "type": "txt", "name": "_vertra-challenge.cdn.example.com", "value": "3f9a1c7e-2b5d-4e8a-9c0d-6a1b2c3d4e5f" },
     "created_at": "2026-10-14T12:00:00.000Z"
   }
