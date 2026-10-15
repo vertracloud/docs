@@ -26,6 +26,10 @@ Uploads one file of up to 100 MB in a single `multipart/form-data` request and s
   Replace an object already at `path`. Default `false`: a taken path returns `BLOB_OBJECT_ALREADY_EXISTS`.
 </ParamField>
 
+<ParamField query="rename_on_conflict" type="boolean">
+  When `path` is taken, save the file as `name-1.ext`, `name-2.ext` and so on (the first free name) instead of returning `BLOB_OBJECT_ALREADY_EXISTS`. The response carries the final `path`. Default `false`. Can't be combined with `overwrite`, and has no effect with an upload token that fixes the `path`.
+</ParamField>
+
 <ParamField query="random_suffix" type="boolean">
   Insert `-` plus 10 random base-36 characters before the extension. Default `false`. Forced to `true` for an upload token without a fixed `path`.
 </ParamField>
@@ -137,7 +141,7 @@ curl -X POST "https://blob.vertracloud.app/v1/objects?path=images/logo.png&visib
   - `BLOCKED_FILE_TYPE` (`422`): The extension is blocked, not allowed by the folder rule or token, or the file is an executable.
   - `BLOB_NAMESPACE_SUSPENDED` (`403`): The account's blob storage is suspended, or its plan expired. Uploads and other writes are refused from the start of the 72-hour grace period.
   - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` (below Enterprise-12) or `cache_control: no-cache` (below Enterprise-26) isn't included in the plan.
-  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Only with an upload token: the path, size or extension is outside what the token allows.
+  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Only with an upload token: the path, folder or another option the token fixes doesn't match the request.
   - `BLOB_UPLOAD_TOKEN_EXHAUSTED` (`401`): Only with an upload token: it has used all its uses.
   - `RATE_LIMIT_EXCEEDED` (`429`): Below Enterprise-12, uploads are limited to 1 per second. `details.retry_after` gives the wait.
 </ResponseField>

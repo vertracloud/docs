@@ -1,0 +1,37 @@
+### Blob Storage
+
+Vertra Cloud now stores files for your projects: user uploads, images, videos, exports and backups. Files live apart from your application's disk, survive redeploys, and are served from a global CDN. Manage them from the new **Blob Storage** page in the dashboard, the [API](/api-reference/endpoint/blob/objects/list), the SDKs, the CLI, the MCP server or any S3-compatible tool. Start with the [overview](/blob/overview) and the [quickstart](/blob/quickstart).
+
+#### Public and private files
+
+Every file is public or private, and new files are private. A public file has a permanent URL on `blob.vertracloud.dev`, cached by the CDN. A private file is read through a [temporary link](/blob/links-and-visibility) (60 seconds to 24 hours) or a [share page](/blob/sharing) with an expiration, a download limit and, from Enterprise-12, a password. You can switch a file between the two at any time without changing its ID.
+
+#### Uploads up to 10 GB
+
+Files up to 100 MB go in a single request. Larger files, up to 10 GB, are sent in parts straight to storage, with resume and abort. A browser can upload with a short-lived upload token created by your backend, so your API key never reaches it; see the [user uploads guide](/guides/serve-user-uploads). When a path is taken, `overwrite` replaces the file and `rename_on_conflict` saves it as `name-1.ext`, `name-2.ext` and so on. Details in [Uploads](/blob/uploads).
+
+#### Safe by default
+
+Executables and installers are refused, even when renamed. HTML, SVG and XML files always download on the default address instead of opening in the browser, and the content type comes from the extension.
+
+#### Folder rules, image transformations and custom domains
+
+- **[Folder rules](/blob/folder-rules):** defaults and limits per folder, such as visibility, maximum size, allowed extensions, cache and automatic deletion after a number of days.
+- **[Image transformations](/blob/image-transformations):** resize, crop and convert public images through URL parameters, from Scale.
+- **[Custom domains](/blob/custom-domains):** serve public files from a subdomain you own, such as `cdn.example.com`, from Enterprise-4. A domain can also serve HTML, SVG and XML in the browser, sandboxed, when you turn on `web_content`.
+
+#### Quota by plan
+
+Blob Storage is included from Economy: 1 GB on Economy, 5 GB on Pro, 15 GB on Scale, 20 GB on Intermediary and 30 to 250 GB on Enterprise. Uploads above the quota answer `STORAGE_QUOTA_EXCEEDED`. After a downgrade your files stay, and usage above the new quota is charged at R\$0.20 per started GB on the next renewal. When a plan expires, files stay online for a 72-hour grace period and are then permanently deleted, without a backup. The full table is in [Limits and quotas](/blob/limits-and-quotas).
+
+#### API keys and workspaces
+
+API keys have two new scopes, `blob:read` and `blob:write`. Workspaces have two new permissions, `blob:read` and `blob:manage`, that act on the owner's files and quota; no existing role receives them, so the owner grants them explicitly. See [Authentication](/blob/authentication).
+
+#### SDKs, S3, CLI and MCP
+
+- **JavaScript:** a dedicated SDK, `@vertracloud/blob`, for Node, browsers and edge runtimes. See [JavaScript SDK](/blob/sdk-javascript).
+- **Python and Go:** `client.blob` and `client.Blob` in the existing SDKs. See [Python and Go SDKs](/blob/sdk-python-go).
+- **S3:** aws-cli, rclone, boto3 and other S3 tools work with credentials derived from your API key. See [S3 compatibility](/blob/s3-compatibility).
+- **CLI:** `vertra blob ls`, `put`, `get`, `link`, `rm` and `stats`. See [CLI](/cli#blob-storage).
+- **MCP:** tools to list, upload, link, change visibility and delete files. See [MCP](/mcp#blob-storage).

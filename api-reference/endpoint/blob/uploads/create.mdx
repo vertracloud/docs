@@ -19,7 +19,7 @@ Starts a direct upload: the bytes go from your client straight to storage, not t
 </ParamField>
 
 <ParamField body="size" type="number" required>
-  Exact size of the file in bytes, from 1 up to 10 GB. The stored bytes must match it.
+  Exact size of the file in bytes, from 0 up to 10 GB. The stored bytes must match it.
 </ParamField>
 
 <ParamField body="visibility" type="string">
@@ -28,6 +28,10 @@ Starts a direct upload: the bytes go from your client straight to storage, not t
 
 <ParamField body="overwrite" type="boolean">
   Replace an object already at `path`. Default `false`.
+</ParamField>
+
+<ParamField body="rename_on_conflict" type="boolean">
+  When `path` is taken, save the file as `name-1.ext`, `name-2.ext` and so on (the first free name) instead of returning `BLOB_OBJECT_ALREADY_EXISTS`. The upload carries the final `path`. Default `false`. Can't be combined with `overwrite`, and has no effect with an upload token that fixes the `path`.
 </ParamField>
 
 <ParamField body="random_suffix" type="boolean">
@@ -127,7 +131,7 @@ curl -X POST "https://blob.vertracloud.app/v1/uploads" \
   - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): The upload token doesn't exist, has expired or was revoked (only with an upload token).
   - `BLOB_NAMESPACE_SUSPENDED` (`403`): The account's blob storage is suspended, or its plan expired. Uploads and other writes are refused from the start of the 72-hour grace period.
   - `VALIDATION_ERROR` (`400`): A parameter or body field failed validation. `details.path` names the field.
-  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Only with an upload token: the path, size or extension is outside what the token allows.
+  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Only with an upload token: the path, folder or another option the token fixes doesn't match the request.
   - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` (below Enterprise-12) or `cache_control: no-cache` (below Enterprise-26) isn't included in the plan.
   - `BLOB_UPLOAD_LIMIT` (`409`): The account already has as many uploads in progress as its plan allows (`max_open_uploads`).
   - `BLOB_OBJECT_ALREADY_EXISTS` (`409`): `path` is taken and `overwrite` is not `true`.

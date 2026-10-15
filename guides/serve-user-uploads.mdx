@@ -7,20 +7,6 @@ icon: 'cloud-arrow-up'
 
 To accept uploads from your users, your backend creates a short-lived **upload token** and the browser sends the file straight to Blob Storage with it. The file never passes through your application and your API key never reaches the browser.
 
-```mermaid
-sequenceDiagram
-    participant B as Browser
-    participant S as Your backend
-    participant V as Blob Storage
-    B->>S: I want to upload an avatar
-    S->>V: create upload token (API key)
-    V-->>S: vcup_ token
-    S-->>B: token
-    B->>V: upload file with the token
-    V-->>B: file object with url
-    B->>S: save this url
-```
-
 <Steps>
   <Step title="Create the token on your backend">
     Fix everything the browser must not choose: folder, size, extensions and visibility. A token with a `prefix` adds a random suffix to each name, so users cannot overwrite each other.
@@ -105,7 +91,7 @@ sequenceDiagram
 |---|---|
 | `BLOB_UPLOAD_TOKEN_INVALID` | Token expired or its API key was revoked; create a new one |
 | `BLOB_UPLOAD_TOKEN_EXHAUSTED` | `max_uses` reached; raise it or create a token per upload |
-| `BLOB_UPLOAD_TOKEN_CONSTRAINT` | The path, size or extension is outside what the token allows |
+| `BLOB_UPLOAD_TOKEN_CONSTRAINT` | The path, folder or another option the token fixes doesn't match the request |
 | `BLOB_UPLOAD_TOKEN_NOT_ALLOWED` | A token only works on upload routes |
 
 More on tokens in [Authentication](/blob/authentication#upload-tokens), size and path rules in [Uploads](/blob/uploads), and per-folder limits in [Folder rules](/blob/folder-rules).
