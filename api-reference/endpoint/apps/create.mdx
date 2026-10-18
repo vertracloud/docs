@@ -34,8 +34,8 @@ The application has **two mutually exclusive sources** — send exactly one of `
 <ParamField body="build" type="string">
   An optional build command, up to 512 characters (e.g. `npm run build`). Runs after dependency
   installation and before the application starts, in an isolated build environment — 2× the
-  application's RAM (min 1,024 MB, max 4,096 MB) and 2× its vCPU (min 1, max 2), with a 10-minute
-  timeout. Available on every plan. See [Update Application Configuration](/api-reference/endpoint/apps/updateconfig) to change it later.
+  application's RAM (min 1,024 MB, max 4,096 MB) with a 10-minute
+  timeout. `devDependencies` are installed when a build command is set. Available on every plan. See [Update Application Configuration](/api-reference/endpoint/apps/updateconfig) to change it later.
 </ParamField>
 
 <ParamField body="main" type="string">
@@ -76,6 +76,8 @@ The application has **two mutually exclusive sources** — send exactly one of `
 
 ### Response
 
+Creation is asynchronous: the response is `202 Accepted` with the application in `status: "building"`. Follow it with [Application Details](/api-reference/endpoint/apps/get) or the [real-time logs](/api-reference/endpoint/apps/realtime) until `status` is `up` or `down`. While it is `building`, start, stop, restart, file deploys, rollback, snapshots, restores and configuration changes answer `409 APP_BUILDING`; deleting the application is allowed. `missing_dependencies` appears on Application Details after the build. If the build is interrupted, the application stays `down` and `BUILD_INTERRUPTED` appears in its log; if the platform cancels the creation (for example, the queue is full), the application no longer exists and Application Details answers `404`.
+
 <ResponseField name="response" type="object">
   The details of the created application.
 
@@ -106,9 +108,17 @@ The application has **two mutually exclusive sources** — send exactly one of `
   </ResponseField>
 
   <ResponseField name="status" type="string">
-    The application status: `up`, or `down` when dependency installation or the `build` command
-    failed. A failed install or build still creates the application — stopped, with the output in
-    its logs — so you can fix the files and start it again without re-uploading.
+    The application status. Creation answers `202 Accepted` with `building`; install and build
+    continue in the background. When they end, the status becomes `up`, or `down` if dependency
+    installation or the `build` command failed (the output is in the logs, so you can fix the files
+    and start again without re-uploading).
+  </ResponseField>
+
+  <ResponseField name="last_build_error" type="string | null">
+    The code of the last build or install failure, or `null` after a successful build. One of
+    `BUILD_FAILED`, `BUILD_TIMEOUT`, `BUILD_INTERRUPTED`, `INSTALL_FAILED`, `INSTALL_OUT_OF_MEMORY`,
+    `INSTALL_TIMEOUT` or `INSTALL_SHIELD_BLOCKED`. The detail is in the application's logs; see
+    [Errors](/api-reference/errors#build-failure-codes) for what to do about each code.
   </ResponseField>
 
   <ResponseField name="ram" type="integer">
@@ -211,7 +221,7 @@ The application has **two mutually exclusive sources** — send exactly one of `
     "name": "API Simples",
     "description": "I have a description :)",
     "cluster": 1,
-    "status": "up",
+    "status": "building",
     "ram": 128,
     "type": 2,
     "language": "javascript",

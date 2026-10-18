@@ -98,6 +98,7 @@ Every error uses the same envelope, described in the [API introduction](/api-ref
 | 500 | `INVALID_LANGUAGE` | The detected/selected runtime language isn't supported. |
 | 400 | `INVALID_VERSION` | The runtime version doesn't exist for the application's language. Use `recommended`, `latest` or a version listed by [List Runtimes](/api-reference/endpoint/apps/runtimes). |
 | 400 | `CLEANUP_LANGUAGE_SAME_AS_CURRENT` | Asked to switch the runtime to the language it already uses. |
+| 409 | `APP_BUILDING` | The application is still building after creation. Start, stop, restart, file deploys, rollback, snapshots, restores and configuration changes wait for the build to end (`up` or `down`); deleting is allowed. Poll [Application Details](/api-reference/endpoint/apps/get) and retry. |
 | 409 | `CONTAINER_ALREADY_RUNNING` | Start was requested on an application that's already running. |
 | 409 | `OPERATION_IN_PROGRESS` | Another lifecycle operation on the same resource is already running. This is contention, not a failure — wait a few seconds and retry. |
 | 400 | `NO_FIELDS_TO_UPDATE` / `NO_CHANGES_PROVIDED` | The update body has nothing to change. |
@@ -107,13 +108,27 @@ Every error uses the same envelope, described in the [API introduction](/api-ref
 | 400 | `ZIP_TOO_SMALL` | The uploaded ZIP is too small to be a real project. |
 | 400 | `ZIP_TOO_LARGE` | The uploaded ZIP exceeds the 100 MB limit. |
 | 400 | `MAIN_FILE_NOT_FOUND` | The scanner couldn't find an entry point in the uploaded project. |
-| 422 | `BUILD_FAILED` | The `build_command` exited with an error on start or restart. Check the build log and fix the command. On creation this isn't an error: the application is created stopped (`status: "down"`) with the output in its logs. |
+| 422 | `BUILD_FAILED` | The `build_command` exited with an error on start or restart. Check the build log and fix the command. On creation this isn't an error: the application ends the build stopped (`status: "down"`) with the output in its logs. |
 | 422 | `BUILD_TIMEOUT` | The `build_command` ran past its 10-minute limit. Simplify the build. On creation, the application is created stopped. |
+| — | `BUILD_INTERRUPTED` | The build didn't finish (it was interrupted). The application stays `down` and this error appears in its log. Start it again or deploy again. |
 | 422 | `INSTALL_TIMEOUT` | Dependency installation ran past its 15-minute limit. On creation, the application is created stopped. |
 | 422 | `INSTALL_FAILED` | Dependency installation failed. Check the dependency manifest. On creation, the application is created stopped. |
+| 422 | `INSTALL_OUT_OF_MEMORY` | Dependency installation ran out of memory. Raise the application memory. On creation, the application is created stopped. |
 | 422 | `INSTALL_CANCELLED` | The installation was cancelled (e.g. by a new deploy superseding it). |
 | 422 | `INSTALL_SHIELD_BLOCKED` | Vertra Shield stopped the deployment because traffic exceeded the plan allowance. On creation, the application is created stopped. |
 | 429 | `DEPLOY_RATE_LIMITED` | The account's hourly deploy budget or its own hourly rollback budget was reached; `details.retry_after` says how long to wait. See [rate limits](/api-reference/introduction#how-is-the-api-rate-limited) below. |
+
+### Build failure codes
+
+When a build or install fails, `GET /v1/apps/{id}` returns the code in `last_build_error` (`null` after a successful build); the detail is in the application's logs.
+
+| `last_build_error` | What to do |
+|---|---|
+| `INSTALL_OUT_OF_MEMORY` | Raise the application memory and try again. |
+| `BUILD_FAILED` / `INSTALL_FAILED` | Read the logs and fix the project. |
+| `BUILD_TIMEOUT` / `INSTALL_TIMEOUT` | Make the build or the installation shorter. |
+| `BUILD_INTERRUPTED` | Try again. |
+| `INSTALL_SHIELD_BLOCKED` | Network protection blocked traffic during the build; reduce the traffic the build generates. |
 
 ## Deploy & GitHub
 

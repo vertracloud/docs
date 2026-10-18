@@ -97,6 +97,30 @@ runtimes, err := client.Apps.Runtimes(ctx)
 
 </CodeGroup>
 
+Creating an application answers right away with `status: "building"`; the build continues in the background.
+Wait for it to finish with the helper for your language. It returns the application once it is `up` and
+raises an error if the build ended `down` (the error `code` is the application's `last_build_error`, such as `INSTALL_OUT_OF_MEMORY`, or `APP_DOWN` when none; read the logs for the detail) or the wait ran out.
+
+<CodeGroup>
+
+```javascript JavaScript
+const app = await client.apps.create({ file: zip, name: "bot", memory: 256 });
+const ready = await client.apps.waitUntilReady(app.id, { timeoutMs: 600_000, intervalMs: 2_000 });
+// throws AppBuildFailedError (ended down) or AppBuildTimeoutError; also accepts signal and workspaceId
+```
+
+```python Python
+ready = client.apps.wait_until_ready(app_id, timeout=600.0, interval=2.0)
+# raises AppBuildFailedError (ended down) or WaitTimeoutError; also accepts workspace_id
+```
+
+```go Go
+ready, err := client.Apps.WaitUntilReady(ctx, app.ID, &vertracloud.WaitOptions{Interval: 2 * time.Second})
+// *vertracloud.AppNotReadyError when the build ended down; ctx bounds the wait
+```
+
+</CodeGroup>
+
 ### Releases and rollback
 
 Listing releases and reading a log need `apps:read`. The preview needs `apps:envs` and returns only variable

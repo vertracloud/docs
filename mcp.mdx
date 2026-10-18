@@ -129,6 +129,18 @@ Creating, renaming, recoloring, or deleting a folder, moving an application or d
 favoriting or unfavoriting generates an activity. The tool doesn't receive or make up `origin` or
 `author_id`; the API logs the call by API key automatically.
 
+## Creating applications
+
+Creating an application is asynchronous: `create_app` returns right away with the application in
+`building`, and install and build continue in the background.
+
+| Tool | What it does | Scope |
+|---|---|---|
+| `wait_for_app` | Waits up to `timeout_seconds` (1–25) for an application to leave `building`. Returns the application: `up` (ready), `down` (build failed; `last_build_error` says why, and `get_logs` has the detail) or still `building` (call again). Accepts `workspace_id` | `apps:read` |
+
+While an application is building, start, stop, restart, deploy, rollback and similar actions return
+`409 APP_BUILDING`. Call `wait_for_app` first.
+
 ## Releases, rollback and deploy settings
 
 The assistant can read an application's deploy history and go back to an earlier version. See the

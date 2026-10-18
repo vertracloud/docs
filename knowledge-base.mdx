@@ -46,7 +46,7 @@ platform states — marketing, plan cards, the Enterprise page, the Terms of Use
 | TypeScript | Node.js 22 | 22 | 18, 20 |
 | Python | 3.13 | 3.13 | 3.12, 3.11 |
 | Go | 1.23 | 1.23 | 1.22, 1.21 |
-| Rust | 1.86 | 1.87 | 1.85 |
+| Rust | 1.98 | 1.99 | 1.97 |
 | Java | Temurin JRE 21 | 21 | 17 |
 | Bun | 1.2.23 | 1.2.23 | — |
 | PHP | 8.3 | 8.3 | 8.2 |
@@ -367,9 +367,19 @@ Above 10 GB of RAM, the limit grows by roughly 50 Mbit per additional 256 MB.
 
 ### Lifecycle
 ```
-Creating → Starting → Online → Stopped (manual) or Error (crash)
+Creating (building) → Online, or Stopped if the install or build fails
+Online → Stopped (manual) or Error (crash)
 Error → Starting (auto-restart) or Stopped (crash loop: 5x in 10min)
 ```
+
+**Creation is asynchronous.** `POST /v1/apps` answers `202 Accepted` right away with the application in
+`status: "building"`; install and build continue in the background with live logs. The status becomes `up` or
+`down` when the build ends — follow it with `GET /v1/apps/{id}` or the real-time log stream.
+`missing_dependencies` is filled on `GET /v1/apps/{id}` after the build. While the status is `building`,
+start, stop, restart, file deploys (upload, commit), rollback, snapshots, restores and configuration changes
+answer `409 APP_BUILDING`; deleting the application is allowed. If the build doesn't finish, the application
+stays `down` and `BUILD_INTERRUPTED` appears in its log. When a build or install fails, `GET /v1/apps/{id}` carries the code in `last_build_error` (`null` after a successful build). If the platform cancels the creation (for example, the
+queue is full), the application ceases to exist and `GET` answers `404`.
 
 ### Build Command (build_command)
 
@@ -379,10 +389,15 @@ dependency installation and **before** the application starts. A plain restart d
 build if the previous build succeeded with the same command.
 
 The build runs in a **build environment** isolated from the application: 2× the application's RAM (minimum
-1,024 MB, maximum 4,096 MB), 2× the application's vCPU (minimum 1, maximum 2), with a
+1,024 MB, maximum 4,096 MB), with a
 **10-minute** time limit. If the command fails → the deploy fails and the application doesn't start (`BUILD_FAILED`);
 if it times out → `BUILD_TIMEOUT`. On creation, a failed install or build still creates the application,
 **stopped**, with the output in its logs; the user fixes the files and starts it again.
+
+When the application has a build command, dependency installation also includes `devDependencies` (Tailwind,
+TypeScript, PostCSS and similar tools work without moving them to `dependencies`); without a build command,
+only `dependencies` are installed. Puppeteer uses the Chromium already available in the runtime image, so
+no browser is downloaded during installation.
 
 The build environment has **twice the application's bandwidth** (the same bandwidth-by-RAM table, ×2) —
 downloading dependencies weighs more than serving traffic, and the window is short. Exceeding it interrupts the deploy, the same as happens with the application
@@ -948,6 +963,9 @@ data queries and activity export.
 | `INSTALL_TIMEOUT` | Dependency installation exceeded the time limit |
 | `BUILD_FAILED` | Build command exited with an error |
 | `BUILD_TIMEOUT` | Build command exceeded the time limit |
+| `INSTALL_OUT_OF_MEMORY` | Dependency installation ran out of memory; raise the application memory |
+| `BUILD_INTERRUPTED` | The build didn't finish (it was interrupted); the application stays stopped and the error appears in its log |
+| `APP_BUILDING` | The application is still building; wait until the build ends |
 | `DEPLOY_RATE_LIMITED` | Deploy limit reached |
 | `OPERATION_IN_PROGRESS` | Another operation on the resource is still in progress |
 | `SNAPSHOT_FAILED` | Safety snapshot failed; the resource was not changed |
@@ -1203,7 +1221,7 @@ Free-plan projects inactive for more than 30 days are automatically deleted:
 
 ### Node.js / JavaScript
 
-- **`Cannot find module 'xxx'`**: The package isn't in `package.json`'s `dependencies` (it may be in `devDependencies`).
+- **`Cannot find module 'xxx'`**: The package isn't in `package.json`'s `dependencies` (it may be in `devDependencies` and the application has no build command, since `devDependencies` are installed only when there is one).
 - **`missing script: start`**: Add `"start": "node index.js"` under `scripts` in `package.json`.
 - **`Cannot use import statement outside a module`**: Add `"type": "module"` to `package.json`, or use `require()`.
 - **`ERR_REQUIRE_ESM`**: The package only supports ESM. Use ESM or an older version (e.g.: `node-fetch@2`).
@@ -1399,6 +1417,6 @@ distinct transformation counts once per month. Above the monthly limit the origi
 | vertracloud.config | An optional `KEY=value` file in the uploaded zip; pre-fills the form. Generated from the database on download and on snapshot, never stored on the volume |
 | Deploy | The process of uploading and publishing code on the platform |
 | Build | An optional step, defined by `build_command`, that runs after dependency installation and before the application starts |
-| Build environment | The environment isolated from the application where `build_command` runs (2× RAM, 2× vCPU, 10-minute time limit) |
+| Build environment | The environment isolated from the application where `build_command` runs (2× RAM, 10-minute time limit) |
 | Container | The isolated environment where the application or database runs |
 | Blob Storage | File storage for projects: public URLs, temporary links, share pages and an S3-compatible endpoint |

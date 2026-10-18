@@ -1,0 +1,31 @@
+### App creation returns immediately and the build continues in the background
+
+Creating an application no longer holds the request open until install and build finish. `POST /v1/apps` now answers `202 Accepted` right away with the application in the new `building` status, and the build continues in the background with live logs. When it ends, the application becomes `up`, or `down` if the install or build failed, with the output in its logs.
+
+- **Following the build:** read `GET /v1/apps/{id}` or open the [real-time logs](/api-reference/endpoint/apps/realtime).
+- **During the build:** start, stop, restart, file deploys, rollback, snapshots, restores and configuration changes answer `409 APP_BUILDING`. Deleting the application is allowed.
+- **Interrupted builds:** the application stays `down` and `BUILD_INTERRUPTED` appears in its log. If the platform cancels the creation, the application no longer exists.
+- **Failure reason:** when a build or install fails, `GET /v1/apps/{id}` returns the code in the new `last_build_error` field (`null` after a successful build), and the SDK wait helpers, the MCP server, the CLI, the VS Code extension and the dashboard use it to say what to do. See [Errors](/api-reference/errors#build-failure-codes).
+- **Response changes:** the creation response no longer includes `removed_directories`, and `missing_dependencies` is returned by `GET /v1/apps/{id}` after the build.
+- **SDKs, MCP and CLI:** `apps.waitUntilReady` (JavaScript), `apps.wait_until_ready` (Python) and `Apps.WaitUntilReady` (Go) wait for the build. The MCP server has a new `wait_for_app` tool, and the CLI accepts `--no-wait`. See the [SDK guide](/sdks) and [MCP](/mcp).
+
+See [Create Application](/api-reference/endpoint/apps/create) and [Errors](/api-reference/errors).
+
+### Builds install devDependencies when a build command is set
+
+When an application has a build command, dependency installation now includes `devDependencies`, so tools such as Tailwind, TypeScript and PostCSS work without moving them to `dependencies`. Without a build command, only `dependencies` are installed, as before.
+
+### Faster builds
+
+Dependency installs and builds are now faster, especially for large projects.
+
+### Puppeteer uses the preinstalled Chromium
+
+Puppeteer now uses the Chromium that already ships in the runtime image, so installation no longer downloads a browser.
+
+### Runtime fixes for Ruby, Java, PHP and Rust
+
+- **Ruby:** gems installed from the Gemfile are now loaded automatically at startup, so you no longer need `require "bundler/setup"`.
+- **Java:** Maven and Gradle projects are compiled on the platform, since the runtime now ships a JDK.
+- **PHP:** adding a package to `composer.json` without updating `composer.lock` no longer fails the install; the lock file is refreshed.
+- **Rust:** the runtime is updated to 1.98 (recommended) and 1.99 (latest); 1.97 is also available.
