@@ -120,8 +120,8 @@ MongoDB: collections, indexes and documents. Redis: keys via `SCAN`, value by ty
 
 **Minimum plan: Intermediary.** The entire tab (the 21 routes under `/v1/databases/{id}/data/*`) is
 unlocked from Intermediary up. The gate checks the plan of the database's **owner**, not the
-plan of whoever is accessing it — a workspace member on Free can use the Data tab on a database whose owner has the required plan, and
-an owner on Free doesn't get the feature by inviting someone on a higher plan. Below that the API returns
+plan of whoever is accessing it — a workspace member without a plan can use the Data tab on a database whose owner has the required plan, and
+an owner without a plan doesn't get the feature by inviting someone on a higher plan. Below that the API returns
 `PLAN_RESTRICTED_FEATURE` (403) and the dashboard shows the plan card instead of the explorer.
 
 **Permission**: read access is granted to any workspace member; **write access and the SQL console are owner or admin
@@ -137,7 +137,6 @@ in the Redis or Mongo console. In SQL the limit is time, size and concurrency.
 
 | Plan | Price | RAM | vCPU | Max Projects |
 |-------|:-----:|:---:|:----:|:------------:|
-| Free ("suspended") | R\$0 | 100 MB "free" | 0.25 | 1 app, no databases |
 | Economy | R\$1.99/mo | 256 MB | 0.3 | limited by RAM |
 | Pro | R\$5.99/mo | 1,024 MB | 0.5 | limited by RAM |
 | Scale | R\$10.99/mo | 2,048 MB | 1 | limited by RAM |
@@ -145,8 +144,8 @@ in the Redis or Mongo console. In SQL the limit is time, size and concurrency.
 | Enterprise-4 | R\$23.99/mo | 4,096 MB | 2 | limited by RAM |
 | Enterprise-32 | R\$191.99/mo | 32,768 MB | 12 | limited by RAM |
 
-**A count ceiling only exists on Free (1 app, no databases).** On paid plans the real limit is the
-**plan's RAM**: from Economy up there is no count ceiling, and what refuses a creation is
+**No plan has a count ceiling.** The real limit is the
+**plan's RAM**, and what refuses a creation is
 `MEMORY_LIMIT_EXCEEDED` — a 100 MB app fits 10 times in a Pro plan. Minimums that consume that RAM: application 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1,024 MB.
 
 ### vCPU per Application
@@ -154,13 +153,12 @@ in the Redis or Mongo console. In SQL the limit is time, size and concurrency.
 The **vCPU** column in the table above is the ceiling per application on the plan, not a total split across the
 account's projects. An application with **2 GB (2,048 MB) or more of RAM** gets the plan's full
 vCPU. Below 2 GB, it gets **1/3 of the plan's vCPU, with a floor of 1 vCPU** — except when the
-plan's own vCPU is already lower than 1 (Free, Economy and Pro), in which case the application still gets the plan's
+plan's own vCPU is already lower than 1 (Economy and Pro), in which case the application still gets the plan's
 full vCPU anyway (there's nothing to round down). More RAM never results in
 less vCPU.
 
 | Plan | Plan vCPU | App with < 2 GB RAM | App with ≥ 2 GB RAM |
 |---|---:|---:|---:|
-| Free | 0.25 | 0.25 | 0.25 |
 | Scale | 1 | 1 | 1 |
 | Intermediary | 1.5 | 1 | 1.5 |
 | Enterprise-4 | 2 | 1 | 2 |
@@ -192,13 +190,10 @@ restart; they are not a separate product surface.
 | Enterprise-30 | R\$179.99 |
 | Enterprise-32 | R\$191.99 |
 
-> The Free plan is currently **"suspended"**; while it existed it ran with 100 MB of RAM "free".
-
 ### Plan IDs (plan_id)
 
 | ID | Plan |
 |:--:|-------|
-| 1 | FREE |
 | 2 | ECONOMY |
 | 3 | PRO |
 | 4 | SCALE |
@@ -220,34 +215,34 @@ restart; they are not a separate product surface.
 
 ### Features by Plan
 
-| Feature | Free ("suspended") | Economy | Pro | Scale | Intermediary | Enterprise |
-|----------------|:----:|:-------:|:---:|:-----:|:------------:|:----------:|
-| Billing periods | — | 1 month | 1, 3 or 12 months | 1, 3 or 12 months | 1, 3 or 12 months | 1, 3 or 12 months |
-| Payment | — | PIX | PIX or card | PIX or card | PIX or card | PIX or card |
-| Automatic renewal (card) | — | — | Yes | Yes | Yes | Yes |
-| Databases | — | — (Redis minimum 512 MB doesn't fit) | Yes | Yes | Yes | Yes |
-| Web publishing (site with `*.vertraweb.app` subdomain) | — | — | Yes | Yes | Yes | Yes |
-| Choose the subdomain name | — | — | — | Yes | Yes | Yes |
-| "Powered by Vertra Cloud" badge on the site | — | — | Yes | — | — | — |
-| Custom domain | — | — | — | — | Yes | Yes |
-| Auto-restart | Yes | Yes | Yes | Yes | Yes | Yes |
-| File manager | — | — | Yes | Yes | Yes | Yes |
-| Advanced metrics | — | — | Yes | Yes | Yes | Yes |
-| Daily backups | — | — | — | Yes | Yes | Yes |
-| Manual backups | — | — | — | Yes | Yes | Yes |
-| Safety snapshot when deleting an application | — | — | Yes | Yes | Yes | Yes |
-| Database data manager | — | — | — | — | Yes | Yes |
-| Auto-deploy (GitHub) | — | — | — | — | Yes | Yes |
-| Deploy history (Rollbacks tab) | Read-only | Read-only | Yes | Yes | Yes | Yes |
-| Manual rollback (code + optional environment variables) | — | — | Yes | Yes | Yes | Yes |
-| Previous versions kept | — | — | 3 | 5 | 10 | 15–30 (by tier) |
-| Version validity | — | — | 7 days | 14 days | 30 days | 30 days |
-| Automatic rollback | — | — | — | — | Yes | Yes |
-| Zero-downtime deploys | — | — | — | — | — | Yes |
-| Vertra Flow (dashboard canvas) | Yes | Yes | Yes | Yes | Yes | Yes |
-| Workspaces (customizable roles, see §10) | — | — | — | — | — | Yes (5-24 members) |
-| Blob Storage (quota) | — | 1 GB | 5 GB | 15 GB | 20 GB | 30–250 GB |
-| Support | Discord | Specialized | Priority | Priority | Priority | Premium (E-32: dedicated agent + exclusive manager) |
+| Feature | Economy | Pro | Scale | Intermediary | Enterprise |
+|----------------|:-------:|:---:|:-----:|:------------:|:----------:|
+| Billing periods | 1 month | 1, 3 or 12 months | 1, 3 or 12 months | 1, 3 or 12 months | 1, 3 or 12 months |
+| Payment | PIX | PIX or card | PIX or card | PIX or card | PIX or card |
+| Automatic renewal (card) | — | Yes | Yes | Yes | Yes |
+| Databases | — (Redis minimum 512 MB doesn't fit) | Yes | Yes | Yes | Yes |
+| Web publishing (site with `*.vertraweb.app` subdomain) | — | Yes | Yes | Yes | Yes |
+| Choose the subdomain name | — | — | Yes | Yes | Yes |
+| "Powered by Vertra Cloud" badge on the site | — | Yes | — | — | — |
+| Custom domain | — | — | — | Yes | Yes |
+| Auto-restart | Yes | Yes | Yes | Yes | Yes |
+| File manager | — | Yes | Yes | Yes | Yes |
+| Advanced metrics | — | Yes | Yes | Yes | Yes |
+| Daily backups | — | — | Yes | Yes | Yes |
+| Manual backups | — | — | Yes | Yes | Yes |
+| Safety snapshot when deleting an application | — | Yes | Yes | Yes | Yes |
+| Database data manager | — | — | — | Yes | Yes |
+| Auto-deploy (GitHub) | — | — | — | Yes | Yes |
+| Deploy history (Rollbacks tab) | Read-only | Yes | Yes | Yes | Yes |
+| Manual rollback (code + optional environment variables) | — | Yes | Yes | Yes | Yes |
+| Previous versions kept | — | 3 | 5 | 10 | 15–30 (by tier) |
+| Version validity | — | 7 days | 14 days | 30 days | 30 days |
+| Automatic rollback | — | — | — | Yes | Yes |
+| Zero-downtime deploys | — | — | — | — | Yes |
+| Vertra Flow (dashboard canvas) | Yes | Yes | Yes | Yes | Yes |
+| Workspaces (customizable roles, see §10) | — | — | — | — | Yes (5-24 members) |
+| Blob Storage (quota) | 1 GB | 5 GB | 15 GB | 20 GB | 30–250 GB |
+| Support | Specialized | Priority | Priority | Priority | Premium (E-32: dedicated agent + exclusive manager) |
 
 > **Previous versions kept** counts the versions besides the one running now. **Version validity** counts from the moment a version stops being the running one; the running version never expires. Enterprise keeps 15 versions on tiers E-4, E-6 and E-8, 20 on E-12, E-14 and E-16, 25 on E-18 to E-24, and 30 on E-26 to E-32.
 
@@ -269,20 +264,13 @@ restart; they are not a separate product surface.
   (`PATCH /v1/apps/{id}/network/subdomain`). Without it the user can publish, but can't choose the name.
 - **Custom domain** (Intermediary+) — pointing a domain you own to the application.
 
-### Free Plan Limits
+### Account Without an Active Plan
 
-<Warning>
-  The Free plan is currently **"suspended"**. It stays documented here for reference, with
-  100 MB of RAM "free", but it isn't available right now — start on Economy or above.
-</Warning>
+An account without an active plan can't create applications or databases or publish a site: those requests
+are refused with `PLAN_REQUIRED` (403). Subscribe to a plan, starting at Economy, to continue.
 
-Free is an **evaluation plan**: it exists to test the platform before using it in production.
-
-- Maximum 1 app — databases can't be created on Free
-- RAM: **100 MB "free"**
-- Projects inactive for 30+ days are automatically deleted
-- Email notifications on days 7, 23, 27 before deletion
-- No web publishing, no file manager
+- Projects offline for 30+ days are automatically deleted, with a snapshot taken first
+- Email notifications on days 7, 23 and 27 before deletion
 
 ### Billing Periods and Payment
 
@@ -467,7 +455,7 @@ overwritten on download.
 ## 6. Auto-Restart and Crash Loop Detection
 
 - Containers that crash are restarted automatically — **the default on every plan,
-  including Free, always on, with no option to turn it off**
+  always on, with no option to turn it off**
 - Exit code 0 (normal termination) does NOT trigger a restart. Neither do errors a restart can't fix:
   syntax errors, missing modules, out of memory, a failed install or build, or a Vertra Shield pause
 - **Every other crash is restarted**, even if the application was up for only a few seconds, with a
@@ -538,8 +526,8 @@ and when the pause ends.
   projects on the account — exceeding either returns `FORCED_SNAPSHOT_RATE_LIMIT` and also
   blocks the action.
 - **Deleting an application takes the same safety snapshot from the Pro plan up** (the owner's plan).
-  If it fails, the application is not deleted (`SNAPSHOT_FAILED`); the same ceiling applies. On Free and
-  Economy the application is deleted right away with no copy, and the dashboard offers to download the
+  If it fails, the application is not deleted (`SNAPSHOT_FAILED`); the same ceiling applies. On Economy the
+  application is deleted right away with no copy, and the dashboard offers to download the
   project first. Plan expiry still snapshots every project before removing it, on every plan.
 
 ---
@@ -798,7 +786,6 @@ restarting and stopping.
 
 | Plan | Deploys/hour |
 |---|---:|
-| Free | 5 |
 | Economy | 10 |
 | Pro | 20 |
 | Scale | 40 |
@@ -829,7 +816,7 @@ The dashboard automatically strips from the zip, before uploading: `node_modules
 
 - Available via dashboard or API: `POST /v1/users/me/downgrade`
 - **Formula**: `newDays = remainingDays × (currentPrice / targetPrice)`
-- **Restrictions**: FREE and ECONOMY cannot downgrade
+- **Restrictions**: ECONOMY cannot downgrade
 - **Checks**: Memory usage must fit the target plan, rate limit (1x every 3 hours)
 - **Impact**: Reduced memory limit, higher-plan features disabled, workspaces lost when leaving Enterprise. The saved automatic rollback and zero-downtime settings stay on the application but only act on a plan that includes them
 
@@ -921,7 +908,6 @@ data queries and activity export.
 
 | Plan | Requests/min | Requests/day |
 |---|---:|---:|
-| Free | 30 | 1,000 |
 | Economy | 60 | 5,000 |
 | Pro | 120 | 20,000 |
 | Scale | 180 | 86,400 |
@@ -1035,8 +1021,7 @@ data queries and activity export.
 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | Plan doesn't include choosing a subdomain |
 | `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | Plan doesn't include automatic rollback (Intermediary+) |
 | `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | Plan doesn't include forcing zero-downtime deploys (Enterprise) |
-| `FREE_PLAN_NO_WEB_PUBLISH` | Free plan doesn't allow web publishing |
-| `FREE_PLAN_SUSPENDED` | Free plan can't create new applications or databases |
+| `PLAN_REQUIRED` | The account has no active plan, so it can't create applications or databases or publish a site (403) |
 | `NO_CUSTOM_DOMAIN` | Application has no custom domain |
 | `INVALID_CUSTOM_DOMAIN_FORMAT` | Invalid custom domain format |
 | `FORBIDDEN_DOMAIN` | Domain not allowed |
@@ -1197,11 +1182,9 @@ The list below corresponds to the public API endpoints. Request and response sch
 
 ---
 
-## 18. Automatic Cleanup (Free Plan)
+## 18. Automatic Cleanup (Accounts Without a Plan)
 
-The Free plan is currently **"suspended"**; this rule applies to Free projects that still exist.
-
-Free-plan projects inactive for more than 30 days are automatically deleted:
+On an account without an active plan, projects that stay offline for more than 30 days are automatically deleted, with a snapshot taken first:
 
 | Day | Action |
 |:---:|------|
@@ -1225,7 +1208,7 @@ Free-plan projects inactive for more than 30 days are automatically deleted:
 - **Site times out**: Bind to `0.0.0.0` (not `localhost`). Use the `PORT` value.
 - **Custom domain doesn't work**: Intermediary+ plan, correct CNAME, wait for DNS propagation.
 - **Database connection refused**: TLS is required. Download certificates from the dashboard.
-- **Project limit**: Free ("suspended") = 1 app, no databases. Upgrade for more.
+- **`PLAN_REQUIRED`**: The account has no active plan. Subscribe to a plan (Economy or above) to create applications and databases or publish a site.
 - **Email not received**: Check spam. Try another method (Discord, GitHub, Google).
 
 ### Node.js / JavaScript
@@ -1307,7 +1290,7 @@ What Vertra Cloud keeps about your account and projects, and for how long. The l
 | Billing details | Name, address, CPF/CNPJ and optional phone — stored by **Stripe**, not by Vertra | Until you change them or close the account |
 | Payment and tax records | Orders, transactions and service invoices (NFS-e) | 5 years, as required by tax law |
 | Access records | IP, date and time of each login and of API key use (one record per key, IP and day) | 6 months, as required by Brazil's Marco Civil da Internet (art. 15) |
-| Inactive Free projects | — | Deleted after 30 days without activity, with email warnings on days 7, 23 and 27 |
+| Projects of an account without a plan | — | Deleted after 30 days offline, with a snapshot first and email warnings on days 7, 23 and 27 |
 
 Your API key requests are visible to you in the dashboard, and the activity history lists lifecycle
 events, file manager changes, restored snapshots, domains, protection incidents, purchases, code
@@ -1319,7 +1302,7 @@ redemptions and actions started by a connected agent.
 
 Blob Storage keeps files (images, videos, backups and other assets) for your projects. Public files get a
 public URL, private files are read through temporary links or share pages, and the same files can be reached with
-an S3-compatible client. It's available from Economy; the Free plan doesn't include it. Blob usage and its quota belong to
+an S3-compatible client. It's available from Economy. Blob usage and its quota belong to
 the workspace owner, so a workspace uses its owner's quota.
 
 ### Quota and limits by plan

@@ -10,13 +10,11 @@ RAM, vCPU, projects and API requests — is on [Plans and limits](/plans-and-lim
 ## Resource Limits per Plan
 
 Memory and vCPU come from the plan; database connections are capped at 100 per database on every
-plan. Only the Free plan has a project count cap (1 app, no databases) — from Economy up, there's
-no count cap, and the real limit is the plan's RAM: creating an app or database is refused with
+plan. There is no project count cap on any plan — the real limit is the plan's RAM: creating an app or database is refused with
 `MEMORY_LIMIT_EXCEEDED` once the plan's RAM runs out.
 
 | Plan | Plan RAM | vCPU | Projects | DB Connections |
 |------|:--------:|:----:|:------------:|:--------------:|
-| Free ("suspended") | 100 MB "free" | 0.25 | 1 app, no databases | — |
 | Economy | 256 MB | 0.3 | Limited by RAM | 100 |
 | Pro | 1,024 MB | 0.5 | Limited by RAM | 100 |
 | Scale | 2,048 MB | 1 | Limited by RAM | 100 |
@@ -85,7 +83,6 @@ including the fixed per-route limits (lifecycle, database reset, subdomain chang
 
 | Plan | Req/min | Req/day |
 |------|:-------:|:-------:|
-| Free | 30 | 1,000 |
 | Economy | 60 | 5,000 |
 | Pro | 120 | 20,000 |
 | Scale | 180 | 86,400 |
@@ -115,7 +112,6 @@ logged in the activity history. Over the limit: `429 DEPLOY_RATE_LIMITED`, with 
 
 | Plan | Deploys/hour |
 |------|:------------:|
-| Free | 5 |
 | Economy | 10 |
 | Pro | 20 |
 | Scale | 40 |
@@ -126,15 +122,11 @@ logged in the activity history. Over the limit: `429 DEPLOY_RATE_LIMITED`, with 
 
 Auto-restart is on by default for every application, on every plan, and is subject to crash loop detection. If a container crashes **5 times in 10 minutes**, auto-restart is disabled for 24 hours. There is a **1-hour cooldown** between restarts, and the container must be online for at least **60 seconds** to count as stable.
 
-## What are the Free plan limits?
+## What happens to an account without an active plan?
 
-<Warning>
-  The Free plan is currently **"suspended"**. It stays documented here for reference, with
-  100 MB of RAM "free", but it isn't available right now — start on Economy or above.
-</Warning>
-
-The Free plan is an evaluation tier: 1 application and no databases, 100 MB of RAM "free", no
-web publishing and no file manager. Projects on the Free plan that remain offline for more than **30 days** are automatically deleted. Notifications are sent at days 7, 23 and 27.
+An account without an active plan can't create applications or databases or publish a site; those requests
+are refused with `PLAN_REQUIRED` (`403`). Projects that remain offline for more than **30 days** on such an account are automatically
+deleted, with a snapshot taken first. Notifications are sent at days 7, 23 and 27.
 
 ## Features per Plan
 
@@ -143,52 +135,38 @@ Every plan includes Vertra Shield, auto-restart with crash loop detection, TLS o
 VS Code extension and Vertra Flow. What changes from plan to plan is resources, limits and the
 features in the table below.
 
-| Feature | Free ("suspended") | Economy | Pro | Scale | Intermediary | Enterprise |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| Price/month | R\$0 | R\$1.99 | R\$5.99 | R\$10.99 | R\$18.99 | from R\$23.99 |
-| RAM | 100 MB "free" | 256 MB | 1,024 MB | 2,048 MB | 3,072 MB | 4–32 GB |
-| vCPU per app | 0.25 | 0.3 | 0.5 | 1 | 1.5 | 2–12 |
-| Applications | 1 | limited by RAM | limited by RAM | limited by RAM | limited by RAM | limited by RAM |
-| Databases | — | — ¹ | Yes | Yes | Yes | Yes |
-| API requests/min | 30 | 60 | 120 | 180 | 240 | 300–480 |
-| API requests/day | 1,000 | 5,000 | 20,000 | 86,400 | 115,200 | 144,000–864,000 |
-| Deploys/hour | 5 | 10 | 20 | 40 | 60 | 60 |
-| Web publishing (`*.vertraweb.app`) | — | — | Yes (random subdomain) | Yes | Yes | Yes |
-| Choose the subdomain | — | — | — | Yes | Yes | Yes |
-| "Powered by Vertra Cloud" badge | — | — | Yes | — | — | — |
-| Custom domain | — | — | — | — | Yes | Yes |
-| File manager | — | — | Yes | Yes | Yes | Yes |
-| Advanced metrics | — | — | Yes | Yes | Yes | Yes |
-| Daily backups | — | — | — | Yes | Yes | Yes |
-| Manual snapshots | — | — | — | Yes | Yes | Yes |
-| Database Data tab | — | — | — | — | Yes | Yes |
-| Auto-deploy from GitHub (push) | — | — | — | — | Yes | Yes |
-| Deploy history (Rollbacks tab) | Read-only | Read-only | Yes | Yes | Yes | Yes |
-| Manual rollback | — | — | Yes | Yes | Yes | Yes |
-| Previous versions kept | — | — | 3 | 5 | 10 | 15–30 by tier |
-| Version validity | — | — | 7 days | 14 days | 30 days | 30 days |
-| Automatic rollback | — | — | — | — | Yes | Yes |
-| Zero-downtime deploys | — | — | — | — | — | Yes |
-| Workspaces | — | — | — | — | — | Yes (5–24 members) |
-| Support | Discord | Specialized | Priority | Priority | Priority | Premium |
+| Feature | Economy | Pro | Scale | Intermediary | Enterprise |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Price/month | R\$1.99 | R\$5.99 | R\$10.99 | R\$18.99 | from R\$23.99 |
+| RAM | 256 MB | 1,024 MB | 2,048 MB | 3,072 MB | 4–32 GB |
+| vCPU per app | 0.3 | 0.5 | 1 | 1.5 | 2–12 |
+| Applications | limited by RAM | limited by RAM | limited by RAM | limited by RAM | limited by RAM |
+| Databases | — ¹ | Yes | Yes | Yes | Yes |
+| API requests/min | 60 | 120 | 180 | 240 | 300–480 |
+| API requests/day | 5,000 | 20,000 | 86,400 | 115,200 | 144,000–864,000 |
+| Deploys/hour | 10 | 20 | 40 | 60 | 60 |
+| Web publishing (`*.vertraweb.app`) | — | Yes (random subdomain) | Yes | Yes | Yes |
+| Choose the subdomain | — | — | Yes | Yes | Yes |
+| "Powered by Vertra Cloud" badge | — | Yes | — | — | — |
+| Custom domain | — | — | — | Yes | Yes |
+| File manager | — | Yes | Yes | Yes | Yes |
+| Advanced metrics | — | Yes | Yes | Yes | Yes |
+| Daily backups | — | — | Yes | Yes | Yes |
+| Manual snapshots | — | — | Yes | Yes | Yes |
+| Database Data tab | — | — | — | Yes | Yes |
+| Auto-deploy from GitHub (push) | — | — | — | Yes | Yes |
+| Deploy history (Rollbacks tab) | Read-only | Yes | Yes | Yes | Yes |
+| Manual rollback | — | Yes | Yes | Yes | Yes |
+| Previous versions kept | — | 3 | 5 | 10 | 15–30 by tier |
+| Version validity | — | 7 days | 14 days | 30 days | 30 days |
+| Automatic rollback | — | — | — | Yes | Yes |
+| Zero-downtime deploys | — | — | — | — | Yes |
+| Workspaces | — | — | — | — | Yes (5–24 members) |
+| Support | Specialized | Priority | Priority | Priority | Premium |
 
 ¹ The smallest database (Redis) needs 512 MB of RAM, which doesn't fit in Economy's 256 MB.
 
 <Tabs>
-  <Tab title='Free ("suspended")'>
-    <Warning>The Free plan is currently **"suspended"** and isn't available right now.</Warning>
-
-    - **Price:** R\$0
-    - **RAM:** 100 MB "free" · **vCPU:** 0.25
-    - **Projects:** 1 application — databases can't be created on Free
-    - **API:** 30 requests/min, 1,000 requests/day · **Deploys:** 5/hour
-    - Vertra Shield, auto-restart, 10 GB of storage for the application
-    - Deploy by zip upload, GitHub, CLI or VS Code extension
-    - Discord support · 99.99% SLA
-    - Deploy history, read-only
-    - **Not included:** web publishing, file manager, advanced metrics, backups, custom domain, manual rollback, workspaces
-    - Projects inactive for **30 days** are deleted automatically (email warnings on days 7, 23 and 27)
-  </Tab>
   <Tab title="Economy">
     - **Price:** R\$1.99/month
     - **RAM:** 256 MB · **vCPU:** 0.3

@@ -1,7 +1,7 @@
 ---
 title: 'Vertra Cloud Plans and Limits'
 sidebarTitle: 'Plans and limits'
-description: 'Price, RAM, vCPU, projects, and API limit for every Vertra Cloud plan, from Free to Enterprise-32.'
+description: 'Price, RAM, vCPU, projects, and API limit for every Vertra Cloud plan, from Economy to Enterprise-32.'
 icon: 'table-list'
 ---
 
@@ -18,12 +18,11 @@ Billing to stop it. PIX payments never renew by themselves. The prices below are
 
 ## How much does each Vertra Cloud plan cost?
 
-Plans range from R\$0 (Free, currently "suspended") to R\$191.99/month (Enterprise-32, 32 GB of RAM).
+Plans range from R\$1.99/month (Economy) to R\$191.99/month (Enterprise-32, 32 GB of RAM).
 Memory is the only thing apps and databases consume — there's no per-hour or per-request charge.
 
 | Plan | Price/month | RAM | vCPU | Projects | API requests/day |
 |---|---:|---:|---:|---:|---:|
-| Free ("suspended") | R\$0 | 100 MB "free" | 0.25 | 1 app, no databases | 1,000 |
 | Economy | R\$1.99 | 256 MB | 0.3 | Limited by RAM | 5,000 |
 | Pro | R\$5.99 | 1,024 MB | 0.5 | Limited by RAM | 20,000 |
 | Scale | R\$10.99 | 2,048 MB | 1 | Limited by RAM | 86,400 |
@@ -43,8 +42,7 @@ Memory is the only thing apps and databases consume — there's no per-hour or p
 | Enterprise-30 | R\$179.99 | 30,720 MB | 11.5 | Limited by RAM | 810,000 |
 | Enterprise-32 | R\$191.99 | 32,768 MB | 12 | Limited by RAM | 864,000 |
 
-The project count cap only exists on Free (1 app, no databases). From Economy up, there's no count
-cap — the real limit is the plan's **RAM**: a creation is refused with `MEMORY_LIMIT_EXCEEDED` once
+There is no project count cap on any plan — the real limit is the plan's **RAM**: a creation is refused with `MEMORY_LIMIT_EXCEEDED` once
 the plan's RAM runs out, so a 100 MB app fits 10 times on a Pro plan.
 
 All plans include **Vertra Shield**, the platform's traffic protection. When an application is paused, the dashboard shows the reason and the remaining time. The [bandwidth limits by memory](/api-reference/limitations#bandwidth-limits), automatic TLS certificates, and 99.99% SLA also apply to all plans.
@@ -55,7 +53,6 @@ also has a per-minute window:
 
 | Plan | Requests/min |
 |---|---:|
-| Free | 30 |
 | Economy | 60 |
 | Pro | 120 |
 | Scale | 180 |
@@ -76,34 +73,23 @@ Details on both windows, response headers, and error codes are in
 
 The vCPU column above is the per-application cap on the plan. An application with **2 GB of RAM
 or more** gets the plan's entire vCPU; below 2 GB, it gets **1/3 of the plan's vCPU, with a floor
-of 1 vCPU** — except on plans whose vCPU is already below 1 (Free, Economy, Pro), where the
+of 1 vCPU** — except on plans whose vCPU is already below 1 (Economy, Pro), where the
 application gets the plan's entire vCPU regardless. More RAM never results in less vCPU.
 
 | Plan | Plan vCPU | App with < 2 GB RAM | App with ≥ 2 GB RAM |
 |---|---:|---:|---:|
-| Free | 0.25 | 0.25 | 0.25 |
 | Scale | 1 | 1 | 1 |
 | Intermediary | 1.5 | 1 | 1.5 |
 | Enterprise-4 | 2 | 1 | 2 |
 | Enterprise-32 | 12 | 1 | 12 |
 
-## What does the Free plan include?
+## What happens to an account without an active plan?
 
-<Warning>
-  The Free plan is currently **"suspended"**. It stays documented here for reference, with
-  100 MB of RAM "free", but it isn't available right now — start on Economy or above.
-</Warning>
+An account without an active plan **can't create applications or databases or publish a site**: those
+requests are refused with `PLAN_REQUIRED` (`403`). Subscribe to a plan, starting at Economy, to continue.
 
-The Free plan exists **to test and evaluate the platform before using it in production**: 1
-application (databases can't be created on Free), 100 MB of RAM "free", and 1,000 API requests per day.
-
-Free also **doesn't** include the features a production application normally needs:
-
-- No web publishing — the application doesn't get a `*.vertraweb.app` subdomain (available from Pro up)
-- No file manager and no advanced metrics (Pro up)
-- No daily or manual backups (Scale up)
-- **Projects inactive for more than 30 days are automatically deleted**, with email warnings on
-  days 7, 23, and 27
+**Projects that stay offline for more than 30 days on an account without an active plan are automatically
+deleted**, with a snapshot taken first and email warnings on days 7, 23, and 27.
 
 ## Which features does each plan unlock?
 
@@ -121,7 +107,7 @@ on a higher plan into a workspace doesn't unlock the feature.
 | Custom domain | Intermediary |
 | Database data manager (Data tab) | Intermediary |
 | Auto-deploy via GitHub webhook | Intermediary |
-| Deploy history (Rollbacks tab) | Every plan (read-only on Free and Economy) |
+| Deploy history (Rollbacks tab) | Every plan (read-only on Economy) |
 | Manual rollback to an earlier version | Pro |
 | Automatic rollback when a new version fails to start | Intermediary |
 | Zero-downtime deploys | Enterprise |
@@ -244,7 +230,6 @@ count. A GitHub push that arrives past the limit is ignored and logged in the ac
 
 | Plan | Deploys/hour |
 |---|---:|
-| Free | 5 |
 | Economy | 10 |
 | Pro | 20 |
 | Scale | 40 |
@@ -259,7 +244,6 @@ the moment it stops being the running one.
 
 | Plan | Previous versions kept | Version validity |
 |---|---:|---:|
-| Free | — | — |
 | Economy | — | — |
 | Pro | 3 | 7 days |
 | Scale | 5 | 14 days |
@@ -269,7 +253,7 @@ the moment it stops being the running one.
 | Enterprise (E-18 to E-24) | 25 | 30 days |
 | Enterprise (E-26 to E-32) | 30 | 30 days |
 
-Free and Economy show the deploy history, read-only, and keep no earlier versions to roll back to.
+Economy shows the deploy history, read-only, and keeps no earlier versions to roll back to.
 
 ### Automatic rollback and zero-downtime deploys
 
