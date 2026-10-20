@@ -335,7 +335,8 @@ users need to be told about:
 - **Turning it on and off recreates the container, so the application restarts** — network rules and the
   exposed port only exist from the moment the container is created.
 - **When turning it off, the subdomain is released**: there is no reservation, someone else can claim it. Every
-  custom domain is also removed.
+  custom domain is also removed, and its `CNAME` and validation `TXT` records stay at the user's DNS provider until
+  the user deletes them.
 
 Publishing requires **512 MB of RAM**. RAM doesn't increase on its own in this flow: with
 less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_mb, minimum_mb }`.
@@ -457,9 +458,9 @@ overwritten on download.
   count): Economy, Pro and Scale 0; **Intermediary 1**; Enterprise-4 to 8: 2; Enterprise-12 to 24: 5;
   Enterprise-26 to 32: 20
 - The application must be published on the web. Adding, changing or removing a domain does not restart or redeploy it
-- Configure the DNS records shown for the domain (a CNAME and, usually, a certificate validation record), or use the
-  automatic setup when the DNS provider supports it (`POST /v1/apps/{id}/domains/{domain_id}/connect`;
-  `DOMAIN_CONNECT_UNAVAILABLE` when it doesn't)
+- Configure the DNS records shown for the domain (a CNAME and, usually, a certificate validation record). Automatic
+  DNS setup is not available yet: `POST /v1/apps/{id}/domains/{domain_id}/connect` always answers
+  `DOMAIN_CONNECT_UNAVAILABLE`
 - SSL provisioned automatically after DNS validation
 - **Automatic `www`**: adding `example.com` also adds `www.example.com` (and the other way around). The companion
   redirects to the main domain with a `308`, doesn't count toward the limit, is removed with the main domain, and can
@@ -476,6 +477,9 @@ overwritten on download.
 - A domain that stays `pending`, `moved` or `deleted` for **14 days** is removed automatically and the owner is
   notified by email
 - Unpublishing the application removes all of its domains
+- **Clean up your DNS after a domain goes away** (removed by you, by unpublishing, or by the 14-day cleanup): delete its
+  `CNAME` and its validation `TXT` records at your DNS provider. Removing a domain does not touch your DNS; if the
+  records stay, the name keeps pointing at Vertra Cloud and another customer could claim it
 - Routes: `GET`/`POST /v1/apps/{id}/domains`, `PATCH`/`DELETE /v1/apps/{id}/domains/{domain_id}`,
   `GET /v1/apps/{id}/domains/{domain_id}/dns`, `POST /v1/apps/{id}/domains/{domain_id}/connect`. Reads need the
   `apps:read` scope; writes need `apps:write`
@@ -1060,7 +1064,7 @@ data queries and activity export.
 | `INVALID_DOMAIN_PORT` | Domain port isn't an integer from 1 to 65535 (400) |
 | `INVALID_PATH_PREFIX` | Domain path prefix must start with `/`, not end with `/`, and use letters, digits and `. _ ~ -` (400) |
 | `INVALID_REDIRECT_TARGET` | Redirect target must be another domain of the same application that doesn't redirect itself (400) |
-| `DOMAIN_CONNECT_UNAVAILABLE` | Automatic DNS setup isn't available for the domain (404) |
+| `DOMAIN_CONNECT_UNAVAILABLE` | Automatic DNS setup is not available yet; every call answers this (404) |
 | `CUSTOM_DOMAIN_RECORD_NOT_FOUND` | The domain's DNS records aren't available yet (404) |
 | `CUSTOM_DOMAIN_REGISTRATION_FAILED` | The domain couldn't be registered right now (502) |
 | `INVALID_HOSTNAME_FOR_APP` | Hostname doesn't belong to the application |
@@ -1248,7 +1252,7 @@ On an account without an active plan, projects that stay offline for more than 3
 - **Dependency installation exceeds 15 minutes (`INSTALL_TIMEOUT`)**: Remove unnecessary dependencies.
 - **Build command exceeds 10 minutes (`BUILD_TIMEOUT`)**: Simplify the `build_command` or the framework's build step.
 - **Site times out**: Bind to `0.0.0.0` (not `localhost`). Use the `PORT` value.
-- **Custom domain doesn't work**: Intermediary+ plan, correct CNAME, wait for DNS propagation. A root domain needs a DNS provider with CNAME flattening. A domain with no DNS for 14 days is removed.
+- **Custom domain doesn't work**: Intermediary+ plan, correct CNAME, wait for DNS propagation. A root domain needs a DNS provider with CNAME flattening. A domain with no DNS for 14 days is removed; delete its CNAME and TXT records at your DNS provider afterwards.
 - **Database connection refused**: TLS is required. Download certificates from the dashboard.
 - **`PLAN_REQUIRED`**: The account has no active plan. Subscribe to a plan (Economy or above) to create applications and databases or publish a site.
 - **Email not received**: Check spam. Try another method (Discord, GitHub, Google).
