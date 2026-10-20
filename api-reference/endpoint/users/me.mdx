@@ -26,10 +26,6 @@ description: Returns complete user information including applications, databases
     User display name.
   </ResponseField>
 
-  <ResponseField name="plan_id" type="integer">
-    Numeric plan ID. Values: 2=ECONOMY, 3=PRO, 4=SCALE, 9=INTERMEDIARY, 5=ENTERPRISE_4, 19=ENTERPRISE_6, 6=ENTERPRISE_8, 10=ENTERPRISE_12, 11=ENTERPRISE_14, 7=ENTERPRISE_16, 12=ENTERPRISE_18, 13=ENTERPRISE_20, 14=ENTERPRISE_22, 15=ENTERPRISE_24, 16=ENTERPRISE_26, 17=ENTERPRISE_28, 18=ENTERPRISE_30, 8=ENTERPRISE_32.
-  </ResponseField>
-
   <ResponseField name="language" type="string">
     User's preferred language (`pt-br`, `en-us`, `es-es`).
   </ResponseField>
@@ -42,21 +38,19 @@ description: Returns complete user information including applications, databases
     Account last update date (ISO 8601).
   </ResponseField>
 
-  <ResponseField name="plan" type="APIUserPlan">
-    Current plan information.
+  <ResponseField name="plan" type="APIUserPlan | null">
+    Current plan information, or `null` when the account has no active plan. An account without a plan can't
+    create applications or databases (`PLAN_REQUIRED`).
 
     <Expandable title="Toggle object">
 
-    <ResponseField name="id" type="integer">
-      Plan ID.
-    </ResponseField>
-
     <ResponseField name="name" type="string">
-      Plan name (e.g., `economy`, `pro`, `scale`).
+      The plan name: `economy`, `pro`, `scale`, `intermediary` or `enterprise-<GB>`, where `<GB>` is 4, 6, 8, 12, 14, 16,
+      18, 20, 22, 24, 26, 28, 30 or 32 (for example, `enterprise-8`). The name is the plan's only identifier.
     </ResponseField>
 
-    <ResponseField name="expires_at" type="string | null" format="date-time">
-      Plan expiration date. `null` for plans without expiration.
+    <ResponseField name="expires_at" type="string" format="date-time">
+      Plan expiration date.
     </ResponseField>
 
     <ResponseField name="duration" type="integer">
@@ -123,8 +117,13 @@ description: Returns complete user information including applications, databases
       Application subdomain.
     </ResponseField>
 
-    <ResponseField name="custom_domain" type="string | null">
-      Custom domain, if configured.
+    <ResponseField name="domains" type="APIApplicationDomain[]">
+      The application's custom domains, with status, port, path prefix and redirect. Empty when it has none. The
+      fields are described in [List Application Domains](/api-reference/endpoint/apps/domains/list#response).
+    </ResponseField>
+
+    <ResponseField name="owner_plan" type="string | null">
+      The owner's plan name, or `null` when the owner has no plan.
     </ResponseField>
 
     <ResponseField name="main_file" type="string">
@@ -171,8 +170,8 @@ description: Returns complete user information including applications, databases
       Type: `1` = PostgreSQL, `2` = MongoDB, `3` = Redis, `4` = MySQL.
     </ResponseField>
 
-    <ResponseField name="owner_plan_id" type="integer">
-      The owner's plan ID.
+    <ResponseField name="owner_plan" type="string | null">
+      The owner's plan name (for example, `pro`), or `null` when the owner has no plan.
     </ResponseField>
 
     <ResponseField name="name" type="string">
@@ -282,10 +281,8 @@ description: Returns complete user information including applications, databases
     "id": "123456789012345678",
     "email": "user@example.com",
     "name": "user",
-    "plan_id": 3,
     "language": "pt-br",
     "plan": {
-      "id": 3,
       "name": "pro",
       "expires_at": "2026-04-20T00:00:00.000Z",
       "duration": 30,
@@ -304,7 +301,8 @@ description: Returns complete user information including applications, databases
         "ram": 512,
         "status": "up",
         "subdomain": "my-api",
-        "custom_domain": null,
+        "domains": [],
+        "owner_plan": "pro",
         "owner_id": "123456789012345678",
         "main_file": "src/index.js",
         "version": "recommended",
@@ -319,6 +317,7 @@ description: Returns complete user information including applications, databases
       {
         "id": "v41806687fe6488884a464d1dc06692v",
         "type": 1,
+        "owner_plan": "pro",
         "name": "my-postgres",
         "description": "PostgreSQL Database",
         "status": "up",

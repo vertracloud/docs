@@ -1,0 +1,86 @@
+---
+title: Configure Domain Automatically
+sidebarTitle: Configure Automatically
+api: POST https://api.vertracloud.app/v1/apps/{id}/domains/{domain_id}/connect
+authMethod: bearer
+description: Returns a link that creates the DNS records of a custom domain at your DNS provider, when the provider supports automatic setup.
+---
+
+{/* @see RESTPostAPIApplicationDomainConnectResponse, APIApplicationDomainConnect — @vertracloud/api-types */}
+Returns a URL. Open it in a browser where you are signed in to the domain's DNS provider and approve the change: the
+provider creates the records for you, so you don't copy them by hand. Requires the `apps:write` scope when called with an API key.
+
+Automatic setup depends on the DNS provider. When it is not available for the domain, the route answers
+`404 DOMAIN_CONNECT_UNAVAILABLE` and you create the records yourself with
+[Domain DNS Records](/api-reference/endpoint/apps/domains/dns).
+
+<ParamField path="id" type="string" required>
+  The application ID.
+</ParamField>
+
+<ParamField path="domain_id" type="string" required>
+  The domain ID, from [List Application Domains](/api-reference/endpoint/apps/domains/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIApplicationDomainConnect">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="url" type="string">
+    The link to open at the DNS provider to approve the records.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "url": "https://dns-provider.example/v2/domainTemplates/providers/..."
+  }
+}
+```
+
+</ResponseExample>
+
+<Note>
+  The link is for you to open, not to call. After you approve it, the domain becomes `active` once DNS propagates;
+  follow it with [List Application Domains](/api-reference/endpoint/apps/domains/list).
+</Note>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameters failed validation (`400`). The response also carries `message` and `path`.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:write` scope (`403`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `DOMAIN_NOT_FOUND`: The application has no domain with that ID (`404`).
+  - `DOMAIN_CONNECT_UNAVAILABLE`: Automatic setup is not available for this domain: its DNS provider does not support it, or the domain's records are not ready yet (`404`). Use the manual records instead.
+  - `RATE_LIMIT_EXCEEDED`: The route's budget was reached (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DOMAIN_CONNECT_UNAVAILABLE"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route has its own budget of 10 requests per minute. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

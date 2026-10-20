@@ -1,0 +1,73 @@
+---
+title: Remove Application Domain
+sidebarTitle: Remove Domain
+api: DELETE https://api.vertracloud.app/v1/apps/{id}/domains/{domain_id}
+authMethod: bearer
+description: Removes a custom domain from an application, together with its automatic www companion.
+---
+
+{/* @see RESTDeleteAPIApplicationDomainResponse — @vertracloud/api-types */}
+Removes the domain and, when it has one, its automatic `www` (or root) companion. The domain stops resolving to the
+application right away and can be added to another application. The application is not restarted. Domains that
+redirected to the removed one start serving the application instead. Requires the `apps:write` scope when called with
+an API key.
+
+<ParamField path="id" type="string" required>
+  The application ID.
+</ParamField>
+
+<ParamField path="domain_id" type="string" required>
+  The ID of the domain to remove, from [List Application Domains](/api-reference/endpoint/apps/domains/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+A success returns `200` with `{ "response": null }`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Removing the **companion** of a domain removes only the companion. To drop both, remove the main domain.
+  Unpublishing the application removes every domain at once.
+</Note>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameters failed validation (`400`). The response also carries `message` and `path`.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:write` scope (`403`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `DOMAIN_NOT_FOUND`: The application has no domain with that ID (`404`).
+  - `RATE_LIMIT_EXCEEDED`: The route's budget was reached (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DOMAIN_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route has its own budget of 10 requests per minute. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

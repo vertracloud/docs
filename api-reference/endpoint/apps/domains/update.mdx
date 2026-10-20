@@ -1,0 +1,120 @@
+---
+title: Update Application Domain
+sidebarTitle: Update Domain
+api: PATCH https://api.vertracloud.app/v1/apps/{id}/domains/{domain_id}
+authMethod: bearer
+description: Changes the port, path prefix or redirect of a custom domain, or makes it the main domain, without restarting the application.
+---
+
+{/* @see RESTPatchAPIApplicationDomainBody, RESTPatchAPIApplicationDomainResponse — @vertracloud/api-types */}
+Changes how a domain is served. Send only the fields you want to change; the application is not restarted or
+redeployed. Requires the `apps:write` scope when called with an API key.
+
+<ParamField path="id" type="string" required>
+  The application ID.
+</ParamField>
+
+<ParamField path="domain_id" type="string" required>
+  The domain ID, from [List Application Domains](/api-reference/endpoint/apps/domains/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<ParamField body="port" type="integer">
+  The port of the application that serves this domain, an integer from `1` to `65535`. An application can serve its
+  domains on up to 5 different ports besides `80`.
+</ParamField>
+
+<ParamField body="path_prefix" type="string | null">
+  A literal path added in front of every request, in the same format as in
+  [Add Application Domain](/api-reference/endpoint/apps/domains/create) (`/api`). Send `null` to remove it.
+</ParamField>
+
+<ParamField body="redirect_to" type="string | null">
+  The ID of another domain of the same application to redirect to. Send `null` to stop redirecting: the domain serves
+  the application again and `redirect_status` goes back to `308`. The target must not redirect itself.
+</ParamField>
+
+<ParamField body="redirect_status" type="integer">
+  The HTTP status of the redirect: `301`, `302`, `307` or `308`. Applies only while the domain redirects. When you set
+  `redirect_to` without it, the status is `308` for a domain that was serving, and unchanged for one that already redirected.
+</ParamField>
+
+<ParamField body="primary" type="boolean">
+  Send `true` on an automatic companion to make it the main domain: it starts serving the application, taking over the
+  port and path prefix, and the former main domain redirects to it. It has no effect on the domain that is already the main one,
+  and any other domain answers `VALIDATION_ERROR`.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIApplicationDomain[]">
+  The domain you changed and every other domain whose role changed with it (for example, the former main domain after
+  `primary`). Each item has the fields described in
+  [List Application Domains](/api-reference/endpoint/apps/domains/list#response).
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "hostname": "api.example.com",
+      "apex": false,
+      "companion_of": null,
+      "redirect_to": null,
+      "redirect_status": 308,
+      "path_prefix": "/api",
+      "port": 3000,
+      "status": "active",
+      "ssl_status": "active",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameters or the body failed validation, for example an unknown field, or `primary` on a domain that cannot be swapped (`400`). The response also carries `message` and `path`.
+  - `INVALID_DOMAIN_PORT`: `port` is not an integer from 1 to 65535 (`400`).
+  - `INVALID_PATH_PREFIX`: `path_prefix` does not follow the format of [Add Application Domain](/api-reference/endpoint/apps/domains/create) (`400`).
+  - `INVALID_REDIRECT_TARGET`: `redirect_to` is not another domain of this application, is the domain itself, or would chain two redirects (`400`).
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:write` scope (`403`).
+  - `DOMAIN_PORT_LIMIT_REACHED`: The change would make the application serve domains on more than 5 ports besides `80` (`403`). `details.limit` carries the limit.
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `DOMAIN_NOT_FOUND`: The application has no domain with that ID (`404`).
+  - `RATE_LIMIT_EXCEEDED`: The route's budget was reached (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "INVALID_REDIRECT_TARGET"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "DOMAIN_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route has its own budget of 20 requests per minute. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

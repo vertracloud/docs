@@ -1,0 +1,38 @@
+### Multiple custom domains per application
+
+An application can now have several custom domains, and adding, changing or removing one never restarts the application. Custom domains start at the Intermediary plan, and the number per application grows with the plan:
+
+| Plan | Domains per application |
+|---|---:|
+| Intermediary | 1 |
+| Enterprise-4 to Enterprise-8 | 2 |
+| Enterprise-12 to Enterprise-24 | 5 |
+| Enterprise-26 to Enterprise-32 | 20 |
+
+- **Automatic `www`:** adding `example.com` also adds `www.example.com`, and the other way around. The companion redirects to the main domain, doesn't count toward your limit, and can be turned off. Either one can be made the main domain.
+- **Port per domain:** each domain can reach a different port of your application, from 1 to 65535, with up to 5 ports besides 80 per application.
+- **Path prefix:** a domain can add a path such as `/api` in front of every request. Recommended for APIs.
+- **Redirects:** a domain can redirect to another domain of the same application with a `301`, `302`, `307` or `308` (default `308`), keeping the path and the query string.
+- **Status and cleanup:** each domain shows its status and certificate state. A domain that stays without DNS for 14 days is removed automatically and you get an email. Root domains show a warning, because a `CNAME` on the root needs a DNS provider with CNAME flattening.
+
+New routes manage domains under `/v1/apps/{id}/domains`: [list](/api-reference/endpoint/apps/domains/list), [add](/api-reference/endpoint/apps/domains/create), [update](/api-reference/endpoint/apps/domains/update), [remove](/api-reference/endpoint/apps/domains/delete), [DNS records](/api-reference/endpoint/apps/domains/dns) and [automatic setup](/api-reference/endpoint/apps/domains/connect). The SDKs, the CLI, the MCP server and the VS Code extension support them. See [Connect custom domains](/guides/custom-domain).
+
+### Breaking change: plans are identified by name in the API
+
+The API identifies a plan by its name, such as `pro` or `enterprise-8`. The numeric plan ID is gone.
+
+- `GET /v1/users/me` no longer returns `plan_id` or `plan.id`. Read `plan.name` instead. `plan` is `null` when the account has no active plan.
+- Applications, databases and workspaces return `owner_plan` (the plan name, or `null`) instead of `owner_plan_id`.
+- Accounts without an active plan get `PLAN_REQUIRED` when they create applications or databases or publish a site. `FREE_PLAN_SUSPENDED` and `FREE_PLAN_NO_WEB_PUBLISH` are no longer returned.
+- The full list of names is in the [knowledge base](/knowledge-base#plan-names).
+
+### Breaking change: custom domain routes replaced
+
+`GET`, `POST` and `DELETE /v1/apps/{id}/network/custom` and `GET /v1/apps/{id}/network/dns` are replaced by the domain routes above.
+
+- Application payloads return `domains`, a list, instead of `custom_domain`. `public_url` points to the main domain. The publish routes return the hostnames in `domains`.
+- `NO_CUSTOM_DOMAIN` is no longer returned: an application without domains has an empty list.
+- `DOMAIN_ALREADY_IN_USE` now answers `409` and `CUSTOM_DOMAIN_REGISTRATION_FAILED` answers `502`.
+- New error codes: `DOMAIN_NOT_FOUND`, `DOMAIN_LIMIT_REACHED`, `DOMAIN_PORT_LIMIT_REACHED`, `INVALID_DOMAIN_PORT`, `INVALID_PATH_PREFIX`, `INVALID_REDIRECT_TARGET` and `DOMAIN_CONNECT_UNAVAILABLE`. See [Errors](/api-reference/errors).
+
+Update the SDKs, the CLI and the MCP server together with any code that reads `plan_id`, `owner_plan_id` or `custom_domain`.

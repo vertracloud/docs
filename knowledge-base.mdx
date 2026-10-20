@@ -190,28 +190,35 @@ restart; they are not a separate product surface.
 | Enterprise-30 | R\$179.99 |
 | Enterprise-32 | R\$191.99 |
 
-### Plan IDs (plan_id)
+### Plan Names
 
-| ID | Plan |
-|:--:|-------|
-| 2 | ECONOMY |
-| 3 | PRO |
-| 4 | SCALE |
-| 9 | INTERMEDIARY |
-| 5 | ENTERPRISE_4 |
-| 19 | ENTERPRISE_6 |
-| 6 | ENTERPRISE_8 |
-| 10 | ENTERPRISE_12 |
-| 11 | ENTERPRISE_14 |
-| 7 | ENTERPRISE_16 |
-| 12 | ENTERPRISE_18 |
-| 13 | ENTERPRISE_20 |
-| 14 | ENTERPRISE_22 |
-| 15 | ENTERPRISE_24 |
-| 16 | ENTERPRISE_26 |
-| 17 | ENTERPRISE_28 |
-| 18 | ENTERPRISE_30 |
-| 8 | ENTERPRISE_32 |
+The API identifies a plan by its **name**; there is no numeric plan ID. `GET /v1/users/me` returns `plan` with
+`name`, `memory`, `expires_at` and `duration`, or `plan: null` for an account without an active plan. Applications,
+databases and workspaces carry the owner's plan in `owner_plan` (the name, or `null`).
+
+| Name | Plan |
+|-------|-------|
+| `economy` | Economy |
+| `pro` | Pro |
+| `scale` | Scale |
+| `intermediary` | Intermediary |
+| `enterprise-4` | Enterprise-4 |
+| `enterprise-6` | Enterprise-6 |
+| `enterprise-8` | Enterprise-8 |
+| `enterprise-12` | Enterprise-12 |
+| `enterprise-14` | Enterprise-14 |
+| `enterprise-16` | Enterprise-16 |
+| `enterprise-18` | Enterprise-18 |
+| `enterprise-20` | Enterprise-20 |
+| `enterprise-22` | Enterprise-22 |
+| `enterprise-24` | Enterprise-24 |
+| `enterprise-26` | Enterprise-26 |
+| `enterprise-28` | Enterprise-28 |
+| `enterprise-30` | Enterprise-30 |
+| `enterprise-32` | Enterprise-32 |
+
+Compare plans by name, never by position in this list. Code that read `plan_id`, `plan.id` or `owner_plan_id`
+must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs, CLI and MCP).
 
 ### Features by Plan
 
@@ -224,7 +231,7 @@ restart; they are not a separate product surface.
 | Web publishing (site with `*.vertraweb.app` subdomain) | — | Yes | Yes | Yes | Yes |
 | Choose the subdomain name | — | — | Yes | Yes | Yes |
 | "Powered by Vertra Cloud" badge on the site | — | Yes | — | — | — |
-| Custom domain | — | — | — | Yes | Yes |
+| Custom domains per application | — | — | — | 1 | 2–20 (by tier) |
 | Auto-restart | Yes | Yes | Yes | Yes | Yes |
 | File manager | — | Yes | Yes | Yes | Yes |
 | Advanced metrics | — | Yes | Yes | Yes | Yes |
@@ -262,7 +269,7 @@ restart; they are not a separate product surface.
   immediately, without a redeploy.
 - **Choose the subdomain** (Scale+) — **choosing** the subdomain name, at creation or later
   (`PATCH /v1/apps/{id}/network/subdomain`). Without it the user can publish, but can't choose the name.
-- **Custom domain** (Intermediary+) — pointing a domain you own to the application.
+- **Custom domains** (Intermediary+) — pointing domains you own to the application, as many as the plan allows (see [Custom Domains](#custom-domains)).
 
 ### Account Without an Active Plan
 
@@ -327,8 +334,8 @@ users need to be told about:
 
 - **Turning it on and off recreates the container, so the application restarts** — network rules and the
   exposed port only exist from the moment the container is created.
-- **When turning it off, the subdomain is released**: there is no reservation, someone else can claim it. The custom
-  domain is also removed (including the hostname on the CDN).
+- **When turning it off, the subdomain is released**: there is no reservation, someone else can claim it. Every
+  custom domain is also removed.
 
 Publishing requires **512 MB of RAM**. RAM doesn't increase on its own in this flow: with
 less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_mb, minimum_mb }`.
@@ -445,10 +452,33 @@ overwritten on download.
 - Renamable later via `PATCH /v1/apps/{id}/network/subdomain` (minimum 5 minutes between changes)
 
 ### Custom Domains
-- Available from the Intermediary plan
-- Configure a CNAME record in DNS pointing to the provided address
+
+- Available from the Intermediary plan. Domains per application (the automatic `www` or root companion does not
+  count): Economy, Pro and Scale 0; **Intermediary 1**; Enterprise-4 to 8: 2; Enterprise-12 to 24: 5;
+  Enterprise-26 to 32: 20
+- The application must be published on the web. Adding, changing or removing a domain does not restart or redeploy it
+- Configure the DNS records shown for the domain (a CNAME and, usually, a certificate validation record), or use the
+  automatic setup when the DNS provider supports it (`POST /v1/apps/{id}/domains/{domain_id}/connect`;
+  `DOMAIN_CONNECT_UNAVAILABLE` when it doesn't)
 - SSL provisioned automatically after DNS validation
-- Limit: 1 custom domain per application
+- **Automatic `www`**: adding `example.com` also adds `www.example.com` (and the other way around). The companion
+  redirects to the main domain with a `308`, doesn't count toward the limit, is removed with the main domain, and can
+  be disabled with `www: false`. Either one can be made the main domain (`primary: true`)
+- **Root domains** need a DNS provider that supports CNAME flattening, ALIAS or ANAME; the dashboard warns about it
+- **Port per domain**: any port from 1 to 65535 (default 80), up to 5 different ports besides 80 per application
+  (`DOMAIN_PORT_LIMIT_REACHED` beyond that)
+- **Path prefix** per domain (literal path such as `/api`, starts with `/`, no trailing `/`): added in front of every
+  request. Recommended for APIs; a website has to run under that path
+- **Redirect** per domain to another domain of the same application, with status `301`, `302`, `307` or `308`
+  (default `308`), keeping the path and query string. A redirect can't point to another redirect
+- **Status** per domain: `pending` (waiting for DNS), `active`, `moved` (DNS stopped pointing at Vertra Cloud) or
+  `deleted`; plus the certificate state (`pending`, `active`, `failed`)
+- A domain that stays `pending`, `moved` or `deleted` for **14 days** is removed automatically and the owner is
+  notified by email
+- Unpublishing the application removes all of its domains
+- Routes: `GET`/`POST /v1/apps/{id}/domains`, `PATCH`/`DELETE /v1/apps/{id}/domains/{domain_id}`,
+  `GET /v1/apps/{id}/domains/{domain_id}/dns`, `POST /v1/apps/{id}/domains/{domain_id}/connect`. Reads need the
+  `apps:read` scope; writes need `apps:write`
 
 ---
 
@@ -868,8 +898,8 @@ common sets; scopes can also be chosen individually.
 | `billing:read` | List orders and check their status |
 | `billing:write` | Create a plan order (1, 3 or 12 months) and generate a PIX payment |
 | `redeem:write` | Redeem a promo code |
-| `apps:read` | Check status, metrics, logs, deploys, downloads and network for the application |
-| `apps:write` | Create, start, stop, restart, configure, publish and manage deploys |
+| `apps:read` | Check status, metrics, logs, deploys, downloads, network and custom domains for the application |
+| `apps:write` | Create, start, stop, restart, configure, publish, manage custom domains and deploys |
 | `apps:delete` | Delete an application |
 | `apps:envs` | Read, create and delete environment variables |
 | `apps:files` | Read, edit and upload files |
@@ -979,7 +1009,7 @@ data queries and activity export.
 | `APP_NOT_PUBLISHED` | Application is not published |
 | `MEMORY_BELOW_MINIMUM` | Memory below the minimum for the operation |
 | `MEMORY_LIMIT_EXCEEDED` | Requested memory exceeds the plan limit |
-| `DOMAIN_ALREADY_IN_USE` | Domain already linked to another application |
+| `DOMAIN_ALREADY_IN_USE` | Domain already linked to an application (409) |
 | `PURGE_FAILED` | Unable to purge the cache |
 | `API_KEY_NOT_FOUND` | API key not found on the account |
 | `FILE_IS_BINARY` | The requested file is binary |
@@ -1022,9 +1052,17 @@ data queries and activity export.
 | `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | Plan doesn't include automatic rollback (Intermediary+) |
 | `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | Plan doesn't include forcing zero-downtime deploys (Enterprise) |
 | `PLAN_REQUIRED` | The account has no active plan, so it can't create applications or databases or publish a site (403) |
-| `NO_CUSTOM_DOMAIN` | Application has no custom domain |
-| `INVALID_CUSTOM_DOMAIN_FORMAT` | Invalid custom domain format |
-| `FORBIDDEN_DOMAIN` | Domain not allowed |
+| `INVALID_CUSTOM_DOMAIN_FORMAT` | Invalid custom domain format (400) |
+| `FORBIDDEN_DOMAIN` | Domain not allowed (400) |
+| `DOMAIN_NOT_FOUND` | The application has no domain with that ID (404) |
+| `DOMAIN_LIMIT_REACHED` | The plan's limit of custom domains per application was reached; the automatic `www` doesn't count (403) |
+| `DOMAIN_PORT_LIMIT_REACHED` | The application already serves domains on 5 ports besides 80 (403) |
+| `INVALID_DOMAIN_PORT` | Domain port isn't an integer from 1 to 65535 (400) |
+| `INVALID_PATH_PREFIX` | Domain path prefix must start with `/`, not end with `/`, and use letters, digits and `. _ ~ -` (400) |
+| `INVALID_REDIRECT_TARGET` | Redirect target must be another domain of the same application that doesn't redirect itself (400) |
+| `DOMAIN_CONNECT_UNAVAILABLE` | Automatic DNS setup isn't available for the domain (404) |
+| `CUSTOM_DOMAIN_RECORD_NOT_FOUND` | The domain's DNS records aren't available yet (404) |
+| `CUSTOM_DOMAIN_REGISTRATION_FAILED` | The domain couldn't be registered right now (502) |
 | `INVALID_HOSTNAME_FOR_APP` | Hostname doesn't belong to the application |
 | `NO_AUTHORIZED_PATHS` | No provided path belongs to the application |
 | `INTERNAL_SERVER_ERROR` | Internal server error |
@@ -1049,6 +1087,12 @@ The list below corresponds to the public API endpoints. Request and response sch
 | DELETE | `/v1/apps/{id}` |
 | GET | `/v1/apps/{id}` |
 | PATCH | `/v1/apps/{id}/config` |
+| GET | `/v1/apps/{id}/domains` |
+| POST | `/v1/apps/{id}/domains` |
+| PATCH | `/v1/apps/{id}/domains/{domain_id}` |
+| DELETE | `/v1/apps/{id}/domains/{domain_id}` |
+| GET | `/v1/apps/{id}/domains/{domain_id}/dns` |
+| POST | `/v1/apps/{id}/domains/{domain_id}/connect` |
 | GET | `/v1/apps/{id}/download` |
 | GET | `/v1/apps/{id}/envs` |
 | POST | `/v1/apps/{id}/envs` |
@@ -1062,8 +1106,6 @@ The list below corresponds to the public API endpoints. Request and response sch
 | POST | `/v1/apps/{id}/files/upload` |
 | GET | `/v1/apps/{id}/logs` |
 | GET | `/v1/apps/{id}/metrics` |
-| POST | `/v1/apps/{id}/network/custom` |
-| GET | `/v1/apps/{id}/network/dns` |
 | POST | `/v1/apps/{id}/network/publish` |
 | POST | `/v1/apps/{id}/network/purge-cache` |
 | PATCH | `/v1/apps/{id}/network/subdomain` |
@@ -1206,7 +1248,7 @@ On an account without an active plan, projects that stay offline for more than 3
 - **Dependency installation exceeds 15 minutes (`INSTALL_TIMEOUT`)**: Remove unnecessary dependencies.
 - **Build command exceeds 10 minutes (`BUILD_TIMEOUT`)**: Simplify the `build_command` or the framework's build step.
 - **Site times out**: Bind to `0.0.0.0` (not `localhost`). Use the `PORT` value.
-- **Custom domain doesn't work**: Intermediary+ plan, correct CNAME, wait for DNS propagation.
+- **Custom domain doesn't work**: Intermediary+ plan, correct CNAME, wait for DNS propagation. A root domain needs a DNS provider with CNAME flattening. A domain with no DNS for 14 days is removed.
 - **Database connection refused**: TLS is required. Download certificates from the dashboard.
 - **`PLAN_REQUIRED`**: The account has no active plan. Subscribe to a plan (Economy or above) to create applications and databases or publish a site.
 - **Email not received**: Check spam. Try another method (Discord, GitHub, Google).

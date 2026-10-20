@@ -1,0 +1,117 @@
+---
+title: Domain DNS Records
+sidebarTitle: Domain DNS Records
+api: GET https://api.vertracloud.app/v1/apps/{id}/domains/{domain_id}/dns
+authMethod: bearer
+description: Returns the DNS records to create at your DNS provider so a custom domain validates and gets its HTTPS certificate.
+---
+
+{/* @see RESTGetAPIApplicationDomainDnsResponse, APIApplicationDomainDnsRecord — @vertracloud/api-types */}
+Returns the records you create at the domain's DNS provider: a `CNAME` that points the hostname at Vertra Cloud, plus the
+records that validate ownership and issue the HTTPS certificate. Each record carries its own `status`, so you can see
+which ones are already resolving. Calling this route also refreshes the domain's `status` and `ssl_status`. Requires the
+`apps:read` scope when called with an API key.
+
+<ParamField path="id" type="string" required>
+  The application ID.
+</ParamField>
+
+<ParamField path="domain_id" type="string" required>
+  The domain ID, from [List Application Domains](/api-reference/endpoint/apps/domains/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIApplicationDomainDnsRecord[]">
+  The records to create.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="type" type="string">
+    The record type: `CNAME` or `TXT`.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The record name (e.g., `example.com` or `_acme-challenge.example.com`).
+  </ResponseField>
+
+  <ResponseField name="value" type="string">
+    The value to set for the record.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `pending` while the record is not resolving yet, `active` once it is.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "type": "CNAME",
+      "name": "example.com",
+      "value": "cname.vertraweb.app",
+      "status": "pending"
+    },
+    {
+      "type": "TXT",
+      "name": "_acme-challenge.example.com",
+      "value": "v111d4af8cd74272a284831fbae14a8v",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Create every record exactly as returned, and remove any other `A`, `AAAA` or `CNAME` record with the same name first.
+  A root domain (`apex: true`) needs a DNS provider that supports `CNAME` at the root. See the
+  [custom domains guide](/guides/custom-domain). If your DNS provider supports automatic setup, you can skip the manual
+  records with [Configure Domain Automatically](/api-reference/endpoint/apps/domains/connect).
+</Note>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameters failed validation (`400`). The response also carries `message` and `path`.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to read the application (`403`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:read` scope (`403`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `DOMAIN_NOT_FOUND`: The application has no domain with that ID (`404`).
+  - `CUSTOM_DOMAIN_RECORD_NOT_FOUND`: The domain's DNS records are not available (`404`). Retry in a few minutes; if it persists, remove the domain and add it again.
+  - `RATE_LIMIT_EXCEEDED`: The route's budget was reached (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DOMAIN_NOT_FOUND"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "CUSTOM_DOMAIN_RECORD_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route has its own budget of 10 requests per minute. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

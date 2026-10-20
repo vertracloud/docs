@@ -1,0 +1,151 @@
+---
+title: List Application Domains
+sidebarTitle: List Domains
+api: GET https://api.vertracloud.app/v1/apps/{id}/domains
+authMethod: bearer
+description: Lists the custom domains of an application with their status, certificate state, port, path prefix and redirect.
+---
+
+{/* @see RESTGetAPIApplicationDomainsResponse, APIApplicationDomain — @vertracloud/api-types */}
+Returns every custom domain of the application, including the automatic `www` (or root) companion that
+[Add Application Domain](/api-reference/endpoint/apps/domains/create) creates next to the domain you add. The
+list is empty when the application has none. Requires the `apps:read` scope when called with an API key.
+
+For how domains work, see the [custom domains guide](/guides/custom-domain).
+
+<ParamField path="id" type="string" required>
+  The application ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="APIApplicationDomain[]">
+  The custom domains of the application, oldest first.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The domain ID. Use it in the other domain routes and in `redirect_to`.
+  </ResponseField>
+
+  <ResponseField name="hostname" type="string">
+    The hostname, in lowercase (e.g., `example.com`).
+  </ResponseField>
+
+  <ResponseField name="apex" type="boolean">
+    `true` when the hostname is a root domain (`example.com`, `example.com.br`) rather than a subdomain.
+    A `CNAME` record at the root only works at DNS providers that flatten it; see the
+    [guide](/guides/custom-domain#root-domains-and-www).
+  </ResponseField>
+
+  <ResponseField name="companion_of" type="string | null">
+    The ID of the main domain when this one is its automatic `www` (or root) companion; `null` otherwise.
+    A companion does not count toward the plan's domain limit.
+  </ResponseField>
+
+  <ResponseField name="redirect_to" type="string | null">
+    The ID of another domain of the same application that this one redirects to, or `null` when it serves the application.
+  </ResponseField>
+
+  <ResponseField name="redirect_status" type="integer">
+    The HTTP status of the redirect: `301`, `302`, `307` or `308`. Always `308` when `redirect_to` is `null`.
+  </ResponseField>
+
+  <ResponseField name="path_prefix" type="string | null">
+    A path added in front of every request to the application (e.g., `/api`), or `null` for none.
+  </ResponseField>
+
+  <ResponseField name="port" type="integer">
+    The port of the application that serves this domain, from `1` to `65535`. `80` by default.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `pending` (waiting for the DNS records), `active` (serving the application), `moved` (the domain
+    stopped pointing at Vertra Cloud) or `deleted` (no longer registered).
+  </ResponseField>
+
+  <ResponseField name="ssl_status" type="string">
+    The state of the HTTPS certificate: `pending`, `active` or `failed`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    When the domain was added.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "hostname": "example.com",
+      "apex": true,
+      "companion_of": null,
+      "redirect_to": null,
+      "redirect_status": 308,
+      "path_prefix": null,
+      "port": 80,
+      "status": "active",
+      "ssl_status": "active",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    },
+    {
+      "id": "c2a9d4f1-86b0-4a37-b5e8-1f3d7a9c0e62",
+      "hostname": "www.example.com",
+      "apex": false,
+      "companion_of": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "redirect_to": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "redirect_status": 308,
+      "path_prefix": null,
+      "port": 80,
+      "status": "active",
+      "ssl_status": "active",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+<Note>
+  `status` and `ssl_status` are refreshed in the background and every time you call
+  [Domain DNS Records](/api-reference/endpoint/apps/domains/dns), so a domain can show `pending` for a few
+  minutes after its records resolve. A domain that never becomes `active` is removed automatically after 14 days.
+</Note>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The path parameter or the query failed validation (`400`). The response also carries `message` and `path`.
+  - `UNAUTHORIZED`: The request is not authenticated (`401`).
+  - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
+  - `ACCESS_DENIED`: The user does not have permission to read the application (`403`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:read` scope (`403`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `RATE_LIMIT_EXCEEDED`: The route's budget was reached (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  This route has its own budget of 30 requests per minute. See [Rate Limiting](/api-reference/introduction#how-is-the-api-rate-limited).
+</Note>

@@ -1,85 +1,172 @@
 ---
-title: 'Connect a Custom Domain to Your Application'
-sidebarTitle: 'Custom domain'
-description: 'Point your own domain at a Vertra Cloud application with a CNAME record, get HTTPS automatically, and fix the usual DNS mistakes.'
+title: 'Connect Custom Domains to Your Application'
+sidebarTitle: 'Custom domains'
+description: 'Add one or more domains to a Vertra Cloud application, point their DNS, and set up www, ports, path prefixes and redirects without a restart.'
 icon: 'globe'
 ---
 
-Every published application answers on a `*.vertraweb.app` subdomain. A custom domain lets the same
-application answer on an address you own, like `api.yourcompany.com`, with an HTTPS certificate the
-platform issues and renews for you.
+Every published application answers on a `*.vertraweb.app` subdomain. Custom domains let the same application answer on
+addresses you own, like `api.yourcompany.com`, with an HTTPS certificate the platform issues and renews for you. Adding,
+changing or removing a domain never restarts the application.
 
 ## Before you start
 
 <Check>The application is **published to the web** (Pro plan or higher, at least 512 MB of RAM).</Check>
-<Check>Your account is on the **Intermediary** plan or higher.</Check>
+<Check>Your account is on the **Intermediary** plan or higher. The number of domains per application grows with the plan, see [Limits](#limits).</Check>
 <Check>You can edit the DNS records of the domain at your registrar or DNS provider.</Check>
 
-Each application accepts **one** custom domain. Use a subdomain (`app.example.com`, `www.example.com`):
-DNS doesn't allow a CNAME on the bare root (`example.com`) at most providers.
-
-## Step by step
+## Add a domain
 
 <Steps>
   <Step title="Add the domain in the dashboard">
-    Open the application, go to **Network** and type the full hostname, for example `app.example.com`.
-    The dashboard shows the target address for the CNAME record.
+    Open the application, go to **Network**, and in **Domains** choose **Add domain**. Type the hostname, for example
+    `example.com` or `api.example.com`. Leave **Also include www** on if you want the automatic companion described
+    [below](#root-domains-and-www).
   </Step>
-  <Step title="Create the CNAME record">
-    At your DNS provider, create one record:
+  <Step title="Create the DNS records">
+    Open **DNS records** on the domain. Create each record at your DNS provider exactly as shown. The table has a
+    `CNAME` that points the hostname at Vertra Cloud, and usually a validation record for the certificate.
 
     | Type | Name | Value |
     |---|---|---|
-    | `CNAME` | `app` | the address shown in **Network** |
+    | `CNAME` | `app` | the address shown in **DNS records** |
 
-    Remove any existing `A`, `AAAA` or `CNAME` record with the same name first: two records for one
-    name is the most common reason the domain never validates.
+    Remove any existing `A`, `AAAA` or `CNAME` record with the same name first: two records for one name is the most
+    common reason a domain never validates.
   </Step>
   <Step title="Wait for DNS and the certificate">
-    Most providers propagate in minutes; the worst case is 48 hours. Once the record resolves, the
-    platform validates it and provisions the SSL certificate automatically. HTTP is redirected to
-    HTTPS.
+    Most providers propagate in minutes; the worst case is 48 hours. Once the records resolve, the platform validates
+    the domain and issues the SSL certificate automatically. HTTP is redirected to HTTPS.
   </Step>
   <Step title="Check it">
     ```bash
     dig +short app.example.com CNAME
     curl -I https://app.example.com
     ```
-    The first command must print the target address; the second must answer with your application's
-    status code.
+    The first command must print the target address; the second must answer with your application's status code.
   </Step>
 </Steps>
 
+The same flow is available in the [API](/api-reference/endpoint/apps/domains/create), the CLI (`vertra app domains`)
+and the MCP server.
+
+## Root domains and www
+
+When you add a root domain (`example.com`), the platform also adds `www.example.com`, and when you add `www.example.com`
+it also adds the root. This **automatic companion** redirects to the domain you added with a permanent redirect (`308`),
+so both addresses work and only one is canonical. The companion **does not count** toward your plan's domain limit and
+is removed together with the main domain. Turn off **Also include www** (`"www": false` in the API) to add only the
+hostname you typed. Other subdomains, like `app.example.com`, have no companion.
+
+To swap which one is the main domain, open the companion's menu and choose **Make primary**. It then serves the
+application and the former main domain redirects to it.
+
+<Warning>
+  **A `CNAME` record on the root domain only works at DNS providers that support CNAME flattening, `ALIAS` or `ANAME`.**
+  The DNS standard doesn't allow a `CNAME` at the root, and many registrars don't offer a workaround. The dashboard warns you when a domain is a root domain.
+  If your provider can't do it, add `www.example.com` with the companion turned off and point only that name.
+</Warning>
+
+## Port, path prefix and redirect
+
+Open **Advanced options** when you add a domain, or **Edit** on an existing one. All three apply right away, without a restart.
+
+<AccordionGroup>
+  <Accordion title="Port" icon="plug">
+    By default a domain reaches your application on port `80`. A domain can point at any port from **1 to 65535**
+    instead, so one application can serve a site on one domain and an API on another. An application can use up to
+    **5 ports besides 80** across its domains; the platform answers `DOMAIN_PORT_LIMIT_REACHED` beyond that. Your
+    application must listen on the port you choose, on `0.0.0.0`, in addition to port 80, which its
+    `*.vertraweb.app` address keeps using.
+  </Accordion>
+  <Accordion title="Path prefix" icon="route">
+    A literal path added in front of every request that reaches the domain. With `/api`, a request for
+    `https://api.example.com/users` reaches your application as `/api/users`. It starts with `/`, doesn't end with `/`,
+    and only accepts letters, digits and `. _ ~ -`.
+
+    **Recommended for APIs.** A website has to run under that path: its static files and its own redirects must respect it.
+  </Accordion>
+  <Accordion title="Redirect" icon="arrow-right-arrow-left">
+    Send every request from this domain to **another domain of the same application**, keeping the path and the query
+    string. Choose the status code: `301` or `308` (permanent), `302` or `307` (temporary). `307` and `308` keep the
+    request method; `301` and `302` may turn a `POST` into a `GET`. The default is `308`. A redirect can't point to
+    another redirect.
+  </Accordion>
+</AccordionGroup>
+
+## Status and SSL
+
+Each domain shows a status and a certificate state.
+
+| Status | Meaning |
+|---|---|
+| `pending` | Waiting for the DNS records to resolve. |
+| `active` | Serving your application. |
+| `moved` | The domain stopped pointing at Vertra Cloud (the record changed or was removed). |
+| `deleted` | The domain is no longer registered with the platform. |
+
+| SSL | Meaning |
+|---|---|
+| `pending` | The certificate is being issued. |
+| `active` | HTTPS works. |
+| `failed` | The certificate could not be issued. Check the DNS records and try again. |
+
+Statuses refresh in the background and every time you open **DNS records**.
+
+<Note>
+  A domain that stays `pending`, `moved` or `deleted` for **14 days** is removed automatically, and we notify you by
+  email. There is no earlier warning, so check domains that haven't become `active`. Fix the DNS records, or remove the
+  domain yourself.
+</Note>
+
 ## Using Cloudflare
 
-If the domain's DNS lives on Cloudflare, create the CNAME with the proxy **off** (grey cloud, "DNS
-only") until the certificate is issued. With the proxy on, validation sees Cloudflare's addresses
-instead of your record. After HTTPS works you may turn the proxy on; in that case set the SSL mode to
-**Full (strict)**, since the application already serves a valid certificate. The **Flexible** mode
-causes a redirect loop, because the platform redirects HTTP to HTTPS.
+If the domain's DNS lives on Cloudflare, create the CNAME with the proxy **off** (grey cloud, "DNS only") until the
+certificate is issued. With the proxy on, validation sees Cloudflare's addresses instead of your record. After HTTPS
+works you may turn the proxy on; in that case set the SSL mode to **Full (strict)**, since the application already
+serves a valid certificate. The **Flexible** mode causes a redirect loop, because the platform redirects HTTP to HTTPS.
+
+## Limits
+
+Custom domains start at the **Intermediary** plan. Domains per application, not counting the automatic companion:
+
+| Plan | Domains per application |
+|---|---:|
+| Economy, Pro, Scale | 0 |
+| Intermediary | 1 |
+| Enterprise-4 to Enterprise-8 | 2 |
+| Enterprise-12 to Enterprise-24 | 5 |
+| Enterprise-26 to Enterprise-32 | 20 |
+
+Up to 5 different ports besides `80` per application, on every plan that has domains.
+[Plans and limits](/plans-and-limits#how-many-custom-domains-and-ports-does-each-plan-allow) is the reference.
 
 ## Troubleshooting
 
 <AccordionGroup>
   <Accordion title="The domain stays pending">
-    Run `dig +short app.example.com`. No answer means the record doesn't exist yet or has a typo; an
-    IP address instead of the target means there's still an old `A` record, or the Cloudflare proxy
-    is on.
+    Run `dig +short app.example.com`. No answer means the record doesn't exist yet or has a typo; an IP address instead
+    of the target means there's still an old `A` record, or the Cloudflare proxy is on.
   </Accordion>
   <Accordion title="The browser shows a certificate error">
-    The certificate is only issued after DNS validation. Wait a few minutes after the record resolves,
-    then reload. If it persists, remove and add the domain again in **Network**.
+    The certificate is only issued after DNS validation. Wait a few minutes after the records resolve, then reload. If it
+    persists, remove the domain and add it again in **Network**.
   </Accordion>
   <Accordion title="Too many redirects">
     You're behind a proxy in Flexible SSL mode. Switch it to Full (strict).
   </Accordion>
   <Accordion title="The domain opens, but the app doesn't answer">
-    The domain is fine; the application isn't listening. It must listen on `0.0.0.0` and the port in
-    `PORT` (80). See [Configuration](/configuration#port-and-web-publishing).
+    The domain is fine; the application isn't listening. It must listen on `0.0.0.0` and on the port set for that
+    domain (`80` by default, see `PORT` in [Configuration](/configuration#port-and-web-publishing)).
+  </Accordion>
+  <Accordion title="I can't add the domain">
+    `DOMAIN_LIMIT_REACHED` means the application already has as many domains as the plan allows.
+    `DOMAIN_ALREADY_IN_USE` means the hostname is attached to another application. `APP_NOT_PUBLISHED` means the
+    application has no `*.vertraweb.app` address yet, publish it first. The full list is in [Errors](/api-reference/errors).
   </Accordion>
 </AccordionGroup>
 
 <Note>
-  Unpublishing the application removes its custom domain along with the subdomain. Publishing again
-  means adding the domain again.
+  Unpublishing the application removes all of its custom domains along with the subdomain. Publishing again means adding
+  the domains again.
 </Note>
