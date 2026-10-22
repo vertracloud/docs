@@ -32,7 +32,7 @@ vertra --version
 ```
 
 To update, run the install command again. To install a specific version, set `VERTRA_VERSION`
-(for example `VERTRA_VERSION=v0.2.0`) before running it. `VERTRA_INSTALL_DIR` changes where the
+(for example `VERTRA_VERSION=v0.3.0`) before running it. `VERTRA_INSTALL_DIR` changes where the
 binary goes (default `~/.vertracloud/bin`, or `%USERPROFILE%\.vertracloud\bin` on Windows).
 
 You can also download the binary for your platform directly from the
@@ -85,6 +85,27 @@ terminal, pass `--yes` (`-y`); without it the command fails instead of rolling b
 
 Listing and reading logs need an API key with the `apps:read` scope. Rolling back needs `apps:write`, plus
 `apps:envs` for `--env`.
+
+## Custom domains
+
+```bash
+vertra app domains list [<app-id>]
+vertra app domains add example.com [--app <id>] [--port 3000] [--path-prefix /api] [--no-www]
+vertra app domains add old.com --redirect-to example.com --redirect-status 301
+vertra app domains update <domain-id|hostname> [--app <id>] [--port 8080] [--path-prefix /v1] [--redirect-to <domain>] [--redirect-status 308] [--primary]
+vertra app domains dns <domain-id|hostname> [--app <id>]   # records to create at your DNS provider
+vertra app domains remove <domain-id|hostname> [--app <id>] [--yes]
+```
+
+Every command takes the domain ID or its hostname. `add` also creates the automatic `www`/root companion unless you
+pass `--no-www`; the companion doesn't count toward your plan's domain limit. `--port` goes from 1 to 65535,
+`--redirect-status` is 301, 302, 307 or 308 (default 308), and `--path-prefix` is a literal path such as `/api`. In
+`update`, an empty `--path-prefix ""` or `--redirect-to ""` clears the value, and `--primary` makes the domain the main
+one in place of its companion. `remove` asks for confirmation and also removes the companion, unless the domain you
+remove is the companion itself. See [Custom domain](/guides/custom-domain) for how domains, ports and path prefixes work.
+
+`app stop`, `db stop`, `app env remove` and the destructive commands ask for confirmation; pass `--yes` in automation.
+Declining exits with status 1 and "Operation cancelled." (with `--json`, an error with code `CANCELLED`), never as success.
 
 ## Blob Storage
 

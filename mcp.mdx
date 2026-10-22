@@ -114,6 +114,14 @@ claude.ai's OAuth flow.
   screen.
 - **Switching to a lower plan (downgrade) isn't a tool.** It remains a dashboard-only action, with
   or without an API key.
+- **Tools that delete, overwrite, stop, restart or change access are marked destructive** for the client,
+  so Claude, Cursor and similar clients ask you to confirm before running them. Examples: `delete_app`,
+  `stop_app`, `restart_app`, `unpublish_app`, `remove_domain`, `set_env`, `write_file`, `upload_blob`
+  and `set_blob_visibility`.
+- **Content that comes from your applications is marked as untrusted.** Logs, file contents, release
+  logs, deploy messages and blob paths reach the assistant inside an `untrusted_content` block, so a
+  line written by your app is read as data, not as an instruction.
+- **The server never follows redirects**, so your API key is only ever sent to the Vertra Cloud API.
 
 ## Organize folders and favorites
 
@@ -153,8 +161,7 @@ The assistant can read an application's deploy history and go back to an earlier
 | `preview_rollback` | Shows which environment variables a rollback would add, change or remove. Names only, never values | `apps:envs` |
 | `rollback_app` | Returns the code to an earlier version and restarts. Data the app wrote while running stays | `apps:write` (plus `apps:envs` with `restore_environment`) |
 
-`rollback_app` is destructive: it is marked that way for the client, so Claude, Cursor and similar clients ask
-you to confirm before running it. Rollback is available from the Pro plan. Environment variables are kept as
+`rollback_app` is destructive, so the client asks you to confirm before running it. Rollback is available from the Pro plan. Environment variables are kept as
 they are unless `restore_environment` is true, so run `preview_rollback` first in that case.
 
 Two existing tools grew: `update_app_config` accepts `zero_downtime`, `auto_rollback` and `health_check_path`
