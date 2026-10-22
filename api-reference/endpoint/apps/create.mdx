@@ -42,6 +42,10 @@ The application has **two mutually exclusive sources** — send exactly one of `
   The main file of the application. Required with `file`; with `snapshot_id` it is optional and falls back to the snapshot's `vertracloud.config`.
 </ParamField>
 
+<ParamField body="language" type="string">
+  Optional. Forces the runtime language instead of detecting it from the project: one of `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet`, `elixir`. Precedence: this field, then `LANGUAGE=` in `vertracloud.config`, then detection. Any other value is refused with `INVALID_LANGUAGE`.
+</ParamField>
+
 <ParamField body="version" type="string">
   Required with `file`; with `snapshot_id` it falls back to the snapshot's `vertracloud.config`. The application runtime version: `recommended`, `latest`, or a specific version supported by the
   detected runtime (e.g. `22`).
@@ -76,7 +80,7 @@ The application has **two mutually exclusive sources** — send exactly one of `
 
 ### Response
 
-Creation is asynchronous: the response is `202 Accepted` with the application in `status: "building"`. Follow it with [Application Details](/api-reference/endpoint/apps/get) or the [real-time logs](/api-reference/endpoint/apps/realtime) until `status` is `up` or `down`. While it is `building`, start, stop, restart, file deploys, rollback, snapshots, restores and configuration changes answer `409 APP_BUILDING`; deleting the application is allowed. `missing_dependencies` appears on Application Details after the build. If the build is interrupted, the application stays `down` and `BUILD_INTERRUPTED` appears in its log; if the platform cancels the creation (for example, the queue is full), the application no longer exists and Application Details answers `404`.
+Creation is asynchronous: the response is `202 Accepted` with the application in `status: "building"`. Follow it with [Application Details](/api-reference/endpoint/apps/get) or the [real-time logs](/api-reference/endpoint/apps/realtime) until `status` is `up` or `down`. While it is `building`, start, stop, restart, file deploys, rollback, snapshots, restores and configuration changes answer `409 APP_BUILDING`; deleting the application is allowed. If the build is interrupted, the application stays `down` and `BUILD_INTERRUPTED` appears in its log; if the platform cancels the creation (for example, the queue is full), the application no longer exists and Application Details answers `404`.
 
 <ResponseField name="response" type="object">
   The details of the created application.
@@ -130,7 +134,7 @@ Creation is asynchronous: the response is `202 Accepted` with the application in
   </ResponseField>
 
   <ResponseField name="language" type="string">
-    The application programming language (e.g., `javascript`).
+    The application programming language (e.g., `javascript`, `deno`, `dotnet`, `elixir`).
   </ResponseField>
 
   <ResponseField name="subdomain" type="string | null">
@@ -279,7 +283,7 @@ Creation is asynchronous: the response is `202 Accepted` with the application in
   - `SUBDOMAIN_TAKEN`: Another application already uses that subdomain (`409`).
   - `SUBDOMAIN_FORBIDDEN`: The requested subdomain is on the platform's reserved list (`400`).
   - `USER_LIMITS_NOT_FOUND`: The owner's limits record could not be loaded (`404`).
-  - `INVALID_LANGUAGE`: The application language could not be determined (`500`).
+  - `INVALID_LANGUAGE`: The language is not supported, or could not be determined (`400`).
   - `INTERNAL_SERVER_ERROR`: The application was created but could not be read back (`500`).
   - `DEPLOY_RATE_LIMITED`: The account's hourly deploy budget for its plan was reached (`429`). See [API Reference Introduction](/api-reference/introduction).
   - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).

@@ -1,0 +1,167 @@
+---
+title: 'How to Host an Elixir Application on Vertra Cloud'
+sidebarTitle: 'Elixir'
+description: 'Deploy an Elixir or Phoenix application to Vertra Cloud: mix.exs as main, SECRET_KEY_BASE and PHX_HOST, assets.deploy and the PORT variable.'
+icon: 'code'
+---
+
+## Requirements
+
+- Elixir 1.20 (OTP 28) installed locally
+- Account on [Vertra Cloud](https://vertracloud.app)
+- A project with a `mix.exs` at the root
+
+## Project Structure
+
+```
+my_app/
+├── lib/
+│   └── my_app/
+│       └── application.ex
+├── config/
+│   └── runtime.exs
+├── mix.exs
+├── mix.lock
+└── vertracloud.config
+```
+
+The platform detects Elixir from `mix.exs`. It runs `mix deps.get` and compiles with `MIX_ENV=prod`. It starts the app with `mix run --no-halt`, or with `mix phx.server` when the project depends on `:phoenix`.
+
+## Configuration
+
+### vertracloud.config
+
+```ini
+MAIN=mix.exs
+VERSION=recommended
+```
+
+`MAIN` is `mix.exs`.
+
+### Phoenix
+
+Phoenix is supported. Set these variables under **Environment**:
+
+| Variable | Value |
+|---|---|
+| `SECRET_KEY_BASE` | A long random secret. Generate it locally with `mix phx.gen.secret` |
+| `PHX_HOST` | The host the app answers on, for example `my-app.vertraweb.app` |
+
+In `config/runtime.exs`, bind to all interfaces and read the port from the environment:
+
+```elixir
+import Config
+
+if config_env() == :prod do
+  port = String.to_integer(System.get_env("PORT") || "80")
+
+  config :my_app, MyAppWeb.Endpoint,
+    url: [host: System.fetch_env!("PHX_HOST"), port: 443, scheme: "https"],
+    http: [ip: {0, 0, 0, 0}, port: port],
+    secret_key_base: System.fetch_env!("SECRET_KEY_BASE"),
+    server: true
+end
+```
+
+<Warning>
+  Run `mix assets.deploy` locally before zipping the project, or use a project without assets (`mix phx.new --no-assets`). Then send the generated static files in the zip.
+</Warning>
+
+## Example: Plug Server
+
+```elixir
+# mix.exs
+def application do
+  [mod: {MyApp.Application, []}, extra_applications: [:logger]]
+end
+
+defp deps do
+  [
+    {:plug_cowboy, "~> 2.7"}
+  ]
+end
+```
+
+```elixir
+# lib/my_app/application.ex
+defmodule MyApp.Application do
+  use Application
+
+  def start(_type, _args) do
+    port = String.to_integer(System.get_env("PORT") || "80")
+
+    children = [
+      {Plug.Cowboy, scheme: :http, plug: MyApp.Router, options: [ip: {0, 0, 0, 0}, port: port]}
+    ]
+
+    Supervisor.start_link(children, strategy: :one_for_one, name: MyApp.Supervisor)
+  end
+end
+```
+
+```elixir
+# lib/my_app/router.ex
+defmodule MyApp.Router do
+  use Plug.Router
+
+  plug :match
+  plug :dispatch
+
+  get "/" do
+    send_resp(conn, 200, ~s({"message":"Elixir on Vertra Cloud"}))
+  end
+
+  get "/health" do
+    send_resp(conn, 200, ~s({"status":"healthy"}))
+  end
+
+  match _ do
+    send_resp(conn, 404, "not found")
+  end
+end
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compress the project into a `.zip` or push it to GitHub.
+    2. In the dashboard, click **New Project** and upload the `.zip` or paste the repository URL.
+    3. In **Build**, check the runtime (**Elixir**), the main file (`mix.exs`) and the memory. Start and build commands are under **Advanced settings**.
+    4. Add your environment variables in **Environment**.
+    5. In **Network**, turn on **web publishing** so the app gets a `*.vertraweb.app` address (Pro plan or higher, 512 MB of memory). The app must listen on port 80.
+    6. Review and deploy. Follow the output in the **Logs** tab.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra deploy
+    vertra logs -f
+    ```
+    See [CLI](/cli) for installation and login.
+  </Tab>
+  <Tab title="VS Code">
+    Open the folder with the Vertra Cloud extension installed and run **Deploy current project**. See [VS Code extension](/vscode-extension).
+  </Tab>
+</Tabs>
+
+The full walkthrough is in [First deploy](/how-to-host).
+
+## Available Versions
+
+| Version | Status | Description |
+|--------|--------|-----------|
+| 1.20.4 | Recommended and latest | Elixir 1.20 on OTP 28 (recommended for production) |
+
+## Notes
+
+- **Build**: dependencies and compilation run during deployment with `MIX_ENV=prod`
+- **Exclude from the zip**: `_build` and `deps` folders
+- **Environment variables**: read them in `config/runtime.exs` with `System.get_env/1`
+- **Logging**: use `Logger` for logs that appear in real time
+- Listen on `0.0.0.0` on port 80
+
+## Common Errors
+
+- **`SECRET_KEY_BASE` or `PHX_HOST` is missing**: a Phoenix app fails to boot without them. Add both under **Environment** and restart.
+- **Phoenix assets missing**: run `mix assets.deploy` before zipping, or use a project without assets.
+- **Site doesn't open**: the endpoint must bind to `0.0.0.0` and port 80, not `127.0.0.1` or 4000.

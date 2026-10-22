@@ -17,7 +17,7 @@ documentation are derived, and it was written to be read by both people and AI a
 
 ## 1. Overview
 
-Vertra Cloud is a Brazilian cloud hosting platform for deploying applications and managed databases. It supports 10+ languages, 4 database types, real-time monitoring, custom domains, an MCP server for your AI agent, collaborative workspaces and a VSCode extension.
+Vertra Cloud is a Brazilian cloud hosting platform for deploying applications and managed databases. It supports 13 languages, 4 database types, real-time monitoring, custom domains, an MCP server for your AI agent, collaborative workspaces and a VSCode extension.
 
 **SLA: 99.99%** availability, on every plan. This is the **only** SLA number the
 platform states — marketing, plan cards, the Enterprise page, the Terms of Use and the public docs all say
@@ -42,16 +42,37 @@ platform states — marketing, plan cards, the Enterprise page, the Terms of Use
 
 | Language | Recommended | Latest | Other |
 |-----------|:-----------:|:------:|:------:|
-| JavaScript | Node.js 22.18.0 | 24.5.0 | 20.18.0 |
-| TypeScript | Node.js 22 | 22 | 18, 20 |
-| Python | 3.13 | 3.13 | 3.12, 3.11 |
-| Go | 1.23 | 1.23 | 1.22, 1.21 |
-| Rust | 1.98 | 1.99 | 1.97 |
+| JavaScript | Node.js 22.23.4 | 24.22.1 | — |
+| TypeScript | Node.js 22.23.4 | 24.22.1 | — |
+| Python | 3.13.17 | 3.13.17 | 3.12.15, 3.11.17 |
+| Go | 1.26.10 | 1.27.3 | — |
+| Rust | 1.99.1 | 1.99.1 | — |
 | Java | Temurin JRE 21 | 21 | 17 |
-| Bun | 1.2.23 | 1.2.23 | — |
-| PHP | 8.3 | 8.3 | 8.2 |
-| Ruby | 3.3 | 3.4 | 3.2 |
+| Bun | 1.3.14 | 1.4.4 | — |
+| PHP | 8.3.36 | 8.4.27 | 8.2.35 (until end of support, 12/31/2026) |
+| Ruby | 3.3.12 | 3.4.11 | — |
+| Deno | 2.9.8 | 2.9.8 | 2.8.3 |
+| .NET (C#) | 10.0.402 | 10.0.402 | — |
+| Elixir | 1.20.4 (OTP 28) | 1.20.4 | — |
 | Static | — | — | HTML/CSS/JS |
+
+Versions are updated regularly with security updates. A version that reached end of support is removed from the list. If the version saved on an application is no longer available, the platform uses the newest release of the same line (for example, 3.11 runs on 3.11.17); if the whole line was removed, it falls back to the `recommended` version.
+
+### Language detection
+
+The platform detects the language from the manifest files at the **root** of the project, checking each ecosystem before `package.json`: a Python, PHP (Laravel) or Ruby (Rails) project that also has a front-end `package.json` stays Python, PHP or Ruby. `bun.lock` is recognized as Bun, and Java projects are also recognized by `build.gradle.kts`, `settings.gradle(.kts)`, `mvnw` and `gradlew`. `MAIN=./src/index.js` (with the leading `./`) is accepted.
+
+To force a language, set `LANGUAGE=<slug>` in `vertracloud.config` (for example `LANGUAGE=deno`) or send `language` on `POST /v1/apps`. In `vertracloud.config.json` the key is `"language"`. The precedence is the API field, then the config file, then detection. An unknown value is refused with `INVALID_LANGUAGE` (HTTP 400).
+
+### Deno, .NET and Elixir
+
+| Language | Detected by | `MAIN` | How it runs |
+|---|---|---|---|
+| Deno (`deno`) | `deno.json`, `deno.jsonc` or `deno.lock` | The entry file (for example `main.ts`) | Dependencies are installed with `deno install`; the app runs with full permissions inside its container |
+| .NET (`dotnet`) | `.csproj`, `.fsproj`, `.sln` or `global.json` | The `.csproj` file | Published in Release mode with `dotnet publish`; the app must listen on the port in `ASPNETCORE_HTTP_PORTS` (the platform already sets it to 80) |
+| Elixir (`elixir`) | `mix.exs` | `mix.exs` | `mix deps.get` and compile with `MIX_ENV=prod`; starts with `mix run --no-halt`, or `mix phx.server` when the project depends on `:phoenix` |
+
+Phoenix is supported: set `SECRET_KEY_BASE` and `PHX_HOST` as environment variables. Run `mix assets.deploy` before zipping, or use a project without assets.
 
 ---
 
@@ -371,7 +392,7 @@ Error → Starting (auto-restart) or Stopped (crash loop: 5x in 10min)
 **Creation is asynchronous.** `POST /v1/apps` answers `202 Accepted` right away with the application in
 `status: "building"`; install and build continue in the background with live logs. The status becomes `up` or
 `down` when the build ends — follow it with `GET /v1/apps/{id}` or the real-time log stream.
-`missing_dependencies` is filled on `GET /v1/apps/{id}` after the build. While the status is `building`,
+While the status is `building`,
 start, stop, restart, file deploys (upload, commit), rollback, snapshots, restores and configuration changes
 answer `409 APP_BUILDING`; deleting the application is allowed. If the build doesn't finish, the application
 stays `down` and `BUILD_INTERRUPTED` appears in its log. When a build or install fails, `GET /v1/apps/{id}` carries the code in `last_build_error` (`null` after a successful build). If the platform cancels the creation (for example, the
@@ -422,7 +443,7 @@ creating it. A project without a recognized framework starts from the main file,
 An optional `KEY=value` file at the root of the uploaded zip. It only **pre-fills** the
 creation/upload form — the actual configuration lives in the dashboard (Settings tab).
 Recognized keys: `NAME`, `DESCRIPTION`, `MAIN`, `MEMORY`, `START`, `BUILD`, `VERSION`,
-`SUBDOMAIN`; any other key (including the old `AUTORESTART`) is ignored. `VERSION` pre-fills the
+`SUBDOMAIN`, `LANGUAGE`; any other key (including the old `AUTORESTART`) is ignored. `VERSION` pre-fills the
 wizard on zip upload and is used on creation from a snapshot; the version confirmed in the wizard is
 the one the application runs, and a version that doesn't exist for the language is refused with
 `INVALID_VERSION`. `vertracloud.config.json` is also accepted, with lowercase keys.
@@ -988,6 +1009,7 @@ data queries and activity export.
 | `VALIDATION_ERROR` | Invalid body, parameter or query |
 | `FILE_TOO_LARGE` | File above the upload limit |
 | `INVALID_ZIP` | Uploaded file is not a valid ZIP |
+| `INVALID_LANGUAGE` | The language isn't supported (HTTP 400). See [Supported Languages](#2-supported-languages) |
 | `MAIN_FILE_NOT_FOUND` | Main file not found |
 | `INSTALL_TIMEOUT` | Dependency installation exceeded the time limit |
 | `BUILD_FAILED` | Build command exited with an error |

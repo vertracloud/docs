@@ -1,0 +1,43 @@
+### Deno, .NET and Elixir
+
+Three new languages are available when you create an application.
+
+- **Deno** (`deno`): 2.9.8 recommended and latest, plus 2.8.3. Detected from `deno.json`, `deno.jsonc` or `deno.lock`. `MAIN` is the entry file, such as `main.ts`.
+- **.NET** (`dotnet`, shown as .NET (C#)): 10.0.402. Detected from `.csproj`, `.fsproj`, `.sln` or `global.json`. `MAIN` is the `.csproj`, and the app listens on the port in `ASPNETCORE_HTTP_PORTS`, which is already set to 80.
+- **Elixir** (`elixir`): 1.20.4 on OTP 28. Detected from `mix.exs`. Phoenix is supported with `SECRET_KEY_BASE` and `PHX_HOST` set as environment variables. Run `mix assets.deploy` before zipping, or use a project without assets.
+
+Step-by-step guides: [Deno](/tutorials/deno), [.NET](/tutorials/dotnet) and [Elixir](/tutorials/elixir).
+
+### Updated runtimes and end of support
+
+Every runtime was updated with security updates:
+
+| Language | Recommended | Latest |
+|---|---|---|
+| JavaScript and TypeScript | Node.js 22.23.4 | 24.22.1 |
+| Bun | 1.3.14 | 1.4.4 |
+| Python | 3.13.17 | 3.13.17 (3.12.15 and 3.11.17 also available) |
+| Go | 1.26.10 | 1.27.3 |
+| PHP | 8.3.36 | 8.4.27 (8.2.35 stays until the end of its support on December 31, 2026) |
+| Ruby | 3.3.12 | 3.4.11 |
+| Rust | 1.99.1 | 1.99.1 |
+
+Versions that reached end of support were removed: Node.js 18 and 20, Bun 1.2, Go 1.21 to 1.23, Ruby 3.2, and Rust 1.97 and 1.98. An application saved on an older version now runs on the newest release of the same line (for example, Python 3.11 runs on 3.11.17). If the whole line was removed, it runs on the `recommended` version. Check the full list in the [knowledge base](/knowledge-base#2-supported-languages) or with [List Runtimes](/api-reference/endpoint/apps/runtimes).
+
+### More reliable language detection
+
+The platform now reads only the manifest files at the root of the project and checks each ecosystem before `package.json`. A Python, PHP (Laravel) or Ruby (Rails) project that also has a front-end `package.json` is no longer taken for JavaScript. `bun.lock` is recognized as Bun, Java projects are also recognized by `build.gradle.kts`, `settings.gradle(.kts)`, `mvnw` and `gradlew`, and `MAIN=./src/index.js` is accepted.
+
+To force a language, set `LANGUAGE=<slug>` in `vertracloud.config` (the key is `"language"` in `vertracloud.config.json`) or send `language` on `POST /v1/apps`. The precedence is the API field, then the config file, then detection. See [Configuration](/configuration).
+
+### Scan returns the detected language
+
+`POST /v1/apps/scan` no longer requires `main`. The response now includes `language`, `main`, `version`, `has_manifest` and `candidates`, so the creation wizard shows what was detected before you create the application. See [Scan](/api-reference/endpoint/apps/scan).
+
+### Breaking change: `missing_dependencies` removed
+
+The warning about missing dependencies shown before you send a project is gone, and the `missing_dependencies` field is no longer returned by the upload, application and scan responses. If your code reads this field, remove it. When an application crashes because a dependency is missing, the application's logs still show it.
+
+### `INVALID_LANGUAGE` answers 400
+
+`INVALID_LANGUAGE` is now documented, and returned, as HTTP `400` instead of `500`, because it reports a value the request sent. See [Errors](/api-reference/errors).

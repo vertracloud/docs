@@ -3,7 +3,7 @@ title: Scan Application Source
 sidebarTitle: Scan
 api: POST https://api.vertracloud.app/v1/apps/scan
 authMethod: bearer
-description: Pre-scans a zip before creating an application, returning start/build command and memory suggestions.
+description: Pre-scans a zip before creating an application, returning the detected language, main file, version and start/build command suggestions.
 ---
 <Note>
   This is **dashboard-session only**: an API key gets `API_KEY_SCOPE_DENIED` (403) here, regardless of its
@@ -19,8 +19,8 @@ suggestions are just a best-effort read.
   The ZIP file to scan. Same size and archive limits as `file` on Create Application.
 </ParamField>
 
-<ParamField body="main" type="string" required>
-  The main file of the application, used to detect the runtime language.
+<ParamField body="main" type="string">
+  Optional. The main file of the application. When omitted, the platform detects the language and the main file from the manifests at the root of the zip.
 </ParamField>
 
 ### Response
@@ -44,12 +44,30 @@ suggestions are just a best-effort read.
     Whether the project looks like a web app that should be published, if detectable.
   </ResponseField>
 
-  <ResponseField name="missing_dependencies" type="string[]">
-    Dependencies the scan could not find declared in the project's manifest, if any.
+  <ResponseField name="language" type="string | null">
+    The detected runtime language (for example `python`, `deno`, `dotnet`), or `null` when none could be detected.
+  </ResponseField>
+
+  <ResponseField name="main" type="string | null">
+    The main file: the `main` you sent, or the detected one. `null` only when no `main` was sent and none was inferred.
+  </ResponseField>
+
+  <ResponseField name="version" type="string | null">
+    The concrete `recommended` version of the detected language (for example `22.23.4` for `javascript`). `null` when no language was detected.
+  </ResponseField>
+
+  <ResponseField name="has_manifest" type="boolean">
+    Whether the root of the zip has a manifest file of any supported language.
+  </ResponseField>
+
+  <ResponseField name="candidates" type="string[]">
+    Other languages that also have a manifest at the root, when there is more than one. Empty otherwise, and always empty when `LANGUAGE=` forces the language.
   </ResponseField>
 
   </Expandable>
 </ResponseField>
+
+When no language is detected, the response carries only the detection fields (`language` is `null`, `main` is the one you sent or `null`, `candidates` is empty) and no `suggested_*` field.
 
 <ResponseExample>
 
@@ -60,7 +78,11 @@ suggestions are just a best-effort read.
     "suggested_build_command": "npm run build",
     "suggested_memory_mb": 512,
     "suggested_public_web": true,
-    "missing_dependencies": []
+    "language": "javascript",
+    "main": "src/index.js",
+    "version": "22.23.4",
+    "has_manifest": true,
+    "candidates": []
   }
 }
 ```
@@ -80,6 +102,9 @@ suggestions are just a best-effort read.
     <ResponseField name="INVALID_ZIP" type="string">
       The file is not a valid zip, or is corrupted.
     </ResponseField>
+    <ResponseField name="INVALID_LANGUAGE" type="string">
+      The `LANGUAGE=` value in the zip's `vertracloud.config` is not a supported language (`400`).
+    </ResponseField>
     <ResponseField name="MAIN_FILE_NOT_FOUND" type="string">
       The `main` file does not exist in the zip.
     </ResponseField>
@@ -94,3 +119,5 @@ suggestions are just a best-effort read.
     </ResponseField>
   </Expandable>
 </ResponseField>
+
+The scan also answers `502` when the project analysis is temporarily unavailable. Retry in a moment.

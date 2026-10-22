@@ -24,6 +24,7 @@ VERSION=recommended
 BUILD=npm run build
 START=npm start
 SUBDOMAIN=my-app
+LANGUAGE=javascript
 ```
 
 | Key | What it sets | Limit | Can change later? |
@@ -35,10 +36,11 @@ SUBDOMAIN=my-app
 | `VERSION` | Runtime version: `recommended`, `latest`, or a specific version from the [runtime list](/plans-and-limits#which-languages-and-versions-does-vertra-cloud-support). When the file is in your `.zip` or snapshot, the wizard pre-fills it and you can still change it before creating | must exist for the application's language, otherwise `INVALID_VERSION` | Yes, in the Config tab |
 | `BUILD` | Build command, runs before start on every deploy | 512 characters | Yes; counts as a deploy |
 | `START` | Start command | 512 characters | Yes, in the Config tab |
+| `LANGUAGE` | Forces the runtime language instead of detecting it: `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet` or `elixir`. The precedence is: the `language` field of `POST /v1/apps`, then this key (or `"language"` in `vertracloud.config.json`), then detection | one of the slugs above, otherwise `INVALID_LANGUAGE` | Yes, in the Config tab |
 | `SUBDOMAIN` | Subdomain under `*.vertraweb.app` (turns on web publishing) | 3 to 50 characters, `a-z`, `0-9` and `-` | Yes, with 5 minutes between changes |
 
 `vertracloud.config.json` is also accepted, with lowercase keys: `name`, `description`,
-`main`, `memory`, `build`, `start` and `subdomain`.
+`main`, `memory`, `build`, `start`, `subdomain` and `language`. The language is set by `LANGUAGE=` in the text file and by `"language"` in the JSON file.
 
 ### Which value wins?
 
@@ -47,9 +49,11 @@ and falls back to the platform's suggestion, which reads `package.json` and the 
 dependencies. After that, any field can be edited in the following steps. Start and build
 commands you edit by hand aren't overwritten if you swap the `.zip`.
 
+Without `LANGUAGE`, the platform detects the language from the manifest files at the root of the project, checking each ecosystem before `package.json`: a Python, PHP or Ruby project with a front-end `package.json` stays Python, PHP or Ruby. `MAIN=./src/index.js` (with the leading `./`) is accepted.
+
 Without `MAIN`, the platform looks for the main file via `main` and the `start` script in
 `package.json`, and then by common names (`index.js`, `server.js`, `main.py`, `app.py`, `main.go`,
-`src/main.rs`, `index.php`, `index.html` and others).
+`src/main.rs`, `main.ts`, `index.php`, `index.html` and others).
 
 <Note>
   `vertracloud.config` is **not stored among the application's files**. It's discarded once the
