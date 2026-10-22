@@ -10,7 +10,7 @@ Step-by-step guides: [Deno](/tutorials/deno), [.NET](/tutorials/dotnet) and [Eli
 
 ### Updated runtimes and end of support
 
-Every runtime was updated with security updates:
+Every runtime moved to its latest patch release:
 
 | Language | Recommended | Latest |
 |---|---|---|
@@ -24,6 +24,18 @@ Every runtime was updated with security updates:
 
 Versions that reached end of support were removed: Node.js 18 and 20, Bun 1.2, Go 1.21 to 1.23, Ruby 3.2, and Rust 1.97 and 1.98. An application saved on an older version now runs on the newest release of the same line (for example, Python 3.11 runs on 3.11.17). If the whole line was removed, it runs on the `recommended` version. Check the full list in the [knowledge base](/knowledge-base#2-supported-languages) or with [List Runtimes](/api-reference/endpoint/apps/runtimes).
 
+### Security fixes in the updated runtimes
+
+The new versions include these upstream security fixes. Applications pick them up on their next deploy or restart.
+
+- **Node.js 22.23.4 and 24.22.1**: seven fixes, including CVE-2026-111497 in the Brotli decoder. 24.22.1 also fixes CVE-2026-105483. [Node.js advisory](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)
+  <br />`CVE-2026-105481` `CVE-2026-105482` `CVE-2026-106069` `CVE-2026-106072` `CVE-2026-106073` `CVE-2026-106074`
+- **PHP 8.2.35, 8.3.36 and 8.4.27**: CVE-2026-109618 and CVE-2026-109619, both in the PHP core. [GHSA-w8hw-w9fx-j79w](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w) and [GHSA-6wmf-4rv5-p3rp](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp)
+- **Python 3.11.17, 3.12.15 and 3.13.17**: eight fixes, including CVE-2026-82049 in `tarfile`. 3.13.17 also ships updated root certificates. [3.11.17](https://www.python.org/downloads/release/python-31117/), [3.12.15](https://www.python.org/downloads/release/python-31215/) and [3.13.17](https://www.python.org/downloads/release/python-31317/) release notes
+  <br />`CVE-2026-15310` `CVE-2026-15806` `CVE-2026-17084` `CVE-2026-19445` `CVE-2026-19553` `CVE-2026-19672` `CVE-2026-87910`
+- **Go 1.26.10 and 1.27.3**: CVE-2026-56866 in `net/http`, CVE-2026-111943 in `crypto/x509` and the other fixes of the 1.26 and 1.27 lines. [Go release history](https://go.dev/doc/devel/release)
+- **Bun 1.3.14 and 1.4.4**: fixes for HTTP request smuggling, TLS, WebSocket and the package manager. [Bun 1.3.14](https://bun.sh/blog/bun-v1.3.14) and [Bun 1.4.4](https://bun.sh/blog/bun-v1.4.4)
+
 ### More reliable language detection
 
 The platform now reads only the manifest files at the root of the project and checks each ecosystem before `package.json`. A Python, PHP (Laravel) or Ruby (Rails) project that also has a front-end `package.json` is no longer taken for JavaScript. `bun.lock` is recognized as Bun, Java projects are also recognized by `build.gradle.kts`, `settings.gradle(.kts)`, `mvnw` and `gradlew`, and `MAIN=./src/index.js` is accepted.
@@ -33,6 +45,10 @@ To force a language, set `LANGUAGE=<slug>` in `vertracloud.config` (the key is `
 ### Scan returns the detected language
 
 `POST /v1/apps/scan` no longer requires `main`. The response now includes `language`, `main`, `version`, `has_manifest` and `candidates`, so the creation wizard shows what was detected before you create the application. See [Scan](/api-reference/endpoint/apps/scan).
+
+### vCPU now scales with each project's RAM
+
+A project's vCPU now grows with its RAM, up to the plan's vCPU: on plans with up to 2 vCPU, +1 vCPU for every 512 MB, and on plans with more than 2 vCPU, +1 vCPU for every 1 GB. Projects with 512 MB or more get at least 2 vCPU (never above the plan), and smaller ones get at least 1. Small projects on smaller plans gain vCPU, and on plans with more than 2 vCPU a project's vCPU now follows its RAM (for example, 4 GB = 4 vCPU). The change applies the next time the project restarts or is deployed. See [Plans and limits](/plans-and-limits).
 
 ### Breaking change: `missing_dependencies` removed
 
