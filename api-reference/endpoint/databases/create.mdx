@@ -25,6 +25,13 @@ default; to create it from an existing snapshot, send `snapshot_id`.
   with `SNAPSHOT_TYPE_MISMATCH`.
 </ParamField>
 
+<ParamField body="version" type="string">
+  The major version of the engine, for example `"18"` or `"8.4"`. Defaults to the recommended version of the engine.
+  Valid values per engine are returned by [List Database Versions](/api-reference/endpoint/databases/versions). A value
+  outside that list fails with `INVALID_DATABASE_VERSION`. With `snapshot_id`, the database is born on the snapshot's major
+  version; `version` may be the same or newer, and an older one fails with `SNAPSHOT_VERSION_NEWER`.
+</ParamField>
+
 <ParamField body="ram" type="integer" required>
   The amount of RAM to allocate to the database, in MB. Minimum 1,024 MB (512 MB for Redis, `type: 3`).
   Provisioned storage is always `ram × 3`.
@@ -88,6 +95,10 @@ default; to create it from an existing snapshot, send `snapshot_id`.
     The database port.
   </ResponseField>
 
+  <ResponseField name="version" type="string">
+    The major version the database was created on, for example `"18"` or `"8.0"`. Security updates are applied on restart without changing it.
+  </ResponseField>
+
   <ResponseField name="created_at" type="string" format="date-time">
     The database creation timestamp.
   </ResponseField>
@@ -123,6 +134,8 @@ default; to create it from an existing snapshot, send `snapshot_id`.
     "ram": 1024,
     "host": "database.example.com",
     "port": 5432,
+    "username": "vertracloud",
+    "version": "18",
     "offline_since": null,
     "last_snapshot": null,
     "created_at": "2026-03-20T19:58:00Z",
@@ -149,6 +162,8 @@ default; to create it from an existing snapshot, send `snapshot_id`.
   - `SNAPSHOT_NOT_FOUND`: The `snapshot_id` does not exist or does not belong to the caller (`404`).
   - `SNAPSHOT_TYPE_MISMATCH`: The snapshot is for an application, not a database, or the supplied `type` does not
     match its engine (`400`).
+  - `INVALID_DATABASE_VERSION`: `version` is not available for this engine (`400`).
+  - `SNAPSHOT_VERSION_NEWER`: `version` is older than the snapshot's major version (`400`).
   - `SNAPSHOT_TOO_LARGE`: The snapshot exceeds the same size limit as database creation (`400`).
   - `DB_CREATION_FAILED`: The platform could not provision the database (`500`).
   - `DATABASE_PERSISTENCE_FAILED`: The database was created but could not be read back (`500`).

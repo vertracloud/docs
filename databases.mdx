@@ -14,31 +14,42 @@ dedicated memory and storage.
 
 ## Which database engines are available?
 
-Four: PostgreSQL 17, MongoDB 8.0.11, Redis 7 and MySQL 8.0. Every engine requires TLS **and a client
+Four: PostgreSQL (18 or 17), MongoDB (8.0 or 9.0), Redis (8.2 or 7.2) and MySQL (9.7 or 8.4). You pick the version when you create the database and the recommended one is the default. Every engine requires TLS **and a client
 certificate** — a password alone never connects.
 
 <CardGroup cols={2}>
-  <Card title="PostgreSQL 17" icon="elephant">
+  <Card title="PostgreSQL 18 / 17" icon="elephant">
     Relational database with full SQL, JSONB and extensions support.
 
-    **User**: `postgres` &nbsp;|&nbsp; **Database**: `postgres` &nbsp;|&nbsp; **Auth**: password + client certificate
+    **User**: `vertracloud` &nbsp;|&nbsp; **Database**: `vertracloud` &nbsp;|&nbsp; **Auth**: password + client certificate
   </Card>
-  <Card title="MongoDB 8.0" icon="leaf">
+  <Card title="MongoDB 8.0 / 9.0" icon="leaf">
     NoSQL document-oriented database for flexible data.
 
-    **User**: `default` &nbsp;|&nbsp; **Auth database**: `admin` &nbsp;|&nbsp; **Auth**: password + client certificate
+    **User**: `vertracloud` &nbsp;|&nbsp; **Database**: `vertracloud` &nbsp;|&nbsp; **Auth database**: `admin` &nbsp;|&nbsp; **Auth**: password + client certificate
   </Card>
-  <Card title="Redis 7" icon="bolt">
+  <Card title="Redis 8.2 / 7.2" icon="bolt">
     In-memory storage for high-performance caching, queues and pub/sub.
 
-    **User**: `default` &nbsp;|&nbsp; **Auth**: password + client certificate
+    **User**: `vertracloud` &nbsp;|&nbsp; **Auth**: user + password + client certificate
   </Card>
-  <Card title="MySQL 8.0" icon="database">
+  <Card title="MySQL 9.7 / 8.4" icon="database">
     Popular relational database with ACID transactions and large ecosystem.
 
-    **User**: `root` &nbsp;|&nbsp; **Database**: `default` &nbsp;|&nbsp; **Auth**: password + X509 client certificate
+    **User**: `vertracloud` &nbsp;|&nbsp; **Database**: `vertracloud` &nbsp;|&nbsp; **Auth**: password + X509 client certificate
   </Card>
 </CardGroup>
+
+## Which user do I connect with?
+
+Databases created from [v26.4.8](/changelog/v26-4-8) on give you the user `vertracloud` and a default database
+named `vertracloud`. It owns your data and, depending on the engine, can create databases and roles (PostgreSQL),
+use every database (MongoDB) or run every data command (Redis). As on other managed database services, server-level
+administration (server settings, admin users, backups and restores) is handled by the platform.
+
+Databases created before that keep the engine's user: `postgres` (database `postgres`) on PostgreSQL, `default` on
+MongoDB and Redis, and `root` (database `default`) on MySQL. The `username` field in
+[Get Database](/api-reference/endpoint/databases/get) always tells you which one to use.
 
 ## What do I need to connect?
 
@@ -48,6 +59,8 @@ Four things, all on the database page in the dashboard (or through the API):
   [Get Database](/api-reference/endpoint/databases/get).
 - **Port** — **unique per database**, not the engine's default (5432, 27017, 6379, 3306). Always
   copy it from the database page or the API response.
+- **User** — `vertracloud` (or the engine's user on older databases), shown on the database page and as `username` in
+  [Get Database](/api-reference/endpoint/databases/get).
 - **Password** — shown on the database page; [reset it](/api-reference/endpoint/databases/credentials/resetpassword) if needed.
 - **Certificates** — download them in the database's **Certificates** tab or through
   [Get Database Certificate](/api-reference/endpoint/databases/credentials/get):
@@ -65,7 +78,8 @@ issues new ones and invalidates the old files.
 
 ## How do I connect to each engine?
 
-In the examples, `<host>`, `<port>` and `<password>` come from the database page, and
+In the examples, `<host>`, `<port>` and `<password>` come from the database page, the user and database are
+`vertracloud` (swap in your database's `username` if it was created before v26.4.8), and
 `certificate.crt` / `certificate.key` / `certificate.pem` are the three downloaded files.
 
 <Tabs>
@@ -77,9 +91,9 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
     const pool = new Pool({
       host: '<host>',
       port: <port>,
-      user: 'postgres',
+      user: 'vertracloud',
       password: '<password>',
-      database: 'postgres',
+      database: 'vertracloud',
       ssl: {
         ca: fs.readFileSync('certificate.pem'),
         cert: fs.readFileSync('certificate.crt'),
@@ -93,14 +107,14 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
     import psycopg
 
     conn = psycopg.connect(
-        host="<host>", port=<port>, user="postgres", password="<password>", dbname="postgres",
+        host="<host>", port=<port>, user="vertracloud", password="<password>", dbname="vertracloud",
         sslmode="verify-full", sslrootcert="certificate.pem",
         sslcert="certificate.crt", sslkey="certificate.key",
     )
     ```
 
     ```bash psql
-    psql "host=<host> port=<port> dbname=postgres user=postgres password=<password> sslmode=verify-full sslrootcert=certificate.pem sslcert=certificate.crt sslkey=certificate.key"
+    psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.pem sslcert=certificate.crt sslkey=certificate.key"
     ```
   </Tab>
   <Tab title="MongoDB">
@@ -109,7 +123,7 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
     ```javascript Node.js (mongodb)
     const { MongoClient } = require('mongodb');
 
-    const client = new MongoClient('mongodb://default:<password>@<host>:<port>/?authSource=admin', {
+    const client = new MongoClient('mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin', {
       tls: true,
       tlsCAFile: 'certificate.pem',
       tlsCertificateKeyFile: 'certificate.pem',
@@ -117,7 +131,7 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
     ```
 
     ```bash mongosh
-    mongosh "mongodb://default:<password>@<host>:<port>/?authSource=admin" --tls --tlsCAFile certificate.pem --tlsCertificateKeyFile certificate.pem
+    mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.pem --tlsCertificateKeyFile certificate.pem
     ```
   </Tab>
   <Tab title="Redis">
@@ -128,6 +142,7 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
     const redis = new Redis({
       host: '<host>',
       port: <port>,
+      username: 'vertracloud',
       password: '<password>',
       tls: {
         servername: '<host>',
@@ -139,7 +154,7 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
     ```
 
     ```bash redis-cli
-    redis-cli -h <host> -p <port> -a <password> --tls --cacert certificate.pem --cert certificate.crt --key certificate.key
+    redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.pem --cert certificate.crt --key certificate.key
     ```
   </Tab>
   <Tab title="MySQL">
@@ -150,9 +165,9 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
     const connection = await mysql.createConnection({
       host: '<host>',
       port: <port>,
-      user: 'root',
+      user: 'vertracloud',
       password: '<password>',
-      database: 'default',
+      database: 'vertracloud',
       ssl: {
         ca: fs.readFileSync('certificate.pem'),
         cert: fs.readFileSync('certificate.crt'),
@@ -162,7 +177,7 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
     ```
 
     ```bash mysql
-    mysql -h <host> -P <port> -u root -p default --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.pem --ssl-cert=certificate.crt --ssl-key=certificate.key
+    mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.pem --ssl-cert=certificate.crt --ssl-key=certificate.key
     ```
   </Tab>
 </Tabs>

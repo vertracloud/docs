@@ -172,12 +172,24 @@ the Config tab, in `VERSION` or through the API. Older versions are removed when
 There are four managed engines, all with mandatory TLS and certificates (CA, server, and client)
 generated automatically by the platform.
 
-| Database | Version | User | TLS | Authentication |
+| Database | Versions for new databases | User | TLS | Authentication |
 |---|---|---|---|---|
-| PostgreSQL | 17 | `postgres` (database `postgres`) | Required | Password + client certificate |
-| MongoDB | 8.0.11 | `default` (auth database `admin`) | Required | Password + client certificate |
-| Redis | 7 | `default` | Required | Password + client certificate |
-| MySQL | 8.0 | `root` (database `default`) | Required | Password + X509 client certificate |
+| PostgreSQL | **18** (recommended), 17 | `vertracloud` (database `vertracloud`) | Required | Password + client certificate |
+| MongoDB | **8.0** (recommended), 9.0 | `vertracloud` (database `vertracloud`, auth database `admin`) | Required | Password + client certificate |
+| Redis | **8.2** (recommended), 7.2 | `vertracloud` | Required | User + password + client certificate |
+| MySQL | **9.7** (recommended, LTS), 8.4 (LTS) | `vertracloud` (database `vertracloud`) | Required | Password + X509 client certificate |
+
+You choose the version when you create a database (the dashboard selector, or `version` in the API); the recommended
+one is the default. Existing databases keep their major version, and security updates (patch releases) are applied
+automatically whenever the database is restarted (stop, then start, in the dashboard). If you use `btree_gist` indexes on float columns or `ltree` indexes in PostgreSQL, run `REINDEX` on them after the restart. Existing MySQL 8.0 databases stay
+on 8.0, which isn't available for new ones. Existing Redis 7.4 databases stay on 7.4. A database created from a snapshot is born on the snapshot's major version (a MySQL 8.0 snapshot creates a
+MySQL 8.4 database, and a Redis 7.4 snapshot a Redis 8.2 one); `version`
+can be the same or newer, never older (`SNAPSHOT_VERSION_NEWER`). Restoring a snapshot taken on a newer version into an older database
+is refused with the same code and nothing is changed.
+
+`vertracloud` is the user of databases created from v26.4.8 on, and it isn't a superuser. Older databases keep the
+engine's user: `postgres` (database `postgres`), `default` on MongoDB (auth database `admin`) and Redis, and `root`
+(database `default`) on MySQL. The `username` field of the database in the API tells which one to use.
 
 The port is **unique per database** — not the engine's default — and is shown on the database page. See [how to connect](/databases#how-do-i-connect-to-each-engine).
 

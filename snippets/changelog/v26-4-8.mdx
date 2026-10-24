@@ -1,0 +1,50 @@
+### New databases get a dedicated `vertracloud` user
+
+Databases created from this release on come with a dedicated user named `vertracloud` and a default database named `vertracloud`, on all four engines:
+
+| Engine | User | Default database | Connection string |
+|---|---|---|---|
+| PostgreSQL | `vertracloud` (owns its database, can create databases and roles) | `vertracloud` | `postgresql://vertracloud:<password>@<host>:<port>/vertracloud` |
+| MySQL | `vertracloud` (full access to the `vertracloud` database) | `vertracloud` | `mysql://vertracloud:<password>@<host>:<port>/vertracloud` |
+| MongoDB | `vertracloud` (read, write and admin on every database) | `vertracloud` | `mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin` |
+| Redis | `vertracloud` | — | `rediss://vertracloud:<password>@<host>:<port>` |
+
+TLS with the client certificate is still required, as before. The dashboard, the API and the MCP server show the right user and connection string for each database.
+
+### Redis: the username is now required on new databases
+
+On new Redis databases, log in with the user and the password (`AUTH vertracloud <password>`, or the user in the URL). A password alone is rejected. Use the connection string shown in the dashboard when you create a new Redis database.
+
+### `username` in the API
+
+The database object returned by the API now includes `username`. Read it instead of assuming the user from the engine, since older and newer databases use different users. See [Databases](/databases).
+
+### Applications can only write to `/app`, `/tmp`, `/var/tmp` and `/run`
+
+The rest of the container's file system is now read-only, and `HOME` is `/app`. Anything your app writes to its home directory (package manager caches, config folders) goes to `/app` and counts toward your disk quota. `/tmp` keeps its size (half the RAM, from 128 MB to 1 GB), and `/var/tmp` is limited to 64 MB; both live in memory and are cleared on every restart. An app that writes anywhere else gets a read-only file system error. Applications switch over on their next deploy or restart.
+
+Temporary files no longer pile up in your project: the app's `TMPDIR` is no longer redirected into the project folder after dependencies are installed, so temporary files go to `/tmp` and are cleared on restart.
+
+### Choose the database version
+
+When you create a database you can now pick its version, in the dashboard or with `version` in the API. The recommended version is the default.
+
+| Engine | Versions |
+|---|---|
+| PostgreSQL | 18 (recommended), 17 |
+| MySQL | 9.7 (recommended, LTS), 8.4 (LTS) |
+| MongoDB | 8.0 (recommended), 9.0 |
+| Redis | 8.2 (recommended), 7.2 |
+
+The database object returns `version`, and the new [List Database Versions](/api-reference/endpoint/databases/versions) endpoint lists what is available per engine. A `version` outside the list fails with `INVALID_DATABASE_VERSION`.
+
+When you create a database from a snapshot, it starts on the snapshot's major version (a MySQL 8.0 snapshot creates a MySQL 8.4 database, and a Redis 7.4 snapshot a Redis 8.2 one). `version` can be the same or newer, and an older one fails with `SNAPSHOT_VERSION_NEWER`. Restoring a snapshot taken on a newer version into an older database fails with the same code and nothing is changed.
+
+### Security updates on restart
+
+Existing databases keep their major version. Security updates (patch releases) are applied automatically whenever the database is restarted: stop it and start it again in the dashboard. Existing MySQL 8.0 databases stay on 8.0 and existing Redis 7.4 databases stay on 7.4; neither is available for new databases. If you use `btree_gist` indexes on float columns or `ltree` indexes in PostgreSQL, run `REINDEX` on them after the restart.
+
+
+### Fixed: MySQL password reset
+
+Resetting the password of a MySQL database created with the `vertracloud` user now takes effect. Before this fix the new password was shown but not applied, and the old one kept working.
