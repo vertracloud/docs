@@ -1,0 +1,88 @@
+---
+title: Check Dockerfile
+sidebarTitle: Check Dockerfile
+api: POST https://api.vertracloud.app/v1/images/check
+authMethod: bearer
+description: Checks a Dockerfile and the file list of a build context before building. Creates nothing.
+---
+
+{/* @see APIDockerfileCheck, DockerfileIssueCode, RESTPostAPICustomImageCheckBody, RESTPostAPICustomImageCheckResult — @vertracloud/api-types */}
+The same check runs again when you create or rebuild an image, so a clean result here never replaces it. A check does not count against any limit. Needs the `images:read` scope when called with an API key.
+
+<ParamField body="dockerfile" type="string" required>
+  The content of the `Dockerfile`.
+</ParamField>
+
+<ParamField body="files" type="string[]" required>
+  The paths of the files in the build context, relative to its root.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="refusals" type="object[]">
+    Findings that block the build. Each has a `code` and a `line` (1-based, or `null` when not tied to a line).
+  </ResponseField>
+
+  <ResponseField name="warnings" type="object[]">
+    Findings that do not block the build, in the same format.
+  </ResponseField>
+
+  <ResponseField name="suggested_port" type="integer">
+    The first `EXPOSE` of the `Dockerfile`, or `80` when there is none.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+#### Finding codes
+
+| Code | Kind | Meaning |
+|---|---|---|
+| `missing_dockerfile` | Refusal | There is no file named exactly `Dockerfile` at the root of the context. |
+| `syntax_frontend` | Refusal | A `# syntax=` directive points to something other than the official Dockerfile frontend. |
+| `run_security_insecure` | Refusal | `RUN --security=insecure`. |
+| `run_network_host` | Refusal | `RUN --network=host`. |
+| `mount_ssh` | Refusal | `--mount=type=ssh`. |
+| `mount_secret` | Refusal | `--mount=type=secret`. |
+| `workdir_app` | Warning | `WORKDIR` at `/app` or below. `/app` is the app's persistent disk, so what the image puts there is hidden by the mount. |
+| `env_file_in_context` | Warning | `.env*` files in the context. They are removed before the build; their keys become app variables. |
+| `copy_env_file` | Warning | `COPY` or `ADD` of a `.env` file. The file is not in the build context, so the build fails on that line. |
+| `volume_outside_app` | Warning | `VOLUME` outside `/app`. At runtime that path is a temporary 64 MB folder, erased on every restart; only `/app` keeps data. |
+| `volume_refused` | Refusal | `VOLUME` at `/app` or below, or with a relative path. `/app` is already the app's persistent disk. |
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "refusals": [{ "code": "run_network_host", "line": 7 }],
+    "warnings": [{ "code": "workdir_app", "line": 3 }],
+    "suggested_port": 3000
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the required scope (`403`).
+  - `VALIDATION_ERROR`: The body failed validation (`400`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR",
+  "path": "dockerfile"
+}
+```
+
+</ResponseExample>

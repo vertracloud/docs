@@ -3,7 +3,7 @@ title: Create Deploy Webhook
 sidebarTitle: Create Webhook
 api: POST https://api.vertracloud.app/v1/apps/{app_id}/deploys/webhook
 authMethod: bearer
-description: Creates a deploy webhook for a GitHub repository to automatically trigger deployments.
+description: Creates a deploy webhook for a GitHub repository, so a push to the chosen branch deploys the application.
 ---
 
 {/* @see webhook — @vertracloud/api-types */}
@@ -20,23 +20,37 @@ The name of the GitHub repository.
 </ParamField>
 
 <ParamField body="repo_id" type="string" required>
-The ID of the GitHub repository.
+The ID of the GitHub repository. It is checked against the repository itself: if it does not match `owner` and `repo_name`, the request fails with `VALIDATION_ERROR` (`400`) and `details.path` set to `repo_id`.
 </ParamField>
 
 <ParamField body="account_id" type="string" required>
 The GitHub account ID.
 </ParamField>
 
+<ParamField body="branch" type="string">
+The Git branch that triggers the deploy (for example `develop` or `release/1.2`). Optional: without it, a push to `main` or `master` deploys. With it, only a push to that branch deploys, and a push to any other branch is ignored. The delivery is still answered with `200`.
+
+Calling this route again for an application that already has a webhook replaces the branch: send another `branch` to switch to it, or omit it to go back to `main` or `master`. An invalid branch name fails with `VALIDATION_ERROR` (`400`) and `details.path` set to `branch`.
+</ParamField>
+
 ### Response
 
-<ResponseField name="response" type="string">
-The URL of the created webhook.
+<ResponseField name="response" type="object">
+Contains the created webhook.
+
+<Expandable title="Toggle object">
+  <ResponseField name="url" type="string">
+  The URL of the created webhook.
+  </ResponseField>
+</Expandable>
 </ResponseField>
 
 <ResponseExample>
 ```json
 {
-  "response": "https://api.vertracloud.app/v1/apps/123/deploys/receiver/webhook"
+  "response": {
+    "url": "https://api.vertracloud.app/v1/apps/123/deploys/receiver/webhook"
+  }
 }
 ```
 </ResponseExample>
@@ -47,9 +61,10 @@ The URL of the created webhook.
 Possible error codes:
 - `UNAUTHORIZED`: User is not authenticated or lacks permissions.
 - `PLAN_RESTRICTED_FEATURE`: User plan does not support auto-deploy.
-- `INVALID_ACCOUNT_ID`: Provided GitHub account ID is invalid.
-- `MISSING_REPO_INFORMATION`: Required repository information is missing.
-- `INSTALLATION_NOT_FOUND`: GitHub installation not found for the user.
+- `INSTALLATION_NOT_FOUND`: GitHub installation not found for the user, or the repository is not one of the repositories that installation can access (`404`).
+- `IMAGE_APP_CODE_NOT_APPLICABLE`: The application runs a custom Docker image, which has no automatic deploy from GitHub (`409`). Link the image to GitHub instead.
+- `FETCH_ZIP_ERROR`: GitHub could not be reached or was limiting requests while the repository was checked (`502`). Try again in a few minutes.
+- `VALIDATION_ERROR`: The body failed validation, for example an invalid `owner`, `repo_name`, `repo_id` or `branch` (`400`). `details.path` names the field.
 </ResponseField>
 
 <ResponseField name="message" type="string">
@@ -59,7 +74,7 @@ Possible error codes:
 <ResponseExample>
 ```json
 {
-  "code": "INVALID_ACCOUNT_ID"
+  "code": "INSTALLATION_NOT_FOUND"
 }
 ```
 </ResponseExample>

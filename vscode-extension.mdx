@@ -39,8 +39,8 @@ Open the Vertra Cloud panel in the Activity Bar and choose one of two ways to co
   is stored using your editor's secret storage; it never touches settings, workspace files or logs.
 - **Use API key** — for environments without a browser. Create a key on the API keys page of the
   dashboard, scoped to what you plan to use from the extension (at minimum `account:read` and
-  `apps:read`; add `apps:write`, `apps:files`, `databases:*`, `snapshots:*`, `workspaces:*` or
-  `snapshots:*` or `workspaces:*` as needed). Paste the key when prompted.
+  `apps:read`; add `apps:write`, `apps:files`, `databases:*`, `snapshots:*`, `images:*` or
+  `workspaces:*` as needed). Paste the key when prompted.
 
 To revoke access, delete the key or session from the API keys page in the dashboard. Disconnecting
 in the editor only removes the local credential; it does not revoke the key on the server.
@@ -133,6 +133,38 @@ never stored or displayed again afterward — if you lose it, reset it again. Br
 of a database from inside it is not available through an API key and is not part of this
 extension; use the dashboard's data explorer for that.
 
+## Docker images
+
+The **Docker Images** view lists your [custom Docker images](/guides/custom-docker-images) with the status of the
+latest build (building, ready or failed), the reason when a build failed and the applications that run from each
+one. The images of a workspace appear under that workspace. Custom images are available on Enterprise 28, 30 and 32;
+on other plans the view is empty and creating an image tells you why.
+
+- **Create Docker image** takes a folder or a GitHub repository; the branch is optional (leave it empty to use the repository's default branch). A folder needs a file named exactly
+  `Dockerfile` at its root. It is zipped as the CLI does: `.dockerignore` is respected, `.env*` files and symbolic
+  links are never sent, and the extension stops before uploading a context over 100 MB (or over 512 MB uncompressed
+  or 50,000 files).
+- The Dockerfile is checked before the build starts. Refusals are listed with their line and block the build;
+  warnings ask you to confirm.
+- **Rename Docker image** and **Edit Docker image description** (right-click an image) change the name and the description
+  without building anything; your applications keep running.
+- **Rebuild from folder** replaces the whole build context. A rebuild never restarts your applications, and a failed
+  build keeps the current version.
+- **Show build log** replays the log of the build in an Output channel and follows it live while the build runs.
+- **List versions**, **Download build context**, **Link to GitHub** and **Unlink from GitHub** (a push to the
+  linked branch rebuilds the image).
+- **Delete image** asks you to type its name and also deletes every application created from it. With an API key,
+  deleting an image that has applications needs the `apps:delete` scope too.
+- **Create application from image** asks for the name, RAM, whether it serves web traffic, the subdomain, the port
+  (pre-filled with the first `EXPOSE` of your Dockerfile, or 80) and the variables.
+
+For an application that runs from an image, **Deploy** is a commit: your files go on top of the image's current
+build context and the image is rebuilt. The extension tells you how many applications use the image before sending;
+only the application you deployed restarts, and only if you ask for a restart. **Publish to web** asks for the port
+when the application was created without web, restoring a snapshot can also bring back the image version it was
+taken on (when that version still exists), and language, version, main file, start and build commands are not
+offered because they come from the image.
+
 ## Workspaces
 
 The extension lists workspaces you belong to and lets you browse and link their applications and
@@ -170,6 +202,7 @@ domains (as many as your plan allows), view the DNS records to configure, and pu
 | Remote file manager | Depends on plan gate | Yes | Yes |
 | Roll back to an earlier version | No | Yes | Yes |
 | Manual application snapshot | No | No | Yes |
+| Custom Docker images | No | No | Only Enterprise 28, 30 and 32 |
 | Database snapshot | Yes | Yes | Yes |
 
 Exact limits and prices change over time; the dashboard and this documentation always show the
@@ -202,6 +235,11 @@ current numbers for your account. See [Plans and limits](/plans-and-limits) for 
 | Show metrics | CPU, memory and network summary |
 | Manage environment variables | Add, edit, remove variables |
 | Manage snapshots | List, create, download, restore |
+| Create Docker image / Rebuild Docker image from folder | Builds an image from a folder or a GitHub repository |
+| Rename Docker image / Edit Docker image description | Changes the name or description without a build |
+| Show build log / List versions / Download build context | Follows the build, lists versions, saves the current context |
+| Link to GitHub / Unlink from GitHub | Rebuilds the image on every push to the linked branch |
+| Delete image / Create application from image | Removes an image and its applications; starts an application from an image |
 | Open remote files | Mounts `vertra://` as a folder |
 | Open application / Open dashboard | Opens URLs in the browser |
 | Copy ID | Copies a resource's identifier |

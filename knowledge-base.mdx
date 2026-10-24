@@ -272,6 +272,7 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 | Manual backups | — | — | Yes | Yes | Yes |
 | Safety snapshot when deleting an application | — | Yes | Yes | Yes | Yes |
 | Database data manager | — | — | — | Yes | Yes |
+| Custom Docker images (from your own `Dockerfile`) | — | — | — | — | Enterprise 28, 30 and 32 only: up to 20 images |
 | Auto-deploy (GitHub) | — | — | — | Yes | Yes |
 | Deploy history (Rollbacks tab) | Read-only | Yes | Yes | Yes | Yes |
 | Manual rollback (code + optional environment variables) | — | Yes | Yes | Yes | Yes |
@@ -373,6 +374,18 @@ users need to be told about:
 
 Publishing requires **512 MB of RAM**. RAM doesn't increase on its own in this flow: with
 less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_mb, minimum_mb }`.
+
+**Applications from a custom Docker image.** On Enterprise 28, Enterprise 30 and Enterprise 32, an application can run from an image built from the customer's own `Dockerfile`. It is created with `POST /v1/apps/image`, and it can be a Bot (`web: false`) or a Website (`web: true`). Rules to state exactly:
+
+- Build context: ZIP up to 100 MB, or a GitHub repository, with a file named exactly `Dockerfile` at the root. Up to 20 images per account, counting every state. Platform `linux/amd64`.
+- Build: isolated build environment, time limit of 26 minutes, built image up to 10 GB uncompressed (`IMAGE_TOO_LARGE`). `.env*` files are removed from the context.
+- Runtime: always user `1000:1000`. `/app` is the persistent disk; `/tmp`, `/var/tmp` and `/run` are writable but temporary; everything else is read-only. The port is the first `EXPOSE` or `80`, injected as `PORT`.
+- Refused: a `# syntax=` other than the official frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh`, `--mount=type=secret`. Warned: `WORKDIR /app`, `.env*` in the context, `COPY`/`ADD` of `.env`, `VOLUME` outside `/app`.
+- Updates: rebuild by upload, commit (on top of the current context) or push to a linked GitHub branch. A rebuild never restarts apps. Each app keeps 30 releases for 30 days, and rollback uses an already built version.
+- Snapshots hold the data of `/app` and the image version; restore can optionally go back to that version.
+- Deleting an image deletes every application created from it. Plans below Enterprise 28 cannot create or rebuild images; downgraded accounts keep running and can delete.
+
+Guide: [Custom Docker images](/guides/custom-docker-images).
 
 ### Storage
 
@@ -795,7 +808,7 @@ an expired Enterprise plan **freezes writes** (invite, action, edit), never dele
 ### Methods
 1. **ZIP upload** via dashboard or API
 2. **GitHub integration** — repository selection (including private ones)
-3. **GitHub webhooks** — automatic deploy on push (Intermediary+ plans)
+3. **GitHub webhooks** — automatic deploy on push to the chosen branch, `main` or `master` by default (Intermediary+ plans)
 4. **VSCode extension** — deploy straight from the editor
 
 ### Process
@@ -1021,6 +1034,8 @@ data queries and activity export.
 | `VALIDATION_ERROR` | Invalid body, parameter or query |
 | `FILE_TOO_LARGE` | File above the upload limit |
 | `INVALID_ZIP` | Uploaded file is not a valid ZIP |
+| `INVALID_ZIP_STRUCTURE` | The ZIP is damaged, empty or has an invalid structure; on a restore, nothing is changed |
+| `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while fetching a repository (HTTP 502) |
 | `INVALID_LANGUAGE` | The language isn't supported (HTTP 400). See [Supported Languages](#2-supported-languages) |
 | `MAIN_FILE_NOT_FOUND` | Main file not found |
 | `INSTALL_TIMEOUT` | Dependency installation exceeded the time limit |

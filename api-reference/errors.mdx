@@ -98,7 +98,8 @@ Every error uses the same envelope, described in the [API introduction](/api-ref
 | 400 | `NO_FIELDS_TO_UPDATE` / `NO_CHANGES_PROVIDED` | The update body has nothing to change. |
 | 409 | `STORAGE_ABOVE_NEW_LIMIT` | A config change was refused because the volume already holds more than the new disk ceiling; `details` carries the numbers. |
 | 400 | `SOURCE_REQUIRED` / `SOURCE_CONFLICT` | Application creation needs exactly one source (`file` XOR `snapshot_id`); one is missing or both were sent. |
-| 400 | `INVALID_ZIP` / `INVALID_ZIP_STRUCTURE` | The ZIP is unreadable, or its files are wrapped in an extra top-level folder — files must sit at the ZIP root. |
+| 400 | `INVALID_ZIP` / `INVALID_ZIP_STRUCTURE` | The ZIP is unreadable, or its files are wrapped in an extra top-level folder — files must sit at the ZIP root. A damaged ZIP is also refused when restoring a snapshot or a release, before anything changes. |
+| 413 | `ARCHIVE_TOO_LARGE` / `ARCHIVE_TOO_MANY_ENTRIES` | The ZIP holds more content than fits once decompressed, or more files than allowed. Send a smaller project. |
 | 400 | `ZIP_TOO_SMALL` | The uploaded ZIP is too small to be a real project. |
 | 400 | `ZIP_TOO_LARGE` | The uploaded ZIP exceeds the 100 MB limit. |
 | 400 | `MAIN_FILE_NOT_FOUND` | The scanner couldn't find an entry point in the uploaded project. |
@@ -131,8 +132,9 @@ When a build or install fails, `GET /v1/apps/{id}` returns the code in `last_bui
 | 404 | `DEPLOYMENT_NOT_FOUND` | No deploy with that ID for this application. |
 | 500 | `DEPLOY_FAILED` | The GitHub-triggered deploy failed while fetching or applying the commit. Check the Activity tab. |
 | 409 | `REPO_ALREADY_LINKED` | That repository is already linked to another application. Unlink it first. |
-| 404 | `INSTALLATION_NOT_FOUND` | The GitHub App installation for this account/repository wasn't found. Reconnect GitHub. |
+| 404 | `INSTALLATION_NOT_FOUND` | The GitHub App installation for this account/repository wasn't found. Reconnect GitHub. When creating a Docker image from GitHub, it also means the repository is private or doesn't exist (or the branch doesn't) and isn't in your installations; public repositories outside them are built once with no link. |
 | 413 | `FILE_TOO_LARGE` | A single file from the repository exceeds the size the GitHub file endpoint allows. |
+| 502 | `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while the repository was fetched or checked. Try again in a few minutes. |
 | 400 / 403 | `FORBIDDEN_PATH` | The requested repository path is outside what the app is allowed to read (400 as a generic rejection, 403 when it's specifically a forbidden path). |
 
 ## Files
@@ -241,6 +243,30 @@ Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDE
 | 500 | `SNAPSHOT_IMPORT_FAILED` | The restore failed while loading data; the database is left running and empty, and the snapshot stays available to retry. |
 | 429 | `SNAPSHOT_RATE_LIMITED` | Manual snapshot creation hit its per-resource (1/5 min) or per-account (10/hour) budget. |
 | 429 | `RESTORE_COOLDOWN` | A restore or rollback was requested too soon after a previous one on the same resource. |
+
+## Custom Docker images
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | The plan does not include custom Docker images. They are available on Enterprise 28, Enterprise 30 and Enterprise 32. |
+| 403 | `MAX_IMAGES_REACHED` | The plan's limit of 20 images was reached; images in any state count. Delete one. |
+| 404 | `IMAGE_NOT_FOUND` | The image does not exist or you cannot access it. |
+| 404 | `IMAGE_VERSION_NOT_FOUND` | The image has no version with that ID. |
+| 400 | `DOCKERFILE_NOT_FOUND` | There is no file named exactly `Dockerfile` at the root of the build context. |
+| 400 | `DOCKERFILE_REFUSED` | The `Dockerfile` has a refused instruction (`# syntax=` other than the official frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh` or `--mount=type=secret`). `details` lists the findings; see [Check Dockerfile](/api-reference/endpoint/images/check). |
+| 413 | `IMAGE_CONTEXT_TOO_LARGE` | The build context is over one of its four limits: 100 MB compressed, 512 MB uncompressed, 50,000 entries, or a `Dockerfile` larger than 1 MB. Remove files (for example with a `.dockerignore`) and send it again. |
+| 409 | `IMAGE_BUILD_IN_PROGRESS` | The image already has a build running. Wait for it to end. Also returned when you try to delete the image during a build. |
+| 409 | `IMAGE_NOT_READY` | The image has no successful build yet, so apps cannot be created from it. |
+| 400 | `IMAGE_NAME_MISMATCH` | `confirm_name` is not the image name. |
+| 503 | `IMAGE_BUILDER_UNAVAILABLE` | No host can build images right now. Try again later. |
+| 400 | `IMAGE_APP_FIELD_NOT_APPLICABLE` | You sent `main_file`, `language`, `version`, `start_command` or `build_command` for an application that runs a custom image. These come from the image; leave them out. |
+| 409 | `IMAGE_APP_CODE_NOT_APPLICABLE` | The application runs a custom image, so code cannot be written into `/app` or deployed from GitHub on it. Update the image instead. |
+| 400 | `IMAGE_APP_PORT_REQUIRED` | The application runs a custom image and has no port yet (it was created without web). Send `port` when publishing it. See [Publish Application](/api-reference/endpoint/apps/network/publish). |
+| — | `IMAGE_LABEL_REFUSED` | Build failure: the image sets a label in a namespace reserved for the platform (such as `vertra.*`; the build log names the refused label). Remove the label and rebuild. |
+| — | `IMAGE_VOLUME_REFUSED` | Build failure: the image declares a `VOLUME` at `/app` or below. `/app` is already the application's persistent disk. Remove the instruction and rebuild. |
+| — | `IMAGE_TOO_LARGE` | Build failure: the built image is larger than 10 GB uncompressed. It appears in the image's `error` and build log. Remove files or use a smaller base image. |
+
+See [Custom Docker images](/guides/custom-docker-images).
 
 ## Workspaces
 

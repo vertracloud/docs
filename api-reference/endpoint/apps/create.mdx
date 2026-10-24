@@ -190,6 +190,28 @@ Creation is asynchronous: the response is `202 Accepted` with the application in
     `GET /v1/apps/{id}/deploys/webhook` for that.
   </ResponseField>
 
+  <ResponseField name="custom_image" type="object | null">
+    The custom Docker image the application runs from; `null` for a regular application. With an image, `language`, `version`, `main_file`, `start_command` and `build_command` do not apply: they come from the image. See [Custom Docker images](/guides/custom-docker-images).
+
+    <Expandable title="custom_image properties">
+      <ResponseField name="image_id" type="string">
+        The image ID. `id` and `name` of this object are the application's, not the image's.
+      </ResponseField>
+
+      <ResponseField name="port" type="integer | null">
+        The port the application listens on and the platform routes to; `null` for an application without web traffic.
+      </ResponseField>
+
+      <ResponseField name="version_id" type="string | null">
+        The image version the application runs, or `null` when it has not started on any version yet.
+      </ResponseField>
+
+      <ResponseField name="outdated" type="boolean">
+        `true` when the image has a newer version than the one the application runs. It moves to it on the next restart or deploy you ask for.
+      </ResponseField>
+    </Expandable>
+  </ResponseField>
+
   <ResponseField name="deploy" type="object">
     How a deploy replaces the running version and what happens if it fails.
 
@@ -210,6 +232,10 @@ Creation is asynchronous: the response is `202 Accepted` with the application in
         The HTTP path called on a new version to check that it is healthy. `null` means `/`.
       </ResponseField>
     </Expandable>
+  </ResponseField>
+
+  <ResponseField name="warning" type="string">
+    Only when you create from the snapshot of an application that runs a custom Docker image and the image version recorded in the snapshot no longer exists: `IMAGE_VERSION_NOT_FOUND`. The application is created on the image's current version instead.
   </ResponseField>
 
   </Expandable>
@@ -240,6 +266,7 @@ Creation is asynchronous: the response is `202 Accepted` with the application in
     "offline_since": null,
     "shield_cooldown": null,
     "github": null,
+    "custom_image": null,
     "deploy": {
       "zero_downtime": "off",
       "zero_downtime_active": false,

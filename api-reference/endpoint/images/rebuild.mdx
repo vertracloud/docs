@@ -1,0 +1,141 @@
+---
+title: Rebuild Image
+sidebarTitle: Rebuild Image
+api: PUT https://api.vertracloud.app/v1/images/{image_id}
+authMethod: bearer
+description: Rebuilds an image by replacing the whole build context with a new ZIP file.
+---
+
+{/* @see APICustomImage, RESTPutAPICustomImageBody, RESTPutAPICustomImageResult — @vertracloud/api-types */}
+The request is `multipart/form-data`. The rebuild keeps the same image ID and, when it succeeds, adds a new [version](/api-reference/endpoint/images/versions). **A rebuild never restarts applications**: each app moves to the new version on the next restart or deploy you ask for. A failed rebuild keeps the current version. Rebuilds do not count against the image limit. Plans without custom images cannot rebuild, but can still delete.
+
+Needs the `images:write` scope when called with an API key.
+
+<ParamField path="image_id" type="string" required>
+  The image ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the image belongs to a workspace, the workspace's ID. Required for workspace members acting on an image they don't own.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  The new build context: a ZIP file, up to 100 MB, with a `Dockerfile` at its root.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The image. The response is `202 Accepted` with `status: "building"`.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The image ID.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The image name.
+  </ResponseField>
+
+  <ResponseField name="description" type="string | null">
+    The image description (free text, up to 128 characters), or `null` when it has none.
+  </ResponseField>
+
+  <ResponseField name="owner" type="string">
+    `account` for your own images, `system` for images provided by the platform (these cannot be changed or deleted).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    State of the latest build: `building`, `success` or `failed`. A failed rebuild does not change the current version: apps keep running the last good one.
+  </ResponseField>
+
+  <ResponseField name="error" type="string | null">
+    Readable reason of the latest failed build, or `null`.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string | null">
+    Digest (`sha256:...`) of the current version, or `null` while no build has succeeded.
+  </ResponseField>
+
+  <ResponseField name="uncompressed_bytes" type="integer | null">
+    Size of the current version, uncompressed, in bytes.
+  </ResponseField>
+
+  <ResponseField name="layer_count" type="integer | null">
+    Number of layers of the current version.
+  </ResponseField>
+
+  <ResponseField name="apps" type="object[]">
+    The applications created from this image. Each has `id`, `name`, `version_id` (the image version it runs, or `null`) and `outdated` (`true` when the image has a newer version; the app moves to it on the next restart or deploy you ask for).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    The linked GitHub repository and branch (`repository` as `owner/name`, `branch`), or `null` when the image is not linked.
+  </ResponseField>
+
+  <ResponseField name="current_version_id" type="string | null">
+    The current version of the image, or `null` while no build has succeeded.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    When the image was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    When the image was last updated.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "img-abc123def456",
+    "name": "my-api",
+    "description": null,
+    "owner": "account",
+    "status": "building",
+    "error": null,
+    "digest": null,
+    "uncompressed_bytes": null,
+    "layer_count": null,
+    "apps": [],
+    "github": null,
+    "current_version_id": null,
+    "created_at": "2026-10-23T14:02:00Z",
+    "updated_at": "2026-10-23T14:02:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the required scope (`403`).
+  - `IMAGE_NOT_FOUND`: The image does not exist or you cannot access it (`404`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: The plan does not include custom Docker images (`403`).
+  - `IMAGE_BUILD_IN_PROGRESS`: The image already has a build running (`409`).
+  - `DOCKERFILE_NOT_FOUND`: There is no file named exactly `Dockerfile` at the root of the context (`400`).
+  - `DOCKERFILE_REFUSED`: The `Dockerfile` has a refused instruction; `details` lists the findings (`400`).
+  - `IMAGE_CONTEXT_TOO_LARGE`: The build context is over a limit: more than 100 MB compressed, more than 512 MB uncompressed, more than 50,000 entries, or a `Dockerfile` larger than 1 MB (`413`).
+  - `IMAGE_BUILDER_UNAVAILABLE`: No host can build images right now; try again later (`503`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_BUILD_IN_PROGRESS"
+}
+```
+
+</ResponseExample>

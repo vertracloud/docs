@@ -1,0 +1,141 @@
+---
+title: Get Image
+sidebarTitle: Get Image
+api: GET https://api.vertracloud.app/v1/images/{image_id}
+authMethod: bearer
+description: Retrieves a custom Docker image by its ID, with its current version and the applications that use it.
+---
+
+{/* @see APICustomImage, RESTGetAPICustomImageResult — @vertracloud/api-types */}
+Needs the `images:read` scope when called with an API key.
+
+<ParamField path="image_id" type="string" required>
+  The image ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the image belongs to a workspace, the workspace's ID. Required for workspace members acting on an image they don't own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The image.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The image ID.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    The image name.
+  </ResponseField>
+
+  <ResponseField name="description" type="string | null">
+    The image description (free text, up to 128 characters), or `null` when it has none.
+  </ResponseField>
+
+  <ResponseField name="owner" type="string">
+    `account` for your own images, `system` for images provided by the platform (these cannot be changed or deleted).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    State of the latest build: `building`, `success` or `failed`. A failed rebuild does not change the current version: apps keep running the last good one.
+  </ResponseField>
+
+  <ResponseField name="error" type="string | null">
+    Readable reason of the latest failed build, or `null`.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string | null">
+    Digest (`sha256:...`) of the current version, or `null` while no build has succeeded.
+  </ResponseField>
+
+  <ResponseField name="uncompressed_bytes" type="integer | null">
+    Size of the current version, uncompressed, in bytes.
+  </ResponseField>
+
+  <ResponseField name="layer_count" type="integer | null">
+    Number of layers of the current version.
+  </ResponseField>
+
+  <ResponseField name="suggested_port" type="integer | null">
+    Port suggested for a new app on this image: the first `EXPOSE` of the `Dockerfile` of the latest build context, or `80`. `null` for an image created before this field existed.
+  </ResponseField>
+
+  <ResponseField name="apps" type="object[]">
+    The applications created from this image. Each has `id`, `name`, `version_id` (the image version it runs, or `null`) and `outdated` (`true` when the image has a newer version; the app moves to it on the next restart or deploy you ask for).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    The linked GitHub repository and branch (`repository` as `owner/name`, `branch`), or `null` when the image is not linked.
+  </ResponseField>
+
+  <ResponseField name="current_version_id" type="string | null">
+    The current version of the image, or `null` while no build has succeeded.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    When the image was created.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    When the image was last updated.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "img-abc123def456",
+    "name": "my-api",
+    "description": "Node 22 with our base packages",
+    "owner": "account",
+    "status": "success",
+    "error": null,
+    "digest": "sha256:3f1c0a9d5b7e2c4a8d6f1b0e9c3a7d5f2b4e6a8c0d1f3b5a7c9e2d4f6a8b0c1e",
+    "uncompressed_bytes": 187432960,
+    "layer_count": 9,
+    "suggested_port": 3000,
+    "apps": [
+      {
+        "id": "app-abc123def456",
+        "name": "my-api-prod",
+        "version_id": "imgv-111aaa222bbb",
+        "outdated": false
+      }
+    ],
+    "github": null,
+    "current_version_id": "imgv-111aaa222bbb",
+    "created_at": "2026-10-23T14:02:00Z",
+    "updated_at": "2026-10-23T14:09:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the required scope (`403`).
+  - `IMAGE_NOT_FOUND`: The image does not exist or you cannot access it (`404`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

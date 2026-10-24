@@ -23,6 +23,10 @@ description: Restores a specified snapshot to an application or database, then a
   Optional. Override the target resource for cross-resource restore. If omitted, restores to the resource specified by `id`.
 </ParamField>
 
+<ParamField body="restore_image_version" type="boolean">
+  Only for an application that runs a custom Docker image. When `true`, the restore also goes back to the image version the application ran when the snapshot was taken, if it still exists. Default `false`: only the data is restored and the application keeps its current image version.
+</ParamField>
+
 ### Response
 
 <ResponseField name="response" type="object">
@@ -32,6 +36,10 @@ description: Restores a specified snapshot to an application or database, then a
 
   <ResponseField name="message" type="string">
     A message confirming the restore was started.
+  </ResponseField>
+
+  <ResponseField name="warning" type="string">
+    Present when `restore_image_version` was `true` but the image version recorded in the snapshot no longer exists: `IMAGE_VERSION_NOT_FOUND`. Only the data was restored and the application stays on its current version.
   </ResponseField>
 
   </Expandable>
@@ -63,6 +71,7 @@ description: Restores a specified snapshot to an application or database, then a
   - `SNAPSHOT_ENGINE_MISMATCH`: The snapshot belongs to a different database engine than the target (`400`).
   - `SNAPSHOT_VERSION_NEWER`: The snapshot was taken on a newer major version than the target database; nothing is changed (`400`).
   - `SNAPSHOT_NOT_FOUND`: The specified snapshot does not exist.
+  - `INVALID_ZIP_STRUCTURE`: The snapshot file is damaged, or an application snapshot has no files (`400`). The restore is refused before anything changes: the application's files and the database stay as they were.
   - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same resource is already running (`409`). Nothing was restored — wait a few seconds and retry. See [Common Error Codes](/api-reference/introduction#what-error-codes-can-the-api-return).
   - `SNAPSHOT_IMPORT_FAILED`: The restore failed while loading the data (`500`). The database is left running and empty; the snapshot stays available to retry.
   - `UNKNOWN_ERROR`: An unexpected platform error occurred.

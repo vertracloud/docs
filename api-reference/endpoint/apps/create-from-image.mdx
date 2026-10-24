@@ -1,0 +1,100 @@
+---
+title: Create Application from Image
+sidebarTitle: Create from Image
+api: POST https://api.vertracloud.app/v1/apps/image
+authMethod: bearer
+description: Creates an application that runs from a custom Docker image.
+---
+
+{/* @see RESTPostAPIApplicationImageBody, RESTPostAPIApplicationImageResult — @vertracloud/api-types */}
+The image must be ready (`status: "success"`). Several applications can share one image, each with its own variables. The language, version, main file, start and build commands do not apply: they come from the image. Needs the `apps:write` scope when called with an API key. See [Custom Docker images](/guides/custom-docker-images).
+
+<ParamField body="image_id" type="string" required>
+  The ID of the image the app runs from.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  The application display name. Maximum 50 characters.
+</ParamField>
+
+<ParamField body="memory" type="integer" required>
+  The amount of RAM to allocate, in MB.
+</ParamField>
+
+<ParamField body="description" type="string">
+  An application description.
+</ParamField>
+
+<ParamField body="web" type="boolean" required>
+  `true` publishes the app on the web (`subdomain` and `port` apply). `false` creates an app without traffic, such as a bot or worker.
+</ParamField>
+
+<ParamField body="subdomain" type="string">
+  The subdomain for the app. Send `random` to let the platform pick one. Only with `web: true`.
+</ParamField>
+
+<ParamField body="port" type="integer">
+  The port the app listens on. Only with `web: true`. Default: the first `EXPOSE` of the image's `Dockerfile`, or `80`. The platform injects it as the `PORT` environment variable.
+</ParamField>
+
+<ParamField body="envs" type="object[]">
+  Environment variables, each with `key`, `value` and an optional `note`. Maximum key length 255, maximum value length 3072, maximum note length 50.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  The workspace to associate with the application.
+</ParamField>
+
+### Response
+
+Creation is asynchronous: the response is `202 Accepted` with the application in `status: "building"` and `custom_image` filled in (`image_id`, `port`, `version_id`, `outdated`). The application has the same fields as in [Create Application](/api-reference/endpoint/apps/create). Follow it with [Application Details](/api-reference/endpoint/apps/get) until `status` is `up` or `down`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "name": "my-api-prod",
+    "status": "building",
+    "ram": 512,
+    "subdomain": "myapp.vertraweb.app",
+    "custom_image": {
+      "id": "app-abc123def456",
+      "name": "my-api-prod",
+      "version_id": null,
+      "outdated": false,
+      "image_id": "img-abc123def456",
+      "port": 3000
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:write` scope (`403`).
+  - `VALIDATION_ERROR`: The body failed validation (`400`).
+  - `IMAGE_NOT_FOUND`: The image does not exist or you cannot access it (`404`).
+  - `IMAGE_NOT_READY`: The image has no successful build yet (`409`).
+  - `MAX_APPS_REACHED`: The plan's application limit was reached (`403`).
+  - `MEMORY_BELOW_MINIMUM`, `MEMORY_LIMIT_EXCEEDED`: The memory is below the minimum or above what the plan still has (`400`).
+  - `SUBDOMAIN_TAKEN`, `SUBDOMAIN_FORBIDDEN`: The subdomain is in use or reserved (`409`, `400`).
+  - `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH`: `web: true` on a plan without web publishing (`403`).
+  - `DEPLOY_RATE_LIMITED`: The account's hourly deploy budget was reached (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_NOT_READY"
+}
+```
+
+</ResponseExample>

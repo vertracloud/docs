@@ -1,0 +1,58 @@
+---
+title: Image Build Logs
+sidebarTitle: Build Logs
+api: GET https://api.vertracloud.app/v1/images/{image_id}/logs
+authMethod: bearer
+description: Streams the build log of an image as a text event stream.
+---
+
+{/* @see RESTGetAPICustomImageLogsQuery, RESTGetAPICustomImageLogsResult — @vertracloud/api-types */}
+Needs the `images:read` scope when called with an API key.
+
+<ParamField path="image_id" type="string" required>
+  The image ID.
+</ParamField>
+
+<ParamField query="version_id" type="string">
+  The version whose build log to read. Absent: the latest build.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the image belongs to a workspace, the workspace's ID. Required for workspace members acting on an image they don't own.
+</ParamField>
+
+### Response
+
+The response is a **Server-Sent Events** stream (`text/event-stream`), not JSON. It first repeats the log that already came out and then follows the build live, with keep-alive heartbeats. Each `log` event carries one line of the build log as plain text. Up to 2 streams per image can be open at the same time. After the build ends, the log of the latest build and of each version stays available.
+
+<ResponseExample>
+
+```text Response
+event: log
+data: Step 1/6 : FROM node:22-slim
+
+event: log
+data: Step 2/6 : WORKDIR /srv
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the required scope (`403`).
+  - `IMAGE_NOT_FOUND`: The image does not exist or you cannot access it (`404`).
+  - `IMAGE_VERSION_NOT_FOUND`: The image has no version with that `version_id` (`404`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_VERSION_NOT_FOUND"
+}
+```
+
+</ResponseExample>
