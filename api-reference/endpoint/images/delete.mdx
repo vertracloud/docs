@@ -11,7 +11,7 @@ description: Deletes an image, its versions, its context and every application c
   Deleting an image **also deletes every application created from it**. Each app follows the usual rules for deleting an application, including the safety snapshot on plans that have it.
 </Warning>
 
-Needs the `images:write` scope when called with an API key. When the image has applications, the key also needs the `apps:delete` scope, because they are deleted too. Without it the call fails with `ACCESS_DENIED`. Deleting is refused while a build is running, and it is allowed on plans that can no longer create images.
+Needs the `images:delete` scope when called with an API key; `images:write` does not cover it. When the image has applications, the key also needs the `apps:delete` scope, because they are deleted too. Without it the call fails with `API_KEY_SCOPE_DENIED` and `details.required` set to `apps:delete`. Deleting is refused while a build is running, and it is allowed on plans that can no longer create images.
 
 <ParamField path="image_id" type="string" required>
   The image ID.
@@ -53,8 +53,7 @@ Needs the `images:write` scope when called with an API key. When the image has a
 
 <ResponseField name="code" type="string">
   The error code indicating the reason for the failure. Possible values:
-  - `API_KEY_SCOPE_DENIED`: The API key does not have the `images:write` scope (`403`).
-  - `ACCESS_DENIED`: The image has applications and the API key does not have the `apps:delete` scope (`403`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `images:delete` scope, or the image has applications and the key does not have the `apps:delete` scope. `details.required` names the missing scope (`403`).
   - `IMAGE_NOT_FOUND`: The image does not exist or you cannot access it (`404`).
   - `IMAGE_NAME_MISMATCH`: `confirm_name` is not the image name (`400`).
   - `IMAGE_BUILD_IN_PROGRESS`: A build is running; wait for it to end (`409`).

@@ -59,7 +59,7 @@ Three presets speed up creation: **`read`** marks every `*:read` scope, **`write
 `*:write` scope on top of `read`, **`full`** marks the entire catalog, including scopes with no
 read/write suffix (delete, envs, files, credentials).
 
-24 scopes across 8 groups:
+25 scopes across 8 groups:
 
 | Scope | Group | What it allows |
 |---|---|---|
@@ -76,7 +76,8 @@ read/write suffix (delete, envs, files, credentials).
 | `databases:delete` | Databases | Delete a database |
 | `databases:credentials` | Databases | Read/reset the TLS certificate and reset credentials |
 | `images:read` | Docker Images | List and read images, their versions, build logs and current context, and check a `Dockerfile` |
-| `images:write` | Docker Images | Create, rename, describe and rebuild images, delete them, and link or unlink GitHub |
+| `images:write` | Docker Images | Create, rename, describe and rebuild images, and link or unlink GitHub |
+| `images:delete` | Docker Images | Delete an image |
 | `snapshots:read` | Snapshots | List snapshots and download them |
 | `snapshots:write` | Snapshots | Create and restore snapshots |
 | `blob:read` | Blob Storage | List and read files, get download links and URLs, read shares, folder rules, domains, usage and S3 credentials |
@@ -88,7 +89,7 @@ read/write suffix (delete, envs, files, credentials).
 | `workspaces:delete` | Workspaces | Delete a workspace (owner only) |
 | `workspaces:invites` | Workspaces | List and revoke a workspace's invites; preview, accept and decline an invite by token |
 <Note>
-  Deleting an image that has applications also needs `apps:delete`, because the applications are deleted with it. Without it the call answers `403 ACCESS_DENIED`. Creating an app from an image uses `apps:write`.
+  Deleting an image needs `images:delete`, and `images:write` does not cover it. When the image has applications, the key also needs `apps:delete`, because the applications are deleted with it; without it the call answers `403 API_KEY_SCOPE_DENIED` with `details.required` set to `apps:delete`. Uploading files to an application that runs an image is a commit that rebuilds the image, so it needs `images:write` as well as `apps:files`. Creating an app from an image uses `apps:write`.
 </Note>
 
 <Note>
@@ -111,7 +112,8 @@ read/write suffix (delete, envs, files, credentials).
 
 <Note>
   `workspaces:delete` and `workspaces:invites` have no `read`/`write` suffix, so the `read` and
-  `write` presets never include them — only `full` or a custom selection does. `workspaces:read`
+  `write` presets never include them — only `full` or a custom selection does. The same goes for
+  the other delete scopes, including `images:delete`. `workspaces:read`
   also lists action requests. Some workspace actions stay dashboard-session only and no scope
   covers them: creating an invite (a leaked key could leave behind access that outlives revoking
   it), transferring ownership (it could be used to take over the workspace), and approving or
