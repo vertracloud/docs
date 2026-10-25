@@ -3,9 +3,8 @@
 Enterprise 28, Enterprise 30 and Enterprise 32 can now build an image from their own `Dockerfile` and run applications from it. Use it for another language or version, system packages, your own start process or ready-made apps.
 
 - **Create an image** from a ZIP file of up to 100 MB, or from a GitHub repository. The branch is optional: without it, the repository's default branch is used. A repository in your GitHub App installations is linked, so each push rebuilds the image; a public repository outside them is built once, with no link. In the panel, **New project** also has the **Use a Docker image** option to create an app from an image you already have. The project needs a file named exactly `Dockerfile` at its root. The image is built in an isolated build environment with a 26-minute limit, and the result can be up to 10 GB. Each account can have up to 20 images.
-- **Check before you build.** The panel shows the `Dockerfile` with its findings before the build starts. A `# syntax=` other than the official Dockerfile frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh` and `--mount=type=secret` are refused. A `WORKDIR` at `/app`, `.env` files in the project, a `COPY` or `ADD` of `.env` and a `VOLUME` outside `/app` (a temporary 64 MB folder, erased on every restart) are warned about. A label in a namespace reserved for the platform (such as `vertra.*`; the build log names the refused label) and a `VOLUME` at `/app` or below (or with a relative path) fail the build. `.env*` files never go into the image, and your `Dockerfile` is never rewritten.
+- **Check before you build.** The panel reviews your `Dockerfile` before the build starts: instructions that would weaken the isolation of the build are refused, and common mistakes, like `.env` files in the project, are pointed out so you can fix them. `.env*` files never go into the image, and your `Dockerfile` is never rewritten. See [what is refused and what is warned about](/guides/custom-docker-images#what-is-refused-and-what-is-warned-about).
 - **Create apps from the image.** Several apps can share one image, each with its own variables. For a web app, the port is the first `EXPOSE` of the `Dockerfile`, or 80, and it reaches your app as `PORT`. An app created without web can be published later by informing the port.
-- **Where the app can write.** `/app` is the persistent disk. `/tmp`, `/var/tmp` and `/run` are writable but temporary. The rest of the filesystem is read-only, and the app runs as user `1000:1000`.
 - **Update the image** by uploading a new context, by a commit on top of the current context, or by a push to a linked GitHub branch (link a repository from your GitHub App installations; the branch is optional). The GitHub Action accepts `image-id` to rebuild an image. A rebuild never restarts your applications: each app moves to the new version when you restart or deploy it.
 - **Versions and rollback.** Every successful build is a version. Apps keep 30 releases for 30 days, and a rollback starts a version that was already built.
 - **Snapshots** of these apps hold the data of `/app` and the image version. When you restore, you can also go back to that version if it still exists.
@@ -18,6 +17,10 @@ New API routes under `/v1/images` (including `PATCH /v1/images/{image_id}` to re
 ### Improvements
 
 - **Choose the branch of your GitHub deploys.** Importing a repository from GitHub in the panel now has a branch selector, and automatic deploy follows the branch you pick (the deploy webhook route accepts an optional `branch`). Existing automatic deploys keep following `main` and `master`.
+- **Developer links in the sidebar.** CLI, VS Code extension, MCP, What's new and Docs moved from the account menu to the panel's sidebar.
+- **One-click theme.** Appearance in the account menu is now a single button that cycles through System, Light and Dark.
+- **Deleting an application waits for the result.** The confirmation dialog stays open with its progress until the deletion is done, then closes with the application already gone from the list. If the deletion fails, the dialog stays open and shows the reason.
+- **Already signed in.** Opening the sign-in page while signed in takes you straight to the dashboard.
 
 ### Fixes
 
