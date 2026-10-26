@@ -1,0 +1,70 @@
+---
+title: 'Límites, cuotas y funciones por plan de Blob Storage'
+sidebarTitle: 'Límites y cuotas'
+description: 'Cuota y funciones por plan de Blob Storage, qué pasa al superar la cuota tras un cambio de plan y el periodo de gracia de 72 horas antes del borrado.'
+icon: 'gauge'
+---
+
+Tu cuota de Blob Storage depende de tu plan y pertenece al propietario de la cuenta (los miembros del workspace comparten la cuota del propietario). Las cifras están en la [base de conocimiento](/knowledge-base); esta página es la vista de Blob Storage.
+
+## Por plan
+
+| Plan | Cuota | Reglas de carpeta | Dominios personalizados | Transformaciones de imagen / mes |
+|---|---|---|---|---|
+| Economy | 1 GB | 5 | 0 | ninguna |
+| Pro | 5 GB | 5 | 0 | ninguna |
+| Scale | 15 GB | 5 | 0 | 600 |
+| Intermediary | 20 GB | 5 | 0 | 1.000 |
+| Enterprise-4 | 30 GB | 5 | 1 | 1.500 |
+| Enterprise-6 | 50 GB | 5 | 1 | 2.000 |
+| Enterprise-8 | 100 GB | 5 | 1 | 2.500 |
+| Enterprise-12 y 14 | 150 GB | 10 | 3 | 4.000 |
+| Enterprise-16 a 24 | 250 GB | 10 | 3 | 5.000 |
+| Enterprise-26 a 32 | 250 GB | 20 | 10 | 10.000 |
+
+Funciones que solo incluyen algunos planes:
+
+| Función | Disponible desde |
+|---|---|
+| Velocidad de subida superior a una por segundo | Enterprise-12 |
+| Metadatos (hasta 5 claves, 512 bytes en total) | Enterprise-12 |
+| Contraseña en las [páginas compartidas](/es-es/blob/sharing) | Enterprise-12 |
+| `no-cache` como `cache_control` | Enterprise-26 |
+| Caducidad menor de 7 días (mínimo 1 hora) | Enterprise-26 |
+
+Por debajo de Enterprise-12, las subidas están limitadas a **una por segundo** por cuenta. Una función restringida responde `PLAN_RESTRICTED_FEATURE`.
+
+## Límites para todos los planes
+
+| Límite | Valor |
+|---|---|
+| Archivo más grande | 10 GB |
+| Subida simple | 100 MB |
+| Partes por llamada a obtener URL de partes | 100 |
+| Objetos por actualización en lote | 100 |
+| Objetos por borrado en lote | 1.000 |
+| Página de listado | De 1 a 1000 (por defecto 100) |
+| Enlace temporal | De 60 s a 24 h |
+| Vida de un token de subida | De 60 s a 1 h |
+
+Consulta los valores vigentes en `limits` de [Obtener estadísticas](/api-reference/endpoint/blob/account/stats) en lugar de escribirlos fijos en tu código.
+
+## Superar la cuota
+
+Las subidas se detienen con `STORAGE_QUOTA_EXCEEDED` en cuanto el espacio usado, más el reservado, más el archivo nuevo superaría tu cuota. No se borra nada.
+
+Si **cambias a un plan inferior** y tu uso está por encima de la nueva cuota, tus archivos se conservan. Las subidas siguen bloqueadas hasta que vuelvas a estar por debajo de la cuota, y el exceso se cobra a **R\$ 0,20 por cada GB iniciado** en la siguiente renovación. [Obtener estadísticas](/api-reference/endpoint/blob/account/stats) muestra `over_quota_bytes` y `estimated_overage_cents`. Consulta [Cambio a un plan inferior](/es-es/plan-downgrade).
+
+## Caducidad y borrado
+
+Cuando tu plan caduca o se cancela, tus archivos entran en un **periodo de gracia de 72 horas**:
+
+- Las subidas y demás escrituras quedan bloqueadas y responden `BLOB_NAMESPACE_SUSPENDED`.
+- Los archivos públicos, los enlaces temporales y las páginas compartidas siguen funcionando hasta que termine el periodo de gracia.
+- Recibes recordatorios por correo electrónico durante el periodo.
+- Renovar durante el periodo de gracia restaura todo de inmediato.
+- Tras 72 horas, los archivos se **borran de forma permanente, sin copia de seguridad**.
+
+Una suspensión por abuso es distinta: los archivos suspendidos se desconectan de inmediato.
+
+<Warning>El borrado tras el periodo de gracia no se puede deshacer. Descarga o mueve lo que necesites antes de que caduque tu plan.</Warning>

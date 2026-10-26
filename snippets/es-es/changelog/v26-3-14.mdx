@@ -1,0 +1,71 @@
+### Instalador de la CLI para macOS, Linux y Windows
+
+La CLI es ahora un binario único, sin dependencias, que se instala con un solo comando:
+
+- **macOS y Linux:** `curl -fsSL https://cli.vertracloud.app/install | sh`
+- **Windows (PowerShell):** `irm https://cli.vertracloud.app/install | iex`
+
+El instalador elige la versión adecuada para tu sistema y tu procesador (x64 o ARM), verifica la suma de comprobación del archivo y añade el comando `vertra` a tu PATH. Para actualizar, vuelve a ejecutar el mismo comando.
+
+Consulta la página de [CLI](/es-es/cli) para conectar tu cuenta y hacer tu primer despliegue.
+
+### Créditos de uso y de IA eliminados
+
+Los créditos de uso y los créditos de IA ya no existen en Vertra Cloud. `POST /v1/orders` solo acepta pedidos de tipo plan, y ningún cuerpo de petición incluye ya `use_credits` ni `credits_used`. Los pedidos antiguos con créditos anteriores a este cambio ya no aparecen en el historial de pedidos del usuario.
+
+### Respuesta simplificada del dominio personalizado
+
+Las rutas que leen y asocian un dominio personalizado (`GET` y `POST /v1/apps/{id}/network/custom`) devuelven ahora solo `{ "domain": "example.com" }`, igual que describía el tipo público. El estado de validación de los registros DNS sigue disponible en la ruta [Registros DNS del dominio personalizado](/api-reference/endpoint/apps/domains/dns).
+
+Dos códigos de error de dominio personalizado se renombraron a `CUSTOM_DOMAIN_REGISTRATION_FAILED` y `CUSTOM_DOMAIN_RECORD_NOT_FOUND`.
+
+Si tu integración compara estos códigos, actualízala a los nombres nuevos.
+
+### Actualización de la documentación: primer despliegue y configuración
+
+La documentación se actualizó para coincidir con el panel actual:
+
+- **Primer despliegue** reescrito para seguir el flujo actual de Nuevo Proyecto: origen, build, entorno, red, revisión y despliegue, incluida la creación desde un snapshot.
+- Nueva página de **[Configuración](/es-es/configuration)**: cada clave de `vertracloud.config`, qué puede cambiar después del despliegue, los comandos de inicio y de build por framework, el puerto, las variables de entorno y los límites de una aplicación.
+- **El despliegue desde GitHub** explica ahora los despliegues automáticos tal como funcionan hoy: Vertra crea el webhook en tu repositorio por ti, y solo los push a `main` o `master` publican.
+- Los tutoriales usan ahora el mismo recorrido de despliegue, ya sea desde el panel, la CLI o VS Code.
+- La referencia de la API incorpora páginas para eliminar una base de datos, actualizar un perfil y listar todos los snapshots de una cuenta, y corrige la ruta para eliminar variables de entorno, el cuerpo de actualización de bases de datos y los códigos de error de autenticación.
+
+### Insignia "Powered by Vertra Cloud" en Pro
+
+En el plan **Pro**, las páginas HTML publicadas muestran ahora una pequeña insignia **"Powered by Vertra Cloud"** en la esquina inferior derecha, con un enlace de vuelta a Vertra. No aparece en Scale ni en planes superiores, y cambiar de plan la activa o la desactiva de inmediato, sin necesidad de volver a desplegar.
+
+### Páginas de SDKs y GitHub Actions en el sitio
+
+La sección de herramientas para desarrolladores tiene dos páginas nuevas en el sitio:
+
+- [SDKs](https://vertracloud.app/sdks): instalación y ejemplos para JavaScript, TypeScript, Python y Go, funciones disponibles y preguntas frecuentes.
+- [GitHub Actions](https://vertracloud.app/github-actions): un workflow listo para copiar, la configuración de secretos y las opciones para actualizar una aplicación existente.
+
+Las páginas están disponibles en portugués, inglés y español, con acceso desde el menú y el pie de página.
+
+### SDKs oficiales de JavaScript, Python y Go
+
+#### SDKs
+
+- **`@vertracloud/sdk-api` (npm), `vertracloud-api` (PyPI) y `github.com/vertracloud/sdk-api-go`** llegan como clientes oficiales de la API pública. Un método por ruta, autenticación con la misma clave de API con permisos, y cobertura de aplicaciones, bases de datos, snapshots, cuenta, workspaces y facturación, sin caché, reintentos automáticos ni estado interno. Consulta [SDKs](/es-es/sdks).
+- Los tres exponen **salida en tiempo real** de una aplicación (`apps.realtime`): un generador asíncrono en JavaScript, un stream iterable en Python y un iterador (`Next`/`Event`) en Go.
+- Cada respuesta de error se convierte en un **error estructurado**, siempre con un `code` accesible: en JavaScript y Python, una clase de excepción por estado HTTP (`AuthenticationError`, `NotFoundError`, `ValidationError`, `RateLimitError`, entre otras); en Go, un único `*rest.APIError` con métodos como `IsNotFoundError()` e `IsRateLimitError()`.
+- Lo que sigue siendo exclusivo del panel (historial de actividad, notificaciones, gestión de claves de API, invitaciones a workspaces, la pestaña **Datos** de las bases de datos, cambios de plan a uno inferior y eliminación o transferencia de workspaces) aparece listado en [SDKs → Lo que no puedes hacer con una clave de API](/es-es/sdks).
+
+#### API
+
+- **La ruta de creación del webhook de despliegue es ahora `/deploys/webhook`, en singular**, igual que las rutas de consulta y eliminación que ya usaban esa forma. La referencia se actualizó en [Crear webhook de despliegue](/api-reference/endpoint/apps/deploys/create).
+- **El historial de actividad es exclusivo del panel** y no tiene equivalente en la API pública ni en los SDK.
+
+### Workspaces por clave de API y MCP
+
+Ahora hay disponibles fuera del panel más acciones de workspace, a través de los SDK, la CLI, la extensión de VS Code y el servidor MCP:
+
+- **Eliminar un workspace** con el nuevo permiso `workspaces:delete`. Solo lo puede hacer el propietario del workspace, igual que en el panel.
+- **Invitaciones** con el nuevo permiso `workspaces:invites`: listar y revocar las invitaciones de un workspace, y ver, aceptar o rechazar una invitación mediante su token. La clave actúa como la cuenta que la posee, así que una invitación por correo solo se acepta si coincide con el correo de esa cuenta.
+- **Solicitudes de acción**: `workspaces:read` lista las solicitudes y `workspaces:write` crea una para alguien con permiso de aprobación.
+
+Los dos permisos nuevos no se incluyen en los preajustes `read` y `write`, solo en `full` o en una selección personalizada, y aparecen desmarcados en la pantalla de autorización de la aplicación conectada. Los permisos de rol del workspace siguen aplicándose a la clave.
+
+Algunas operaciones de workspace siguen siendo exclusivas del panel, entre ellas crear invitaciones, transferir la propiedad, aprobar o rechazar solicitudes de acción y exportar la actividad.

@@ -1,0 +1,32 @@
+### Gerenciador de dados redesenhado
+
+A aba **Dados** dos bancos de dados agora organiza o navegador de objetos e o conteúdo em um único espaço de trabalho, com hierarquia mais clara e melhor aproveitamento do espaço no desktop e no celular.
+
+Tabelas SQL, coleções do MongoDB e chaves do Redis ganharam ações mais fáceis de encontrar, filtros explícitos, resumos compactos e paginação simples, com intervalo, tamanho da página e posição atual. O cabeçalho repetido e os destaques de cor desnecessários também foram removidos.
+
+### Correção: console silencioso ao reinstalar dependências em um reinício rápido
+
+Ao reiniciar uma aplicação depois de trocar o runtime (ou em qualquer reinício que reinstala dependências), se a instalação terminava rápido, o console do dashboard não mostrava nada dela: nem aviso de início, nem linhas do instalador. A aplicação voltava online já pronta, sem nenhuma explicação na tela nesse meio-tempo.
+
+Agora o console detecta quando uma instalação está em andamento durante um reinício e transmite os logs ao vivo, do mesmo jeito que já fazia ao criar uma aplicação.
+
+### Trocar a linguagem de uma aplicação existente
+
+Antes, escolher a linguagem errada ao criar uma aplicação era definitivo: a única saída era recriar a aplicação do zero, o que apagava o volume e todo o histórico de deploys. Agora o runtime pode ser trocado a qualquer momento, em **Geral → Ambiente**.
+
+Antes de confirmar a troca, o dashboard mostra os riscos reais da mudança:
+
+- ela só vale a partir do **próximo reinício**: o container em execução continua no runtime antigo até lá;
+- o **arquivo de entrada** e o **comando de start** não mudam automaticamente: um `index.js` escrito para Node não roda como aplicação Python, por exemplo;
+- a **versão do runtime** volta para a versão recomendada da nova linguagem, porque a versão antiga pode não existir nela;
+- nenhum arquivo do projeto é apagado por essa operação.
+
+As dependências do novo runtime continuam sendo instaladas automaticamente no primeiro reinício depois da troca — isso já acontecia e continua acontecendo. O que faltava era espaço: os pacotes do runtime antigo (uma pasta `node_modules` depois de trocar para Python, por exemplo) ficavam no volume ocupando a cota do plano, sem reinstalação nem remoção automática. Agora, na janela "reiniciar agora?" que aparece depois de salvar a troca, uma caixa opcional permite apagar os diretórios de artefatos conhecidos da linguagem anterior antes de instalar os novos — nunca um arquivo de código do projeto.
+
+### Snapshots mantêm o nome do projeto
+
+Cada snapshot agora guarda o **nome que o projeto tinha no momento em que foi feito**. Na lista de snapshots, ao abrir um projeto, aparece, além da data, o nome que ele usava naquele dia — útil quando o projeto foi renomeado e um snapshot de duas semanas atrás pertence a um "api-staging" que hoje tem outro nome. Quando o nome não mudou, nada se repete: só a diferença aparece.
+
+Snapshots de projetos **já excluídos** também deixaram de aparecer como código. Antes, ao excluir o projeto, o nome sumia da lista e restava só o identificador; agora o último nome conhecido permanece, com a indicação de que o projeto não existe mais.
+
+Snapshots feitos antes desta mudança continuam sem nome próprio: o nome de hoje não foi gravado retroativamente nas datas antigas, porque isso registraria uma informação que não era verdadeira naquele dia.

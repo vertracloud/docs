@@ -1,0 +1,108 @@
+---
+title: 'Autenticación de Blob Storage: claves de API, tokens de subida y workspaces'
+sidebarTitle: 'Autenticación'
+description: 'Qué credencial usar en Blob Storage: claves de API con blob:read y blob:write, tokens de subida para navegadores (vcup_) y permisos de workspace.'
+icon: 'key'
+---
+
+Blob Storage acepta tres credenciales, todas enviadas como `Authorization: Bearer <credential>`. Usa una clave de API en tu servidor y un token de subida en el navegador.
+
+| Credencial | Dónde | Qué puede hacer |
+|---|---|---|
+| Clave de API | Tu backend, scripts, CI | Todo lo que permitan sus scopes |
+| Token de subida (`vcup_...`) | Un navegador o una app móvil | Solo las rutas de subida, y solo dentro de los límites fijados al crearlo |
+| Par de claves S3 | aws-cli, rclone, boto3 | Lectura y escritura a través del [endpoint S3](/es-es/blob/s3-compatibility) |
+
+## Claves de API
+
+Crea las claves en **Configuraciones → Claves de API**. Dos scopes controlan Blob Storage:
+
+| Scope | Permite |
+|---|---|
+| `blob:read` | Listar y leer archivos, crear enlaces temporales, leer estadísticas, reglas, páginas compartidas, dominios y credenciales S3 |
+| `blob:write` | Subir, actualizar, copiar, mover y borrar archivos; crear páginas compartidas, tokens de subida, reglas y dominios |
+
+El preset **full** incluye ambos. Da a la automatización el scope más restringido: un trabajo que solo sirve descargas necesita `blob:read`. Una clave a la que le falte un scope se rechaza con `API_KEY_SCOPE_DENIED`. Consulta [Scopes](/api-reference/introduction#scopes).
+
+<CodeGroup>
+
+```bash cURL
+curl "https://blob.vertracloud.app/v1/stats" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+```javascript JavaScript
+import { BlobClient } from "@vertracloud/blob";
+const blob = new BlobClient({ apiKey: process.env.VERTRA_API_KEY });
+```
+
+```python Python
+from vertracloud import VertraClient
+client = VertraClient(api_key="your_key")
+client.blob.stats()
+```
+
+```go Go
+restClient, err := rest.NewClient(os.Getenv("VERTRA_API_KEY"))
+if err != nil {
+    log.Fatal(err)
+}
+client := vertracloud.New(restClient)
+
+stats, err := client.Blob.Stats(ctx)
+```
+
+</CodeGroup>
+
+## Tokens de subida
+
+Nunca pongas una clave de API en un navegador. En su lugar, tu backend pide un **token de subida**, que es de corta duración, está limitado y vinculado a tu clave de API (revocar la clave invalida sus tokens). El token solo funciona en las rutas de subida y lleva las reglas que fijaste:
+
+- `path` (un archivo exacto) o `prefix` (una carpeta), `visibility`, `cache_control`, `content_disposition`, `expires_at` y `metadata`;
+- `max_size` y `allowed_extensions` (de 1 a 20);
+- `overwrite` (por defecto `false`): sin él, una subida con el token nunca reemplaza un archivo existente;
+- `expires_in` de 60 a 3600 segundos (por defecto 900) y `max_uses` de 1 a 100 (por defecto 1).
+
+Un token sin `path` fijo siempre añade un sufijo aleatorio al nombre del archivo para que los usuarios no se sobrescriban entre sí. Usar un token fuera de su ruta, carpeta u opciones fijas responde `BLOB_UPLOAD_TOKEN_CONSTRAINT`; una extensión que no permite responde `BLOCKED_FILE_TYPE`; y un archivo por encima de su `max_size` responde `BLOB_FILE_TOO_LARGE`. Un token caducado o revocado responde `BLOB_UPLOAD_TOKEN_INVALID`.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://blob.vertracloud.app/v1/upload-tokens" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "prefix": "avatars/", "max_size": 5000000, "allowed_extensions": ["png", "jpg"] }'
+```
+
+```javascript JavaScript
+const { token } = await blob.createUploadToken({ prefix: "avatars/", maxSize: 5_000_000 });
+// en el navegador:
+const browserBlob = new BlobClient({ uploadToken: token });
+```
+
+```python Python
+token = client.blob.create_upload_token(prefix="avatars/", max_size=5_000_000)
+```
+
+```go Go
+token, err := client.Blob.CreateUploadToken(ctx, vertracloud.BlobUploadTokenInput{
+    Prefix:  "avatars/",
+    MaxSize: 5_000_000,
+})
+// entrega token.Token al navegador
+```
+
+</CodeGroup>
+
+Guía completa en [Servir subidas de usuarios](/es-es/guides/serve-user-uploads).
+
+## Workspaces
+
+Añade `?workspace_id=<id>` (o la opción de workspace del SDK) para actuar sobre el Blob Storage del **propietario** de un workspace. Los archivos y la cuota pertenecen al propietario. Un miembro necesita un permiso de workspace:
+
+| Permiso | Permite |
+|---|---|
+| `blob:read` | Rutas de solo lectura |
+| `blob:manage` | Rutas de escritura |
+
+Los roles de workspace existentes **no** reciben estos permisos automáticamente; el propietario los concede de forma explícita. Sin ellos, la llamada responde `WORKSPACE_PERMISSION_DENIED`. Consulta [Workspaces](/es-es/workspaces).

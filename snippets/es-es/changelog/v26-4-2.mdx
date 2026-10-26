@@ -1,0 +1,73 @@
+### Despliegues sin tiempo de inactividad en Enterprise
+
+En Enterprise, un despliegue o un reinicio puede ahora arrancar la nueva versión junto a la que está en ejecución, comprobar que responde correctamente y solo entonces cambiar el tráfico. Así, una aplicación que recibe tráfico web sigue accesible mientras se actualiza. La versión anterior recibe una petición de apagado en cuanto la nueva ha tomado el relevo.
+
+- **Modos:** `off` (el predeterminado, también para las aplicaciones creadas antes de esta actualización) sigue deteniendo primero la versión en ejecución; `auto` usa el despliegue sin tiempo de inactividad para las aplicaciones que reciben tráfico web; `on` lo fuerza, incluso en aplicaciones sin tráfico web. Los bots y otras aplicaciones sin tráfico web siguen con detener y arrancar en `auto`, porque dos copias de un bot responderían dos veces al mismo evento. Actívalo en la configuración de la aplicación, en **Deploy**; se aplica desde el próximo reinicio o despliegue.
+- **Ruta de comprobación de estado:** define la ruta que la plataforma llama en la nueva versión, `/` por defecto, con el nuevo campo `deploy.health_check_path` de [Actualizar configuración de la aplicación](/api-reference/endpoint/apps/updateconfig) o en la configuración de la aplicación. Cualquier respuesta HTTP cuenta como correcta, incluido un `404`; una conexión rechazada, un timeout o una respuesta `5xx` no.
+- **Despliegues descartados:** si la nueva versión no responde correctamente en unos 2 minutos, se descarta, recibes un aviso con su log y la versión anterior sigue en ejecución. El log en vivo muestra el mismo aviso.
+- **Alternativa:** si en ese momento no se puede arrancar la segunda copia, el despliegue vuelve a detener primero la versión en ejecución.
+
+Ambas versiones comparten durante un breve periodo la carpeta de la aplicación, así que lee las [limitaciones](/es-es/guides/rollback-and-zero-downtime-deploys#limitaciones-conocidas) antes de activarlo en una aplicación que escribe archivos de datos o que lee sus archivos en cada petición. La nueva [guía de rollback y despliegues sin tiempo de inactividad](/es-es/guides/rollback-and-zero-downtime-deploys) explica cómo funcionan juntos los releases, el rollback y los despliegues sin tiempo de inactividad.
+
+### Rollback automático cuando una nueva versión no arranca
+
+En Intermediary y Enterprise, una aplicación que se detiene en los 60 segundos posteriores a un despliegue vuelve ahora a su versión anterior por sí sola, de modo que un despliegue defectuoso ya no deja la aplicación caída.
+
+- **Cuándo actúa:** solo si la nueva versión se detiene en los primeros 60 segundos tras un despliegue. Una parada posterior se trata como una caída normal y la gestiona el reinicio automático.
+- **Una sola vez:** la plataforma vuelve atrás una única vez. Si la versión anterior también se detiene, la aplicación queda detenida y se te notifica.
+- **Qué vuelve:** los archivos de código, no las variables de entorno. Para recuperar las variables, usa el rollback manual con la opción de variables.
+- **Te avisamos:** recibes una notificación, la pestaña Rollbacks marca la versión fallida con su log, y el rollback automático aparece como una nueva versión creada por Vertra Cloud. El log en vivo de la aplicación muestra los mismos avisos.
+- **Configuración:** está desactivado por defecto, también para las aplicaciones creadas antes de esta actualización. Actívalo en la configuración de la aplicación, en **Deploy**, o con el nuevo campo `deploy.auto_rollback` de [Actualizar configuración de la aplicación](/api-reference/endpoint/apps/updateconfig). Cambiarlo no reinicia la aplicación.
+
+[Obtener aplicación](/api-reference/endpoint/apps/get) devuelve ahora un objeto `deploy` con la configuración de despliegue guardada. Tras bajar de plan, el valor guardado se mantiene, pero solo actúa en un plan que incluya la función.
+
+### Snapshot de seguridad al eliminar una aplicación
+
+En Pro y superiores, eliminar una aplicación toma ahora primero un snapshot de seguridad, igual que ya ocurría al eliminar una base de datos. El snapshot se conserva 30 días en **Snapshots**, donde puedes descargarlo.
+
+- **Si el snapshot falla,** la aplicación no se elimina y la petición responde `SNAPSHOT_FAILED`; contacta con soporte. Demasiados snapshots de seguridad en poco tiempo responden `FORCED_SNAPSHOT_RATE_LIMIT`.
+- **En Free y Economy,** la aplicación se elimina de inmediato, sin copia. El diálogo de eliminación lo indica y ofrece descargar antes el proyecto.
+- **El vencimiento del plan** sigue tomando un snapshot de cada proyecto antes de eliminarlo, en todos los planes.
+
+### Volver a una versión anterior de una aplicación
+
+La pestaña **Rollbacks** permite ahora volver a una versión anterior del código de una aplicación. Elige una versión y confírmala: la aplicación recupera el código que tenía en esa versión y se reinicia.
+
+- **Qué vuelve:** todo el código de esa versión. Los archivos de código que esa versión no tenía se eliminan.
+- **Qué se mantiene:** los datos que la aplicación creó mientras se ejecutaba, como un archivo de base de datos o las subidas. Para recuperar datos, usa un snapshot.
+- **Variables de entorno (opcional):** marca la opción para restaurar las variables guardadas con esa versión. La confirmación solo enumera los nombres de las variables que se añadirán, cambiarán o eliminarán. Nunca se muestran los valores.
+- **Deshacer:** un rollback es una nueva versión en el historial, así que puedes volver a la versión de la que venías. Dos rollbacks de la misma aplicación requieren 30 segundos de separación.
+- **Límites por plan:** el rollback empieza en Pro. Pro conserva las 3 versiones anteriores durante 7 días, Scale 5 durante 14 días, Intermediary 10 durante 30 días, y Enterprise de 15 a 30 según el nivel, durante 30 días. El plazo de una versión empieza cuando deja de ejecutarse; la versión en ejecución nunca caduca. Economy y Free muestran el historial sin la opción de rollback.
+
+La API tiene una [vista previa](/api-reference/endpoint/apps/releases/rollback-preview) de los cambios de variables y un endpoint de [rollback](/api-reference/endpoint/apps/releases/rollback). Hacer rollback requiere el permiso `apps:write`, además de `apps:envs` al restaurar variables.
+
+### Historial de despliegues y mensajes de commit para cada aplicación
+
+Cada aplicación tiene ahora una pestaña **Rollbacks** en el panel. Lista cada versión del código de la aplicación, sea cual sea su origen: un push a GitHub, la CLI, una subida desde el panel o la API, o una edición en el gestor de archivos. Cada entrada muestra su estado, mensaje, autor, fecha y tiempo de build. La pestaña está disponible en todos los planes.
+
+El historial empieza con el primer envío de código posterior a esta actualización. Las aplicaciones creadas desde un snapshot no tienen una entrada inicial. Las ediciones hechas en el gestor de archivos se agrupan en el historial en el siguiente reinicio o envío de código. Los archivos enviados sin reiniciar aparecen como **Pendiente de reinicio** hasta que la aplicación se reinicia, porque hasta entonces sigue ejecutando la versión anterior.
+
+Puedes escribir un mensaje para cada versión:
+
+- **Panel:** un campo de mensaje opcional en el diálogo de subida.
+- **API:** un campo `message` en el endpoint de subida de archivos.
+- **CLI:** `vertra app commit -m "..."`. Sin `-m`, dentro de un repositorio git, la CLI usa el asunto del último commit.
+
+La API expone el mismo historial a tus herramientas. [Listar releases](/api-reference/endpoint/apps/releases/list) devuelve las versiones de una aplicación, y [log de release](/api-reference/endpoint/apps/releases/log) devuelve el log de una de ellas. Ambos requieren el permiso `apps:read`. El SDK de Go añade `Apps.Releases()` y un campo `Message` en las subidas.
+
+### El despliegue automático desde GitHub construye el commit que enviaste
+
+El despliegue automático desde GitHub construye ahora exactamente el commit que se envió. Antes, el build tomaba lo que hubiera en la punta de la rama cuando empezaba la descarga, así que dos push seguidos podían mostrar un commit en el historial de despliegues mientras se ejecutaba uno más nuevo. Ahora cada despliegue coincide con el commit que muestra.
+
+Un push que elimina la rama `main` o `master` ya no inicia un despliegue.
+
+### Releases, rollback y ajustes de despliegue desde la CLI, los SDK y MCP
+
+La CLI, los SDK de JavaScript, Python y Go, y el servidor MCP cubren ahora releases, rollback y ajustes de despliegue, con los mismos planes y permisos de clave de API que el panel y la API.
+
+- **CLI:** `vertra app releases` lista las versiones y `vertra app releases log` muestra el log de una fallida. `vertra app rollback` muestra lo que va a pasar y pide confirmación antes de ejecutarlo; con `--env` solo lista los nombres de las variables que cambian. Sin terminal necesita `--yes`. `vertra app config` acepta `--zero-downtime`, `--auto-rollback`, `--health-path` y `--clear-health-path`.
+- **SDK:** `apps.releases` lista releases, lee un log, previsualiza un rollback y lo ejecuta, en los tres lenguajes. Al actualizar la configuración de una aplicación se aceptan los ajustes de despliegue, y las subidas aceptan un mensaje.
+- **MCP:** nuevas herramientas `list_releases`, `get_release_log`, `preview_rollback` y `rollback_app`. `rollback_app` está marcada como destructiva, así que tu cliente te pedirá confirmación. `update_app_config` acepta los ajustes de despliegue y `deploy_app` acepta un mensaje.
+- **Permisos:** `apps:read` para listar y leer logs, `apps:envs` para la vista previa y para restaurar variables, y `apps:write` para hacer rollback.
+
+Consulta [CLI](/es-es/cli#releases-y-rollback), [SDK](/es-es/sdks#releases-y-rollback), [MCP](/es-es/mcp#releases-rollback-y-ajustes-de-despliegue) y la [guía de rollback y despliegues sin tiempo de inactividad](/es-es/guides/rollback-and-zero-downtime-deploys).

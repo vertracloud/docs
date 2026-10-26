@@ -1,0 +1,107 @@
+---
+title: 'Como hospedar uma aplicação .NET na Vertra Cloud'
+sidebarTitle: '.NET (C#)'
+description: 'Faça deploy de um projeto ASP.NET Core ou de console na Vertra Cloud: o .csproj como main, publicação em Release na plataforma e ASPNETCORE_HTTP_PORTS.'
+icon: 'code'
+---
+
+## Requisitos
+
+- .NET SDK 10 instalado localmente
+- Conta na [Vertra Cloud](https://vertracloud.app)
+- Um projeto ASP.NET Core ou de console com um `.csproj`
+
+## Estrutura do projeto
+
+```
+my-server-dotnet/
+├── Program.cs
+├── MyServer.csproj
+└── vertracloud.config
+```
+
+A plataforma detecta o .NET pelo `.csproj`, `.fsproj`, `.sln` ou `global.json` na raiz do projeto. Ela publica o projeto em modo Release com `dotnet publish` e inicia o resultado.
+
+## Configuração
+
+### MyServer.csproj
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
+```
+
+### vertracloud.config
+
+```ini
+MAIN=MyServer.csproj
+VERSION=recommended
+```
+
+`MAIN` é o arquivo `.csproj`.
+
+## Exemplo: Minimal API
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+app.MapGet("/", () => Results.Json(new { message = ".NET on Vertra Cloud", version = "1.0.0" }));
+app.MapGet("/health", () => Results.Json(new { status = "healthy", service = "dotnet-api" }));
+
+app.Run();
+```
+
+A aplicação precisa escutar na porta definida por `ASPNETCORE_HTTP_PORTS`. A plataforma já a define como 80, então você não precisa configurar a porta no código nem com configurações extras.
+
+## Deploy
+
+<Tabs>
+  <Tab title="Painel">
+    1. Compacte o projeto em um `.zip` ou envie para o GitHub.
+    2. No painel, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**.NET**), o arquivo principal (`MyServer.csproj`) e a memória. Os comandos de start e de build ficam em **Configurações Avançadas**.
+    4. Adicione suas variáveis de ambiente em **Ambiente**.
+    5. Em **Rede**, ative a **publicação web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Fazer deploy do projeto atual**. Veja [Extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 10.0.402 | Recomendada e mais recente | .NET 10 (recomendada para produção) |
+
+## Observações
+
+- **Build**: o projeto é publicado com `dotnet publish` em modo Release durante o deploy, então o primeiro deploy pode levar alguns minutos. Dê memória suficiente ao build
+- **Excluir do zip**: as pastas `bin` e `obj`
+- **Variáveis de ambiente**: leia com `Environment.GetEnvironmentVariable("KEY")` ou por meio de `builder.Configuration`
+- **Logs**: use `ILogger` ou `Console.WriteLine()` para logs que aparecem em tempo real
+- Mantenha `TargetFramework` em `net10.0`
+
+## Erros comuns
+
+- **Arquivo de projeto não encontrado**: `MAIN` precisa apontar para o `.csproj`, relativo à raiz do zip.
+- **O site não abre**: a aplicação precisa escutar na porta definida em `ASPNETCORE_HTTP_PORTS` (80). Remova qualquer porta fixa no código, para que a aplicação siga `ASPNETCORE_HTTP_PORTS`.
+- **O build fica sem memória**: aumente a memória da aplicação e faça o deploy novamente. Veja [Erros comuns](/pt-br/common-errors).

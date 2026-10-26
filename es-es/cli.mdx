@@ -1,0 +1,157 @@
+---
+title: 'Gestiona Vertra Cloud desde la terminal'
+sidebarTitle: 'CLI'
+description: 'Instala el comando vertra en macOS, Linux o Windows y despliega, sigue logs y gestiona tus recursos desde la terminal.'
+icon: 'terminal'
+---
+
+## Instalación
+
+La CLI es un único binario sin dependencias: no necesita Node.js.
+
+<Tabs>
+  <Tab title="macOS y Linux">
+    ```bash
+    curl -fsSL https://cli.vertracloud.app/install | sh
+    ```
+  </Tab>
+  <Tab title="Windows">
+    En PowerShell:
+
+    ```powershell
+    irm https://cli.vertracloud.app/install | iex
+    ```
+  </Tab>
+</Tabs>
+
+El instalador descarga la última versión para tu sistema y procesador (x64 o ARM), verifica su suma de comprobación SHA-256 y
+añade el comando `vertra` a tu `PATH`. Abre una terminal nueva y compruébalo:
+
+```bash
+vertra --version
+```
+
+Para actualizar, ejecuta de nuevo el comando de instalación. Para instalar una versión concreta, define `VERTRA_VERSION`
+(por ejemplo, `VERTRA_VERSION=v0.3.0`) antes de ejecutarlo. `VERTRA_INSTALL_DIR` cambia la ubicación del binario (por defecto
+`~/.vertracloud/bin`, o `%USERPROFILE%\.vertracloud\bin` en Windows).
+
+También puedes descargar el binario de tu plataforma directamente desde la
+[página de releases](https://github.com/vertracloud/cli/releases).
+
+## Conectar tu cuenta
+
+```bash
+vertra auth login
+```
+
+Pega una clave de API creada en la página de claves de API del panel. En CI y en scripts, define la variable de entorno
+`VERTRA_API_KEY` en su lugar: tiene prioridad sobre la clave guardada.
+
+## Primer despliegue
+
+```bash
+vertra doctor   # revisa el proyecto en busca de problemas antes de enviarlo
+vertra upload   # crea la aplicación desde el directorio actual y vincula la carpeta a ella
+vertra logs -f  # sigue la salida de la aplicación en vivo
+```
+
+`vertra upload` (también `vertra app upload` o `vertra app create`) crea una aplicación nueva. Lee `NAME`, `MEMORY`, `MAIN`, `VERSION`, `SUBDOMAIN`, `START` y `LANGUAGE` de [`vertracloud.config`](/es-es/configuration) y pide el nombre, la memoria y el archivo principal cuando faltan; en scripts, pasa `--name`, `--memory` y `--main`. Al terminar, guarda el `ID` de la nueva aplicación en `vertracloud.config`.
+
+A partir de ahí, `vertra deploy` (un alias de `vertra app commit`) envía el directorio actual a esa aplicación existente. Nunca crea una: sin aplicación vinculada, pregunta cuál actualizar o falla en scripts si no pasas el ID de la aplicación.
+
+Crear una aplicación es asíncrono: cuando `vertra upload` crea una aplicación nueva, la CLI espera
+a que termine el build y muestra su resultado. Añade `--no-wait` para volver justo después de la subida; la aplicación sigue
+compilándose en segundo plano.
+
+Añade `--json` a cualquier comando para obtener una salida estructurada, lista para automatizar.
+
+Para dar un mensaje a un despliegue en el [historial de despliegues](/es-es/guides/rollback-and-zero-downtime-deploys#qué-es-una-release),
+usa `vertra app commit -m "fix login"`. Sin `-m`, dentro de un repositorio git, la CLI usa el asunto del último commit.
+
+## Vincular una carpeta a una aplicación
+
+Una carpeta está vinculada a una aplicación cuando su `vertracloud.config` tiene una línea `ID=`. `vertra upload` la escribe
+por ti. Los comandos que reciben un ID de aplicación (`deploy`, `logs`, `app releases`, `app env`...) usan la aplicación vinculada
+cuando omites el ID.
+
+```bash
+vertra link              # elige una de tus aplicaciones y vincula esta carpeta a ella
+vertra link <app-id>     # vincula esta carpeta a una aplicación concreta
+vertra link --show       # muestra los valores de vertracloud.config de la carpeta
+vertra unlink            # elimina la línea ID; la aplicación no se toca
+```
+
+Sin vínculo, una terminal interactiva muestra un selector y un script falla pidiendo el ID. Otros comandos que te pueden interesar: `vertra projects` lista tus aplicaciones y bases de datos juntas, con su estado, y `vertra lang pt|en|es` define el idioma de los mensajes de la CLI (`--lang` o `VERTRA_LANG` lo sustituyen en una sola ejecución).
+
+## Releases y rollback
+
+```bash
+vertra app releases                      # versiones de la aplicación vinculada, de la más reciente a la más antigua
+vertra app releases log <release-id>     # log de una versión que falló
+vertra app rollback <release-id>         # vuelve a esa versión y reinicia
+vertra app rollback <release-id> --env   # restaura también sus variables de entorno
+```
+
+Cada comando acepta un ID de aplicación opcional antes del ID de la release; sin él, la CLI usa la aplicación vinculada o te deja
+elegir una. `releases` acepta `--page` y `--limit`, y muestra qué versiones todavía pueden restaurarse.
+
+`rollback` está disponible desde el plan Pro. Antes de ejecutarse, la CLI muestra lo que va a pasar y te pide confirmación. Con
+`--env`, solo lista los **nombres** de las variables que se añadirían, cambiarían o eliminarían, nunca sus valores. Sin `--env`,
+tus variables actuales se mantienen. En CI, o en cualquier lugar sin terminal, pasa `--yes` (`-y`); sin él, el comando falla en
+lugar de hacer rollback sin preguntar.
+
+Listar y leer logs necesita una clave de API con el alcance `apps:read`. Hacer rollback necesita `apps:write`, además de
+`apps:envs` para `--env`.
+
+## Dominios personalizados
+
+```bash
+vertra app domains list [<app-id>]
+vertra app domains add example.com [--app <id>] [--port 3000] [--path-prefix /api] [--no-www]
+vertra app domains add old.com --redirect-to example.com --redirect-status 301
+vertra app domains update <domain-id|hostname> [--app <id>] [--port 8080] [--path-prefix /v1] [--redirect-to <domain>] [--redirect-status 308] [--primary]
+vertra app domains dns <domain-id|hostname> [--app <id>]   # registros que debes crear en tu proveedor de DNS
+vertra app domains remove <domain-id|hostname> [--app <id>] [--yes]
+```
+
+Cada comando acepta el ID del dominio o su nombre de host. `add` también crea el complemento automático `www`/raíz, salvo que
+pases `--no-www`; el complemento no cuenta para el límite de dominios de tu plan. `--port` va de 1 a 65535, `--redirect-status`
+es 301, 302, 307 u 308 (por defecto 308), y `--path-prefix` es una ruta literal como `/api`. En `update`, un `--path-prefix ""`
+o `--redirect-to ""` vacío borra el valor, y `--primary` convierte el dominio en el principal en lugar de su complemento. `remove`
+pide confirmación y también elimina el complemento, salvo que el dominio que eliminas sea el propio complemento. Consulta
+[Dominio personalizado](/es-es/guides/custom-domain) para saber cómo funcionan los dominios, los puertos y los prefijos de ruta.
+
+`app stop`, `db stop`, `app env remove` y los comandos destructivos piden confirmación; pasa `--yes` en las automatizaciones.
+Si se rechaza, el comando termina con estado 1 y "Operation cancelled." (con `--json`, un error con código `CANCELLED`), nunca
+como éxito.
+
+## Blob Storage
+
+```bash
+vertra blob ls photos/                       # archivos y carpetas bajo un prefijo
+vertra blob put ./logo.png images/logo.png   # privado por defecto; --public para una URL pública
+vertra blob put ./logo.png --rename          # si el nombre ya existe, guarda como logo-1.png, logo-2.png, ...
+vertra blob put ./logo.png --overwrite       # reemplaza el archivo que ya hay en esa ruta
+vertra blob get images/logo.png ./logo.png   # descarga mediante un enlace temporal; nunca sobrescribe
+vertra blob link <object-id> --expires 600   # enlace de descarga temporal (de 60 a 86400 segundos)
+vertra blob rm <object-id> --yes             # elimina por ID
+vertra blob stats                            # uso frente a la cuota del plan
+```
+
+`get` acepta un ID de objeto o la ruta exacta. Los archivos grandes se envían por partes automáticamente, con una barra de
+progreso. Listar, descargar, crear enlaces y consultar el uso necesitan una clave de API con el alcance `blob:read`; subir y
+eliminar necesitan `blob:write`. Consulta [Blob Storage](/es-es/blob/overview).
+
+## Comportamiento de los despliegues
+
+```bash
+vertra app config <id> --zero-downtime auto    # auto | on | off
+vertra app config <id> --auto-rollback on      # on | off
+vertra app config <id> --health-path /health   # o --clear-health-path
+```
+
+- `--zero-downtime`: `on` necesita el plan Enterprise.
+- `--auto-rollback`: necesita Intermediary o superior.
+- `--health-path`: empieza por `/`, no contiene espacios y tiene hasta 200 caracteres. `vertra app info` muestra los valores actuales.
+
+Consulta [Rollbacks y despliegues sin interrupción](/es-es/guides/rollback-and-zero-downtime-deploys) para saber qué hace cada ajuste.

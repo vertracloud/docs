@@ -1,0 +1,106 @@
+---
+title: 'Links do Blob Storage: URLs públicas, links temporários e visibilidade'
+sidebarTitle: 'Links e visibilidade'
+description: 'Como servir um arquivo do Blob: URL pública permanente, link de download de até 24 horas ou página de compartilhamento, com cache e expiração.'
+icon: 'link'
+---
+
+Um arquivo pode ser acessado de três formas: uma URL pública permanente, um link temporário ou uma [página de compartilhamento](/pt-br/blob/sharing). Escolha conforme quem precisa de acesso e por quanto tempo.
+
+| | URL pública | Link temporário | Página de compartilhamento |
+|---|---|---|---|
+| O arquivo precisa ser | Público | Público ou privado | Privado (por proteção) |
+| Duração | Permanente | 60 s a 24 h (padrão 1 h) | 60 s a 30 dias (padrão 24 h) |
+| Revogável | Torne o arquivo privado | **Não**, ele expira sozinho | Sim |
+| Limites | Nenhum | Nenhum | Contagem de downloads, senha |
+| Em cache na CDN | Sim | Não | Não |
+
+## URL pública
+
+Um arquivo público é servido em `https://blob.vertracloud.dev/<namespace>/<path>`. O campo `url` do objeto do arquivo já contém esse endereço, com o caminho codificado corretamente. Como é permanente e fica em cache, use-a para avatares, imagens do site e downloads que qualquer pessoa pode buscar.
+
+## Link temporário
+
+[Download](/api-reference/endpoint/blob/objects/download) cria um link em `blob.vertracloud.dev` que funciona sem credenciais até `expires_at`. Por padrão, a rota responde `302` e redireciona; passe `redirect=false` para receber `{ url, expires_at }`.
+
+| Parâmetro | Significado |
+|---|---|
+| `expires_in` | 60 a 86400 segundos, padrão 3600 |
+| `disposition` | `inline` ou `attachment` |
+| `filename` | Nome com o qual o navegador salva o arquivo |
+| `redirect` | `false` devolve JSON em vez de redirecionar |
+
+<Warning>Um link temporário não pode ser revogado. Quem o tiver pode baixar até ele expirar, então mantenha `expires_in` tão curto quanto o uso permitir. Se precisar cortar o acesso antes do prazo, use um [compartilhamento](/pt-br/blob/sharing).</Warning>
+
+<CodeGroup>
+
+```bash cURL
+curl "https://blob.vertracloud.app/v1/objects/$OBJECT_ID/download?expires_in=300&disposition=attachment&filename=invoice.pdf&redirect=false" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+```javascript JavaScript
+const { url } = await blob.downloadUrl(id, {
+  expiresIn: 300,
+  disposition: "attachment",
+  filename: "invoice.pdf",
+});
+```
+
+```python Python
+link = client.blob.download_url(id, expires_in=300, disposition="attachment", filename="invoice.pdf")
+```
+
+```go Go
+link, err := client.Blob.DownloadURL(ctx, id, &vertracloud.BlobDownloadOptions{
+    ExpiresIn:   300,
+    Disposition: "attachment",
+    Filename:    "invoice.pdf",
+})
+// link.URL, link.ExpiresAt
+```
+
+</CodeGroup>
+
+## Alterando a visibilidade
+
+Trocar um arquivo entre público e privado nunca muda o `id`, só faz a `url` existir ou não. Tornar um arquivo privado o tira da CDN imediatamente e limpa a cópia em cache.
+
+<CodeGroup>
+
+```bash cURL
+curl -X PATCH "https://blob.vertracloud.app/v1/objects/$OBJECT_ID" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "visibility": "private" }'
+```
+
+```javascript JavaScript
+await blob.update(id, { visibility: "private" });
+await blob.updateMany(ids, { visibility: "private" }); // até 100 de uma vez
+```
+
+```python Python
+client.blob.update(id, visibility="private")
+client.blob.update_many(ids, visibility="private")
+```
+
+```go Go
+_, err := client.Blob.Update(ctx, id, vertracloud.BlobUpdate{Visibility: "private"})
+_, err = client.Blob.UpdateMany(ctx, ids, vertracloud.BlobUpdate{Visibility: "private"})
+```
+
+</CodeGroup>
+
+## Cache, nome do arquivo e disposition
+
+| Campo | Valores |
+|---|---|
+| `cache_control` | `immutable`, `max-age=N`, ou `no-cache` nos planos Enterprise mais altos; `null` restaura o padrão |
+| `content_disposition` | `inline` mostra no navegador, `attachment` baixa. HTML, SVG e XML são sempre `attachment` |
+| `filename` | O nome usado quando o arquivo é baixado |
+
+Use `immutable` para arquivos cujo caminho embute um hash ou um sufixo aleatório, pois eles nunca mudam. Os padrões válidos para a pasta toda ficam nas [regras de pasta](/pt-br/blob/folder-rules).
+
+## Expiração
+
+Defina `expires_at` e o arquivo é apagado automaticamente depois desse horário. A menor expiração permitida é de 7 dias; Enterprise-26 e acima podem chegar a 1 hora. Envie `expires_at: null` em uma atualização para manter o arquivo para sempre.

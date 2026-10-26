@@ -1,0 +1,127 @@
+---
+title: 'Como hospedar uma aplicação Next.js na Vertra Cloud'
+sidebarTitle: 'Next.js'
+description: 'Faça deploy de um app Next.js com SSR ou SSG na Vertra Cloud: saída standalone, build_command que roda npm run build a cada deploy e 512 MB de RAM.'
+icon: 'react'
+---
+
+## Requisitos
+
+- Node.js 18+ instalado localmente
+- Conta na [Vertra Cloud](https://vertracloud.app)
+
+## Estrutura do projeto
+
+```
+my-app-next/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   └── components/
+├── public/
+├── next.config.js
+├── package.json
+└── vertracloud.config
+```
+
+## Configuração
+
+### next.config.js
+
+Para o deploy na Vertra Cloud, configure o modo `standalone` para otimizar o tamanho do build:
+
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone',
+};
+
+module.exports = nextConfig;
+```
+
+### package.json
+
+```json
+{
+  "name": "my-app-next",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p 80"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=package.json
+BUILD=npm run build
+START=npx next start -p 80
+VERSION=recommended
+```
+
+<Warning>
+  O Next.js precisa ser compilado antes de iniciar. Defina o `build_command` como `npm run build` (ou a chave `BUILD` acima), em vez de encadeá-lo ao comando de start — ele roda em um ambiente de build isolado (2× a RAM e a vCPU da aplicação, timeout de 10 minutos) a cada deploy, e um restart simples o pula quando o último build já teve sucesso.
+</Warning>
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 24.22.1 | Mais recente | Node.js 24.22.1 (versão mais recente) |
+| 22.23.4 | Recomendada | Node.js 22.23.4 LTS (recomendada para produção) |
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie-o ao GitHub.
+    2. No dashboard, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**JavaScript ou TypeScript**) e a memória. Em **Configurações avançadas**, confirme o comando de build `npm run build` e o comando de start `npx next start -p 80`; ambos já vêm preenchidos para projetos Next.js.
+    4. Adicione suas variáveis de ambiente em **Variáveis de Ambiente**.
+    5. Em **Rede**, ative a **publicação na web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja a [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Deploy current project**. Veja a [extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Observações
+
+- **Memória recomendada**: 512 MB ou mais (o processo de build é intensivo)
+- **Variáveis de ambiente**: configure pelo dashboard antes do primeiro build
+- Use `output: 'standalone'` para reduzir o tamanho do build
+- As **API Routes** do Next.js funcionam normalmente na plataforma
+- A aplicação precisa escutar na **porta 80**
+
+## Problemas comuns
+
+<AccordionGroup>
+  <Accordion title="O build falha por falta de memória">
+    O ambiente de build já recebe 2× a RAM da aplicação automaticamente. Se ainda assim falhar,
+    aumente a memória da própria aplicação para pelo menos 512 MB — o ambiente de build escala com ela.
+  </Accordion>
+  <Accordion title="O build excede o limite de tempo">
+    O `build_command` tem um teto de 10 minutos (`BUILD_TIMEOUT`). Reduza as dependências ou divida um build muito grande.
+  </Accordion>
+  <Accordion title="A página retorna 404">
+    Verifique se o `output: 'standalone'` está configurado e se o build terminou com sucesso nos logs.
+  </Accordion>
+</AccordionGroup>

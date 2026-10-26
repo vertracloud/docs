@@ -1,0 +1,49 @@
+### Las bases de datos nuevas tienen un usuario `vertracloud` propio
+
+Las bases de datos creadas desde esta versión incluyen un usuario propio llamado `vertracloud` y una base de datos predeterminada llamada `vertracloud`, en los cuatro motores:
+
+| Motor | Usuario | Base de datos predeterminada | Cadena de conexión |
+|---|---|---|---|
+| PostgreSQL | `vertracloud` (es propietario de su base de datos y puede crear bases de datos y roles) | `vertracloud` | `postgresql://vertracloud:<password>@<host>:<port>/vertracloud` |
+| MySQL | `vertracloud` (acceso completo a la base de datos `vertracloud`) | `vertracloud` | `mysql://vertracloud:<password>@<host>:<port>/vertracloud` |
+| MongoDB | `vertracloud` (lectura, escritura y administración en todas las bases de datos) | `vertracloud` | `mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin` |
+| Redis | `vertracloud` | — | `rediss://vertracloud:<password>@<host>:<port>` |
+
+TLS con el certificado de cliente sigue siendo obligatorio, como antes. El panel, la API y el servidor MCP muestran el usuario y la cadena de conexión correctos para cada base de datos.
+
+### Redis: el nombre de usuario ya es obligatorio en las bases de datos nuevas
+
+En las nuevas bases de datos de Redis, inicia sesión con el usuario y la contraseña (`AUTH vertracloud <password>`, o el usuario en la URL). Una contraseña sola se rechaza. Usa la cadena de conexión que se muestra en el panel al crear una nueva base de datos de Redis.
+
+### `username` en la API
+
+El objeto de base de datos que devuelve la API incluye ahora `username`. Léelo en lugar de suponer el usuario según el motor, ya que las bases de datos antiguas y las nuevas usan usuarios distintos. Consulta [Bases de datos](/es-es/databases).
+
+### Las aplicaciones solo pueden escribir en `/app`, `/tmp`, `/var/tmp` y `/run`
+
+El resto del sistema de archivos del contenedor es ahora de solo lectura, y `HOME` es `/app`. Todo lo que tu aplicación escriba en su directorio personal (cachés de gestores de paquetes, carpetas de configuración) va a `/app` y cuenta para la cuota de disco. `/tmp` equivale a la mitad de la RAM de la aplicación, con un mínimo de 128 MB y un máximo de 1 GB, y `/var/tmp` se limita a 64 MB; ambos viven en memoria y se vacían en cada reinicio. Una aplicación que escriba en cualquier otro lugar recibe un error de sistema de archivos de solo lectura. Las aplicaciones cambian a este modo en su próximo despliegue o reinicio.
+
+Los archivos temporales ya no se acumulan en tu proyecto: la variable TMPDIR de la aplicación ya no se redirige a la carpeta del proyecto tras instalar las dependencias, así que los archivos temporales van a `/tmp` y se vacían al reiniciar.
+
+### Elige la versión de la base de datos
+
+Al crear una base de datos puedes elegir ahora su versión, en el panel o con `version` en la API. La versión recomendada es la predeterminada.
+
+| Motor | Versiones |
+|---|---|
+| PostgreSQL | 18 (recomendada), 17 |
+| MySQL | 9.7 (recomendada, LTS), 8.4 (LTS) |
+| MongoDB | 8.0 (recomendada), 9.0 |
+| Redis | 8.2 (recomendada), 7.2 |
+
+El objeto de base de datos devuelve `version`, y el nuevo endpoint [Listar versiones de bases de datos](/api-reference/endpoint/databases/versions) muestra lo disponible por motor. Un `version` fuera de la lista falla con `INVALID_DATABASE_VERSION`.
+
+Al crear una base de datos desde un snapshot, empieza con la versión mayor del snapshot (un snapshot de MySQL 8.0 crea una base de datos MySQL 8.4, y un snapshot de Redis 7.4 crea una de Redis 8.2). `version` puede ser igual o más reciente, y una anterior falla con `SNAPSHOT_VERSION_NEWER`. Restaurar un snapshot tomado en una versión más reciente en una base de datos más antigua falla con el mismo código, y no se modifica nada.
+
+### Actualizaciones de seguridad al reiniciar
+
+Las bases de datos existentes mantienen su versión mayor. Las actualizaciones de seguridad (versiones de parche) se aplican automáticamente cada vez que se reinicia la base de datos: deténla y vuelve a iniciarla desde el panel. Las bases de datos MySQL 8.0 existentes siguen en 8.0 y las de Redis 7.4 siguen en 7.4; ninguna de estas versiones está disponible para bases de datos nuevas. Si usas índices `btree_gist` sobre columnas float o índices `ltree` en PostgreSQL, ejecuta `REINDEX` sobre ellos después del reinicio.
+
+### Corrección: restablecimiento de contraseña de MySQL
+
+El restablecimiento de la contraseña de una base de datos MySQL creada con el usuario `vertracloud` ya surte efecto. Antes de esta corrección, la nueva contraseña se mostraba pero no se aplicaba, y la anterior seguía funcionando.

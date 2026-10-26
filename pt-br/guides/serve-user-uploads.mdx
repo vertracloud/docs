@@ -1,0 +1,102 @@
+---
+title: 'Deixe os usuários enviarem arquivos direto ao Blob Storage'
+sidebarTitle: 'Servir uploads de usuários'
+description: 'Permita que o navegador envie arquivos direto ao Blob Storage com um token de upload de curta duração criado pelo backend e salve a URL no banco.'
+icon: 'cloud-arrow-up'
+---
+
+Para aceitar uploads dos seus usuários, o seu backend cria um **token de upload** de curta duração, e o navegador envia o
+arquivo diretamente ao Blob Storage com ele. O arquivo nunca passa pela sua aplicação, e a sua chave de API nunca chega ao navegador.
+
+<Steps>
+  <Step title="Crie o token no seu backend">
+    Defina tudo o que o navegador não pode escolher: pasta, tamanho, extensões e visibilidade. Um token com `prefix` adiciona um
+    sufixo aleatório a cada nome, então os usuários não conseguem sobrescrever uns aos outros.
+
+    <CodeGroup>
+
+    ```javascript JavaScript
+    import { BlobClient } from "@vertracloud/blob";
+    const blob = new BlobClient({ apiKey: process.env.VERTRA_API_KEY });
+
+    app.post("/avatar-token", async (req, res) => {
+      const { token } = await blob.createUploadToken({
+        prefix: `avatars/${req.user.id}/`,
+        visibility: "public",
+        maxSize: 5_000_000,
+        allowedExtensions: ["png", "jpg", "webp"],
+        expiresIn: 300,
+        maxUses: 1,
+      });
+      res.json({ token, path: `avatars/${req.user.id}/avatar.png` });
+    });
+    ```
+
+    ```python Python
+    token = client.blob.create_upload_token(
+        prefix=f"avatars/{user_id}/", visibility="public",
+        max_size=5_000_000, allowed_extensions=["png", "jpg", "webp"],
+        expires_in=300, max_uses=1,
+    )
+    ```
+
+    ```go Go
+    token, err := client.Blob.CreateUploadToken(ctx, vertracloud.BlobUploadTokenInput{
+        Prefix:            fmt.Sprintf("avatars/%s/", userID),
+        Visibility:        "public",
+        MaxSize:           5_000_000,
+        AllowedExtensions: []string{"png", "jpg", "webp"},
+        ExpiresIn:         300,
+        MaxUses:           1,
+    })
+    // send token.Token to the browser
+    ```
+
+    ```bash cURL
+    curl -X POST "https://blob.vertracloud.app/v1/upload-tokens" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+      -d '{ "prefix": "avatars/42/", "visibility": "public", "max_size": 5000000,
+            "allowed_extensions": ["png","jpg","webp"], "expires_in": 300, "max_uses": 1 }'
+    ```
+
+    </CodeGroup>
+
+    Um token nunca substitui um arquivo existente, a menos que você o crie com `overwrite: true` (o padrão é `false`), então o
+    usuário não consegue sobrescrever o que já está armazenado.
+
+    Autentique o seu próprio endpoint para que apenas usuários logados consigam um token.
+  </Step>
+  <Step title="Envie a partir do navegador">
+    ```javascript
+    import { BlobClient } from "@vertracloud/blob";
+
+    const { token, path } = await (await fetch("/avatar-token", { method: "POST" })).json();
+    const blob = new BlobClient({ uploadToken: token });
+
+    // the path must sit inside the token's prefix
+    const obj = await blob.put(path, file, {
+      onProgress: ({ loaded, total }) => setPercent(loaded / total),
+    });
+    ```
+  </Step>
+  <Step title="Salve a URL">
+    Envie `obj.url` (e `obj.id`) para o seu backend e guarde-os junto com o usuário. Use o `id` para alterações futuras; a URL
+    só muda se você mover o arquivo.
+
+    ```javascript
+    await fetch("/me/avatar", { method: "PUT", body: JSON.stringify({ url: obj.url, id: obj.id }) });
+    ```
+  </Step>
+</Steps>
+
+## Solução de problemas
+
+| Sintoma | Causa |
+|---|---|
+| `BLOB_UPLOAD_TOKEN_INVALID` | Token expirado ou sua chave de API foi revogada; crie um novo |
+| `BLOB_UPLOAD_TOKEN_EXHAUSTED` | `max_uses` atingido; aumente o valor ou crie um token por upload |
+| `BLOB_UPLOAD_TOKEN_CONSTRAINT` | O caminho, a pasta ou outra opção que o token fixa não corresponde à requisição |
+| `BLOB_UPLOAD_TOKEN_NOT_ALLOWED` | Um token só funciona nas rotas de upload |
+
+Mais sobre tokens em [Autenticação](/pt-br/blob/authentication#tokens-de-upload), regras de tamanho e caminho em
+[Uploads](/pt-br/blob/uploads), e limites por pasta em [Regras de pasta](/pt-br/blob/folder-rules).

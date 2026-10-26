@@ -1,0 +1,175 @@
+---
+title: 'Como hospedar uma aplicação Django na Vertra Cloud'
+sidebarTitle: 'Django'
+description: 'Faça deploy de um projeto Django na Vertra Cloud: Gunicorn, ALLOWED_HOSTS com seu subdomínio, arquivos estáticos, migrações e banco gerenciado.'
+icon: 'python'
+---
+
+## Requisitos
+
+- Python 3.11+ instalado localmente
+- Conta na [Vertra Cloud](https://vertracloud.app)
+- Arquivo `requirements.txt` na raiz do projeto
+
+## Estrutura do projeto
+
+```
+my-django-project/
+├── manage.py
+├── my_project/
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── my_apps/
+│   ├── models.py
+│   ├── views.py
+│   └── urls.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+## Configuração
+
+### requirements.txt
+
+```txt
+django==4.2.0
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+python-decouple==3.8
+whitenoise==6.5.0
+```
+
+<Note>
+  A plataforma executa `pip install -r requirements.txt` automaticamente. Não inclua `venv` nem `__pycache__` no upload.
+</Note>
+
+### settings.py
+
+Configure seu `settings.py` para produção:
+
+```python
+import os
+from pathlib import Path
+from decouple import config
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Segurança
+SECRET_KEY = config('SECRET_KEY')  # sem default: defina nas variáveis de ambiente da aplicação
+DEBUG = config('DEBUG', default=False, cast=bool)
+ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(',')  # ex.: my-app.vertraweb.app,example.com
+
+# Aplicações
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'my_apps',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Adiciona o WhiteNoise
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+]
+
+ROOT_URLCONF = 'my_project.urls'
+
+# Banco de dados
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME', default='vertracloud'),
+        'USER': config('DB_USER', default='vertracloud'),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT'),  # única por banco, copie-a do dashboard
+        # Os bancos da Vertra Cloud exigem TLS e certificado de cliente (veja /pt-br/databases)
+        'OPTIONS': {
+            'sslmode': 'verify-full',
+            'sslrootcert': config('DB_SSL_PEM', default='certificate.pem'),
+            'sslcert': config('DB_SSL_CRT', default='certificate.crt'),
+            'sslkey': config('DB_SSL_KEY', default='certificate.key'),
+        },
+    }
+}
+
+# Arquivos estáticos
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# HTTPS: o TLS termina no proxy da plataforma, então confie no cabeçalho de protocolo encaminhado
+# (sem ele, SECURE_SSL_REDIRECT redirecionaria todas as requisições em loop)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+```
+
+<Note>
+  Defina `SECRET_KEY` e `ALLOWED_HOSTS` (seu subdomínio `*.vertraweb.app` e qualquer domínio personalizado, separados por vírgula) nas variáveis de ambiente da aplicação antes do primeiro deploy: a aplicação não inicia sem eles.
+</Note>
+
+### vertracloud.config
+
+```ini
+MAIN=manage.py
+START=gunicorn --bind 0.0.0.0:$PORT my_project.wsgi:application
+VERSION=recommended
+```
+
+<Warning>
+  Antes do deploy, execute `python manage.py collectstatic --noinput` localmente para gerar os arquivos estáticos.
+</Warning>
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie-o ao GitHub.
+    2. No dashboard, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**Python**), o arquivo principal (`manage.py`) e a memória. Os comandos de start e build ficam em **Configurações avançadas**.
+    4. Adicione suas variáveis de ambiente em **Variáveis de Ambiente**.
+    5. Em **Rede**, ative a **publicação na web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja a [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Deploy current project**. Veja a [extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 3.13.17 | Recomendada e mais recente | Python 3.13 (recomendado para produção) |
+| 3.12.15 | Estável | Linha Python 3.12 |
+| 3.11.17 | Legado | Linha Python 3.11 |
+
+## Observações
+
+- **Servidor de produção**: use `gunicorn` para servir a aplicação Django
+- **Arquivos estáticos**: execute `collectstatic` e configure o `WhiteNoise` antes do deploy
+- **Banco de dados**: configure o `psycopg2-binary` para PostgreSQL
+- **Migrações**: execute `python manage.py migrate` antes do primeiro deploy
+- **Variáveis de ambiente**: configure `SECRET_KEY`, as credenciais do banco e `DEBUG=False`
+- **Reinício automático**: ativado por padrão

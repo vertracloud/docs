@@ -1,0 +1,155 @@
+---
+title: 'Como hospedar uma aplicação na Vertra Cloud'
+sidebarTitle: 'Primeiro deploy'
+description: 'Crie um projeto na Vertra Cloud pelo dashboard: envie um .zip ou um repositório do GitHub, revise build, ambiente e rede, e faça o deploy.'
+icon: 'cloud-arrow-up'
+---
+
+Para hospedar uma aplicação na Vertra Cloud, entre no dashboard, clique em **Novo Projeto**, envie
+o código (um `.zip` ou um repositório do GitHub), confira o que a plataforma detectou e faça o
+deploy. A plataforma instala as dependências, executa o comando de build se houver um e inicia o
+container.
+
+<Info>
+  Prefere o terminal? A [CLI](/pt-br/cli) faz o mesmo com `vertra upload`, e a
+  [extensão do VS Code](/pt-br/vscode-extension) faz o deploy da pasta aberta no editor.
+</Info>
+
+## Criar uma conta
+
+A conta é criada no primeiro login em [vertracloud.app/login](https://vertracloud.app/login),
+sem formulário de cadastro separado. Você pode entrar com **Discord**, **GitHub**, **Google** ou
+um **link mágico** enviado por e-mail.
+
+Criar aplicações e bancos de dados e publicar um site exige um plano ativo; sem ele, essas
+requisições são recusadas com `PLAN_REQUIRED`. O plano mais barato é o Economy. Veja o que cada plano libera em [Planos e limites](/pt-br/plans-and-limits).
+
+## Como é o fluxo de Novo Projeto?
+
+O botão **Novo Projeto** abre um fluxo de uma etapa por vez. A primeira tela pergunta o que você
+quer criar e de onde vem o código:
+
+<CardGroup cols={2}>
+  <Card title="Enviar um .zip" icon="file-zipper">
+    Arraste o `.zip` do projeto. Pastas como `node_modules` e `venv` são removidas antes do upload.
+  </Card>
+  <Card title="Importar do GitHub" icon="github">
+    Cole a URL do repositório ou escolha entre os repositórios da sua conta, inclusive os privados.
+  </Card>
+  <Card title="Restaurar um snapshot" icon="clock-rotate-left">
+    Crie um novo projeto a partir de um snapshot de outro projeto seu.
+  </Card>
+  <Card title="Criar um banco de dados" icon="database">
+    PostgreSQL, MongoDB, Redis ou MySQL gerenciados, com TLS obrigatório.
+  </Card>
+</CardGroup>
+
+No topo do fluxo, você escolhe em qual **workspace** o projeto é criado (a sua própria conta ou
+um workspace de que você faz parte) e, opcionalmente, uma **pasta** para organizá-lo na lista de
+projetos.
+
+## Criar uma aplicação
+
+<Steps>
+  <Step title="Código-fonte">
+    Envie o `.zip` ou informe o repositório do GitHub. O nome do projeto vem do arquivo ou do
+    repositório e pode ser alterado aqui, junto com uma descrição opcional.
+
+    Ao ler o código, a plataforma já sugere o runtime, a memória e os comandos de build e de
+    inicialização. Se o `.zip` tiver um [`vertracloud.config`](/pt-br/configuration), os valores
+    dele têm prioridade sobre a sugestão.
+  </Step>
+  <Step title="Build">
+    Confira o **arquivo principal** (escolhido em uma lista dos arquivos do projeto), o **runtime**
+    e a **versão**, e a **memória**.
+
+    **Configurações avançadas** reúne o **comando de inicialização** e o **comando de build**. O
+    build roda antes da inicialização, a cada deploy; se falhar, a aplicação não sobe. Projetos
+    Next.js, Nuxt, SvelteKit, Remix, React Router, Astro, Gatsby e Vite já chegam com os dois
+    comandos preenchidos. Se faltar uma dependência declarada, a etapa mostra um aviso sem
+    impedir que você continue.
+  </Step>
+  <Step title="Ambiente">
+    Adicione as variáveis de ambiente (até 256). `PORT`, `HOST`, `PATH`, `HOME`, `USER` e `SHELL`
+    são reservadas. Detalhes em [Configuração](/pt-br/configuration).
+  </Step>
+  <Step title="Rede">
+    Decida se a aplicação terá **publicação web**. Com ela ativada, a aplicação recebe um endereço
+    `*.vertraweb.app` e precisa escutar na **porta 80**. Sem ela, a aplicação roda em segundo
+    plano, como um bot ou um worker.
+
+    - A publicação web exige o plano **Pro** ou superior e pelo menos **512 MB** de memória.
+    - No Pro, o subdomínio é atribuído aleatoriamente. **Escolher** o nome exige o plano **Scale**
+      ou superior.
+    - **Domínios personalizados** exigem o plano **Intermediary** ou superior.
+
+    A publicação pode ser ativada ou desativada depois, na aba **Config → Rede** da aplicação.
+  </Step>
+  <Step title="Revisar e fazer deploy">
+    Revise o resumo e confirme. Se a plataforma rejeitar algum valor (subdomínio em uso, memória
+    acima do plano), o fluxo volta para a etapa em que ele é editado.
+  </Step>
+</Steps>
+
+### O que acontece durante o deploy
+
+1. O código é enviado para a plataforma.
+2. As dependências são instaladas (como `npm install` ou `pip install -r requirements.txt`), com
+   limite de **15 minutos**.
+3. O comando de build é executado, se houver, com limite de **10 minutos**.
+4. O container inicia com a memória escolhida e o comando de inicialização.
+5. Com publicação web, o subdomínio é atribuído e o certificado TLS é emitido.
+
+O `.zip` pode ter até **100 MB**. Criar uma aplicação, enviar código e fazer deploy via
+GitHub contam para o
+[limite de deploys por hora](/pt-br/plans-and-limits#limite-de-deploys-por-hora) do plano.
+
+<Warning>
+  Não envie `node_modules`, `venv`, `.venv`, `__pycache__`, `.next`, `vendor`, `.bundle`,
+  `target`, `.gradle` ou `.local`. O dashboard remove essas pastas do `.zip` antes do
+  upload, mas elas deixam o arquivo maior e o upload mais lento. As pastas de saída do build (`dist/`,
+  `build/`) **não** são removidas, porque às vezes o arquivo principal está dentro delas.
+</Warning>
+
+## Criar um banco de dados
+
+Escolha o engine e a memória, depois revise. O armazenamento é calculado a partir da memória e mostrado
+logo abaixo do controle. A memória mínima é de **512 MB** para Redis e **1.024 MB** para
+PostgreSQL, MongoDB e MySQL. Depois de criado, as credenciais e os certificados ficam na página do
+banco de dados. Veja [Bancos de dados](/pt-br/databases).
+
+## Depois do deploy
+
+A página da aplicação tem estas abas:
+
+- **Visão geral**: status e métricas de CPU, memória, armazenamento e rede.
+- **Rollbacks**: o histórico de versões, para voltar a uma versão anterior.
+- **Logs**: a saída da aplicação em tempo real, com os eventos da plataforma (reinício e pausa
+  temporária pelo Vertra Shield, quando aplicável).
+- **Arquivos**: os arquivos da aplicação, com um editor no navegador (plano Pro ou superior).
+- **Atividades**: o histórico do que foi feito na aplicação e por quem.
+- **Snapshots**: crie, restaure e baixe cópias do projeto (plano Scale ou superior).
+- **Config**: **Geral** (nome, runtime, memória, comandos de inicialização e de build), **Deploy** (deploy automático,
+  histórico de deploys), **Variáveis de ambiente**, **Rede** (publicação web, subdomínio e domínios personalizados)
+  e **Zona de Perigo**.
+
+Para atualizar o código, envie um novo `.zip`, faça deploy via GitHub ou use `vertra deploy`. Um
+simples reinício não reinstala as dependências nem refaz o build; para isso, use **Reinstalar Dependências**
+ou **Forçar build**.
+
+## Próximos passos
+
+<CardGroup cols={2}>
+  <Card title="Configuração" icon="sliders" href="/pt-br/configuration">
+    Todas as chaves do `vertracloud.config`, os campos editáveis e as variáveis de ambiente.
+  </Card>
+  <Card title="Deploy via GitHub" icon="github" href="/pt-br/deploy-github">
+    Redeploy automático a cada push.
+  </Card>
+  <Card title="Tutoriais" icon="graduation-cap" href="/pt-br/tutorials/introduction">
+    Guias por linguagem, framework e tipo de bot.
+  </Card>
+  <Card title="Erros comuns" icon="triangle-exclamation" href="/pt-br/common-errors">
+    Sintoma, causa e correção dos erros de deploy mais frequentes.
+  </Card>
+</CardGroup>

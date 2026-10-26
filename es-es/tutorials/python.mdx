@@ -1,0 +1,144 @@
+---
+title: 'Cómo alojar una aplicación Python en Vertra Cloud'
+sidebarTitle: 'Python'
+description: 'Despliega una aplicación Python en Vertra Cloud: requirements.txt, versión de Python, punto de entrada y lectura de trazas de error en los logs en directo.'
+icon: 'python'
+---
+
+## Requisitos
+
+- Python 3.x instalado en local
+- Cuenta en [Vertra Cloud](https://vertracloud.app)
+- Archivo `requirements.txt` en la raíz del proyecto
+
+## Estructura del proyecto
+
+```
+my-project/
+├── main.py
+├── requirements.txt
+└── vertracloud.config  (optional)
+```
+
+## Configuración
+
+### requirements.txt
+
+Enumera todas las dependencias del proyecto:
+
+```txt
+flask==3.0.0
+gunicorn==21.2.0
+requests==2.31.0
+```
+
+<Note>
+  La plataforma ejecuta `pip install -r requirements.txt` automáticamente. No incluyas `venv` ni `__pycache__` en la subida.
+</Note>
+
+### vertracloud.config (opcional)
+
+```ini
+MAIN=main.py
+VERSION=recommended
+```
+
+## Ejemplo: bot de Discord (discord.py)
+
+```python
+import discord
+import os
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+client = discord.Client(intents=intents)
+
+@client.event
+async def on_ready():
+    print(f'{client.user} is online!')
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+    if message.content == '!ping':
+        await message.channel.send('Pong!')
+
+client.run(os.environ['DISCORD_TOKEN'])
+```
+
+## Ejemplo: API Flask
+
+```python
+from flask import Flask, jsonify
+import os
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return jsonify({'message': 'Hello from Vertra Cloud!'})
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 80))
+    app.run(host='0.0.0.0', port=port)
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Comprime el proyecto en un `.zip` (las carpetas como `node_modules`, `venv` y `target` se eliminan automáticamente) o súbelo a GitHub.
+    2. En el panel, haz clic en **Nuevo Proyecto** y sube el `.zip` o pega la URL del repositorio.
+    3. En **Build**, revisa el runtime (**Python**), el archivo principal (`main.py`) y la memoria. Los comandos de inicio y de build están en **Ajustes avanzados**.
+    4. Añade tus variables de entorno en **Variables de Entorno**.
+    5. En **Red**, activa la **publicación web** para que la aplicación reciba una dirección `*.vertraweb.app` (plan Pro o superior, 512 MB de memoria). La aplicación debe escuchar en el puerto 80.
+    6. Revisa y despliega. Sigue la salida en la pestaña **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Consulta la [CLI](/es-es/cli) para la instalación y el inicio de sesión.
+  </Tab>
+  <Tab title="VS Code">
+    Abre la carpeta con la extensión de Vertra Cloud instalada y ejecuta **Deploy current project**. Consulta la [extensión de VS Code](/es-es/vscode-extension).
+  </Tab>
+</Tabs>
+
+La guía completa está en [Primer despliegue](/es-es/how-to-host).
+
+## Versiones disponibles
+
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 3.13.17 | Recomendada y la más reciente | Predeterminada para aplicaciones nuevas |
+| 3.12.15 | Disponible | |
+| 3.11.17 | Disponible | |
+
+## Notas
+
+- Las **dependencias** se instalan automáticamente con `pip install -r requirements.txt`
+- Para los **bots de Discord**, define el token como variable de entorno `DISCORD_TOKEN` en el panel
+- Para las **APIs web**, escucha en el puerto `PORT` y en el host `0.0.0.0`
+- **Poetry** y **pipenv** no tienen soporte nativo; usa `requirements.txt`
+
+## Problemas comunes
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError">
+    Comprueba que el módulo aparezca en `requirements.txt` con la versión correcta.
+  </Accordion>
+  <Accordion title="SyntaxError: invalid syntax">
+    Asegúrate de usar la versión de Python correcta. El código de Python 3.10+ puede no funcionar en versiones anteriores.
+  </Accordion>
+  <Accordion title="El bot no se conecta a Discord">
+    Comprueba que la variable de entorno `DISCORD_TOKEN` esté configurada en las variables de entorno de la aplicación.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,135 @@
+---
+title: 'Referencia de configuración de una aplicación en Vertra Cloud'
+sidebarTitle: 'Configuración'
+description: 'Claves de vertracloud.config, campos editables tras el despliegue, variables de entorno, puerto y límites de una aplicación en Vertra Cloud.'
+icon: 'sliders'
+---
+
+La configuración de una aplicación en Vertra Cloud vive en el panel, en **Ajustes** (las pestañas **General**, **Deploy**, **Variables de Entorno** y **Red**). El archivo
+`vertracloud.config` es opcional y solo rellena de antemano el flujo de creación: nombre, descripción,
+archivo principal, memoria, comandos y subdominio. Una vez creada, la aplicación usa lo que está guardado en el
+panel.
+
+## El archivo `vertracloud.config`
+
+`vertracloud.config` es un archivo de texto en la raíz del `.zip`, con un `CLAVE=valor` por línea.
+Las claves desconocidas se ignoran.
+
+```ini vertracloud.config
+NAME=my-app
+DESCRIPTION=Orders API
+MAIN=src/index.js
+MEMORY=512
+VERSION=recommended
+BUILD=npm run build
+START=npm start
+SUBDOMAIN=my-app
+LANGUAGE=javascript
+```
+
+| Clave | Qué establece | Límite | ¿Se puede cambiar después? |
+|---|---|---|---|
+| `NAME` | Nombre del proyecto | 50 caracteres | Sí, en Ajustes → General |
+| `DESCRIPTION` | Descripción del proyecto | 128 caracteres | Sí, en Ajustes → General |
+| `MAIN` | Archivo principal, relativo a la raíz | — | Sí, en Ajustes → General |
+| `MEMORY` | Memoria en MB | mínimo 100, máximo lo que quede libre en el plan | Sí, en Ajustes → General |
+| `VERSION` | Versión del runtime: `recommended`, `latest` o una versión concreta de la [lista de runtimes](/es-es/plans-and-limits#qué-lenguajes-y-versiones-admite-vertra-cloud). Cuando el archivo está en tu `.zip` o snapshot, el asistente lo rellena de antemano y aún puedes cambiarlo antes de crear | debe existir para el lenguaje de la aplicación; si no, `INVALID_VERSION` | Sí, en Ajustes → General |
+| `BUILD` | Comando de build, se ejecuta antes del inicio en cada despliegue | 512 caracteres | Sí; cuenta como un despliegue |
+| `START` | Comando de inicio | 512 caracteres | Sí, en Ajustes → General |
+| `LANGUAGE` | Fuerza el lenguaje del runtime en lugar de detectarlo: `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet` o `elixir`. El orden de precedencia es: el campo `language` de `POST /v1/apps`, luego esta clave (o `"language"` en `vertracloud.config.json`), luego la detección | uno de los slugs anteriores; si no, `INVALID_LANGUAGE` | Sí, en Ajustes → General |
+| `SUBDOMAIN` | Subdominio bajo `*.vertraweb.app` (activa la publicación web) | de 3 a 50 caracteres, `a-z`, `0-9` y `-` | Sí, en Ajustes → Red, con 5 minutos entre cambios |
+| `ID` | La aplicación a la que está vinculada esta carpeta. La escriben `vertra upload` y `vertra link`, la elimina `vertra unlink`; solo la usa la [CLI](/es-es/cli#vincular-una-carpeta-a-una-aplicación) | un ID de aplicación | No aplica; la plataforma lo ignora |
+
+Las claves no distinguen mayúsculas de minúsculas, y un valor puede ir entre comillas simples o dobles. Las líneas que empiezan por `#` son comentarios; la CLI también acepta `;`, pero la API lee las líneas con `;` como texto normal, así que mejor usa `#`. Al crear una aplicación con `vertra upload`, la CLI lee `NAME`, `MEMORY`, `MAIN`, `VERSION`, `SUBDOMAIN`, `START` y `LANGUAGE` del archivo, pero no `DESCRIPTION` ni `BUILD`: pasa `--description` y define el comando de build en Ajustes → General. Restaurar un snapshot cuyo `vertracloud.config` supere los 64 KB o las 64 líneas falla con `INVALID_CONFIG`.
+
+También se acepta `vertracloud.config.json`, con las claves en minúsculas: `name`, `description`,
+`main`, `memory`, `build`, `start`, `subdomain` y `language`. El lenguaje se establece con `LANGUAGE=` en el archivo de texto y con `"language"` en el archivo JSON.
+
+### ¿Qué valor gana?
+
+Al leer el `.zip`, el flujo de creación usa el valor de `vertracloud.config` cuando existe
+y recurre a la sugerencia de la plataforma, que lee `package.json` y las dependencias del proyecto.
+Después, cualquier campo se puede editar en los pasos siguientes. Los comandos de inicio y de build
+que edites a mano no se sobrescriben si cambias el `.zip`.
+
+Sin `LANGUAGE`, la plataforma detecta el lenguaje a partir de los archivos de manifiesto de la raíz del proyecto, comprobando cada ecosistema antes que `package.json`: un proyecto de Python, PHP o Ruby con un `package.json` de front-end sigue siendo Python, PHP o Ruby. Se acepta `MAIN=./src/index.js` (con el `./` inicial).
+
+Sin `MAIN`, la plataforma busca el archivo principal mediante `main` y el script `start` de
+`package.json`, y después por nombres habituales (`index.js`, `server.js`, `main.py`, `app.py`, `main.go`,
+`src/main.rs`, `main.ts`, `index.php`, `index.html` y otros).
+
+<Note>
+  `vertracloud.config` **no se guarda entre los archivos de la aplicación**. Se descarta una vez
+  extraído el `.zip` y se regenera con los valores actuales del panel cuando descargas el
+  proyecto o creas un snapshot. Por eso un proyecto descargado o restaurado siempre lleva la
+  configuración actual.
+</Note>
+
+## Configuración avanzada: comandos de inicio y de build
+
+El **comando de inicio** sustituye a la forma por defecto de arrancar el runtime desde el archivo principal.
+El **comando de build** se ejecuta después de instalar las dependencias y antes del inicio, en cada despliegue:
+subida de código, despliegue desde GitHub, **Forzar build** y cambio del propio comando. Un simple reinicio
+no vuelve a ejecutar el build.
+
+| Framework | Build | Inicio |
+|---|---|---|
+| Next.js | `npm run build` | `npx next start -p 80` |
+| Nuxt | `npm run build` | `PORT=80 node .output/server/index.mjs` |
+| SvelteKit (adapter-node) | `npm run build` | `PORT=80 node build` |
+| Astro | `npm run build` | `npx astro preview --host 0.0.0.0 --port 80` |
+| Vite | `npm run build` | `npx vite preview --host 0.0.0.0 --port 80` |
+| TypeScript simple | `npm run build` | `node dist/index.js` |
+
+Si el build falla, la aplicación no arranca (`BUILD_FAILED`); si supera los 10 minutos,
+el despliegue se interrumpe (`BUILD_TIMEOUT`). Aun así se crea una aplicación nueva, detenida, con la
+salida del build en sus logs: corrige los archivos y vuelve a iniciarla. El entorno de build recibe el doble de
+la memoria de la aplicación, entre 1 GB y 4 GB.
+
+## Puerto y publicación web
+
+Una aplicación con **publicación web** debe escuchar en el **puerto 80**, en `0.0.0.0`. La plataforma
+ya establece `PORT=80` y `HOST=0.0.0.0` en el contenedor, así que leer `process.env.PORT` (o el
+equivalente de tu lenguaje) funciona. Por eso `PORT` y `HOST` están reservadas y no puedes
+definirlas tú.
+
+Sin publicación web, la aplicación no recibe tráfico entrante y se ejecuta en segundo plano,
+como un bot o un worker. Publicar requiere el plan Pro o superior y 512 MB de
+memoria, y se puede activar o desactivar en cualquier momento. Activarla o desactivarla recrea el contenedor, así que
+la aplicación se reinicia. Al desactivarla, el subdominio se libera y otra persona puede
+registrarlo.
+
+## Variables de entorno
+
+Las variables de entorno se inyectan en el contenedor cuando arranca y se cifran en reposo.
+Las defines en Ajustes → Variables de Entorno, mediante la
+[API](/api-reference/endpoint/apps/enviroments/get), la [CLI](/es-es/cli) o [MCP](/es-es/mcp).
+
+| Límite | Valor |
+|---|---|
+| Variables por aplicación | 256 |
+| Tamaño de la clave | 255 caracteres, empezando por una letra o `_` |
+| Tamaño del valor | 3.072 caracteres |
+| Claves reservadas | `PORT`, `HOST`, `PATH`, `HOME`, `USER`, `SHELL` |
+
+Si el `.zip` incluye un `.env.production`, `.env.production.local`, `.env.local` o `.env` (por ese
+orden de preferencia), el flujo de creación rellena de antemano las variables a partir de él. Revisa los valores antes de
+crear.
+
+<Warning>
+  Una variable modificada solo llega al proceso después de un reinicio. Prefiere las variables de entorno a un
+  `.env` dentro del código: el archivo es visible para cualquiera con acceso a los archivos de la aplicación.
+</Warning>
+
+## Límites de la aplicación
+
+| Límite | Valor |
+|---|---|
+| Tamaño del `.zip` | 100 MB |
+| Almacenamiento | 10 GB por aplicación, independientemente de la memoria |
+| Instalación de dependencias | 15 minutos (`INSTALL_TIMEOUT`) |
+| Comando de build | 10 minutos (`BUILD_TIMEOUT`) |
+| Puertos expuestos | Puerto 80, más hasta 5 adicionales mediante dominios personalizados |
+| Despliegues por hora | de 10 (Economy) a 60 (Intermediary y Enterprise) |
+
+La tabla completa por plan está en [Planes y límites](/es-es/plans-and-limits).

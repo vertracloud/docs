@@ -1,0 +1,110 @@
+---
+title: 'Como hospedar uma aplicação Deno na Vertra Cloud'
+sidebarTitle: 'Deno'
+description: 'Faça deploy de um servidor Deno 2 na Vertra Cloud: deno.json e deno.lock no zip, o arquivo de entrada como main, a variável PORT e erros comuns.'
+icon: 'code'
+---
+
+## Requisitos
+
+- Deno 2.8+ instalado localmente
+- Conta na [Vertra Cloud](https://vertracloud.app)
+- Um `deno.json` (ou `deno.jsonc`) na raiz do projeto
+
+## Estrutura do projeto
+
+```
+my-server-deno/
+├── main.ts
+├── deno.json
+├── deno.lock
+└── vertracloud.config
+```
+
+A plataforma detecta o Deno pelo `deno.json`, `deno.jsonc` ou `deno.lock` na raiz do projeto. As dependências são instaladas com `deno install`, e a aplicação roda com permissões totais dentro do seu container.
+
+## Configuração
+
+### deno.json
+
+```json
+{
+  "imports": {
+    "@std/http": "jsr:@std/http@^1"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=main.ts
+VERSION=recommended
+```
+
+`MAIN` é o arquivo de entrada. Com um `deno.json`, `deno.jsonc` ou `deno.lock` na raiz, o projeto sempre é detectado como Deno, mesmo que também tenha um `package.json`. Adicione `LANGUAGE=deno` somente em um projeto Deno que não tenha nenhum desses arquivos.
+
+## Exemplo: servidor HTTP
+
+```ts
+const port = Number(Deno.env.get("PORT") ?? 80);
+
+Deno.serve({ hostname: "0.0.0.0", port }, (req) => {
+  const { pathname } = new URL(req.url);
+
+  if (pathname === "/health") {
+    return Response.json({ status: "healthy", service: "deno-api" });
+  }
+
+  return Response.json({
+    message: "Deno on Vertra Cloud",
+    version: "1.0.0",
+  });
+});
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Painel">
+    1. Compacte o projeto em um `.zip` ou envie para o GitHub.
+    2. No painel, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**Deno**), o arquivo principal (`main.ts`) e a memória. Os comandos de start e de build ficam em **Configurações Avançadas**.
+    4. Adicione suas variáveis de ambiente em **Ambiente**.
+    5. Em **Rede**, ative a **publicação web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Fazer deploy do projeto atual**. Veja [Extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 2.9.8 | Recomendada e mais recente | Deno 2.9 (recomendada para produção) |
+| 2.8.3 | Disponível | Linha Deno 2.8 |
+
+## Observações
+
+- **Dependências**: declare-as no `deno.json` e versione o `deno.lock` para que as instalações sejam reproduzíveis
+- **Permissões**: a aplicação roda com permissões totais, então `Deno.env`, rede e acesso a arquivos funcionam sem flags
+- **Variáveis de ambiente**: use `Deno.env.get("KEY")`
+- **Logs**: use `console.log()` para logs que aparecem em tempo real
+- Escute em `0.0.0.0` na porta 80
+
+## Erros comuns
+
+- **Arquivo de entrada não encontrado**: `MAIN` precisa apontar para o arquivo de entrada relativo à raiz do zip, por exemplo `main.ts`.
+- **Detectado como outra linguagem**: um projeto Deno sem nenhum dos arquivos `deno.json`, `deno.jsonc` ou `deno.lock` na raiz não é reconhecido. Adicione um deles ou defina `LANGUAGE=deno` no `vertracloud.config`.
+- **A aplicação inicia, mas o site não abre**: o servidor precisa escutar em `0.0.0.0` e na porta 80, não em `localhost`.

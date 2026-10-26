@@ -1,0 +1,37 @@
+### Blob Storage
+
+Vertra Cloud ahora almacena archivos para tus proyectos: subidas de usuarios, imágenes, vídeos, exportaciones y copias de seguridad. Los archivos viven aparte del disco de tu aplicación, sobreviven a los redespliegues y se sirven desde una CDN global. Gestiónalos desde la nueva página **Blob Storage** del panel, la [API](/api-reference/endpoint/blob/objects/list), los SDK, la CLI, el servidor MCP o cualquier herramienta compatible con S3. Empieza por la [visión general](/es-es/blob/overview) y el [inicio rápido](/es-es/blob/quickstart).
+
+#### Archivos públicos y privados
+
+Cada archivo es público o privado, y los archivos nuevos son privados. Un archivo público tiene una URL permanente en `blob.vertracloud.dev`, almacenada en caché por la CDN. Un archivo privado se lee mediante un [enlace temporal](/es-es/blob/links-and-visibility) (de 60 segundos a 24 horas) o una [página de compartir](/es-es/blob/sharing) con caducidad, límite de descargas y, desde Enterprise-12, contraseña. Puedes cambiar un archivo de uno a otro en cualquier momento sin cambiar su ID.
+
+#### Subidas de hasta 10 GB
+
+Los archivos de hasta 100 MB se envían en una sola petición. Los archivos más grandes, de hasta 10 GB, se envían por partes directamente al almacenamiento, con reanudación y cancelación. Un navegador puede subir con un token de subida de corta duración que crea tu backend, así que tu clave de API nunca llega a él; consulta la [guía de subidas de usuarios](/es-es/guides/serve-user-uploads). Cuando una ruta ya está ocupada, `overwrite` reemplaza el archivo y `rename_on_conflict` lo guarda como `name-1.ext`, `name-2.ext` y así sucesivamente. Detalles en [Subidas](/es-es/blob/uploads).
+
+#### Seguro por defecto
+
+Los ejecutables y los instaladores se rechazan, incluso si se renombran. Los archivos HTML, SVG y XML siempre se descargan en la dirección predeterminada en lugar de abrirse en el navegador, y el tipo de contenido se determina por la extensión.
+
+#### Reglas de carpeta, transformaciones de imagen y dominios personalizados
+
+- **[Reglas de carpeta](/es-es/blob/folder-rules):** valores predeterminados y límites por carpeta, como visibilidad, tamaño máximo, extensiones permitidas, caché y borrado automático tras un número de días.
+- **[Transformaciones de imagen](/es-es/blob/image-transformations):** redimensionar, recortar y convertir imágenes públicas mediante parámetros en la URL, desde Scale.
+- **[Dominios personalizados](/es-es/blob/custom-domains):** sirve archivos públicos desde un subdominio propio, como `cdn.example.com`, desde Enterprise-4. Un dominio también puede servir HTML, SVG y XML en el navegador, en un entorno aislado (sandbox), cuando activas `web_content`.
+
+#### Cuota por plan
+
+Blob Storage está incluido desde el plan Economy: 1 GB en Economy, 5 GB en Pro, 15 GB en Scale, 20 GB en Intermediary y de 30 a 250 GB en Enterprise. Las subidas que superen la cuota responden `STORAGE_QUOTA_EXCEEDED`. Tras una bajada de plan, tus archivos se mantienen, y el uso por encima de la nueva cuota se cobra a R\$0.20 por cada GB iniciado en la siguiente renovación. Cuando un plan expira, los archivos permanecen en línea durante un periodo de gracia de 72 horas y después se eliminan de forma permanente, sin copia de seguridad. La tabla completa está en [Límites y cuotas](/es-es/blob/limits-and-quotas).
+
+#### Claves de API y workspaces
+
+Las claves de API tienen dos nuevos permisos, `blob:read` y `blob:write`. Los workspaces tienen dos nuevos permisos, `blob:read` y `blob:manage`, que actúan sobre los archivos y la cuota del propietario; ningún rol existente los recibe, así que el propietario debe concederlos de forma explícita. Consulta [Autenticación](/es-es/blob/authentication).
+
+#### SDK, S3, CLI y MCP
+
+- **JavaScript:** un SDK específico, `@vertracloud/blob`, para Node, navegadores y entornos edge. Consulta el [SDK de JavaScript](/es-es/blob/sdk-javascript).
+- **Python y Go:** `client.blob` y `client.Blob` en los SDK existentes. Consulta [SDK de Python y Go](/es-es/blob/sdk-python-go).
+- **S3:** aws-cli, rclone, boto3 y otras herramientas de S3 funcionan con credenciales derivadas de tu clave de API. Consulta [Compatibilidad con S3](/es-es/blob/s3-compatibility).
+- **CLI:** `vertra blob ls`, `put`, `get`, `link`, `rm` y `stats`. Consulta [CLI](/es-es/cli#blob-storage).
+- **MCP:** herramientas para listar, subir, crear enlaces, cambiar la visibilidad y eliminar archivos. Consulta [MCP](/es-es/mcp#blob-storage).

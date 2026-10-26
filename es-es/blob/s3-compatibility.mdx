@@ -1,0 +1,109 @@
+---
+title: 'Usar Blob Storage con aws-cli, rclone y boto3 (compatible con S3)'
+sidebarTitle: 'Compatibilidad con S3'
+description: 'Conecta herramientas S3 a Blob Storage con credenciales derivadas de tu clave de API: endpoint, región auto, buckets público y privado y operaciones compatibles.'
+icon: 'plug'
+---
+
+Blob Storage habla el protocolo S3, así que las herramientas y librerías existentes funcionan sin cambios en el código. El endpoint es `https://s3.vertracloud.dev` y la región es `auto`. Hay dos buckets, `public` y `private`, que se corresponden con la [visibilidad](/es-es/blob/links-and-visibility) de cada archivo.
+
+La cuota, los tipos de archivo bloqueados y una cuenta suspendida se aplican exactamente igual que en la API. Los archivos escritos por S3 aparecen en el panel y en [Listar objetos](/api-reference/endpoint/blob/objects/list).
+
+## Obtener credenciales
+
+El par de claves S3 se deriva de una clave de API, así que la petición necesita una clave de API; una sesión del panel no puede obtenerlo (el panel explica cómo crear o encontrar una clave). Una clave con solo `blob:read` obtiene credenciales S3 de solo lectura. Puedes pedirlas 10 veces por hora. Revocar la clave de API revoca el par, y rotar la clave de API lo reemplaza: el par anterior deja de funcionar y pides uno nuevo.
+
+<CodeGroup>
+
+```bash cURL
+curl "https://blob.vertracloud.app/v1/s3/credentials" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+```javascript JavaScript
+const s3 = await blob.s3Credentials();
+// { access_key_id, secret_access_key, endpoint, region: "auto", buckets: ["public", "private"], access }
+```
+
+```python Python
+s3 = client.blob.s3_credentials()
+```
+
+```go Go
+creds, err := client.Blob.S3Credentials(ctx)
+// creds.AccessKeyID, creds.SecretAccessKey, creds.Endpoint, creds.Buckets
+```
+
+</CodeGroup>
+
+Funcionan tanto el direccionamiento por ruta (`https://s3.vertracloud.dev/<bucket>/<key>`) como el de host virtual (`https://<bucket>.s3.vertracloud.dev/<key>`). Los ejemplos siguientes usan el de ruta.
+
+## aws-cli
+
+```bash
+export AWS_ACCESS_KEY_ID=...        # access_key_id
+export AWS_SECRET_ACCESS_KEY=...    # secret_access_key
+export AWS_DEFAULT_REGION=auto
+aws configure set default.s3.addressing_style path
+
+aws s3 ls s3://public/ --endpoint-url https://s3.vertracloud.dev
+aws s3 cp ./logo.png s3://public/images/logo.png --endpoint-url https://s3.vertracloud.dev
+```
+
+## rclone
+
+```ini
+[vertra]
+type = s3
+provider = Other
+access_key_id = ...
+secret_access_key = ...
+endpoint = https://s3.vertracloud.dev
+region = auto
+force_path_style = true
+```
+
+```bash
+rclone sync ./site-assets vertra:public/assets
+```
+
+## boto3
+
+```python
+import boto3
+from botocore.config import Config
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url="https://s3.vertracloud.dev",
+    region_name="auto",
+    aws_access_key_id="...",
+    aws_secret_access_key="...",
+    config=Config(s3={"addressing_style": "path"}),
+)
+s3.upload_file("logo.png", "public", "images/logo.png")
+```
+
+## Operaciones compatibles
+
+- **Buckets:** ListBuckets, HeadBucket, GetBucketLocation (siempre `auto`). CreateBucket solo se acepta para `public` y `private`, que ya existen; DeleteBucket se rechaza.
+- **Objetos:** ListObjects y ListObjectsV2, GetObject (incluido por rangos), HeadObject, PutObject, CopyObject, DeleteObject y DeleteObjects (hasta 1.000 claves).
+- **Multiparte:** CreateMultipartUpload, UploadPart, UploadPartCopy, CompleteMultipartUpload, AbortMultipartUpload, ListParts y ListMultipartUploads.
+- **Lecturas de compatibilidad:** GetBucketVersioning (no activado), GetBucketAcl y GetObjectAcl (tu cuenta tiene control total), GetBucketTagging y GetObjectTagging (vacías).
+
+`Content-Type` siempre se deriva de la extensión de la clave; el que envía tu cliente se ignora. Los archivos que terminan en `.html`, `.htm`, `.svg`, `.xml` o `.xhtml` se sirven siempre como descarga, nunca se muestran en el navegador.
+
+Cualquier otra operación responde `501 NotImplemented`. Las escrituras de S3 sobrescriben una clave existente, como en cualquier servicio S3.
+
+## Límites
+
+| | Límite |
+|---|---|
+| Tamaño del objeto | 10 GB |
+| PutObject único | 100 MB (usa multiparte por encima de eso) |
+| Partes multiparte | De 5 MiB a 5 GiB cada una (la última puede ser más pequeña), hasta 10.000 partes |
+| URL prefirmadas | Hasta 7 días |
+| Peticiones cada 10 segundos, por cuenta | Economy y Pro: 100 · Scale e Intermediary: 200 · Enterprise-4 a Enterprise-8: 400 · Enterprise-12 y superiores: 600 |
+| CopyObject y UploadPartCopy | 20 cada 10 segundos |
+
+Por encima del límite de peticiones, el endpoint responde `503 SlowDown` con `Retry-After`; los clientes S3 reintentan automáticamente. Las peticiones S3 no cuentan para el límite de peticiones de la API de tu plan.

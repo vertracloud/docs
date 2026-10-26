@@ -1,0 +1,74 @@
+---
+title: 'Execute tarefas agendadas'
+sidebarTitle: 'Tarefas agendadas'
+description: 'Execute tarefas recorrentes, como limpezas, relatórios e lembretes, em uma aplicação de segundo plano sempre ativa, com um agendador dentro do processo.'
+icon: 'calendar-clock'
+---
+
+A Vertra Cloud mantém o seu processo em execução o tempo todo, então uma tarefa recorrente é simplesmente um agendador
+dentro do seu código. Uma tarefa que não atende HTTP roda como uma aplicação de segundo plano, que não precisa de
+publicação web e cabe nos planos menores.
+
+## Escolha onde a tarefa vai rodar
+
+- **Dentro da sua aplicação atual**: é o mais simples, se a tarefa for leve e compartilhar código com ela.
+- **Em uma aplicação de segundo plano separada**: é melhor se a tarefa for pesada ou se você não quiser que ela
+  disputa memória com as requisições. Ela reinicia e escala sozinha.
+
+## Node.js
+
+```bash
+npm install node-cron
+```
+
+```javascript index.js
+const cron = require('node-cron');
+
+cron.schedule('0 3 * * *', async () => {
+  console.log('nightly cleanup started');
+  await cleanup();
+}, { timezone: 'America/Sao_Paulo' });
+
+console.log('scheduler running');
+```
+
+## Python
+
+```bash
+pip install apscheduler
+```
+
+```python main.py
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+scheduler = BlockingScheduler(timezone="America/Sao_Paulo")
+
+@scheduler.scheduled_job("cron", hour=3)
+def nightly_cleanup():
+    print("nightly cleanup started", flush=True)
+
+scheduler.start()
+```
+
+`BlockingScheduler` mantém o processo vivo. Com um script que termina depois de agendar, o processo
+sai com código `0` e não é reiniciado.
+
+## Pontos que você precisa acertar
+
+<AccordionGroup>
+  <Accordion title="Sempre defina o fuso horário">
+    Não dependa do fuso do relógio do container: passe o fuso horário explicitamente para o agendador, como nos exemplos.
+  </Accordion>
+  <Accordion title="Faça as tarefas serem seguras para rodar duas vezes">
+    Um reinício durante uma tarefa significa que ela pode rodar de novo. Registre o que já foi processado, ou projete a
+    tarefa de forma que uma segunda execução não mude nada.
+  </Accordion>
+  <Accordion title="Capture os erros dentro da tarefa">
+    Um erro não tratado pode derrubar o processo inteiro, e 5 quedas em 10 minutos pausam o
+    reinício automático por 24 horas. Envolva o corpo da tarefa em `try`/`catch` e registre a falha em log.
+  </Accordion>
+  <Accordion title="Registre cada execução">
+    Imprima uma linha quando a tarefa começar e outra quando terminar; a aba **Logs** é onde você vai conferir se ela rodou.
+    Em Python, use `flush=True` para que a linha apareça imediatamente.
+  </Accordion>
+</AccordionGroup>

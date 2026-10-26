@@ -1,0 +1,206 @@
+---
+title: 'Conecte a Vertra Cloud a agentes de IA (MCP)'
+sidebarTitle: 'MCP'
+description: 'Servidor MCP oficial da Vertra Cloud: dá ao seu agente (Claude, Cursor, Codex) ferramentas para operar aplicações, bancos e logs com a sua chave de API.'
+icon: 'robot'
+---
+
+## O que é
+
+O servidor MCP oficial da Vertra Cloud (`@vertracloud/mcp`) dá ao seu assistente de IA (Claude, Cursor,
+VS Code, n8n, e qualquer outro cliente que fale o protocolo MCP) as ferramentas para fazer deploy de
+aplicações, ler logs, criar bancos e restaurar snapshots, sempre na sua conta e com a sua chave de API. O assistente
+age dentro do que a chave permite; nada além disso.
+
+A Vertra não hospeda chat nem modelo de IA: o MCP é a forma oficial de o agente **que você já usa** ler o contexto e
+operar a plataforma. Para chamar a API diretamente pelo seu próprio código, em vez de por meio de um agente, use os
+[SDKs oficiais](/pt-br/sdks) (JavaScript, Python e Go).
+
+## Instalação local
+
+Pré-requisito: **Node 18 ou mais recente**.
+
+1. No painel, vá em **Configurações → Chaves de API**, crie uma chave e marque os escopos de que o
+   assistente vai precisar (comece com escopos de leitura).
+2. Copie a chave — ela é exibida somente uma vez.
+3. Configure o seu cliente:
+
+<CodeGroup>
+
+```bash Claude Code
+claude mcp add vertracloud -e VERTRA_API_KEY=your_key -- npx -y @vertracloud/mcp
+```
+
+```json Claude Desktop (claude_desktop_config.json)
+{
+  "mcpServers": {
+    "vertracloud": {
+      "command": "npx",
+      "args": ["-y", "@vertracloud/mcp"],
+      "env": { "VERTRA_API_KEY": "your_key" }
+    }
+  }
+}
+```
+
+```json Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "vertracloud": {
+      "command": "npx",
+      "args": ["-y", "@vertracloud/mcp"],
+      "env": { "VERTRA_API_KEY": "your_key" }
+    }
+  }
+}
+```
+
+```json VS Code (.vscode/mcp.json)
+{
+  "servers": {
+    "vertracloud": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@vertracloud/mcp"],
+      "env": { "VERTRA_API_KEY": "your_key" }
+    }
+  }
+}
+```
+
+</CodeGroup>
+
+Reinicie o cliente e peça algo como "liste meus apps na Vertra".
+
+## Conecte pelo claude.ai
+
+Não há nada para instalar no navegador:
+
+1. Abra **Configurações → Conectores → Adicionar conector personalizado**.
+2. Digite a URL `https://mcp.vertracloud.app/mcp`.
+3. Clique em **Conectar** e entre na sua conta Vertra.
+4. Uma tela de consentimento lista os escopos solicitados; marque os que você quer conceder e confirme.
+
+Conectar dessa forma cria uma nova chave de API, com o nome do conector e o prefixo `oauth:`, visível e revogável em
+**Configurações → Chaves de API** como qualquer outra chave. `apps:envs` e `databases:credentials` aparecem destacados
+e desmarcados por padrão na tela de consentimento — você precisa marcá-los de propósito para conceder acesso às variáveis
+de ambiente ou às credenciais de banco.
+
+<Note>
+  Algumas ferramentas não aparecem no conector do navegador, porque leem ou gravam arquivos no seu computador, o que só
+  faz sentido no Claude Desktop, no Claude Code ou no Cursor: `create_app`, `deploy_app`, `download_app`, `upload_files`,
+  `upload_blob`, `download_snapshot`, `create_image` e `rebuild_image`.
+</Note>
+
+## O que a chave e os escopos controlam
+
+Cada ferramenta exige um escopo específico da chave (veja [Escopos](/api-reference/introduction#scopes) para a lista
+completa). Sem o escopo, a chamada falha com `API_KEY_SCOPE_DENIED` em vez de agir sobre o recurso. Isso vale tanto para
+uma chave colada manualmente quanto para uma chave criada pelo fluxo OAuth do claude.ai.
+
+- **`list_envs` nunca retorna o valor de uma variável de ambiente** — somente os nomes. Não existe ferramenta que leia o
+  valor de uma variável ou a string de conexão de um banco sem o escopo `databases:credentials` marcado explicitamente.
+- **Pedidos e resgate de códigos** usam os escopos de cobrança: `billing:read` lista pedidos, consulta o status e lê os
+  seus dados de cobrança; `billing:write` cria um pedido de plano, gera o código PIX e salva os seus dados de cobrança
+  (nome, endereço e CPF/CNPJ — somente quando você os fornece); `redeem:write` resgata um código promocional. Quem paga o PIX é
+  você, no aplicativo do seu banco — o assistente nunca paga nada. Os pedidos são de 1, 3 ou 12 meses (Economy: somente
+  1 mês). Pagamentos com cartão e cartões salvos estão disponíveis apenas no painel.
+- **Workspaces**: `delete_workspace` exige `workspaces:delete`; listar/revogar, visualizar, aceitar e recusar um convite
+  exigem `workspaces:invites`. Ambos os escopos entram somente pelo preset `full` (ou por uma seleção personalizada) e
+  aparecem desmarcados na tela de autorização do claude.ai.
+- **Trocar para um plano inferior (downgrade) não é uma ferramenta.** Continua sendo uma ação exclusiva do painel, com
+  ou sem chave de API.
+- **Ferramentas que excluem, sobrescrevem, param, reiniciam ou alteram acesso são marcadas como destrutivas** para o
+  cliente, então Claude, Cursor e clientes semelhantes pedem sua confirmação antes de executá-las. Exemplos: `delete_app`,
+  `stop_app`, `restart_app`, `unpublish_app`, `remove_domain`, `set_env`, `write_file`, `upload_blob` e
+  `set_blob_visibility`.
+- **Conteúdo que vem das suas aplicações é marcado como não confiável.** Logs, conteúdos de arquivos, logs de releases,
+  mensagens de deploy e caminhos de blob chegam ao assistente dentro de um bloco `untrusted_content`, então uma linha
+  escrita pela sua aplicação é lida como dado, e não como instrução.
+- **O servidor nunca segue redirecionamentos**, então a sua chave de API só é enviada para a API da Vertra Cloud.
+
+## Organize pastas e favoritos
+
+O MCP também pode organizar aplicações e bancos com pastas e favoritos persistidos na conta. A organização pessoal usa
+`account:read`/`account:write`; a organização dentro de um workspace usa `workspaces:read`/`workspaces:write`.
+
+Essa organização é individual. Uma ação feita pelo MCP altera apenas a visão do usuário autenticado dentro do escopo
+escolhido. O MCP não mistura pastas com grupos do Flow: os grupos continuam sendo elementos do canvas local e não são sincronizados nem migrados.
+
+Criar, renomear, mudar a cor ou excluir uma pasta, mover uma aplicação ou um banco, e favoritar ou desfavoritar geram uma
+atividade. A ferramenta não recebe nem inventa `origin` ou `author_id`; a API registra a chamada pela chave de API automaticamente.
+
+## Criando aplicações
+
+Criar uma aplicação é assíncrono: `create_app` retorna logo, com a aplicação em `building`, e a instalação e o build
+continuam em segundo plano.
+
+| Ferramenta | O que faz | Escopo |
+|---|---|---|
+| `wait_for_app` | Espera até `timeout_seconds` (1–25) para uma aplicação sair de `building`. Retorna a aplicação: `up` (pronta), `down` (o build falhou; `last_build_error` explica o motivo, e `get_logs` tem o detalhe) ou ainda `building` (chame de novo). Aceita `workspace_id` | `apps:read` |
+
+Enquanto uma aplicação está em build, iniciar, parar, reiniciar, fazer deploy, rollback e ações semelhantes retornam
+`409 APP_BUILDING`. Chame `wait_for_app` antes.
+
+## Releases, rollback e configurações de deploy
+
+O assistente pode ler o histórico de deploys de uma aplicação e voltar para uma versão anterior. Veja o
+[guia de rollback e deploy sem downtime](/pt-br/guides/rollback-and-zero-downtime-deploys) para entender como as releases funcionam.
+
+| Ferramenta | O que faz | Escopo |
+|---|---|---|
+| `list_releases` | Versões de uma aplicação, da mais recente para a mais antiga, com status, mensagem, autor e se cada uma pode ser restaurada | `apps:read` |
+| `get_release_log` | Log registrado para uma versão que falhou | `apps:read` |
+| `preview_rollback` | Mostra quais variáveis de ambiente um rollback adicionaria, alteraria ou removeria. Somente nomes, nunca valores | `apps:envs` |
+| `rollback_app` | Devolve o código para uma versão anterior e reinicia. Os dados que a aplicação gravou durante a execução permanecem | `apps:write` (mais `apps:envs` com `restore_environment`) |
+
+`rollback_app` é destrutiva, então o cliente pede sua confirmação antes de executá-la. O rollback está disponível a partir
+do plano Pro. As variáveis de ambiente são mantidas como estão, a menos que `restore_environment` seja true; por isso,
+nesse caso, execute `preview_rollback` primeiro.
+
+Duas ferramentas existentes ganharam recursos: `update_app_config` aceita `zero_downtime`, `auto_rollback` e
+`health_check_path` (os limites do plano se aplicam), e `deploy_app` aceita uma `message` que aparece no histórico de deploys.
+
+## Blob Storage
+
+O assistente pode trabalhar com os seus arquivos do [Blob Storage](/pt-br/blob/overview).
+
+| Ferramenta | O que faz | Escopo |
+|---|---|---|
+| `list_blob_objects` | Lista arquivos, opcionalmente dentro de uma pasta (`prefix`) | `blob:read` |
+| `get_blob_object` | Caminho, tamanho, tipo, visibilidade e URL pública de um arquivo | `blob:read` |
+| `blob_download_url` | Link temporário de download, inclusive para arquivos privados. Ele expira e não pode ser revogado | `blob:read` |
+| `blob_stats` | Espaço usado e total, e os limites do plano | `blob:read` |
+| `upload_blob` | Envia um arquivo do seu computador, de até 100 MB, privado por padrão. `rename_on_conflict` salva um nome já ocupado como `name-1.ext` | `blob:write` |
+| `set_blob_visibility` | Alterna um arquivo entre público e privado | `blob:write` |
+| `delete_blob_object` | Exclui um arquivo; a URL pública dele deixa de funcionar | `blob:write` |
+
+`upload_blob` é somente local, como as outras ferramentas de envio, e recusa arquivos secretos e de credenciais, como `.env`,
+chaves e `.git`.
+
+## O que fica de fora
+
+O servidor só se comunica com a API pública da Vertra Cloud e não tem permissões próprias — a chave é o limite de tudo
+o que o assistente pode fazer. Estes itens ficam sempre de fora de todas as ferramentas:
+
+- **Terminal do container** e a execução de comandos dentro da aplicação.
+- **A aba Dados do banco** (console SQL, coleções, chaves) — somente no painel.
+- **Criar um convite de workspace, transferir a propriedade e aprovar/rejeitar solicitações de ação** — somente no
+  painel. O assistente pode listar e revogar convites, aceitar ou recusar um convite, excluir um workspace e *solicitar*
+  uma ação, mas uma pessoa sempre decide a solicitação.
+- **Vinculação com o GitHub** (autorizar, desautorizar, escolher o repositório de deploy automático).
+
+## Problemas comuns
+
+| O que aparece | O que é | O que fazer |
+|---|---|---|
+| `NOT_AUTHENTICATED` | A chave está ausente, errada ou revogada | Confira `VERTRA_API_KEY` na configuração do cliente |
+| `API_KEY_SCOPE_DENIED` | A chave não tem o escopo daquela ferramenta | Crie uma nova chave marcando o escopo necessário |
+| `RATE_LIMIT_EXCEEDED` / `DAILY_QUOTA_EXCEEDED` | O limite de requisições por minuto ou por dia do plano | Aguarde os segundos de `retry_after` e tente de novo |
+| A ferramenta de upload não aparece | Você está no conector do navegador | O envio de arquivos é somente local (Claude Desktop, Claude Code, Cursor) |
+| O servidor não inicia | Node abaixo da versão 18 | Atualize o Node |
+
+<Info>
+  O pacote é de código aberto: [`@vertracloud/mcp`](https://www.npmjs.com/package/@vertracloud/mcp)
+  no npm, com a lista completa de ferramentas no README do repositório.
+</Info>

@@ -1,0 +1,63 @@
+### Deno, .NET e Elixir
+
+Três novas linguagens estão disponíveis ao criar uma aplicação.
+
+- **Deno** (`deno`): 2.9.8 (recomendada e mais recente), além da 2.8.3. Detectada a partir de `deno.json`, `deno.jsonc` ou `deno.lock`. `MAIN` é o arquivo de entrada, como `main.ts`.
+- **.NET** (`dotnet`, exibido como .NET (C#)): 10.0.402. Detectada a partir de `.csproj`, `.fsproj`, `.sln` ou `global.json`. `MAIN` é o `.csproj`, e a aplicação escuta na porta definida em `ASPNETCORE_HTTP_PORTS`, que já está definida como 80.
+- **Elixir** (`elixir`): 1.20.4 sobre OTP 28. Detectada a partir de `mix.exs`. Phoenix é suportado com `SECRET_KEY_BASE` e `PHX_HOST` definidas como variáveis de ambiente. Rode `mix assets.deploy` antes de zipar, ou use um projeto sem assets.
+
+Guias passo a passo: [Deno](/pt-br/tutorials/deno), [.NET](/pt-br/tutorials/dotnet) e [Elixir](/pt-br/tutorials/elixir).
+
+### Runtimes atualizados e fim de suporte
+
+Todos os runtimes passaram para a versão de patch mais recente:
+
+| Linguagem | Versão recomendada | Versão mais recente |
+|---|---|---|
+| JavaScript e TypeScript | Node.js 22.23.4 | 24.22.1 |
+| Bun | 1.3.14 | 1.4.4 |
+| Python | 3.13.17 | 3.13.17 (3.12.15 e 3.11.17 também disponíveis) |
+| Go | 1.26.10 | 1.27.3 |
+| PHP | 8.3.36 | 8.4.27 (8.2.35 permanece até o fim do suporte, em 31 de dezembro de 2026) |
+| Ruby | 3.3.12 | 3.4.11 |
+| Rust | 1.99.1 | 1.99.1 |
+
+Versões que chegaram ao fim do suporte foram removidas: Node.js 18 e 20, Bun 1.2, Go 1.21 a 1.23, Ruby 3.2, e Rust 1.97 e 1.98. Uma aplicação salva em uma versão antiga agora roda na release mais recente da mesma linha (por exemplo, Python 3.11 roda na 3.11.17). Se a linha inteira foi removida, ela roda na versão `recommended`. Confira a lista completa na [base de conhecimento](/knowledge-base#2-supported-languages) ou com [Listar runtimes](/api-reference/endpoint/apps/runtimes).
+
+### Correções de segurança nos runtimes atualizados
+
+As novas versões incluem estas correções de segurança upstream. As aplicações as recebem no próximo deploy ou reinício.
+
+- **Node.js 22.23.4 e 24.22.1**: sete correções, incluindo CVE-2026-111497 no decodificador Brotli. A 24.22.1 também corrige CVE-2026-105483. [Aviso do Node.js](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)
+  <br />`CVE-2026-105481` `CVE-2026-105482` `CVE-2026-106069` `CVE-2026-106072` `CVE-2026-106073` `CVE-2026-106074`
+- **PHP 8.2.35, 8.3.36 e 8.4.27**: CVE-2026-109618 e CVE-2026-109619, ambas no núcleo do PHP. [GHSA-w8hw-w9fx-j79w](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w) e [GHSA-6wmf-4rv5-p3rp](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp)
+- **Python 3.11.17, 3.12.15 e 3.13.17**: oito correções, incluindo CVE-2026-82049 em `tarfile`. A 3.13.17 também traz certificados raiz atualizados. Notas de release: [3.11.17](https://www.python.org/downloads/release/python-31117/), [3.12.15](https://www.python.org/downloads/release/python-31215/) e [3.13.17](https://www.python.org/downloads/release/python-31317/)
+  <br />`CVE-2026-15310` `CVE-2026-15806` `CVE-2026-17084` `CVE-2026-19445` `CVE-2026-19553` `CVE-2026-19672` `CVE-2026-87910`
+- **Go 1.26.10 e 1.27.3**: CVE-2026-56866 em `net/http`, CVE-2026-111943 em `crypto/x509` e as demais correções das linhas 1.26 e 1.27. [Histórico de releases do Go](https://go.dev/doc/devel/release)
+- **Bun 1.3.14 e 1.4.4**: correções para request smuggling em HTTP, TLS, WebSocket e o gerenciador de pacotes. [Bun 1.3.14](https://bun.sh/blog/bun-v1.3.14) e [Bun 1.4.4](https://bun.sh/blog/bun-v1.4.4)
+
+### Detecção de linguagem mais confiável
+
+A plataforma agora lê apenas os arquivos de manifesto da raiz do projeto e verifica cada ecossistema antes do `package.json`. Um projeto Python, PHP (Laravel) ou Ruby (Rails) que também tem um `package.json` de front-end não é mais tratado como JavaScript. O `bun.lock` é reconhecido como Bun, projetos Java também são reconhecidos por `build.gradle.kts`, `settings.gradle(.kts)`, `mvnw` e `gradlew`, e `MAIN=./src/index.js` é aceito.
+
+Para forçar uma linguagem, defina `LANGUAGE=<slug>` no `vertracloud.config` (a chave é `"language"` no `vertracloud.config.json`) ou envie `language` em `POST /v1/apps`. A precedência é o campo da API, depois o arquivo de configuração e por último a detecção. Veja [Configuração](/pt-br/configuration).
+
+### O assistente de criação mostra o que foi detectado
+
+Antes de criar uma aplicação, o assistente de criação do dashboard agora mostra a linguagem detectada, o arquivo principal e a versão, para que você possa conferi-los (ou defini-los você mesmo) antes de qualquer build.
+
+### A vCPU agora acompanha a RAM de cada projeto
+
+A vCPU de um projeto agora cresce com a RAM dele, até o limite de vCPU do plano: em planos com até 2 vCPU, +1 vCPU a cada 512 MB; em planos com mais de 2 vCPU, +1 vCPU a cada 1 GB. Projetos com 512 MB ou mais recebem pelo menos 2 vCPU (nunca acima do plano), e os menores recebem pelo menos 1. Projetos pequenos em planos menores ganham vCPU, e em planos com mais de 2 vCPU a vCPU de um projeto passa a seguir a RAM (por exemplo, 4 GB = 4 vCPU). A mudança vale na próxima vez que o projeto for reiniciado ou receber deploy. Veja [Planos e limites](/pt-br/plans-and-limits).
+
+### Mudança incompatível: `missing_dependencies` removido
+
+O aviso sobre dependências ausentes, exibido antes de enviar um projeto, deixou de existir, e o campo `missing_dependencies` não é mais retornado nas respostas de upload e de aplicação. Se o seu código lê esse campo, remova-o. Quando uma aplicação cai porque uma dependência está faltando, os logs da aplicação ainda mostram isso.
+
+### Limpeza automática na troca de linguagem
+
+Quando você troca a linguagem de uma aplicação, as dependências da linguagem anterior agora são limpas automaticamente no próximo reinício. O campo `cleanup_old_runtime_language` da rota de reinício foi removido e é ignorado se enviado.
+
+### `INVALID_LANGUAGE` responde 400
+
+`INVALID_LANGUAGE` agora está documentado e é retornado como HTTP `400`, em vez de `500`, porque informa um valor que a requisição enviou. Veja [Erros](/api-reference/errors).

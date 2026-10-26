@@ -1,0 +1,209 @@
+---
+title: 'Imagens Docker personalizadas'
+sidebarTitle: 'Imagens Docker personalizadas'
+description: 'Crie uma imagem a partir do seu Dockerfile e rode aplicações dela: requisitos, limites, o que é recusado, rebuilds, versões, rollback e snapshots.'
+icon: 'docker'
+---
+
+Envie um projeto com um `Dockerfile` e a Vertra Cloud constrói a imagem em um ambiente de build isolado. Depois, você
+cria aplicações a partir dessa imagem. Use quando o catálogo de linguagens não cobre o que você precisa: outra
+linguagem ou versão, pacotes do sistema, seu próprio processo de start ou aplicações prontas.
+
+Imagens personalizadas estão disponíveis no **Enterprise 28, Enterprise 30 e Enterprise 32**. As imagens e aplicações que você já tem continuam
+rodando se você migrar para um plano sem o recurso, mas não é possível criar nem fazer rebuild de imagens até voltar para um desses
+planos. Excluir é sempre permitido.
+
+## Requisitos
+
+- Um arquivo **ZIP** de até **100 MB**, ou um **repositório do GitHub** (a branch é opcional; sem ela, usa-se a branch padrão do repositório). O contexto também precisa ficar abaixo de **512 MB** descompactado e **50.000 entradas**, e o `Dockerfile`, abaixo de **1 MB**. Acima de qualquer um desses limites, a requisição falha com `IMAGE_CONTEXT_TOO_LARGE`.
+- Um arquivo com o nome exato `Dockerfile` na raiz do projeto. Uma única pasta envolvendo o projeto inteiro é aceita.
+- Uma imagem `linux/amd64`. Outras arquiteturas não são suportadas.
+- Até **20 imagens** por conta, contando imagens em qualquer estado (`building`, `success` ou `failed`). Rebuilds,
+  commits e versões não contam.
+
+Arquivos `.env*` são sempre removidos do contexto de build, e o `.dockerignore` é respeitado. O seu `Dockerfile` é usado
+exatamente como você escreveu: nada é reescrito. Variáveis de ambiente não ficam disponíveis durante o build; defina-as na
+aplicação.
+
+## Limites do build
+
+Cada build roda no seu próprio ambiente de build isolado, com os mesmos limites do build de uma aplicação comum:
+
+- RAM de 2x a RAM por app do plano, com mínimo de 1.024 MB e máximo de 4.096 MB.
+- Um limite de tempo de **26 minutos**.
+- A imagem final pode ter no máximo **10 GB** descompactada. Uma imagem maior falha com `IMAGE_TOO_LARGE`.
+
+Rebuilds que só mudam o seu código terminam mais rápido que o primeiro build.
+
+## O que é recusado e o que gera aviso
+
+Antes do build, o `Dockerfile` é verificado, no painel e de novo no servidor. **Recusas** bloqueiam o build:
+
+| Achado | O que fazer |
+|---|---|
+| `# syntax=` apontando para outra coisa que não o frontend oficial do Dockerfile | Remova a diretiva ou use `docker/dockerfile`. |
+| `RUN --security=insecure` | Remova a flag. |
+| `RUN --network=host` | Remova a flag. |
+| `--mount=type=ssh` | Remova o mount. |
+| `--mount=type=secret` | Remova o mount. |
+| Nenhum arquivo com o nome exato `Dockerfile` na raiz | Adicione-o, com esse nome exato. |
+| Um label em um namespace reservado à plataforma (como `vertra.*`; o log de build indica o label recusado) | O build falha com `IMAGE_LABEL_REFUSED`. Remova o label. |
+| `VOLUME` em `/app` ou abaixo, ou com caminho relativo | Recusado pela verificação, e o build falha com `IMAGE_VOLUME_REFUSED`. `/app` já é o disco persistente do app; remova a instrução. |
+
+**Avisos** não bloqueiam o build:
+
+| Achado | O que significa |
+|---|---|
+| `WORKDIR /app` (ou abaixo) | `/app` é o disco persistente do app. O que a imagem põe ali fica oculto pelo mount quando o app roda. Use outro diretório, como `/srv`. |
+| Arquivos `.env*` no contexto | São removidos e nunca entram na imagem. As chaves deles viram variáveis do app. |
+| `COPY` ou `ADD` de um arquivo `.env` | O arquivo não está no contexto de build, então o build falha nessa linha. |
+| `VOLUME` fora de `/app` | Esse caminho vira uma pasta temporária de 64 MB, apagada a cada reinício. Só `/app` mantém dados. |
+
+Você pode rodar a mesma verificação pela API com [Verificar Dockerfile](/api-reference/endpoint/images/check).
+
+## Como a aplicação roda
+
+A aplicação roda com o mesmo isolamento de qualquer outra aplicação da plataforma.
+
+- **Caminhos graváveis.** `/app` é o disco **persistente** do app (cota, gerenciador de arquivos, snapshots). `/tmp`, `/var/tmp` e
+  `/run` são graváveis, mas **temporários**: são limpos quando o app reinicia. **O resto é somente leitura.** Uma imagem que
+  escreve em outro lugar falha, então aponte logs, caches e dados para `/app`. A aba **Arquivos** do app mostra `/app`, não o
+  código dentro da imagem.
+- **Usuário.** O app sempre roda como usuário `1000:1000`. A instrução `USER` do `Dockerfile` é ignorada, então uma imagem
+  que precisa de root para escrever fora dos caminhos acima não roda.
+- **Comando.** O `ENTRYPOINT` e o `CMD` da imagem. Não são configuráveis.
+- **Instruções ignoradas.** `HEALTHCHECK` é ignorado. `EXPOSE` apenas sugere a porta.
+
+### Porta e `PORT`
+
+Só apps web têm porta. Ao criar o app, o padrão é o **primeiro `EXPOSE`** do `Dockerfile`, ou **80**
+quando não há nenhum. A imagem devolve esse valor como `suggested_port` em [Obter imagem](/api-reference/endpoint/images/get). A plataforma injeta-o como a variável de ambiente `PORT` e roteia o tráfego para ele, então o seu servidor
+deve escutar em `PORT`. Um app criado com web desligado (um bot ou um worker) não tem porta nem subdomínio. Você pode publicá-lo na web depois com [Publicar aplicação](/api-reference/endpoint/apps/network/publish), informando em `port` a porta em que a imagem escuta; sem ela, a chamada falha com `IMAGE_APP_PORT_REQUIRED`.
+
+### Variáveis de ambiente
+
+As variáveis são definidas por aplicação, nunca na imagem, então vários apps podem rodar a partir de uma mesma imagem com
+valores diferentes. As chaves do arquivo `.env` do seu projeto podem ser usadas para pré-preencher as variáveis ao criar o
+app. Os valores delas nunca entram na imagem.
+
+## Criar uma imagem e um app
+
+<Steps>
+  <Step title="Crie a imagem">
+    No painel, abra **Imagens Docker** e escolha **Criar imagem**, ou chame [Criar imagem](/api-reference/endpoint/images/create).
+    Escolha um ZIP ou um repositório do GitHub; a branch é opcional e assume a branch padrão do repositório. O painel
+    mostra o `Dockerfile` com os achados antes de o build começar. Um repositório das suas instalações do GitHub App fica
+    vinculado, então cada push para a branch dele reconstrói a imagem. Um repositório público fora das suas instalações é
+    construído **uma única vez**, sem vínculo; instale o GitHub App nele e vincule-o depois para ter rebuilds automáticos.
+    Um repositório privado ou inexistente fora das suas instalações falha com `INSTALLATION_NOT_FOUND`.
+  </Step>
+  <Step title="Acompanhe o build">
+    O build roda em segundo plano. Acompanhe o log ao vivo no painel ou pelos
+    [Logs de build da imagem](/api-reference/endpoint/images/logs). A imagem fica `success` ou `failed`; em caso de falha,
+    o campo `error` e o log explicam o motivo.
+  </Step>
+  <Step title="Crie o app">
+    Escolha **Criar app a partir da imagem**, que abre **Novo projeto** com a imagem já selecionada, ou chame
+    [Criar aplicação a partir de imagem](/api-reference/endpoint/apps/create-from-image). Defina o nome, a RAM, se é um app web, o subdomínio, a porta e as
+    variáveis. Você pode criar quantos apps precisar a partir de uma mesma imagem. **Novo projeto** também tem a opção
+    **Usar imagem Docker** para escolher qualquer imagem já existente na sua conta.
+  </Step>
+</Steps>
+
+Se você enviar um projeto que tem um `Dockerfile` no fluxo comum de criação de app, o painel oferece criar uma imagem a
+partir do mesmo arquivo, sem novo upload.
+
+## Atualizar uma imagem
+
+Você pode renomear uma imagem e dar a ela uma descrição (até 128 caracteres) no painel ou com [Atualizar imagem](/api-reference/endpoint/images/update); nada é construído nem reiniciado.
+
+Cada build bem-sucedido vira uma nova **versão** da mesma imagem, com o mesmo ID. Só um build roda por vez em cada imagem:
+um segundo pedido responde `IMAGE_BUILD_IN_PROGRESS`.
+
+- **Rebuild por upload.** Envie um contexto completo novo com **Atualizar imagem** ou [Rebuild da imagem](/api-reference/endpoint/images/rebuild).
+  Ele substitui o contexto inteiro.
+- <a id="commit-on-top-of-the-current-context"></a>**Commit.** Um commit em um app que roda a partir de uma imagem (painel, `vertra app commit`
+  ou a GitHub Action) coloca os seus arquivos **sobre o contexto atual** e reconstrói a imagem. Como a imagem é compartilhada,
+  o painel avisa quantos apps a usam antes de você confirmar. Só o app que recebeu o commit reinicia, e só quando você pediu
+  reinício.
+- **GitHub.** [Vincule a imagem](/api-reference/endpoint/images/github-link) a um repositório das suas instalações do GitHub App. A branch é opcional (padrão: a
+  branch padrão do repositório). Só o dono da imagem pode vincular ou desvincular (em um workspace, membros recebem `403`).
+  Cada push para essa branch reconstrói a imagem, igual a um rebuild manual. Uma imagem construída uma vez a partir de um
+  repositório público não fica vinculada até você fazer isso. [Desvincule](/api-reference/endpoint/images/github-unlink) a qualquer momento.
+- **GitHub Action.** Use o input `image-id` em vez de `app-id` para reconstruir uma imagem no seu workflow. Com o `app-id` de
+  um app que roda a partir de uma imagem, o deploy é um commit, como descrito acima. Veja [GitHub Actions](/pt-br/github-actions).
+
+Um rebuild **nunca reinicia as suas aplicações**. Um build que falha não muda a versão atual: os apps continuam rodando a
+última que deu certo. Você pode ler o contexto atual com [Baixar contexto da imagem](/api-reference/endpoint/images/context).
+
+### Quando um app passa para uma nova versão
+
+Um app só muda de versão quando você pede: um restart ou deploy pelo painel, pela API ou pela CLI (incluindo `--restart`
+em um commit). Tudo o que a plataforma faz sozinha, como recuperar-se de uma falha, recriar o container ou fazer um rollback
+automático, mantém a versão da release atual. Enquanto o app estiver atrasado, o painel mostra que há uma versão mais nova
+disponível, e a API marca isso com `outdated: true`.
+
+## Versões e rollback
+
+Liste as versões com [Listar versões da imagem](/api-reference/endpoint/images/versions). Cada uma registra o digest, a
+origem (`upload`, `commit` ou `github`), a mensagem e se algum app a está usando.
+
+Cada release de um app aponta para uma versão da imagem e para as variáveis com que ela começou. As aplicações mantêm até
+**30 releases por 30 dias** nos planos Enterprise. Fazer rollback de um app inicia uma versão que já foi construída, então é
+instantâneo e não precisa de rebuild. Veja [Rollback e deploys sem downtime](/pt-br/guides/rollback-and-zero-downtime-deploys). Uma versão só é removida
+quando nenhuma release de nenhum app a usa e ela não é a atual.
+
+## Snapshots e backups
+
+Um snapshot de um app que roda a partir de uma imagem guarda os **dados de `/app`**, além de uma nota com a imagem e a versão
+em que ele estava rodando. A imagem em si não fica dentro do snapshot: o código dela já tem seu próprio histórico nas versões.
+
+- O agendamento, a retenção, a cota e o download funcionam como em qualquer outra aplicação.
+- **Restaurar** substitui os dados de `/app` e mantém a versão atual da imagem. Se a versão registrada no snapshot ainda
+  existir, você pode escolher **voltar também para essa versão**, o que restaura dados e código daquele momento. Se a versão
+  já tiver sido removida, só os dados são restaurados, e você é avisado.
+- Um snapshot não impede que uma versão seja removida.
+- Criar um app a partir de um snapshot o cria na mesma imagem. Se a imagem não existir mais, a requisição é recusada.
+
+## Excluir uma imagem
+
+Excluir uma imagem remove as versões dela, o contexto e **todas as aplicações criadas a partir dela**. Você confirma digitando o
+nome da imagem (`confirm_name` em [Excluir imagem](/api-reference/endpoint/images/delete)). A exclusão é bloqueada enquanto um build estiver em execução. Cada app excluído
+segue as regras usuais de exclusão de aplicação, incluindo o snapshot de segurança nos planos que o têm. Com uma chave de API,
+excluir uma imagem que tem apps também exige o scope `apps:delete`.
+
+## Imagens em workspaces
+
+Imagens podem pertencer a um workspace, como as aplicações. A imagem sempre pertence ao dono do workspace, cujo plano e limites
+valem; só o dono cria imagens no workspace e as vincula ao GitHub. Membros usam as permissões de aplicação: ver uma imagem exige
+a permissão de ver apps, renomear e fazer rebuild exigem a permissão de gerenciar apps, e excluir exige a permissão de excluir
+apps. Quando uma imagem também roda aplicações fora do workspace, membros não podem fazer rebuild, commit nem excluí-la.
+
+## Chaves de API
+
+As imagens têm scopes próprios: `images:read` para listar, ler, ver versões, logs, contexto e a verificação; `images:write`
+para criar, renomear, fazer rebuild e vincular ao GitHub; e `images:delete` para excluir. Excluir uma imagem que tem apps também
+exige `apps:delete`, porque os apps são excluídos junto, e enviar arquivos para um app que roda uma imagem (um commit que
+reconstrói a imagem) exige `images:write` além de `apps:files`. Criar um app a partir de uma imagem usa `apps:write`.
+
+## Erros
+
+| Código | Significado |
+|---|---|
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | O plano não inclui imagens personalizadas. |
+| `MAX_IMAGES_REACHED` | O limite de 20 imagens do plano foi atingido. Exclua uma. |
+| `DOCKERFILE_NOT_FOUND` | Não existe um arquivo com o nome exato `Dockerfile` na raiz do contexto. |
+| `DOCKERFILE_REFUSED` | O `Dockerfile` tem uma instrução recusada; a resposta lista os achados. |
+| `IMAGE_CONTEXT_TOO_LARGE` | O contexto passou de um limite: 100 MB compactados, 512 MB descompactados, 50.000 entradas, ou um `Dockerfile` maior que 1 MB. |
+| `IMAGE_BUILD_IN_PROGRESS` | Um build da imagem já está em execução. |
+| `IMAGE_NOT_READY` | A imagem ainda não tem um build bem-sucedido, então não é possível criar apps a partir dela. |
+| `IMAGE_TOO_LARGE` | A imagem construída é maior que 10 GB descompactados. O build falha. |
+| `IMAGE_LABEL_REFUSED` | A imagem define um label em um namespace reservado. O build falha. |
+| `IMAGE_VOLUME_REFUSED` | A imagem declara um `VOLUME` em `/app` ou abaixo, ou com caminho relativo. O build falha. |
+| `IMAGE_APP_PORT_REQUIRED` | Publicar um app que não tem porta exige `port` na requisição. |
+| `IMAGE_BUILDER_UNAVAILABLE` | Nenhum host consegue construir imagens agora. Tente de novo mais tarde. |
+| `INSTALLATION_NOT_FOUND` | Criar a partir do GitHub: o repositório é privado ou não existe (ou a branch não existe) e não está nas suas instalações do GitHub App. Vincular: o repositório não está nas suas instalações. |
+| `IMAGE_NAME_MISMATCH` | `confirm_name` não é o nome da imagem. |
+| `IMAGE_NOT_FOUND` / `IMAGE_VERSION_NOT_FOUND` | A imagem ou a versão não existe, ou não é sua. |
+
+Veja [Erros](/api-reference/errors#custom-docker-images) para os status HTTP.

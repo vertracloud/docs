@@ -1,0 +1,74 @@
+---
+title: 'Ejecuta trabajos programados'
+sidebarTitle: 'Trabajos programados'
+description: 'Ejecuta tareas recurrentes, como limpiezas, informes y recordatorios, desde una aplicación en segundo plano con un planificador interno.'
+icon: 'calendar-clock'
+---
+
+Vertra Cloud mantiene tu proceso en marcha las 24 horas, así que una tarea recurrente es simplemente un planificador dentro de
+tu código. Un trabajo que no sirve HTTP se ejecuta como una aplicación en segundo plano, que no necesita publicación web y encaja
+en los planes más pequeños.
+
+## Elige dónde vive el trabajo
+
+- **Dentro de tu aplicación existente**: lo más sencillo, si el trabajo es ligero y comparte código con ella.
+- **En una aplicación de segundo plano separada**: mejor si el trabajo es pesado o si no quieres que compita con las peticiones
+  por la memoria. Se reinicia y escala por su cuenta.
+
+## Node.js
+
+```bash
+npm install node-cron
+```
+
+```javascript index.js
+const cron = require('node-cron');
+
+cron.schedule('0 3 * * *', async () => {
+  console.log('nightly cleanup started');
+  await cleanup();
+}, { timezone: 'America/Sao_Paulo' });
+
+console.log('scheduler running');
+```
+
+## Python
+
+```bash
+pip install apscheduler
+```
+
+```python main.py
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+scheduler = BlockingScheduler(timezone="America/Sao_Paulo")
+
+@scheduler.scheduled_job("cron", hour=3)
+def nightly_cleanup():
+    print("nightly cleanup started", flush=True)
+
+scheduler.start()
+```
+
+`BlockingScheduler` mantiene vivo el proceso. Con un script que termina después de programar, el proceso sale con código `0`
+y no se reinicia.
+
+## Puntos a tener en cuenta
+
+<AccordionGroup>
+  <Accordion title="Define siempre la zona horaria">
+    No dependas de la zona horaria del reloj del contenedor: pasa la zona horaria al planificador de forma explícita, como en los ejemplos.
+  </Accordion>
+  <Accordion title="Haz que los trabajos sean seguros de ejecutar dos veces">
+    Un reinicio durante un trabajo significa que puede volver a ejecutarse. Registra lo que ya se procesó, o diseña el trabajo para
+    que una segunda ejecución no cambie nada.
+  </Accordion>
+  <Accordion title="Captura los errores dentro del trabajo">
+    Un error no controlado puede tumbar todo el proceso, y 5 caídas en 10 minutos pausan el reinicio automático durante 24 horas.
+    Envuelve el cuerpo del trabajo en `try`/`catch` y registra el fallo.
+  </Accordion>
+  <Accordion title="Registra cada ejecución">
+    Imprime una línea cuando un trabajo empieza y cuando termina; la pestaña **Logs** es donde comprobarás que se ejecutó. En Python,
+    usa `flush=True` para que la línea aparezca de inmediato.
+  </Accordion>
+</AccordionGroup>

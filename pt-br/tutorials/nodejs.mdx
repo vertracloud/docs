@@ -1,0 +1,124 @@
+---
+title: 'Como hospedar uma aplicação Node.js na Vertra Cloud'
+sidebarTitle: 'Node.js'
+description: 'Faça deploy de uma aplicação Node.js na Vertra Cloud: script start no package.json, versão do Node, dependências instaladas pela plataforma e logs.'
+icon: js
+---
+
+## Requisitos
+
+- Node.js instalado localmente (para desenvolvimento)
+- Conta na [Vertra Cloud](https://vertracloud.app)
+- Arquivo `package.json` na raiz do projeto
+
+## Estrutura do projeto
+
+```
+my-project/
+├── src/
+│   └── index.js
+├── package.json
+└── vertracloud.config  (optional)
+```
+
+## Configuração
+
+### package.json
+
+Garanta que o `package.json` tenha um script `start` definido:
+
+```json
+{
+  "name": "my-project",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+  }
+}
+```
+
+<Note>
+  A plataforma executa `npm install` automaticamente antes de iniciar sua aplicação. Não inclua `node_modules` no upload.
+</Note>
+
+### vertracloud.config (opcional)
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+## Exemplo: servidor HTTP simples
+
+```javascript
+const http = require('http');
+
+const port = process.env.PORT || 80;
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ message: 'Hello from Vertra Cloud!' }));
+});
+
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Server running on port ${port}`);
+});
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie-o ao GitHub.
+    2. No dashboard, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**JavaScript**), o arquivo principal (`index.js`) e a memória. Os comandos de start e build ficam em **Configurações avançadas**.
+    4. Adicione suas variáveis de ambiente em **Variáveis de Ambiente**.
+    5. Em **Rede**, ative a **publicação na web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja a [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Deploy current project**. Veja a [extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 24.22.1 | Mais recente | Node.js 24.22.1 (versão mais recente) |
+| 22.23.4 | Recomendada | Node.js 22.23.4 LTS (recomendada para produção) |
+
+## Observações
+
+- **Dependências** são instaladas automaticamente via `npm install`
+- **Variáveis de ambiente** podem ser configuradas no dashboard ou pela API
+- **Logs** ficam disponíveis em tempo real no terminal do dashboard
+- **Reinício automático** vem ativado por padrão e reinicia a aplicação automaticamente após uma queda
+- Sempre escute em `process.env.PORT` e no host `0.0.0.0`
+
+## Problemas comuns
+
+<AccordionGroup>
+  <Accordion title="Error: Cannot find module">
+    Garanta que todas as dependências estejam listadas no `package.json`. A plataforma instala apenas o que está declarado.
+  </Accordion>
+  <Accordion title="EADDRINUSE: address already in use">
+    Sua aplicação pode estar tentando usar uma porta fixa. Use `process.env.PORT` para a porta correta.
+  </Accordion>
+  <Accordion title="O container reinicia sem parar">
+    Verifique os logs para identificar o erro. Erros de sintaxe ou dependências ausentes são causas comuns. O sistema de detecção de crash loop pausa o reinício automático após 5 quedas em 10 minutos.
+  </Accordion>
+</AccordionGroup>

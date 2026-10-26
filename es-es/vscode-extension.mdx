@@ -1,0 +1,235 @@
+---
+title: 'Gestiona Vertra Cloud desde VS Code'
+sidebarTitle: 'Extensión de VS Code'
+description: 'Despliega, sigue los logs y edita archivos de tus aplicaciones de Vertra Cloud sin salir del editor.'
+icon: 'microsoft'
+---
+
+## Qué es
+
+La extensión de Vertra Cloud gestiona tus aplicaciones, bases de datos y workspaces desde el editor: despliega, sigue los logs en
+tiempo real, consulta métricas, edita variables de entorno, explora archivos remotos e inspecciona el estado de las aplicaciones,
+sin abrir el panel.
+
+## Instalación
+
+- **Visual Studio Code**: instala "Vertra Cloud" desde el
+  [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=VertraCloud.vertra-cloud), o desde la línea de comandos:
+
+  ```bash
+  code --install-extension VertraCloud.vertra-cloud
+  ```
+
+- **Cursor**: instala "Vertra Cloud" desde Open VSX, dentro de la búsqueda de extensiones de Cursor.
+- **Otros editores que no indexan Open VSX ni el Marketplace, como Antigravity**: descarga el archivo `.vsix` de una release e
+  instálalo manualmente:
+
+  ```bash
+  code --install-extension vertra-cloud-<version>.vsix
+  ```
+
+  Sustituye `code` por el comando equivalente de la CLI de tu editor si no es VS Code.
+
+## Conectar tu cuenta
+
+Abre el panel de Vertra Cloud en la barra de actividad y elige una de las dos formas de conectarte:
+
+- **Conectar cuenta**: abre tu navegador para iniciar sesión y autorizar la extensión. La sesión se guarda en el almacenamiento
+  secreto de tu editor; nunca toca los ajustes, los archivos del workspace ni los logs.
+- **Usar clave de API**: para entornos sin navegador. Crea una clave en la página de claves de API del panel, con los alcances que
+  vayas a usar desde la extensión (como mínimo `account:read` y `apps:read`; añade `apps:write`, `apps:files`, `databases:read`/`databases:write`, `snapshots:read`/`snapshots:write`,
+  `images:read`/`images:write` o `workspaces:read`/`workspaces:write` según lo necesites). Pega la clave cuando se te pida.
+
+Para revocar el acceso, elimina la clave o la sesión desde la página de claves de API del panel. Desconectarte en el editor solo
+elimina la credencial local; no revoca la clave en el servidor.
+
+## Vincular una carpeta y `vertracloud.config`
+
+Vincula una carpeta del workspace a una aplicación con **Vincular carpeta actual**. El vínculo se escribe en un archivo
+`vertracloud.config` en la raíz de la carpeta, con el mismo formato que lee la CLI:
+
+| Campo | Significado |
+|---|---|
+| `ID` | ID de la aplicación vinculada |
+| `NAME` | Nombre de la aplicación |
+| `MEMORY` | Asignación de memoria |
+| `MAIN` | Archivo de entrada |
+| `VERSION` | Versión del runtime |
+| `SUBDOMAIN` | Subdominio público, cuando está publicada |
+| `START` | Comando de inicio |
+| `BUILD` | Comando de build, cuando hay uno configurado |
+
+La extensión reconoce este archivo por su nombre y ofrece autocompletado para los campos conocidos, descripciones al pasar el ratón
+y validación en línea de los valores ausentes o mal formados. Si rechazas escribir el archivo al vincular, la extensión mantiene el
+vínculo solo para la ventana actual del editor.
+
+## Desplegar
+
+**Desplegar el proyecto actual** comprime la carpeta vinculada y la sube. Esto es lo que se envía:
+
+- Todo lo que hay en la carpeta, excepto las entradas que coinciden con `.vertraignore` (o `.vertracloudignore`), con valores por
+  defecto sensatos que excluyen las carpetas de control de versiones, de dependencias y la salida del build.
+- Un límite estricto de 100 MB por subida; la extensión falla antes de subir si la carpeta lo supera.
+
+Desplegar funciona en todos los planes, para aplicaciones nuevas y existentes, dentro de los límites de tu plan actual.
+Tras la subida se ofrece una opción para reiniciar la aplicación como parte del despliegue. Cada despliegue también pide un mensaje
+opcional, que se rellena con el asunto del último commit de git de la carpeta; es lo que muestra la versión en el historial de
+Rollbacks.
+
+## Rollbacks
+
+**Rollbacks...** en una aplicación lista sus versiones, de la más reciente a la más antigua, con estado, autor y fecha. Elige una para:
+
+- **Hacer rollback a esta versión.** Si las variables de entorno de esa versión difieren de las actuales, la extensión lista los
+  nombres que cambiarían (nunca los valores) y pregunta si quieres restaurarlas. La aplicación se reinicia con el código elegido.
+- **Ver el log de caída** de una versión que se detuvo justo después de su despliegue.
+- **Copiar el ID de la versión.**
+
+Hacer rollback requiere el plan Pro o superior. Consulta [Rollbacks y despliegues sin interrupción](/es-es/guides/rollback-and-zero-downtime-deploys)
+para saber qué restaura un rollback y cuánto tiempo se conserva cada versión.
+
+## Logs y salida en tiempo real
+
+**Mostrar logs** imprime la salida reciente de una aplicación en un canal de Salida. **Alternar logs en tiempo real** abre un flujo
+en vivo en un canal de Salida, con reconexión automática mientras la conexión siga sana; se detiene definitivamente si lo desactivas,
+si cierras el canal de salida o si el servidor rechaza la conexión. Los logs no se muestran en una terminal integrada.
+
+## Métricas
+
+**Mostrar métricas** resume el uso de CPU, memoria y red para los rangos de tiempo habituales, directamente en el editor, sin webview.
+
+## Variables de entorno
+
+**Gestionar variables de entorno** lista los nombres de las variables y permite añadirlas, editarlas y eliminarlas. Los valores
+se ocultan por defecto; la extensión nunca copia ni registra un valor sin una acción explícita tuya.
+
+## Snapshots
+
+**Gestionar snapshots** lista, crea, descarga y restaura snapshots de aplicaciones y bases de datos. Restaurar siempre pide
+confirmación. Los snapshots manuales de aplicaciones requieren el plan Scale o superior; los de bases de datos no tienen
+restricción de plan.
+
+## Archivos remotos
+
+**Abrir archivos remotos** monta el sistema de archivos de la aplicación como una carpeta en el editor, bajo el esquema `vertra://`.
+Puedes abrir, editar y guardar archivos de texto de forma remota; los archivos binarios se abren en solo lectura. Eliminar, mover o
+subir archivos pide confirmación antes. Esto solo está disponible en los planes que incluyen el gestor de archivos.
+
+## Bases de datos
+
+Crea bases de datos y controla su ciclo de vida (iniciar, detener, reiniciar), consulta sus métricas, descarga el certificado TLS y
+restablece la contraseña. La contraseña se muestra una sola vez, justo después de un restablecimiento, y nunca se guarda ni vuelve a
+mostrar; si la pierdes, vuelve a restablecerla. Explorar el contenido de una base de datos desde dentro no está disponible con una
+clave de API y no forma parte de esta extensión; para eso usa el explorador de datos del panel.
+
+## Imágenes Docker
+
+La vista **Imágenes Docker** lista tus [imágenes Docker personalizadas](/es-es/guides/custom-docker-images) con el estado del último build (compilando, lista o fallida), el motivo cuando un build falló y las aplicaciones que ejecuta cada una. Las imágenes de un workspace aparecen bajo ese workspace. Las imágenes personalizadas están disponibles en Enterprise 28, 30 y 32; en otros planes la vista está vacía y crear una imagen te indica el motivo.
+
+- **Crear imagen Docker** acepta una carpeta o un repositorio de GitHub; la rama es opcional (déjala vacía para usar la rama por defecto del repositorio). Una carpeta necesita un archivo llamado exactamente `Dockerfile` en su raíz. Se comprime como lo hace la CLI: se respeta `.dockerignore`, nunca se envían archivos `.env*` ni enlaces simbólicos, y la extensión se detiene antes de subir un contexto de más de 100 MB (o de más de 512 MB descomprimidos o 50.000 archivos).
+- El Dockerfile se comprueba antes de que empiece el build. Los rechazos se listan con su línea y bloquean el build; las advertencias piden que confirmes.
+- **Renombrar imagen Docker** y **Editar descripción de imagen Docker** (clic derecho sobre una imagen) cambian el nombre y la descripción sin compilar nada; tus aplicaciones siguen funcionando.
+- **Recompilar desde carpeta** reemplaza todo el contexto de build. Una recompilación nunca reinicia tus aplicaciones, y un build fallido mantiene la versión actual.
+- **Mostrar log del build** reproduce el log del build en un canal de Salida y lo sigue en vivo mientras el build está en curso.
+- **Listar versiones**, **Descargar contexto de build**, **Vincular a GitHub** y **Desvincular de GitHub** (un push a la rama vinculada recompila la imagen).
+- **Eliminar imagen** te pide que escribas su nombre y también elimina cada aplicación creada a partir de ella. Con una clave de API, eliminar una imagen que tiene aplicaciones también necesita el scope `apps:delete`.
+- **Crear aplicación desde imagen** pide el nombre, la RAM, si sirve tráfico web, el subdominio, el puerto (rellenado con el primer `EXPOSE` de tu Dockerfile, o 80) y las variables.
+
+Para una aplicación que ejecuta una imagen, **Desplegar** es un commit: tus archivos se colocan encima del contexto de build actual de la imagen y la imagen se recompila. La extensión te dice cuántas aplicaciones usan la imagen antes de enviar; solo se reinicia la aplicación que desplegaste, y solo si pides un reinicio. **Publicar en la web** pide el puerto cuando la aplicación se creó sin web; restaurar un snapshot también puede devolver la versión de imagen en la que se tomó (cuando esa versión todavía existe); y el lenguaje, la versión, el archivo principal y los comandos de inicio y de build no se ofrecen, porque vienen de la imagen.
+
+## Workspaces
+
+La extensión lista los workspaces a los que perteneces y te permite explorar y vincular sus aplicaciones y bases de datos según los
+permisos de tu rol. Crear un workspace, enviar invitaciones y gestionar miembros se hace en el panel, no en la extensión.
+
+## Carpetas y favoritos
+
+Las carpetas y los favoritos de la extensión se guardan en tu cuenta, no en el almacenamiento local del editor. La extensión te
+permite crear, renombrar, cambiar el color y eliminar carpetas, y organizar aplicaciones y bases de datos dentro de ellas, así como
+marcar y desmarcar recursos como favoritos.
+
+La organización es individual por ámbito: la organización personal es distinta de la del mismo recurso en cada workspace. Los cambios
+hechos desde la extensión generan actividades en el historial, igual que las acciones equivalentes en el panel y en los workflows.
+
+Las carpetas de la extensión no son grupos de Flow. Los grupos siguen organizando elementos en el lienzo local de Flow; no hay
+sincronización, migración ni estado compartido entre ambos.
+
+## Red
+
+En aplicaciones de un plan que permite publicar, puedes publicar o dejar de publicar, abrir el dominio público, definir un subdominio
+personalizado (cuando tu plan permite elegirlo), añadir, editar o quitar dominios personalizados (tantos como permita tu plan), ver
+los registros DNS que hay que configurar y purgar la caché de borde.
+
+## Disponibilidad de funciones por plan
+
+| Función | Economy | Pro | Scale+ |
+|---|---|---|---|
+| Listar, iniciar, detener, reiniciar | Sí | Sí | Sí |
+| Desplegar en una aplicación nueva o existente | Sí | Sí | Sí |
+| Publicar en la web (subdominio aleatorio) | No | Sí | Sí |
+| Elegir subdominio | No | No | Sí |
+| Dominio personalizado | No | No | Intermediary y superiores |
+| Gestor de archivos remoto | Depende de la restricción del plan | Sí | Sí |
+| Hacer rollback a una versión anterior | No | Sí | Sí |
+| Snapshot manual de aplicación | No | No | Sí |
+| Imágenes Docker personalizadas | No | No | Solo Enterprise 28, 30 y 32 |
+| Snapshot de base de datos | Sí | Sí | Sí |
+
+Los límites y precios exactos cambian con el tiempo; el panel y esta documentación siempre muestran los números actuales de tu
+cuenta. Consulta [Planes y límites](/es-es/plans-and-limits) para más detalles.
+
+## Privacidad y confianza en el área de trabajo
+
+- El token de sesión o la clave de API se guardan solo en el almacenamiento secreto integrado de tu editor.
+- La extensión no recopila telemetría y no envía datos a ningún sitio.
+- Solo se comunica con `api.vertracloud.app`, además de tu navegador para el paso de autorización de la cuenta; ninguna petición va
+  a otro host.
+- En un área de trabajo no confiable, desplegar, subir y escribir en archivos remotos están desactivados; leer datos remotos puede
+  seguir funcionando.
+
+## Comandos principales
+
+| Comando | Qué hace |
+|---|---|
+| Conectar cuenta | Inicia el flujo de autorización en el navegador |
+| Usar clave de API | Conecta con una clave de API introducida manualmente |
+| Desconectar | Elimina la credencial local |
+| Actualizar | Recarga aplicaciones, bases de datos y el estado de la cuenta |
+| Crear / renombrar / cambiar color / eliminar carpeta | Gestiona las carpetas guardadas para el ámbito de la cuenta o del workspace actual |
+| Añadir a carpeta / Quitar de carpeta | Organiza una aplicación o base de datos sin cambiar el recurso |
+| Marcar como favorito / Quitar de favoritos | Guarda la preferencia para el ámbito de la cuenta o del workspace actual |
+| Vincular carpeta actual / Desvincular carpeta actual | Asocia una carpeta del workspace con una aplicación |
+| Desplegar el proyecto actual | Sube la carpeta vinculada |
+| Iniciar / Detener / Reiniciar | Controla el ciclo de vida de una aplicación |
+| Mostrar logs / Alternar logs en tiempo real | Salida reciente y en vivo |
+| Mostrar métricas | Resumen de CPU, memoria y red |
+| Gestionar variables de entorno | Añade, edita y elimina variables |
+| Gestionar snapshots | Lista, crea, descarga y restaura |
+| Crear imagen Docker / Recompilar imagen Docker desde carpeta | Compila una imagen desde una carpeta o un repositorio de GitHub |
+| Renombrar imagen Docker / Editar descripción de imagen Docker | Cambia el nombre o la descripción sin compilar |
+| Mostrar log del build / Listar versiones / Descargar contexto de build | Sigue el build, lista las versiones y guarda el contexto actual |
+| Vincular a GitHub / Desvincular de GitHub | Recompila la imagen en cada push a la rama vinculada |
+| Eliminar imagen / Crear aplicación desde imagen | Elimina una imagen y sus aplicaciones; inicia una aplicación desde una imagen |
+| Abrir archivos remotos | Monta `vertra://` como una carpeta |
+| Abrir aplicación / Abrir panel | Abre URLs en el navegador |
+| Copiar ID | Copia el identificador de un recurso |
+
+## Solución de problemas
+
+<AccordionGroup>
+  <Accordion title="Clave de API no válida">
+    La clave fue revocada o se escribió mal. Crea una nueva en el panel y vuelve a conectarte.
+  </Accordion>
+  <Accordion title="Error de alcance que falta">
+    La clave que usas no incluye el permiso que necesita la acción; el error indica el alcance que falta y ofrece un atajo a la
+    página de gestión de claves.
+  </Accordion>
+  <Accordion title="Acción restringida por el plan">
+    La acción requiere un plan superior al que tiene tu aplicación o tu cuenta; la página de planes del panel muestra los límites
+    actuales y las opciones de mejora.
+  </Accordion>
+  <Accordion title="El despliegue falla con un error de tamaño">
+    Revisa tu archivo `.vertraignore` (o `.vertracloudignore`) para excluir las carpetas de dependencias y la salida del build, y
+    vuelve a intentarlo.
+  </Accordion>
+</AccordionGroup>

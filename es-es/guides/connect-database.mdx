@@ -1,0 +1,108 @@
+---
+title: 'Conecta tu aplicación a una base de datos gestionada'
+sidebarTitle: 'Conectar una base de datos'
+description: 'Crea una base de datos PostgreSQL, MongoDB, Redis o MySQL, incluye sus certificados con tu app y guarda las credenciales en variables de entorno.'
+icon: 'plug'
+---
+
+Las bases de datos de Vertra Cloud requieren TLS **y** un certificado de cliente: una contraseña sola nunca conecta.
+Esta guía lleva una aplicación desde "sin base de datos" hasta una conexión verificada, con los secretos fuera de tu código.
+
+## Antes de empezar
+
+<Check>Un plan que quepa en una aplicación y una base de datos: los 256 MB del plan Economy son insuficientes. Pro (1024 MB) basta para una base de datos sola, pero una aplicación más PostgreSQL, MongoDB o MySQL necesita Scale o superior. Con Redis, basta Pro.</Check>
+<Check>RAM libre suficiente: 1024 MB para PostgreSQL, MongoDB y MySQL; 512 MB para Redis. La memoria de la aplicación sale del mismo total del plan.</Check>
+
+## Paso a paso
+
+<Steps>
+  <Step title="Crea la base de datos">
+    En el panel, haz clic en **Nuevo proyecto**, elige **Base de datos** y selecciona el motor. Está lista cuando su estado
+    cambia a **En línea**.
+  </Step>
+  <Step title="Obtén el host, el puerto y la contraseña">
+    Los tres datos están en la página de la base de datos. El puerto es **único por base de datos**: nunca des por supuestos
+    5432, 27017, 6379 o 3306.
+  </Step>
+  <Step title="Descarga los certificados">
+    En la pestaña **Certificados**, descarga los tres archivos y renómbralos con nombres estables:
+
+    | Descargado | Renombrar a | Función |
+    |---|---|---|
+    | `certificate-<id>.crt` | `certs/db.crt` | certificado de cliente |
+    | `certificate-<id>.key` | `certs/db.key` | clave del cliente |
+    | `certificate-<id>.pem` | `certs/db.pem` | archivo CA |
+  </Step>
+  <Step title="Incluye los certificados con la aplicación">
+    Coloca la carpeta `certs/` en el proyecto que subes. Si despliegas desde GitHub, añade `certs/` a `.gitignore` y sube la
+    carpeta desde la pestaña **Archivos** de la aplicación: la clave se autentica como tú y nunca debe estar en un repositorio.
+  </Step>
+  <Step title="Guarda las credenciales como variables de entorno">
+    En la pestaña **Ajustes → Variables de Entorno** de la aplicación, añade:
+
+    ```ini
+    DB_HOST=<host>
+    DB_PORT=<port>
+    DB_PASSWORD=<password>
+    ```
+
+    Reinicia la aplicación para que el proceso las vea.
+  </Step>
+  <Step title="Conecta">
+    Lee todo desde el entorno. PostgreSQL con Node.js:
+
+    ```javascript
+    const fs = require('fs');
+    const { Pool } = require('pg');
+
+    const pool = new Pool({
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT),
+      user: 'postgres',
+      database: 'postgres',
+      password: process.env.DB_PASSWORD,
+      ssl: {
+        ca: fs.readFileSync('certs/db.pem'),
+        cert: fs.readFileSync('certs/db.crt'),
+        key: fs.readFileSync('certs/db.key'),
+        rejectUnauthorized: true,
+      },
+    });
+
+    pool.query('select 1').then(() => console.log('database ok'));
+    ```
+
+    El mismo patrón para Python, MongoDB, Redis y MySQL está en la página de
+    [Bases de datos](/es-es/databases#cómo-me-conecto-a-cada-motor).
+  </Step>
+</Steps>
+
+## Prueba primero desde tu máquina
+
+La conexión funciona igual desde tu ordenador, que es la forma más rápida de distinguir un problema de código de un problema
+de credenciales:
+
+```bash
+psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certs/db.pem sslcert=certs/db.crt sslkey=certs/db.key"
+```
+
+## Solución de problemas
+
+<AccordionGroup>
+  <Accordion title="Conexión rechazada o tiempo de espera agotado">
+    Revisa el puerto en la página de la base de datos y que la base de datos esté **En línea**.
+  </Accordion>
+  <Accordion title="Errores de SSL o de certificado">
+    TLS debe estar activado y los tres archivos deben ser los actuales. Tras **Restablecer Certificado**, los archivos antiguos
+    dejan de funcionar: descárgalos de nuevo y vuelve a desplegarlos.
+  </Accordion>
+  <Accordion title="Fallo de autenticación">
+    Copia de nuevo la contraseña; tras **Restablecer Contraseña**, actualiza `DB_PASSWORD` y reinicia la aplicación.
+    MongoDB también necesita `authSource=admin` en la URI. En Redis, envía también el usuario (`vertracloud`): una contraseña
+    sola se rechaza en las bases de datos creadas desde la v26.4.8. Revisa el usuario en el `username` de la base de datos.
+  </Accordion>
+  <Accordion title="ENOENT: no such file certs/db.pem">
+    La ruta es relativa al directorio de trabajo del proceso, la raíz del proyecto. Comprueba que la carpeta exista en la pestaña
+    **Archivos**.
+  </Accordion>
+</AccordionGroup>

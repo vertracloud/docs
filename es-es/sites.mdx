@@ -1,0 +1,215 @@
+---
+title: 'Aloja un sitio en Vertra Cloud con SSL y protecciones'
+sidebarTitle: 'Sitios y protecciones'
+description: 'Aloja sitios estáticos y dinámicos en Vertra Cloud con protección de Vertra Shield, SSL automático, dominios personalizados y purga de caché de CDN.'
+icon: 'shield'
+---
+
+## Alojamiento de sitios
+
+Vertra Cloud ofrece alojamiento de sitios con una infraestructura optimizada para aplicaciones web. Cada sitio
+se ejecuta en un contenedor aislado, con recursos dedicados, SSL automático y protección frente al abuso de red.
+
+### Tipos de sitio
+
+<Tabs>
+  <Tab title="Sitios estáticos">
+    Sitios compuestos por HTML, CSS y JavaScript puro. Ideales para landing pages, portfolios, documentación y aplicaciones SPA.
+
+    **Cómo configurarlo:**
+    - Envía la carpeta con tus archivos estáticos como un `.zip` en **Nuevo Proyecto**
+    - En **Build**, el runtime se detecta como **Static** y `index.html` como archivo principal
+    - Activa la publicación web en **Red**
+
+    **Compatible con:**
+    - HTML5, CSS3, JavaScript ES6+
+    - Web Components
+    - Service Workers
+    - Cualquier framework de frontend compilado (React, Vue, Svelte, Angular)
+  </Tab>
+  <Tab title="Sitios dinámicos">
+    Sitios que necesitan un servidor backend para renderizar o para ofrecer APIs. Admiten todos los lenguajes disponibles en la plataforma.
+
+    **Ejemplos:**
+    - Next.js con SSR (Server-Side Rendering)
+    - Express.js sirviendo páginas dinámicas
+    - Flask/Django con plantillas
+    - Fastify con frontend integrado
+
+    **Cómo configurarlo:**
+    - Selecciona el lenguaje de servidor correspondiente
+    - Configura el puerto mediante la variable de entorno `PORT`
+    - El subdominio se asignará automáticamente
+  </Tab>
+</Tabs>
+
+### Subdominios
+
+Cada aplicación publicada recibe un subdominio con el formato:
+
+```
+https://your-app.vertraweb.app
+```
+
+Los subdominios son únicos y se validan automáticamente. Puedes elegir el nombre al crear la aplicación o
+cambiarlo después en sus ajustes. Elegir el nombre requiere un plan con subdominios personalizados; sin él, la
+plataforma asigna un subdominio aleatorio.
+
+### Publicar y despublicar
+
+La publicación web **no** se decide de una vez por todas al crear la aplicación. Una aplicación creada sin
+subdominio funciona en privado, y puedes activar la publicación más adelante —o desactivarla de nuevo— desde la
+configuración de **Red** de la aplicación, o mediante la API con
+[Publicar aplicación en la web](/api-reference/endpoint/apps/network/publish).
+
+<Warning>
+  Activar o desactivar la publicación **recrea el contenedor, así que la aplicación se reinicia**. Prevé una breve interrupción.
+</Warning>
+
+<Warning>
+  Despublicar **libera el subdominio**. No queda reservado para ti: cualquiera puede registrarlo justo después.
+  Todos los dominios personalizados se eliminan a la vez, pero sus registros `CNAME` y `TXT` permanecen en tu
+  proveedor de DNS: bórralos, o otro cliente podría reclamar el nombre.
+</Warning>
+
+### Dominios personalizados
+
+Para conectar tus propios dominios (varios por aplicación, según el plan):
+
+<Steps>
+  <Step title="Añadir dominio">
+    En el panel de la aplicación, ve a **Red** y añade tu dominio. El complemento `www` (o el dominio raíz) se
+    añade junto con él y no cuenta para el límite.
+  </Step>
+  <Step title="Configurar DNS">
+    Añade el registro **CNAME** que apunte a la dirección que proporciona la plataforma. Un dominio raíz necesita
+    un proveedor que admita CNAME flattening.
+  </Step>
+  <Step title="Esperar la propagación">
+    La propagación del DNS puede tardar hasta 48 horas. El SSL se provisionará automáticamente tras la validación.
+  </Step>
+</Steps>
+
+Cada dominio puede servir un puerto distinto de la aplicación, añadir un prefijo de ruta (recomendado para APIs)
+o redirigir a otro dominio. Consulta [Conectar dominios personalizados](/es-es/guides/custom-domain).
+
+<Note>
+  Los dominios personalizados están disponibles desde el plan **Intermediary**.
+</Note>
+
+---
+
+## Protecciones de la plataforma
+
+Vertra Cloud aplica varias capas de protección para garantizar la estabilidad, la seguridad y la disponibilidad
+del servicio.
+
+### Aislamiento de contenedores
+
+Cada aplicación y cada base de datos se ejecuta en un contenedor aislado, con:
+
+- **Memoria dedicada** — límites estrictos de RAM por recurso
+- **CPU limitada** — cuota de CPU proporcional al plan
+- **Almacenamiento aislado** — cuotas de almacenamiento por recurso, para que uno no afecte a los demás
+
+### Protección contra crash loop
+
+El sistema detecta los contenedores que entran en bucles de reinicio y aplica medidas preventivas:
+
+- **Detección inteligente** — 5 caídas en 10 minutos desactivan el reinicio automático durante 24 horas
+- **Filtro por código de salida** — la terminación normal (código 0) no cuenta
+- **Enfriamiento entre reinicios** — intervalo mínimo de 1 hora entre reinicios automáticos
+- **Tiempo mínimo de actividad** — el contenedor debe estar en línea al menos 60 segundos para considerarse estable
+
+### SSL/TLS automático
+
+Todas las aplicaciones de tipo sitio reciben certificados SSL automáticamente:
+
+- Aprovisionamiento y renovación automáticos de los certificados
+- Compatibilidad con subdominios y dominios personalizados
+- Redirección de HTTP a HTTPS activada por defecto
+
+### Restricciones de acceso por región
+
+Las peticiones a los subdominios `*.vertraweb.app` se bloquean desde los países sujetos a sanciones o
+restricciones regulatorias, y los visitantes de una lista corta de otros países deben superar antes una
+comprobación rápida en el navegador.
+
+**Bloqueados** (sanciones o restricciones regulatorias):
+
+| País | Código |
+| :- | :-: |
+| Afganistán | AF |
+| Bielorrusia | BY |
+| Cuba | CU |
+| China | CN |
+| Irán | IR |
+| Corea del Norte | KP |
+| Rusia | RU |
+| Siria | SY |
+| Antártida | AQ |
+| Todos los nodos de salida de Tor | T1 |
+
+**Comprobación en el navegador** (motivos de seguridad):
+
+| País | Código |
+| :- | :-: |
+| Bangladés | BD |
+| India | IN |
+| Irak | IQ |
+| Filipinas | PH |
+| Ucrania | UA |
+| Venezuela | VE |
+| Vietnam | VN |
+| Indonesia | ID |
+| Malasia | MY |
+
+<Note>
+  La comprobación en el navegador solo la puede superar una persona desde un navegador. Los clientes de API, los
+  scripts y los emisores de webhooks que llamen a tu sitio desde alguno de estos países reciben `403 Forbidden`.
+  Las peticiones de todos los demás países, incluidos los webhooks como el de Telegram, llegan a tu aplicación con normalidad.
+</Note>
+
+### Certificados de bases de datos
+
+Todas las bases de datos usan conexiones cifradas:
+
+- **PostgreSQL** — TLS obligatorio con certificados de cliente y de servidor
+- **MongoDB** — TLS activado con una CA firmada por la plataforma
+- **Redis** — TLS configurable
+- **MySQL** — autenticación X509 obligatoria con certificados generados automáticamente
+
+### Limpieza automática (cuentas sin plan)
+
+Para mantener la salud de la plataforma, los proyectos de una cuenta sin plan activo que permanezcan sin
+conexión durante más de 30 días se eliminan automáticamente, con un snapshot previo:
+
+- **Día 7** — primera notificación por correo electrónico
+- **Día 23** — segundo aviso
+- **Día 27** — aviso final con enlace de reactivación
+- **Día 30** — eliminación automática del proyecto
+
+<Warning>
+  Suscríbete a un plan o descarga tu proyecto antes del día 30.
+</Warning>
+
+---
+
+## Buenas prácticas
+
+- **Define límites de memoria adecuados** para evitar reinicios por OOM
+- **Usa variables de entorno** para los ajustes sensibles, en lugar de valores fijos en el código
+- **Configura `.gitignore`** para excluir `node_modules`, `venv` y los archivos temporales del despliegue
+- **Revisa los logs** con regularidad para detectar errores y cuellos de botella
+- **Usa snapshots** antes de hacer cambios importantes en la aplicación
+
+## Límites
+
+| Recurso | Límite |
+|---------|--------|
+| Tamaño máximo de subida de ZIP | 100 MB |
+| Subdominio | Único por aplicación |
+| Dominios personalizados | De 1 a 20 por aplicación, según el plan (el `www` automático no cuenta) |
+| Tiempo máximo de instalación de dependencias | 15 minutos |
+| Tiempo máximo de `build_command` | 10 minutos |
+| Puertos expuestos | Puerto 80, más hasta 5 a través de dominios personalizados |

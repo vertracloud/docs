@@ -1,0 +1,108 @@
+---
+title: 'Conecte sua aplicação a um banco de dados gerenciado'
+sidebarTitle: 'Conectar a um banco'
+description: 'Crie um banco PostgreSQL, MongoDB, Redis ou MySQL, envie os certificados junto com a aplicação e guarde as credenciais em variáveis de ambiente.'
+icon: 'plug'
+---
+
+Os bancos de dados na Vertra Cloud exigem TLS **e** um certificado de cliente: somente a senha nunca conecta.
+Este guia leva uma aplicação de "sem banco de dados" até uma conexão verificada, com os segredos fora do seu código.
+
+## Antes de começar
+
+<Check>Um plano que comporte a aplicação e o banco: os 256 MB do Economy são pequenos demais. Os 1.024 MB do Pro bastam só para o banco, mas uma aplicação mais PostgreSQL, MongoDB ou MySQL precisa do Scale ou superior. Com Redis, o Pro basta.</Check>
+<Check>RAM livre suficiente: 1.024 MB para PostgreSQL, MongoDB e MySQL; 512 MB para Redis. A memória da aplicação sai do mesmo total do plano.</Check>
+
+## Passo a passo
+
+<Steps>
+  <Step title="Crie o banco de dados">
+    No painel, clique em **Novo Projeto**, escolha **Banco de dados** e selecione o motor. Ele está pronto quando
+    o status muda para **Online**.
+  </Step>
+  <Step title="Colete host, porta e senha">
+    Os três estão na página do banco de dados. A porta é **única para cada banco**: nunca presuma 5432,
+    27017, 6379 ou 3306.
+  </Step>
+  <Step title="Baixe os certificados">
+    Na aba **Certificados**, baixe os três arquivos e renomeie-os para nomes estáveis:
+
+    | Baixado | Renomear para | Função |
+    |---|---|---|
+    | `certificate-<id>.crt` | `certs/db.crt` | certificado do cliente |
+    | `certificate-<id>.key` | `certs/db.key` | chave do cliente |
+    | `certificate-<id>.pem` | `certs/db.pem` | arquivo da CA |
+  </Step>
+  <Step title="Envie os certificados com a aplicação">
+    Coloque a pasta `certs/` no projeto que você envia. Se você fizer deploy a partir do GitHub, adicione `certs/` ao
+    `.gitignore` e envie a pasta pela aba **Arquivos** da aplicação: a chave autentica como você e nunca deve ficar em um repositório.
+  </Step>
+  <Step title="Guarde as credenciais como variáveis de ambiente">
+    Na aba **Config → Variáveis de ambiente** da aplicação, adicione:
+
+    ```ini
+    DB_HOST=<host>
+    DB_PORT=<port>
+    DB_PASSWORD=<password>
+    ```
+
+    Reinicie a aplicação para que o processo enxergue as variáveis.
+  </Step>
+  <Step title="Conecte-se">
+    Leia tudo a partir do ambiente. PostgreSQL com Node.js:
+
+    ```javascript
+    const fs = require('fs');
+    const { Pool } = require('pg');
+
+    const pool = new Pool({
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT),
+      user: 'postgres',
+      database: 'postgres',
+      password: process.env.DB_PASSWORD,
+      ssl: {
+        ca: fs.readFileSync('certs/db.pem'),
+        cert: fs.readFileSync('certs/db.crt'),
+        key: fs.readFileSync('certs/db.key'),
+        rejectUnauthorized: true,
+      },
+    });
+
+    pool.query('select 1').then(() => console.log('database ok'));
+    ```
+
+    O mesmo padrão para Python, MongoDB, Redis e MySQL está na página de
+    [Bancos de dados](/pt-br/databases#como-me-conecto-a-cada-motor).
+  </Step>
+</Steps>
+
+## Teste primeiro na sua máquina
+
+A conexão funciona da mesma forma no seu computador, que é a maneira mais rápida de saber se o problema está no código
+ou nas credenciais:
+
+```bash
+psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certs/db.pem sslcert=certs/db.crt sslkey=certs/db.key"
+```
+
+## Solução de problemas
+
+<AccordionGroup>
+  <Accordion title="Connection refused ou timeout">
+    Confira a porta na página do banco de dados e se o banco está **Online**.
+  </Accordion>
+  <Accordion title="Erros de SSL ou de certificado">
+    O TLS precisa estar ativado, e os três arquivos precisam ser os atuais. Depois de **Redefinir certificados**, os
+    arquivos antigos deixam de funcionar: baixe-os novamente e envie-os outra vez no deploy.
+  </Accordion>
+  <Accordion title="Falha de autenticação">
+    Copie a senha novamente; depois de **Redefinir senha**, atualize `DB_PASSWORD` e reinicie a aplicação.
+    O MongoDB também precisa de `authSource=admin` na URI. No Redis, envie também o usuário (`vertracloud`): somente a senha
+    é rejeitada nos bancos criados a partir da v26.4.8. Confira o usuário no campo `username` do banco.
+  </Accordion>
+  <Accordion title="ENOENT: no such file certs/db.pem">
+    O caminho é relativo ao diretório de trabalho do processo, que é a raiz do projeto. Confira se a pasta existe na
+    aba **Arquivos**.
+  </Accordion>
+</AccordionGroup>

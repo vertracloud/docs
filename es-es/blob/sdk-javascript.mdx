@@ -1,0 +1,109 @@
+---
+title: 'SDK de JavaScript de Blob Storage (@vertracloud/blob)'
+sidebarTitle: 'SDK de JavaScript'
+description: 'Referencia de @vertracloud/blob: subida con progreso, cancelar y reanudar, listar, páginas compartidas, reglas, dominios y errores.'
+icon: 'js'
+---
+
+`@vertracloud/blob` es el cliente de Blob Storage para Node 18+, navegadores y runtimes de edge. No tiene dependencias, usa el `fetch` nativo y reexporta los tipos de los datos, así que importas todo desde un único paquete.
+
+```bash
+npm install @vertracloud/blob
+```
+
+```ts
+import { BlobClient, type BlobObject } from "@vertracloud/blob";
+
+const blob = new BlobClient({ apiKey: process.env.VERTRA_API_KEY }); // servidor
+const browserBlob = new BlobClient({ uploadToken: "vcup_..." });     // navegador
+```
+
+Opciones: `apiKey` o `uploadToken`, `baseUrl` (por defecto `https://blob.vertracloud.app/v1`, incluida la versión), un `fetch` personalizado, `partConcurrency` (por defecto 4), `maxRetries` (por defecto 3) y `timeout`. Pasa `workspaceId` para actuar sobre el almacenamiento de un workspace ([Autenticación](/es-es/blob/authentication#workspaces)).
+
+Las opciones que pasas van en camelCase; los objetos que devuelve el SDK conservan los campos en snake_case de la API (`obj.content_type`, `stats.used_bytes`).
+
+## Subir
+
+`put()` elige el flujo simple, directo o por partes según el tamaño del archivo, y envía las partes en paralelo (4 por defecto) con un reintento por parte.
+
+```ts
+const controller = new AbortController();
+
+const obj = await blob.put("images/logo.png", file, {
+  visibility: "public",
+  randomSuffix: true,
+  onProgress: ({ loaded, total }) => setPercent(loaded / total),
+  signal: controller.signal, // controller.abort() cancela y aborta la subida
+});
+
+// guarda el id de la subida para reanudarla tras un fallo
+let uploadId: string | undefined;
+try {
+  await blob.put("backup.tar", file, { onUpload: (upload) => (uploadId = upload.id) });
+} catch {
+  await blob.resume(uploadId!, file, { onProgress }); // envía solo las partes que faltan
+}
+
+const open = await blob.listUploads(); // subidas directas aún en curso
+await blob.abortUpload(uploadId!);
+```
+
+`put()` acepta las [opciones de subida](/es-es/blob/uploads#opciones) en camelCase (`overwrite`, `renameOnConflict`, `randomSuffix`, `cacheControl`, `contentDisposition`, `filename`, `expiresAt`, `metadata`).
+
+## Archivos
+
+```ts
+for await (const obj of blob.list({ prefix: "images/" })) {}   // pagina por ti
+const obj = await blob.get(id);
+await blob.update(id, { metadata: { owner: "joao" } });
+await blob.updateMany(ids, { visibility: "private" });
+await blob.copy(id, "backup/logo.png");
+await blob.move(id, "img/logo.png");                            // conserva el id
+await blob.delete(id);
+await blob.deleteMany({ prefix: "tmp/" });
+const { url } = await blob.downloadUrl(id, { expiresIn: 600 });
+const small = blob.imageUrl(obj, { width: 400, format: "webp" }); // ver Transformaciones de imagen
+```
+
+## Todo lo demás
+
+```ts
+const share = await blob.shares.create(id, { expiresIn: 3600, maxDownloads: 10, password: "correct horse" });
+await blob.shares.list({ objectId: id });
+await blob.shares.revoke(share.id);
+
+const { etag } = await blob.rules.get();
+await blob.rules.set([{ prefix: "tmp/", deleteAfterDays: 30 }], etag); // un etag obsoleto falla con BLOB_RULES_CONFLICT
+await blob.rules.put("avatars/", { maxSize: 2_000_000 });
+await blob.rules.delete("avatars/");
+
+const domain = await blob.domains.add("cdn.example.com");
+await blob.domains.update(domain.id, { web_content: true });
+await blob.domains.verify(domain.id);
+await blob.domains.list();
+await blob.domains.remove(domain.id);
+
+const stats = await blob.stats();
+const { token } = await blob.createUploadToken({ prefix: "avatars/", maxSize: 5_000_000 });
+const s3 = await blob.s3Credentials();
+```
+
+## Errores
+
+Los fallos lanzan un error tipado con `code` y `status`:
+
+```ts
+import { BlobError } from "@vertracloud/blob";
+
+try {
+  await blob.put("a.png", file);
+} catch (err) {
+  if (err instanceof BlobError && err.code === "STORAGE_QUOTA_EXCEEDED") {
+    // pide al usuario que libere espacio
+  }
+}
+```
+
+El SDK solo reintenta las lecturas y las partes individuales de una subida. Nunca reintenta crear una subida, completarla ni un `429`, para evitar duplicados; gestiona `RATE_LIMIT_EXCEEDED` tú mismo esperando `err.retryAfter` segundos. Los códigos están en el [catálogo de errores](/api-reference/errors).
+
+Otros lenguajes: [Python y Go](/es-es/blob/sdk-python-go). Rutas: [Referencia de la API de Blob](/api-reference/endpoint/blob/objects/upload). SDK generales: [SDK oficiales](/es-es/sdks).

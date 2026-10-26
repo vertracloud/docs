@@ -1,0 +1,424 @@
+---
+title: 'SDKs oficiais (JavaScript, Python e Go)'
+sidebarTitle: 'SDKs'
+description: 'Clientes tipados para JavaScript/TypeScript, Python e Go sobre a API pública da Vertra Cloud: aplicações, bancos, snapshots, conta, workspaces e cobrança.'
+icon: 'box'
+---
+
+## O que são
+
+`@vertracloud/sdk-api` (JavaScript/TypeScript), `vertracloud-api` (Python) e
+`github.com/vertracloud/sdk-api-go` (Go) são clientes tipados e enxutos sobre a
+[API pública](/api-reference/introduction): um método por rota, os mesmos escopos de chave de API e
+nada além disso — sem cache, sem retry automático, sem estado próprio. Use-os no lugar de montar `fetch`/`requests`/`net/http`
+na mão quando quiser tipos e erros já estruturados.
+
+## Instalação
+
+<CodeGroup>
+
+```bash npm
+npm install @vertracloud/sdk-api
+```
+
+```bash pip
+pip install vertracloud-api
+```
+
+```bash go
+go get github.com/vertracloud/sdk-api-go
+```
+
+</CodeGroup>
+
+## Autenticação
+
+Os três clientes recebem a chave de API na construção — a mesma chave criada em
+**Configurações → Chaves de API** no dashboard, com os escopos que o seu código vai usar (veja
+[Escopos](/api-reference/introduction#scopes)).
+
+<CodeGroup>
+
+```javascript JavaScript
+import { VertraClient } from "@vertracloud/sdk-api";
+
+const client = new VertraClient({ apiKey: process.env.VERTRA_API_KEY! });
+```
+
+```python Python
+import os
+
+from vertracloud import VertraClient
+
+client = VertraClient(api_key=os.environ["VERTRA_API_KEY"])
+```
+
+```go Go
+import (
+	"github.com/vertracloud/sdk-api-go/rest"
+	"github.com/vertracloud/sdk-api-go/vertracloud"
+)
+
+restClient, err := rest.NewClient(os.Getenv("VERTRA_API_KEY"))
+if err != nil {
+	log.Fatal(err)
+}
+client := vertracloud.New(restClient)
+```
+
+</CodeGroup>
+
+Todos aceitam uma URL base e um timeout opcionais (`baseUrl`/`timeoutMs`,
+`base_url`/`timeout`, `rest.WithBaseURL`/`rest.WithTimeout`); o padrão já aponta para
+`https://api.vertracloud.app`. Em Go, toda chamada recebe `context.Context` como primeiro argumento e as
+opções por chamada no final — por exemplo, `rest.WithWorkspaceID(id)` para agir sobre um recurso de workspace.
+
+## Exemplos por domínio
+
+### Aplicações
+
+<CodeGroup>
+
+```javascript JavaScript
+const app = await client.apps.get("app-abc123");
+await client.apps.restart("app-abc123");
+const runtimes = await client.apps.runtimes();
+```
+
+```python Python
+app = client.apps.get("app-abc123")
+client.apps.restart("app-abc123")
+runtimes = client.apps.runtimes()
+```
+
+```go Go
+app, err := client.Apps.Get(ctx, "app-abc123")
+_, err = client.Apps.Restart(ctx, "app-abc123", nil)
+runtimes, err := client.Apps.Runtimes(ctx)
+```
+
+</CodeGroup>
+
+`restart` também aceita as flags opcionais `reinstall_dependencies` e `force_build` (por exemplo `{ force_build: true }` em JavaScript); um restart que ative qualquer uma delas roda um build e conta no limite de deploys por hora do plano.
+
+Criar uma aplicação responde na hora com `status: "building"`; o build continua em segundo plano.
+Espere que ele termine com o helper da sua linguagem. Ele devolve a aplicação quando ela estiver `up` e
+lança um erro se o build terminar `down` (o `code` do erro é o `last_build_error` da aplicação, como `INSTALL_OUT_OF_MEMORY`, ou `APP_DOWN` quando não há um; leia os logs para o detalhe) ou se a espera estourar o tempo.
+
+<CodeGroup>
+
+```javascript JavaScript
+const app = await client.apps.create({ file: zip, name: "bot", memory: 256 });
+const ready = await client.apps.waitUntilReady(app.id, { timeoutMs: 600_000, intervalMs: 2_000 });
+// lança AppBuildFailedError (terminou down) ou AppBuildTimeoutError; também aceita signal e workspaceId
+```
+
+```python Python
+ready = client.apps.wait_until_ready(app_id, timeout=600.0, interval=2.0)
+# lança AppBuildFailedError (terminou down) ou WaitTimeoutError; também aceita workspace_id
+```
+
+```go Go
+ready, err := client.Apps.WaitUntilReady(ctx, app.ID, &vertracloud.WaitOptions{Interval: 2 * time.Second})
+// *vertracloud.AppNotReadyError quando o build terminou down; o ctx limita a espera
+```
+
+</CodeGroup>
+
+### Releases e rollback
+
+Listar releases e ler um log exigem `apps:read`. A prévia exige `apps:envs` e devolve apenas os
+nomes das variáveis, nunca os valores. Um rollback exige `apps:write`, mais `apps:envs` para restaurar variáveis, e está disponível a partir do plano Pro. Veja o [guia](/pt-br/guides/rollback-and-zero-downtime-deploys) para saber o que um rollback restaura.
+
+<CodeGroup>
+
+```javascript JavaScript
+const { data } = await client.apps.releases.list("app-abc123", { limit: 10 });
+const target = data.find((r) => r.status !== "active" && r.rollback.available);
+
+const preview = await client.apps.releases.previewRollback("app-abc123", target.id);
+await client.apps.releases.rollback("app-abc123", target.id, { restore_environment: false });
+```
+
+```python Python
+page = client.apps.releases.list("app-abc123", limit=10)
+target = next(r for r in page["data"] if r["status"] != "active" and r["rollback"]["available"])
+
+preview = client.apps.releases.preview_rollback("app-abc123", target["id"])
+client.apps.releases.rollback("app-abc123", target["id"], {"restore_environment": False})
+```
+
+```go Go
+page, err := client.Apps.Releases().List(ctx, "app-abc123", vertracloud.ApplicationReleasesListParams{})
+// escolha releaseID a partir de page, depois:
+preview, err := client.Apps.Releases().Preview(ctx, "app-abc123", releaseID)
+_, err = client.Apps.Releases().Rollback(ctx, "app-abc123", releaseID, vertracloud.ApplicationRollbackBody{})
+```
+
+</CodeGroup>
+
+As configurações de deploy passam pela configuração da aplicação. Uma mensagem em um envio aparece no
+histórico de releases.
+
+<CodeGroup>
+
+```javascript JavaScript
+await client.apps.updateConfig("app-abc123", {
+  deploy: { zero_downtime: "auto", auto_rollback: true, health_check_path: "/health" },
+});
+await client.apps.files.upload("app-abc123", zip, "app.zip", { message: "fix login" });
+```
+
+```python Python
+client.apps.update_config(
+    "app-abc123",
+    {"deploy": {"zero_downtime": "auto", "auto_rollback": True, "health_check_path": "/health"}},
+)
+client.apps.files.upload("app-abc123", file=zip_bytes, filename="app.zip", message="fix login")
+```
+
+```go Go
+off := vertracloud.ApplicationZeroDowntimeOff
+_, err = client.Apps.UpdateConfig(ctx, "app-abc123", vertracloud.ApplicationUpdateConfigBody{
+	Deploy: &vertracloud.ApplicationDeploySettingsUpdate{
+		ZeroDowntime:    &off,
+		HealthCheckPath: vertracloud.NullableValue("/health"),
+	},
+})
+// envios: client.Apps.Files().Upload(ctx, "app-abc123", vertracloud.ApplicationFileUploadParams{..., Message: "fix login"})
+```
+
+</CodeGroup>
+
+### Bancos de dados
+
+<CodeGroup>
+
+```javascript JavaScript
+const db = await client.databases.get("db-abc123");
+await client.databases.start("db-abc123");
+```
+
+```python Python
+db = client.databases.get("db-abc123")
+client.databases.start("db-abc123")
+```
+
+```go Go
+db, err := client.Databases.Get(ctx, "db-abc123")
+_, err = client.Databases.Start(ctx, "db-abc123")
+```
+
+</CodeGroup>
+
+### Snapshots
+
+O `scope` (`"applications"` ou `"databases"`) é obrigatório em toda chamada de snapshot — o mesmo
+ID de recurso pode ser uma aplicação ou um banco de dados, e a API não adivinha.
+
+<CodeGroup>
+
+```javascript JavaScript
+const snapshots = await client.snapshots.list("app-abc123", { scope: "applications" });
+const created = await client.snapshots.create("app-abc123", { scope: "applications" });
+await client.snapshots.restore("app-abc123", created.id, { scope: "applications" });
+```
+
+```python Python
+snapshots = client.snapshots.list("app-abc123", scope="applications")
+created = client.snapshots.create("app-abc123", scope="applications")
+client.snapshots.restore("app-abc123", created["id"], scope="applications")
+```
+
+```go Go
+snapshots, err := client.Snapshots.List(ctx, "app-abc123", vertracloud.SnapshotScopeApplications)
+created, err := client.Snapshots.Create(ctx, "app-abc123", vertracloud.SnapshotScopeApplications)
+_, err = client.Snapshots.Restore(ctx, "app-abc123", created.ID, vertracloud.SnapshotScopeApplications)
+```
+
+</CodeGroup>
+
+### Conta
+
+<CodeGroup>
+
+```javascript JavaScript
+const me = await client.account.get();
+const sessions = await client.account.sessions.list();
+```
+
+```python Python
+me = client.account.get()
+sessions = client.account.sessions.list()
+```
+
+```go Go
+me, err := client.Account.Get(ctx)
+sessions, err := client.Account.Sessions().List(ctx)
+```
+
+</CodeGroup>
+
+### Workspaces
+
+<CodeGroup>
+
+```javascript JavaScript
+const members = await client.workspaces.members.list("ws-abc123");
+await client.workspaces.apps.add("ws-abc123", "app-abc123");
+```
+
+```python Python
+members = client.workspaces.members.list("ws-abc123")
+client.workspaces.apps.add("ws-abc123", "app-abc123")
+```
+
+```go Go
+members, err := client.Workspaces.Members().List(ctx, "ws-abc123")
+err = client.Workspaces.Apps().Add(ctx, "ws-abc123", "app-abc123")
+```
+
+</CodeGroup>
+
+### Cobrança e resgate
+
+<CodeGroup>
+
+```javascript JavaScript
+const order = await client.billing.orders.create({ type: "purchase", plan: "pro", months: 1 });
+const pix = await client.billing.orders.initiatePix(order.id);
+```
+
+```python Python
+order = client.billing.orders.create({"type": "purchase", "plan": "pro", "months": 1})
+pix = client.billing.orders.initiate_pix(order["id"])
+```
+
+```go Go
+order, err := client.Billing.Orders().Create(ctx, vertracloud.OrderCreateBody{
+	Type: vertracloud.OrderTypePurchase, Plan: "pro", Months: 1,
+})
+pix, err := client.Billing.Orders().InitiatePix(ctx, order.ID)
+```
+
+</CodeGroup>
+
+Antes de criar um pedido, a conta precisa ter os dados de cobrança completos (nome, endereço e, no Brasil,
+CPF/CNPJ), senão `orders.create` falha com `BILLING_DETAILS_INCOMPLETE`. Leia-os com
+`billing.details` (`client.Billing.Details` em Go) e salve-os com `billing.updateDetails`
+(`update_details` em Python, `client.Billing.UpdateDetails` em Go), usando chaves com os
+escopos `billing:read` e `billing:write`.
+
+Para resgatar um código promocional, use `billing.redeem` (`client.billing.redeem(code)` em JavaScript e
+Python, `client.Billing.Redeem(ctx, code)` em Go), com uma chave que tenha o escopo `redeem:write`.
+
+## Blob Storage
+
+O armazenamento de arquivos tem SDK próprio, `@vertracloud/blob`, para Node, navegadores e runtimes de borda (`npm install @vertracloud/blob`). Em Python e Go ele é um recurso do mesmo cliente: `client.blob` e `client.Blob`. Veja [SDK JavaScript](/pt-br/blob/sdk-javascript) e [SDKs Python e Go](/pt-br/blob/sdk-python-go).
+
+## Streaming (`apps.realtime`)
+
+`GET /v1/apps/{id}/realtime` é a única rota do catálogo que transmite eventos ao vivo (logs e
+notas do sistema). O JavaScript expõe um async generator; o Python, um objeto de stream iterável; o Go, um
+iterador (`Next`/`Event`/`Err`) — nenhum deles reconecta sozinho se a conexão cair.
+
+<CodeGroup>
+
+```javascript JavaScript
+for await (const event of client.apps.realtime("app-abc123")) {
+  console.log(event.event, event.data);
+}
+```
+
+```python Python
+with client.apps.realtime("app-abc123") as stream:
+    for event in stream:
+        print(event.event, event.data)
+```
+
+```go Go
+stream, err := client.Apps.Realtime(ctx, "app-abc123", nil)
+if err != nil {
+	log.Fatal(err)
+}
+defer stream.Close()
+
+for stream.Next(ctx) {
+	event := stream.Event()
+	fmt.Println(event.Event, event.Data)
+}
+if err := stream.Err(); err != nil {
+	log.Fatal(err)
+}
+```
+
+</CodeGroup>
+
+## Erros tipados
+
+Toda resposta fora da faixa 2xx vira um erro estruturado, sempre com `code` (e
+`details`, quando a API envia) acessível — nunca uma string solta para ser interpretada. Em JavaScript e
+Python, a classe da exceção indica o status HTTP; em Go, todo erro da API é um único
+`*rest.APIError`, e o status é verificado por métodos.
+
+| Status | JavaScript | Python | Go (`*rest.APIError`) |
+|---|---|---|---|
+| 401 | `AuthenticationError` | `AuthenticationError` | `IsAuthenticationError()` |
+| 403 | `PermissionError` | `ScopeDeniedError` | `IsPermissionError()` |
+| 404 | `NotFoundError` | `NotFoundError` | `IsNotFoundError()` |
+| 400 / 422 | `ValidationError` | `ValidationError` | `IsValidationError()` |
+| 429 | `RateLimitError` | `RateLimitError` | `IsRateLimitError()` |
+| outros | `VertraAPIError` | `VertraAPIError` | campo `Status` |
+
+```javascript JavaScript
+import { RateLimitError } from "@vertracloud/sdk-api";
+
+try {
+  await client.apps.restart("app-abc123");
+} catch (error) {
+  if (error instanceof RateLimitError) {
+    console.log(`Retry after ${error.retryAfter}s`);
+  }
+  throw error;
+}
+```
+
+```python Python
+from vertracloud.errors import RateLimitError
+
+try:
+    client.apps.restart("app-abc123")
+except RateLimitError as error:
+    print(f"Retry after {error.retry_after}s")
+    raise
+```
+
+```go Go
+_, err := client.Apps.Restart(ctx, "app-abc123", nil)
+if apiErr, ok := rest.AsAPIError(err); ok && apiErr.IsRateLimitError() {
+	if wait := apiErr.RetryAfter(); wait != nil {
+		fmt.Printf("Retry after %s\n", *wait)
+	}
+}
+```
+
+Nenhum dos clientes imprime a chave de API em logs, `toString()`/`__repr__`/`Error()` ou na serialização de erros — `retry_after` (em segundos) vem de `details.retry_after` no corpo do erro ou do
+cabeçalho `Retry-After` nas respostas `429`. Veja
+[Limite de requisições](/api-reference/introduction#how-is-the-api-rate-limited) para os limites por rota.
+
+## O que não dá para fazer com uma chave de API
+
+Algumas ações de gestão só existem no dashboard e, por isso, não são expostas pelos
+SDKs:
+
+| Recurso | Onde fica |
+|---|---|
+| Atividade da conta/workspace | Dashboard → Atividade |
+| Notificações | Dashboard → Notificações |
+| Gestão de chaves de API (criar, listar, rotacionar, revogar) | Dashboard → Configurações → Chaves de API |
+| Criar convite de workspace, transferir a propriedade, aprovar/rejeitar uma solicitação de ação | Dashboard → Workspace |
+| Aba **Dados** do banco (schemas, tabelas, console SQL, coleções, chaves) | Dashboard → Banco de dados → Dados |
+| Downgrade de plano | Dashboard → Plano |
+
+Para automação com agentes de IA sobre arquivos, logs, aplicações e deploys, veja o [servidor MCP](/pt-br/mcp) — ele usa
+a mesma chave de API, com o mesmo modelo de escopos.

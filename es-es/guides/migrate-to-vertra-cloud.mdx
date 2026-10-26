@@ -1,0 +1,52 @@
+---
+title: 'Mueve una aplicación existente a Vertra Cloud'
+sidebarTitle: 'Migrar una aplicación'
+description: 'Lista de verificación para mover una app, sus variables, su base de datos y su dominio a Vertra Cloud mientras el host anterior sigue con el tráfico.'
+icon: 'arrow-right-arrow-left'
+---
+
+Mover una aplicación no exige reescribirla. El orden seguro es: levantar una copia, mover la configuración y los datos, probar
+y solo entonces mover el tráfico.
+
+## Revisa el código
+
+<Check>El puerto viene de `PORT` y el servidor escucha en `0.0.0.0`.</Check>
+<Check>Los secretos se leen de variables de entorno, no del código.</Check>
+<Check>El comando de inicio no depende de un `Procfile` ni de un archivo específico del host.</Check>
+<Check>Nada escribe en el disco local datos importantes que otro host respaldaba por ti.</Check>
+
+Un `Procfile` como `web: node server.js` se convierte en `START=node server.js` en
+[`vertracloud.config`](/es-es/configuration); un paso de build se convierte en `BUILD=`.
+
+## Paso a paso
+
+<Steps>
+  <Step title="Despliega una copia">
+    Sube un `.zip`, importa el repositorio desde [GitHub](/es-es/deploy-github) o ejecuta `vertra upload`. Mantén el host
+    anterior activo y no toques todavía el DNS.
+  </Step>
+  <Step title="Copia las variables de entorno">
+    Vuelve a crearlas en **Ajustes → Variables de Entorno**, dejando fuera `PORT` y `HOST`, que define la plataforma. Es un buen momento para rotar los
+    secretos en lugar de copiarlos.
+  </Step>
+  <Step title="Mueve la base de datos">
+    Crea la base de datos y luego exporta e importa con las herramientas propias del motor: `pg_dump`/`pg_restore`,
+    `mongodump`/`mongorestore`, `mysqldump`. En Redis, vuelve a crear las claves que necesites o deja que las cachés se vuelvan
+    a llenar. Conéctate con TLS como se muestra en [Conectar una base de datos](/es-es/guides/connect-database).
+  </Step>
+  <Step title="Prueba la copia">
+    Usa la dirección `*.vertraweb.app` y ejercita los flujos que importan mientras vigilas la pestaña **Logs**.
+  </Step>
+  <Step title="Mueve el tráfico">
+    Pon la aplicación antigua en modo de solo lectura o de mantenimiento, ejecuta una sincronización final de datos y después
+    apunta el DNS a Vertra Cloud con un [dominio personalizado](/es-es/guides/custom-domain).
+  </Step>
+  <Step title="Retira el host anterior">
+    Consérvalo unos días como respaldo y luego apágalo.
+  </Step>
+</Steps>
+
+<Tip>
+  Reduce el TTL de tu registro DNS a unos pocos minutos al día antes del cambio, para que el cambio (o una vuelta atrás) se
+  propague rápido.
+</Tip>

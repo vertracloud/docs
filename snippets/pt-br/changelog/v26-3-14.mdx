@@ -1,0 +1,71 @@
+### Instalador da CLI para macOS, Linux e Windows
+
+A CLI agora é um único binário, sem dependências, que se instala com um comando:
+
+- **macOS e Linux:** `curl -fsSL https://cli.vertracloud.app/install | sh`
+- **Windows (PowerShell):** `irm https://cli.vertracloud.app/install | iex`
+
+O instalador escolhe a build certa para o seu sistema e processador (x64 ou ARM), verifica o checksum do arquivo e coloca o comando `vertra` no seu PATH. Para atualizar, execute o mesmo comando de novo.
+
+Veja a página [CLI](/pt-br/cli) para conectar sua conta e fazer o primeiro deploy.
+
+### Créditos de uso e de IA removidos
+
+Os créditos de uso e os créditos de IA não existem mais na Vertra Cloud. `POST /v1/orders` aceita apenas pedidos de plano, e nenhum payload traz mais `use_credits` ou `credits_used`. Pedidos de crédito anteriores a esta mudança não aparecem mais no histórico de pedidos do usuário.
+
+### Resposta de domínio personalizado simplificada
+
+As rotas que leem e vinculam um domínio personalizado (`GET` e `POST /v1/apps/{id}/network/custom`) agora retornam apenas `{ "domain": "example.com" }`, como o tipo público já descrevia. O status de validação dos registros DNS continua na rota [Registros DNS do domínio personalizado](/api-reference/endpoint/apps/domains/dns).
+
+Dois códigos de erro de domínio personalizado foram renomeados para `CUSTOM_DOMAIN_REGISTRATION_FAILED` e `CUSTOM_DOMAIN_RECORD_NOT_FOUND`.
+
+Se a sua integração compara esses códigos, atualize para os novos nomes.
+
+### Atualização da documentação: primeiro deploy e configuração
+
+A documentação foi atualizada para acompanhar o dashboard atual:
+
+- **Primeiro deploy** reescrito para seguir o fluxo atual de Novo Projeto: origem, build, ambiente, rede, revisão e deploy, incluindo a criação a partir de um snapshot.
+- Nova página **[Configuração](/pt-br/configuration)**: cada chave do `vertracloud.config`, o que pode mudar depois do deploy, comandos de start e build por framework, porta, variáveis de ambiente e os limites de uma aplicação.
+- **Deploy pelo GitHub** agora explica os deploys automáticos como funcionam hoje: a Vertra cria o webhook no seu repositório para você, e só pushes para `main` ou `master` publicam.
+- Os tutoriais agora usam o mesmo passo a passo de deploy, seja pelo dashboard, pela CLI ou pelo VS Code.
+- A referência da API ganhou páginas para excluir um banco de dados, atualizar um perfil e listar todos os snapshots de uma conta, e corrigiu a rota de exclusão de variável de ambiente, o corpo de atualização de banco de dados e os códigos de erro de autenticação.
+
+### Selo "Powered by Vertra Cloud" no Pro
+
+No plano **Pro**, as páginas HTML publicadas mostram um pequeno selo **"Powered by Vertra Cloud"** no canto inferior direito, com link de volta para a Vertra. Ele não aparece no Scale nem em planos superiores, e trocar de plano liga ou desliga o selo imediatamente, sem precisar de novo deploy.
+
+### Páginas de SDKs e GitHub Actions no site
+
+A seção de ferramentas para desenvolvedores ganhou duas novas páginas no site:
+
+- [SDKs](https://vertracloud.app/sdks): instalação e exemplos para JavaScript, TypeScript, Python e Go, recursos disponíveis e perguntas frequentes.
+- [GitHub Actions](https://vertracloud.app/github-actions): um workflow para copiar, configuração de secrets e opções para atualizar uma aplicação existente.
+
+As páginas estão disponíveis em português, inglês e espanhol, com acesso pelo menu e pelo rodapé.
+
+### SDKs oficiais de JavaScript, Python e Go
+
+#### SDKs
+
+- **`@vertracloud/sdk-api` (npm), `vertracloud-api` (PyPI) e `github.com/vertracloud/sdk-api-go`** chegam como clientes oficiais da API pública. Um método por rota, autenticação pela mesma chave de API com escopos, e cobertura de aplicações, bancos de dados, snapshots, conta, workspaces e cobrança, sem cache, retentativas automáticas ou estado interno. Veja [SDKs](/pt-br/sdks).
+- Os três expõem **streaming de saída em tempo real** de uma aplicação (`apps.realtime`): um gerador assíncrono em JavaScript, um stream iterável em Python e um iterador (`Next`/`Event`) em Go.
+- Toda resposta de erro vira um **erro estruturado**, sempre com um `code` acessível: em JavaScript e Python, uma classe de exceção por status HTTP (`AuthenticationError`, `NotFoundError`, `ValidationError`, `RateLimitError`, entre outras); em Go, um único `*rest.APIError` com métodos como `IsNotFoundError()` e `IsRateLimitError()`.
+- O que continua exclusivo do dashboard (histórico de atividades, notificações, gerenciamento de chaves de API, convites de workspace, a aba **Dados** dos bancos de dados, downgrades de plano e exclusão ou transferência de workspace) está listado em [SDKs → O que você não pode fazer com uma chave de API](/pt-br/sdks).
+
+#### API
+
+- **O caminho de criação do webhook de deploy agora é `/deploys/webhook`, no singular**, igual às rotas de consulta e exclusão que já usavam essa forma. Referência atualizada em [Criar webhook de deploy](/api-reference/endpoint/apps/deploys/create).
+- **O histórico de atividades é exclusivo do dashboard** e não tem equivalente na API pública nem nos SDKs.
+
+### Workspaces por chave de API e MCP
+
+Mais ações de workspace agora estão disponíveis fora do dashboard, pelos SDKs, pela CLI, pela extensão do VS Code e pelo servidor MCP:
+
+- **Excluir um workspace** com o novo escopo `workspaces:delete`. Só o dono do workspace pode, como no dashboard.
+- **Convites** com o novo escopo `workspaces:invites`: listar e revogar os convites de um workspace, e ver, aceitar ou recusar um convite por token. A chave age como a conta que a possui, então um convite por e-mail só é aceito se combinar com o e-mail dessa conta.
+- **Solicitações de ação**: `workspaces:read` lista as solicitações, e `workspaces:write` cria uma para alguém com permissão de aprovação.
+
+Os dois novos escopos não estão incluídos nos presets `read` e `write`, apenas em `full` ou em uma seleção personalizada, e aparecem desmarcados na tela de autorização de aplicativos conectados. As permissões de papel do workspace continuam valendo para a chave.
+
+Algumas operações de workspace continuam exclusivas do dashboard, incluindo criar convites, transferir a propriedade, aprovar ou rejeitar solicitações de ação e exportar o histórico de atividades.

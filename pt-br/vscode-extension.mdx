@@ -1,0 +1,240 @@
+---
+title: 'Gerencie a Vertra Cloud pelo VS Code'
+sidebarTitle: 'Extensão para VS Code'
+description: 'Faça deploy, acompanhe logs e edite arquivos das suas aplicações na Vertra Cloud sem sair do editor.'
+icon: 'microsoft'
+---
+
+## O que é
+
+A extensão da Vertra Cloud gerencia suas aplicações, bancos de dados e workspaces a partir do editor:
+fazer deploy, acompanhar logs em tempo real, ver métricas, editar variáveis de ambiente, navegar pelos arquivos remotos
+e inspecionar o estado das aplicações, sem abrir o painel.
+
+## Instalação
+
+- **Visual Studio Code**: instale "Vertra Cloud" pelo
+  [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=VertraCloud.vertra-cloud),
+  ou pela linha de comando:
+
+  ```bash
+  code --install-extension VertraCloud.vertra-cloud
+  ```
+
+- **Cursor**: instale "Vertra Cloud" pelo Open VSX, na busca de extensões do próprio Cursor.
+- **Outros editores que não indexam o Open VSX nem o Marketplace, como o Antigravity**: baixe o arquivo
+  `.vsix` de uma release e instale-o manualmente:
+
+  ```bash
+  code --install-extension vertra-cloud-<version>.vsix
+  ```
+
+  Substitua `code` pelo comando de CLI equivalente do seu editor, se ele não for o próprio VS Code.
+
+## Conectando sua conta
+
+Abra o painel da Vertra Cloud na Barra de Atividades e escolha uma de duas formas de conectar:
+
+- **Conectar conta**: abre o navegador para você entrar e autorizar a extensão. A sessão é guardada no
+  armazenamento secreto do seu editor; ela nunca toca as configurações, os arquivos do workspace nem os logs.
+- **Usar chave de API**: para ambientes sem navegador. Crie uma chave na página de chaves de API do
+  painel, com os escopos que você pretende usar pela extensão (no mínimo `account:read` e
+  `apps:read`; adicione `apps:write`, `apps:files`, `databases:read`/`databases:write`, `snapshots:read`/`snapshots:write`,
+  `images:read`/`images:write` ou `workspaces:read`/`workspaces:write` conforme necessário). Cole a chave quando solicitado.
+
+Para revogar o acesso, exclua a chave ou a sessão na página de chaves de API do painel. Desconectar no
+editor remove apenas a credencial local; não revoga a chave no servidor.
+
+## Vinculando uma pasta e o `vertracloud.config`
+
+Vincule uma pasta do workspace a uma aplicação com **Vincular pasta atual**. O vínculo é gravado em um
+arquivo `vertracloud.config` na raiz da pasta, no mesmo formato lido pela CLI:
+
+| Campo | Significado |
+|---|---|
+| `ID` | ID da aplicação vinculada |
+| `NAME` | Nome da aplicação |
+| `MEMORY` | Memória alocada |
+| `MAIN` | Arquivo de entrada |
+| `VERSION` | Versão do runtime |
+| `SUBDOMAIN` | Subdomínio público, quando publicado |
+| `START` | Comando de start |
+| `BUILD` | Comando de build, quando configurado |
+
+A extensão reconhece esse arquivo pelo nome e oferece autocompletar para os campos conhecidos, descrições ao passar
+o mouse e validação inline para valores ausentes ou malformados. Se você recusar gravar o arquivo ao vincular, a
+extensão mantém o vínculo apenas para a janela atual do editor.
+
+## Fazendo deploy
+
+**Fazer deploy do projeto atual** compacta a pasta vinculada e envia o conteúdo. O que é enviado:
+
+- Tudo na pasta, exceto as entradas que correspondem a `.vertraignore` (ou `.vertracloudignore`),
+  com padrões sensatos que excluem pastas de controle de versão, pastas de dependências e saída de build.
+- Um limite rígido de 100 MB por upload; a extensão falha antes de enviar se a pasta exceder esse valor.
+
+Fazer deploy funciona em todos os planos, para aplicações novas e existentes, dentro dos limites do seu plano atual.
+Depois do upload, é oferecida uma opção para reiniciar a aplicação como parte do deploy.
+Cada deploy também pede uma mensagem opcional, preenchida com o assunto do último commit git da pasta; é ela que a versão
+mostra no histórico de Rollbacks.
+
+## Rollbacks
+
+**Rollbacks...** em uma aplicação lista as versões dela, da mais recente para a mais antiga, com status, autor e data.
+Escolha uma para:
+
+- **Voltar para esta versão.** Se as variáveis de ambiente dessa versão forem diferentes das atuais, a extensão lista
+  os nomes que mudariam (nunca os valores) e pergunta se você quer restaurá-las. A aplicação reinicia com o código escolhido.
+- **Ver o log de falha** de uma versão que parou logo após o deploy.
+- **Copiar o ID da versão.**
+
+Fazer rollback exige o plano Pro ou superior. Veja
+[Rollbacks e deploys sem downtime](/pt-br/guides/rollback-and-zero-downtime-deploys) para saber o que um rollback
+restaura e por quanto tempo cada versão é mantida.
+
+## Logs e saída em tempo real
+
+**Mostrar logs** imprime a saída recente de uma aplicação em um canal de Output. **Alternar logs em tempo real**
+abre um fluxo ao vivo em um canal de Output, com reconexão automática enquanto a conexão estiver saudável; ele para
+de vez se você desligá-lo, fechar o canal de output, ou se o servidor rejeitar a conexão. Os logs não são exibidos
+em um terminal integrado.
+
+## Métricas
+
+**Mostrar métricas** resume o uso de CPU, memória e rede em intervalos de tempo comuns, diretamente no editor, sem webview.
+
+## Variáveis de ambiente
+
+**Gerenciar variáveis de ambiente** lista os nomes das variáveis e permite adicionar, editar e remover. Os valores
+ficam mascarados por padrão; a extensão nunca copia nem registra um valor sem uma ação explícita sua.
+
+## Snapshots
+
+**Gerenciar snapshots** lista, cria, baixa e restaura snapshots de aplicações e bancos de dados. A restauração
+sempre pede confirmação. Snapshots manuais de aplicações exigem o plano Scale ou superior; snapshots de bancos de dados não têm restrição de plano.
+
+## Arquivos remotos
+
+**Abrir arquivos remotos** monta o sistema de arquivos da aplicação como uma pasta no editor, sob o esquema
+`vertra://`. Você pode abrir, editar e salvar arquivos de texto remotamente; arquivos binários abrem somente leitura.
+Excluir, mover ou enviar arquivos pede confirmação antes. Isso está disponível apenas nos planos que incluem o gerenciador de arquivos.
+
+## Bancos de dados
+
+Crie bancos de dados e controle o ciclo de vida deles (iniciar, parar, reiniciar), veja métricas, baixe o certificado
+TLS e redefina a senha. A senha é exibida uma única vez, logo após o reset, e nunca é armazenada nem exibida de novo —
+se você perdê-la, redefina-a outra vez. Navegar pelo conteúdo de um banco a partir de dentro dele não está disponível
+com uma chave de API e não faz parte desta extensão; use o explorador de dados do painel para isso.
+
+## Imagens Docker
+
+A visualização **Imagens Docker** lista as suas [imagens Docker personalizadas](/pt-br/guides/custom-docker-images) com o estado do build mais recente (em construção, pronta ou com falha), o motivo quando um build falhou e as aplicações que rodam a partir de cada uma. As imagens de um workspace aparecem sob esse workspace. As imagens personalizadas estão disponíveis no Enterprise 28, 30 e 32; nos outros planos a visualização fica vazia e criar uma imagem informa o motivo.
+
+- **Criar imagem Docker** recebe uma pasta ou um repositório do GitHub; a branch é opcional (deixe em branco para usar a branch padrão do repositório). Uma pasta precisa de um arquivo chamado exatamente
+  `Dockerfile` na raiz. Ela é compactada como a CLI faz: o `.dockerignore` é respeitado, arquivos `.env*` e links simbólicos nunca são enviados, e a extensão para antes do envio se o contexto passar de 100 MB (ou de 512 MB descompactado ou de 50.000 arquivos).
+- O Dockerfile é verificado antes de o build começar. As recusas são listadas com a linha e bloqueiam o build; os avisos pedem confirmação.
+- **Renomear imagem Docker** e **Editar descrição da imagem Docker** (clique com o botão direito em uma imagem) mudam o nome e a descrição sem construir nada; suas aplicações continuam rodando.
+- **Reconstruir a partir da pasta** substitui todo o contexto de build. Reconstruir nunca reinicia as suas aplicações, e um build com falha mantém a versão atual.
+- **Mostrar log do build** reproduz o log do build em um canal de Saída e acompanha o build ao vivo enquanto ele roda.
+- **Listar versões**, **Baixar contexto do build**, **Vincular ao GitHub** e **Desvincular do GitHub** (um push na branch vinculada reconstrói a imagem).
+- **Excluir imagem** pede que você digite o nome dela e também exclui todas as aplicações criadas a partir dela. Com uma chave de API, excluir uma imagem que tenha aplicações também exige o escopo `apps:delete`.
+- **Criar aplicação a partir da imagem** pede o nome, a RAM, se a aplicação atende tráfego web, o subdomínio, a porta (preenchida com o primeiro `EXPOSE` do seu Dockerfile, ou 80) e as variáveis.
+
+Para uma aplicação que roda a partir de uma imagem, **Deploy** é um commit: os seus arquivos vão sobre o contexto atual da imagem, e a imagem é reconstruída. A extensão informa quantas aplicações usam a imagem antes de enviar; só a aplicação da qual você fez o deploy reinicia, e só se você pedir um reinício. **Publicar na web** pede a porta quando a aplicação foi criada sem web; restaurar um snapshot também pode trazer de volta a versão da imagem em que ele foi feito (quando essa versão ainda existe); e linguagem, versão, arquivo principal, comandos de início e de build não são oferecidos, porque vêm da imagem.
+
+## Workspaces
+
+A extensão lista os workspaces dos quais você faz parte e permite navegar, vincular suas aplicações e bancos
+conforme as permissões do seu papel. Criar um workspace, enviar convites e gerenciar membros acontecem no painel, e não na extensão.
+
+## Pastas e favoritos
+
+As pastas e os favoritos da extensão são persistidos na conta, e não no armazenamento local do editor. A extensão permite
+criar, renomear, mudar a cor e excluir pastas, e organizar aplicações e bancos de dados dentro delas, além de favoritar
+e desfavoritar recursos.
+
+A organização é individual por escopo: a organização pessoal é diferente da organização do mesmo recurso em cada
+workspace. As alterações feitas pela extensão geram atividades no histórico, assim como as ações equivalentes no painel e nos workflows.
+
+As pastas da extensão não são grupos do Flow. Os grupos continuam organizando elementos no canvas local do Flow; não há
+sincronização, migração nem estado compartilhado entre os dois.
+
+## Rede
+
+Para aplicações em um plano que permite publicação, você pode publicar ou despublicar, abrir o domínio público, definir
+um subdomínio personalizado (quando seu plano permite escolher um), adicionar, editar ou remover domínios personalizados
+(quantos o seu plano permitir), ver os registros DNS a configurar e limpar o cache de borda.
+
+## Disponibilidade de recursos por plano
+
+| Recurso | Economy | Pro | Scale+ |
+|---|---|---|---|
+| Listar, iniciar, parar, reiniciar | Sim | Sim | Sim |
+| Deploy para aplicação nova ou existente | Sim | Sim | Sim |
+| Publicar na web (subdomínio aleatório) | Não | Sim | Sim |
+| Escolher subdomínio | Não | Não | Sim |
+| Domínio personalizado | Não | Não | Intermediary e superiores |
+| Gerenciador de arquivos remoto | Depende do plano | Sim | Sim |
+| Voltar para uma versão anterior | Não | Sim | Sim |
+| Snapshot manual de aplicação | Não | Não | Sim |
+| Imagens Docker personalizadas | Não | Não | Só Enterprise 28, 30 e 32 |
+| Snapshot de banco de dados | Sim | Sim | Sim |
+
+Limites e preços exatos mudam com o tempo; o painel e esta documentação sempre mostram os números atuais da sua conta.
+Veja [Planos e limites](/pt-br/plans-and-limits) para detalhes.
+
+## Privacidade e confiança do workspace
+
+- O token de sessão ou a chave de API fica guardado somente no armazenamento secreto integrado do seu editor.
+- A extensão não coleta telemetria e não envia dados para lugar nenhum.
+- Ela só se comunica com `api.vertracloud.app`, além do seu navegador para a etapa de autorização da conta;
+  nenhuma requisição vai para qualquer outro host.
+- Em um workspace não confiável, fazer deploy, enviar arquivos e gravar em arquivos remotos ficam desativados;
+  a leitura de dados remotos ainda pode funcionar.
+
+## Comandos principais
+
+| Comando | O que faz |
+|---|---|
+| Conectar conta | Inicia o fluxo de autorização pelo navegador |
+| Usar chave de API | Conecta com uma chave de API digitada manualmente |
+| Desconectar | Remove a credencial local |
+| Atualizar | Recarrega aplicações, bancos e o estado da conta |
+| Criar / renomear / mudar a cor / excluir pasta | Gerencia as pastas persistidas do escopo da conta ou do workspace atual |
+| Adicionar à pasta / Remover da pasta | Organiza uma aplicação ou banco sem alterar o recurso |
+| Favoritar / Desfavoritar | Persiste a preferência para o escopo da conta ou do workspace atual |
+| Vincular pasta atual / Desvincular pasta atual | Associa uma pasta do workspace a uma aplicação |
+| Fazer deploy do projeto atual | Envia a pasta vinculada |
+| Iniciar / Parar / Reiniciar | Controla o ciclo de vida de uma aplicação |
+| Mostrar logs / Alternar logs em tempo real | Saída recente e ao vivo |
+| Mostrar métricas | Resumo de CPU, memória e rede |
+| Gerenciar variáveis de ambiente | Adiciona, edita e remove variáveis |
+| Gerenciar snapshots | Lista, cria, baixa e restaura |
+| Criar imagem Docker / Reconstruir imagem Docker a partir da pasta | Cria uma imagem a partir de uma pasta ou de um repositório do GitHub |
+| Renomear imagem Docker / Editar descrição da imagem Docker | Muda o nome ou a descrição sem construir nada |
+| Mostrar log do build / Listar versões / Baixar contexto do build | Acompanha o build, lista as versões e salva o contexto atual |
+| Vincular ao GitHub / Desvincular do GitHub | Reconstrói a imagem a cada push na branch vinculada |
+| Excluir imagem / Criar aplicação a partir da imagem | Remove uma imagem e as suas aplicações; inicia uma aplicação a partir de uma imagem |
+| Abrir arquivos remotos | Monta `vertra://` como uma pasta |
+| Abrir aplicação / Abrir painel | Abre URLs no navegador |
+| Copiar ID | Copia o identificador de um recurso |
+
+## Solução de problemas
+
+<AccordionGroup>
+  <Accordion title="Chave de API inválida">
+    A chave foi revogada ou digitada errada. Crie uma nova no painel e conecte-se novamente.
+  </Accordion>
+  <Accordion title="Erro de escopo ausente">
+    A chave que você está usando não inclui a permissão que a ação exige; o erro informa o escopo que falta e oferece
+    um atalho para a página de gerenciamento de chaves.
+  </Accordion>
+  <Accordion title="Ação restrita pelo plano">
+    A ação exige um plano superior ao que a sua aplicação ou conta tem atualmente; a página de planos do painel mostra
+    os limites atuais e as opções de upgrade.
+  </Accordion>
+  <Accordion title="O deploy falha com erro de tamanho">
+    Confira o arquivo `.vertraignore` (ou `.vertracloudignore`) para excluir pastas de dependências e a saída do build,
+    e tente novamente.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,191 @@
+---
+title: 'Rollbacks y despliegues sin interrupción (blue-green) en Vertra Cloud'
+sidebarTitle: 'Rollbacks y blue-green'
+description: 'Cómo funcionan las releases, los rollbacks manuales y automáticos y los despliegues blue-green, qué restaura cada uno y cómo preparar tu app.'
+icon: 'rotate-left'
+---
+
+Cada vez que cambia el código de tu aplicación, Vertra Cloud registra una **release**. Las releases hacen posibles tres cosas:
+volver a una versión anterior, volver atrás automáticamente cuando una nueva versión no consigue arrancar y, en Enterprise,
+reemplazar la versión en ejecución sin dejarla fuera de servicio.
+
+| Función | Qué hace | Planes |
+|---|---|---|
+| Historial de releases (pestaña Rollbacks) | Lista cada release con estado, mensaje, autor y fecha | Todos los planes (solo lectura en Economy) |
+| Rollback manual | Devuelve el código a una release anterior | Pro y superiores |
+| Rollback automático | Vuelve atrás por sí solo si una nueva versión se detiene justo después de un despliegue | Intermediary y superiores |
+| Despliegues sin interrupción | Inicia la nueva versión junto a la que está en ejecución y cambia cuando está sana | Enterprise |
+
+## Qué es una release
+
+Una release es una versión completa del código de tu aplicación en un momento dado, sea cual sea su origen: un push a GitHub, la
+CLI, una subida desde el panel o la API, o una edición en el gestor de archivos. Cada una muestra su estado, mensaje, autor, fecha
+y tiempo de build.
+
+- **Panel:** abre la aplicación y ve a la pestaña **Rollbacks**.
+- **API:** [Listar releases](/api-reference/endpoint/apps/releases/list) devuelve las versiones, y el
+  [log de la release](/api-reference/endpoint/apps/releases/log) devuelve el log de una de ellas.
+
+El historial empieza con el primer envío de código posterior a la publicación de la función, así que una aplicación no tiene
+releases anteriores a eso. Añade un mensaje corto a cada despliegue (un campo opcional en el diálogo de subida,
+`vertra app commit -m "..."` en la CLI o `message` en la API) y el historial será mucho más fácil de leer.
+
+## Rollback manual
+
+En la pestaña **Rollbacks**, elige una versión anterior y confirma. La aplicación vuelve al código de esa versión y se reinicia.
+
+| | Después de un rollback |
+|---|---|
+| Código | Vuelve a la versión que elegiste. Los archivos que esa versión no tenía se eliminan |
+| Datos que la aplicación escribió en disco | Se mantienen tal como están (un archivo de base de datos, subidas) |
+| Variables de entorno | Se mantienen tal como están, salvo que pidas que vuelvan |
+| Proceso | Se reinicia. El comando de build se vuelve a ejecutar si la aplicación tiene uno |
+
+Un rollback reconstruye la aplicación a partir del código fuente de esa release; las dependencias solo se reinstalan si cambiaron.
+
+**El código vuelve atrás; tus datos no.** Un rollback nunca toca lo que la aplicación creó mientras se ejecutaba. Si también
+necesitas datos anteriores, restaura un [snapshot](/es-es/guides/backups-snapshots).
+
+**Las variables de entorno son opcionales.** Marca la opción de variables y las variables guardadas de esa versión reemplazarán a
+las actuales. Antes de confirmar, el diálogo muestra solo los **nombres** de las variables que se añadirían, cambiarían o
+eliminarían. Nunca se muestran los valores. La misma vista previa está disponible en el endpoint de
+[vista previa del rollback](/api-reference/endpoint/apps/releases/rollback-preview); el endpoint de
+[rollback](/api-reference/endpoint/apps/releases/rollback) es el que la aplica.
+
+**Un rollback es una release nueva.** El historial sigue siendo lineal, así que si la versión anterior no era la que querías,
+vuelve a la versión de la que venías. Dos rollbacks de la misma aplicación necesitan 30 segundos entre ellos.
+
+### Lo que conserva tu plan
+
+Cada aplicación conserva un número limitado de versiones anteriores, durante un tiempo limitado. La versión en ejecución nunca
+caduca, y el plazo de una versión anterior **empieza cuando deja de ser la que está en ejecución**, no cuando se creó.
+
+| Plan | Versiones anteriores conservadas | Validez |
+|---|---:|---:|
+| Economy | Solo historial, sin rollback | — |
+| Pro | 3 | 7 días |
+| Scale | 5 | 14 días |
+| Intermediary | 10 | 30 días |
+| Enterprise | 15 a 30, según el nivel | 30 días |
+
+Consulta [Planes y límites](/es-es/plans-and-limits#límites-del-historial-de-despliegues-y-del-rollback) para los niveles de Enterprise. Cambiar a un
+plan superior no recupera las versiones que ya se eliminaron.
+
+## Rollback automático
+
+En Intermediary y Enterprise, un despliegue defectuoso ya no deja la aplicación caída.
+
+- **Ventana:** actúa solo si la nueva versión se detiene dentro de los **60 segundos** posteriores a un despliegue. Una parada
+  posterior es un fallo normal, y lo gestiona el reinicio automático.
+- **Una sola vez:** la plataforma vuelve atrás una vez. Si la versión anterior también se detiene, la aplicación queda detenida y
+  se te avisa.
+- **Solo código:** las variables de entorno no se restauran. Si un cambio de variables fue la causa, usa el rollback manual con la
+  opción de variables.
+- **Siempre se te avisa:** recibes una notificación, la pestaña Rollbacks marca la versión fallida con su log, el rollback aparece
+  como una release nueva creada por Vertra Cloud, y el log en vivo muestra los mismos avisos.
+- **Activarlo:** viene desactivado por defecto, incluso en las aplicaciones creadas antes de que existiera la función. Actívalo en
+  los ajustes de la aplicación, o envía `deploy.auto_rollback: true` a
+  [Actualizar configuración de la aplicación](/api-reference/endpoint/apps/updateconfig). Cambiarlo no reinicia la aplicación.
+
+En Pro y planes inferiores, una versión que no consigue arrancar sigue el comportamiento normal de reinicio automático, y aun así
+puedes volver atrás a mano.
+
+## Despliegues sin interrupción
+
+Por defecto, un despliegue o un reinicio detiene la versión en ejecución y arranca la nueva, lo que deja la aplicación fuera de
+servicio unos segundos. En **Enterprise** puedes activar otro modo, conocido como **despliegue blue-green**, que también se aplica
+a los reinicios:
+
+1. La nueva versión se instala, se compila y arranca **junto a** la que está en ejecución. La versión en ejecución sigue sirviendo.
+2. La plataforma comprueba que la nueva versión está sana.
+3. Solo entonces el tráfico cambia a la nueva versión, de golpe. A la versión antigua se le pide que se apague de inmediato
+   (`SIGTERM`) y tiene **10 segundos** para terminar antes de ser detenida.
+4. Si la nueva versión no queda sana en unos **2 minutos**, se descarta, recibes un aviso con su log y la versión anterior sigue
+   ejecutándose.
+
+### Cómo se decide la salud
+
+La plataforma llama a tu aplicación por HTTP, en la ruta definida en `deploy.health_check_path` (`/` por defecto; cámbiala en los
+ajustes de la aplicación o con [Actualizar configuración de la aplicación](/api-reference/endpoint/apps/updateconfig)).
+
+- **Cualquier respuesta HTTP cuenta como sana**, incluido un `404`. La comprobación pregunta si el proceso responde, no si existe
+  una página concreta.
+- **Una comprobación falla** ante una conexión rechazada, un tiempo de espera (5 segundos por intento) o una respuesta `5xx`.
+- La versión debe responder bien dos veces seguidas y seguir en ejecución antes de que el tráfico se mueva.
+- Una aplicación que solo escucha en `127.0.0.1` no supera la comprobación, porque nada fuera del contenedor puede llegar a ella.
+  Escucha en todas las interfaces (`0.0.0.0`).
+
+### Apágate con elegancia
+
+La única petición que un cambio puede perder es una que la versión antigua **está respondiendo en ese momento** cuando se le pide
+detenerse. La mayoría de los frameworks se detienen de inmediato con `SIGTERM` y la descartan. Maneja la señal: deja de aceptar
+conexiones nuevas, deja terminar las peticiones abiertas y luego sal. Diez segundos es el límite.
+
+<CodeGroup>
+```javascript Node.js
+const server = app.listen(80, "0.0.0.0");
+
+process.on("SIGTERM", () => {
+  // Deja de aceptar conexiones nuevas y sale cuando terminan las peticiones abiertas.
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 9000).unref();
+});
+```
+
+```python Python (Gunicorn)
+# gunicorn.conf.py — Gunicorn ya drena las peticiones con SIGTERM; mantén el timeout por debajo de 10 s.
+graceful_timeout = 9
+```
+</CodeGroup>
+
+Esto también hace que los reinicios manuales y los rollbacks sean más limpios, no solo los despliegues blue-green.
+
+### Elige un modo
+
+Los despliegues sin interrupción están **desactivados por defecto**, incluso en las aplicaciones creadas antes de que existiera la
+función. Actívalos en los ajustes de la aplicación. `deploy.zero_downtime` tiene tres valores:
+
+| Modo | Comportamiento |
+|---|---|
+| `off` (por defecto) | Detiene primero la versión en ejecución y luego arranca la nueva |
+| `auto` | Sin interrupción solo para las aplicaciones que reciben tráfico web |
+| `on` | Siempre, incluidas las aplicaciones sin tráfico web |
+
+Si la segunda copia no puede arrancarse en ese momento, el despliegue vuelve a detener primero la versión en ejecución, y el
+rollback automático sigue protegiéndolo. La segunda copia no cuenta contra la memoria de tu plan.
+
+### Por qué `auto` deja fuera a los bots de Discord
+
+Un bot no recibe tráfico de la plataforma. Se conecta hacia fuera a Discord, así que no hay ninguna ruta que cambiar y blue-green
+no aportaría nada. Además causaría daño: dos procesos conectados con el mismo token reciben los mismos eventos. Un comando de
+prefijo recibe dos respuestas, un comando slash en una de las dos falla con "interaction already acknowledged" y los trabajos
+programados se ejecutan dos veces. Por eso `auto` deja a los bots y a los workers con el despliegue estándar de parar y arrancar,
+protegido por el rollback automático. Elige `on` solo si tu aplicación tolera ejecutarse dos veces durante un breve periodo.
+
+### Limitaciones conocidas
+
+- **Misma carpeta.** Ambas versiones usan la carpeta de la aplicación, y los dos procesos funcionan a la vez durante hasta unos
+  2 minutos. Un archivo de datos que escriben ambos a la vez, como un archivo JSON, puede corromperse. SQLite normalmente lo soporta.
+- **Migraciones.** Una migración de base de datos que se ejecuta al arrancar la nueva versión se ejecuta mientras la versión
+  anterior sigue sirviendo.
+- **Archivos mezclados.** Una aplicación que lee archivos en cada petición (PHP, sitios estáticos, una app de Next.js o Nuxt
+  compilada, importaciones tardías en Python) puede servir una mezcla de archivos antiguos y nuevos mientras el despliegue instala
+  dependencias y compila. Para esas aplicaciones, usa `off`.
+- **Terminal.** Mientras se prepara la nueva versión, la terminal sigue mostrando la versión en ejecución, no el build. Sigue la
+  salida de instalación y build en los logs.
+- **En el cambio.** Una petición que la versión antigua ya estaba respondiendo cuando se le pidió detenerse puede fallar una vez.
+  Consulta [Apágate con elegancia](#apágate-con-elegancia).
+
+## Desde la CLI, los SDK y MCP
+
+Todo lo anterior también está disponible fuera del panel, con los mismos planes y los mismos alcances de clave de API:
+
+- [CLI](/es-es/cli#releases-y-rollback): `vertra app releases`, `vertra app rollback` y las opciones de despliegue de `vertra app config`.
+- [SDK](/es-es/sdks#releases-y-rollback) para JavaScript, Python y Go.
+- [MCP](/es-es/mcp#releases-rollback-y-ajustes-de-despliegue): herramientas para listar releases, previsualizar y ejecutar un rollback, y cambiar los ajustes de despliegue.
+
+## Relacionado
+
+- [Descubre por qué se cae tu aplicación](/es-es/guides/debug-crashing-app)
+- [Copias de seguridad y snapshots](/es-es/guides/backups-snapshots)
+- [Planes y límites](/es-es/plans-and-limits)

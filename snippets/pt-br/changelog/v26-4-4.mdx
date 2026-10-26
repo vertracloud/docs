@@ -1,0 +1,31 @@
+### A criação da aplicação retorna na hora e o build continua em segundo plano
+
+Criar uma aplicação não mantém mais a requisição aberta até a instalação e o build terminarem. `POST /v1/apps` agora responde `202 Accepted` imediatamente, com a aplicação no novo status `building`, e o build continua em segundo plano, com logs ao vivo. Quando termina, a aplicação fica `up`, ou `down` se a instalação ou o build falharam, com a saída nos logs.
+
+- **Acompanhando o build:** leia `GET /v1/apps/{id}` ou abra os [logs em tempo real](/api-reference/endpoint/apps/realtime).
+- **Durante o build:** iniciar, parar, reiniciar, deploys de arquivos, rollback, snapshots, restaurações e alterações de configuração respondem `409 APP_BUILDING`. Excluir a aplicação é permitido.
+- **Builds interrompidos:** a aplicação continua `down` e `BUILD_INTERRUPTED` aparece no log dela. Se a plataforma cancelar a criação, a aplicação deixa de existir.
+- **Motivo da falha:** quando um build ou uma instalação falha, `GET /v1/apps/{id}` retorna o código no novo campo `last_build_error` (`null` após um build bem-sucedido). Os auxiliares de espera dos SDKs, o servidor MCP, a CLI, a extensão do VS Code e o dashboard usam esse código para dizer o que fazer. Veja [Erros](/api-reference/errors#build-failure-codes).
+- **Mudanças na resposta:** a resposta de criação não inclui mais `removed_directories`, e `missing_dependencies` passa a ser retornado por `GET /v1/apps/{id}` depois do build.
+- **SDKs, MCP e CLI:** `apps.waitUntilReady` (JavaScript), `apps.wait_until_ready` (Python) e `Apps.WaitUntilReady` (Go) esperam pelo build. O servidor MCP tem uma nova ferramenta `wait_for_app`, e a CLI aceita `--no-wait`. Veja o [guia de SDKs](/pt-br/sdks) e [MCP](/pt-br/mcp).
+
+Veja [Criar aplicação](/api-reference/endpoint/apps/create) e [Erros](/api-reference/errors).
+
+### Builds instalam devDependencies quando há comando de build
+
+Quando uma aplicação tem comando de build, a instalação de dependências agora inclui `devDependencies`, para que ferramentas como Tailwind, TypeScript e PostCSS funcionem sem precisar mudá-las para `dependencies`. Sem comando de build, só `dependencies` é instalado, como antes.
+
+### Builds mais rápidos
+
+A instalação de dependências e os builds agora são mais rápidos, especialmente em projetos grandes.
+
+### Puppeteer usa o Chromium já instalado
+
+O Puppeteer agora usa o Chromium que já vem na imagem do runtime, então a instalação não baixa mais um navegador.
+
+### Correções de runtime para Ruby, Java, PHP e Rust
+
+- **Ruby:** gems instaladas pelo Gemfile agora são carregadas automaticamente na inicialização, então você não precisa mais de `require "bundler/setup"`. As aplicações também rodam com `RACK_ENV` e `RAILS_ENV` definidos como `production`, então apps Sinatra deixam de responder `403 Host not permitted`. As duas variáveis agora são reservadas, como `NODE_ENV`.
+- **Java:** projetos Maven e Gradle são compilados na plataforma, já que o runtime agora traz um JDK.
+- **PHP:** adicionar um pacote ao `composer.json` sem atualizar o `composer.lock` não faz mais a instalação falhar; o arquivo de lock é atualizado.
+- **Rust:** o runtime foi atualizado para a versão 1.98 (recomendada) e 1.99 (mais recente); a 1.97 também continua disponível.

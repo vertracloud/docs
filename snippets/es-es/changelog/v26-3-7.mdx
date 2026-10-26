@@ -1,0 +1,47 @@
+### Nuevo aspecto de la página de aplicaciones
+
+La página pública de aplicaciones se abre ahora con una nueva ilustración, dejando espacio libre para el mensaje principal.
+
+### Comando de build, vCPU por aplicación y nuevos límites de almacenamiento
+
+#### Comando de build
+
+- **Nuevo campo `build_command`, en todos los planes.** Se ejecuta en cada despliegue (creación, subida de zip, despliegue desde GitHub, reinstalación de dependencias o cambio del propio comando), siempre después de la instalación de dependencias y antes de que la aplicación se inicie. Un simple reinicio no vuelve a ejecutar el build si el anterior ya terminó correctamente con el mismo comando.
+- Se ejecuta en un entorno aislado de la aplicación: el doble de su RAM (mínimo 1 GB, máximo 4 GB) y el doble de su vCPU (mínimo 1, máximo 2), con un tiempo límite de 10 minutos. La instalación de dependencias mantiene su propio tiempo límite, ahora de hasta 15 minutos.
+- Nueva clave `BUILD` en `vertracloud.config`, junto a `START`.
+- Al crear una aplicación desde un zip de Next.js, Nuxt, SvelteKit, Remix, React Router, Astro, Gatsby o Vite, ahora se sugieren automáticamente los comandos de build e inicio adecuados, editables antes de crear. El archivo de entrada también se reconoce en estos proyectos, que no tienen un `index.js`.
+- El entorno de build tiene el doble del ancho de banda y del límite de peticiones de la aplicación: descargar dependencias pesa más que servir tráfico. Si se supera, el despliegue se interrumpe, igual que ya ocurría con una aplicación en vivo.
+
+#### Almacenamiento
+
+- **Aplicaciones**: 10 GB fijos, sin importar la memoria (antes el límite crecía con la RAM).
+- **Bases de datos**: 6 GB + 1 GB por cada 512 MB de RAM asignada, siempre redondeado a GB enteros: una base de datos de 1 GB tiene ahora 8 GB, y una de 2 GB tiene 10 GB. Ninguna base de datos existente pierde espacio.
+
+#### vCPU por aplicación
+
+- Una aplicación con 2 GB o más de RAM obtiene ahora la vCPU completa del plan; por debajo de eso, obtiene un tercio de la vCPU del plan, con un mínimo de 1 vCPU. Más memoria nunca se traduce en menos vCPU.
+
+#### Límite de despliegues por hora
+
+- Crear una aplicación, subir un zip, desplegar mediante GitHub, reinstalar dependencias y cambiar el comando de build ahora cuentan contra un tope por hora por cuenta: 5 en Free, 10 en Economy, 20 en Pro, 40 en Scale y 60 desde Intermediary en adelante. Reiniciar y detener no cuentan, y un push a GitHub por encima del límite se ignora y se registra en el historial de actividad.
+
+### Presentamos Vertra Flow
+
+Vertra Flow tiene ahora su propia página en el sitio. Presenta el lienzo interactivo y explica cómo los grupos, las notas, las vistas previas y los adjuntos ayudan a organizar aplicaciones y bases de datos.
+
+La página también deja claro qué sigue en desarrollo: la colaboración en tiempo real, los comentarios en el lienzo y formas más expresivas de representar las redes de aplicaciones.
+
+### vertracloud.config ya no vive en el volumen
+
+#### Qué cambió
+
+`vertracloud.config` **ya no se escribe en el volumen de la aplicación**. Hasta ahora se escribía una sola vez, al crear la aplicación, y nunca seguía los cambios hechos en la pestaña Configuración: el usuario abría el archivo en el gestor de archivos, veía la memoria y el comando de inicio antiguos, lo editaba y no pasaba nada.
+
+Ahora:
+
+- **Al descargar el proyecto**, el zip incluye un `vertracloud.config` generado a partir de la configuración actual: nombre, archivo de entrada, memoria, versión, comando de inicio, reinicio automático y subdominio.
+- **Al crear un snapshot**, ocurre lo mismo: el snapshot ya llevaba el archivo generado, y sigue haciéndolo.
+- **Al subir un zip**, el archivo se lee para rellenar el formulario y se descarta al extraerlo; ya no aparece en el gestor de archivos.
+- Las aplicaciones existentes pierden su copia anterior en el siguiente reinicio o recompilación.
+
+El formato no ha cambiado: `KEY=value`, con las claves `NAME`, `DESCRIPTION`, `MAIN`, `MEMORY`, `AUTORESTART`, `START`, `VERSION` y `SUBDOMAIN`.

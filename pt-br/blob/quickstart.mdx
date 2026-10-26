@@ -1,0 +1,156 @@
+---
+title: 'Quickstart do Blob Storage: envie e sirva seu primeiro arquivo'
+sidebarTitle: 'Quickstart'
+description: 'Crie uma chave de API, envie um arquivo, liste, pegue uma URL pública e um link temporário e apague, com cURL, JavaScript, Python e Go.'
+icon: 'rocket'
+---
+
+Em cinco minutos você vai enviar um arquivo, torná-lo público, criar um link temporário e apagá-lo.
+
+<Steps>
+  <Step title="Crie uma chave de API">
+    No dashboard, abra **Configurações → Chaves de API** e crie uma chave com o escopo `blob:write` (ela também pode ler seus arquivos pelo `blob:read`, que o preset **full** inclui). Guarde-a em uma variável de ambiente:
+
+    ```bash
+    export VERTRA_API_KEY="your_key"
+    ```
+  </Step>
+  <Step title="Envie um arquivo">
+    O upload simples leva uma única requisição para arquivos de até 100 MB. Os arquivos são privados, a menos que você peça `public`.
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl -X POST "https://blob.vertracloud.app/v1/objects?path=images/logo.png&visibility=public" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" \
+      -F "file=@./logo.png"
+    ```
+
+    ```javascript JavaScript
+    import { BlobClient } from "@vertracloud/blob";
+
+    const blob = new BlobClient({ apiKey: process.env.VERTRA_API_KEY });
+    const obj = await blob.put("images/logo.png", file, { visibility: "public" });
+    console.log(obj.url);
+    ```
+
+    ```python Python
+    obj = client.blob.put("images/logo.png", open("logo.png", "rb"), visibility="public")
+    print(obj["url"])
+    ```
+
+    ```go Go
+    f, err := os.Open("logo.png")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer f.Close()
+    info, _ := f.Stat()
+
+    obj, err := client.Blob.Put(ctx, "images/logo.png", f, info.Size(),
+        &vertracloud.BlobPutOptions{Visibility: "public"})
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(*obj.URL)
+    ```
+
+    </CodeGroup>
+
+    A resposta é o objeto do arquivo: o `id`, o `size`, o `content_type` e, para arquivos públicos, a `url`.
+  </Step>
+  <Step title="Liste seus arquivos">
+    <CodeGroup>
+
+    ```bash cURL
+    curl "https://blob.vertracloud.app/v1/objects?prefix=images/&delimiter=/" \
+      -H "Authorization: Bearer $VERTRA_API_KEY"
+    ```
+
+    ```javascript JavaScript
+    for await (const obj of blob.list({ prefix: "images/" })) {
+      console.log(obj.path, obj.size);
+    }
+    ```
+
+    ```python Python
+    for obj in client.blob.list(prefix="images/"):
+        print(obj["path"], obj["size"])
+    ```
+
+    ```go Go
+    it := client.Blob.List(ctx, &vertracloud.BlobListOptions{Prefix: "images/"})
+    for it.Next(ctx) {
+        o := it.Object()
+        fmt.Println(o.Path, o.Size)
+    }
+    if err := it.Err(); err != nil {
+        log.Fatal(err)
+    }
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Abra a URL pública">
+    Um arquivo público fica em `https://blob.vertracloud.dev/<namespace>/images/logo.png`; o campo `url` do objeto já traz esse endereço. Abra no navegador ou use em uma tag `<img>`.
+  </Step>
+  <Step title="Crie um link temporário para um arquivo privado">
+    <CodeGroup>
+
+    ```bash cURL
+    curl "https://blob.vertracloud.app/v1/objects/$OBJECT_ID/download?expires_in=600&redirect=false" \
+      -H "Authorization: Bearer $VERTRA_API_KEY"
+    ```
+
+    ```javascript JavaScript
+    const { url, expires_at } = await blob.downloadUrl(obj.id, { expiresIn: 600 });
+    ```
+
+    ```python Python
+    link = client.blob.download_url(obj["id"], expires_in=600)
+    ```
+
+    ```go Go
+    link, err := client.Blob.DownloadURL(ctx, obj.ID, &vertracloud.BlobDownloadOptions{ExpiresIn: 600})
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(link.URL, link.ExpiresAt)
+    ```
+
+    </CodeGroup>
+
+    O link funciona por 10 minutos. Veja [Links e visibilidade](/pt-br/blob/links-and-visibility).
+  </Step>
+  <Step title="Apague o arquivo">
+    <CodeGroup>
+
+    ```bash cURL
+    curl -X DELETE "https://blob.vertracloud.app/v1/objects/$OBJECT_ID" \
+      -H "Authorization: Bearer $VERTRA_API_KEY"
+    ```
+
+    ```javascript JavaScript
+    await blob.delete(obj.id);
+    ```
+
+    ```python Python
+    client.blob.delete(obj["id"])
+    ```
+
+    ```go Go
+    err = client.Blob.Delete(ctx, obj.ID)
+    if err != nil {
+        log.Fatal(err)
+    }
+    ```
+
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Próximos passos
+
+- Arquivos grandes e progresso: [Uploads](/pt-br/blob/uploads).
+- Deixar navegadores enviarem direto: [Servir uploads de usuários](/pt-br/guides/serve-user-uploads).
+- Todas as rotas: [Referência da API do Blob](/api-reference/endpoint/blob/objects/upload).

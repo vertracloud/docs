@@ -1,0 +1,125 @@
+---
+title: 'Como hospedar um site estático na Vertra Cloud'
+sidebarTitle: 'Sites estáticos'
+description: 'Faça deploy de um site estático (HTML, CSS, JavaScript ou build de framework) na Vertra Cloud, com index.html como ponto de entrada e SSL automático.'
+icon: 'file-code'
+---
+
+## Requisitos
+
+- Arquivos HTML, CSS e JavaScript
+- Conta na [Vertra Cloud](https://vertracloud.app)
+
+## Estrutura do projeto
+
+```
+my-site/
+├── index.html
+├── css/
+│   └── style.css
+├── js/
+│   └── app.js
+├── images/
+│   └── logo.png
+└── vertracloud.config  (optional)
+```
+
+## Configuração
+
+### vertracloud.config
+
+```ini
+MAIN=index.html
+SUBDOMAIN=my-site
+```
+
+## Exemplo: página de apresentação
+
+### index.html
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Site</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Welcome to My Site</h1>
+    <p>Hosted on Vertra Cloud</p>
+  </header>
+  <script src="js/app.js"></script>
+</body>
+</html>
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Painel">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie para o GitHub.
+    2. No painel, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**Static**), o arquivo principal (`index.html`) e a memória. Os comandos de start e de build ficam em **Configurações Avançadas**.
+    4. Adicione suas variáveis de ambiente em **Ambiente**.
+    5. Em **Rede**, ative a **publicação web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Fazer deploy do projeto atual**. Veja [Extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Frameworks de frontend compilados
+
+Para projetos React, Vue, Svelte ou Angular, faça o build localmente e envie somente a pasta de saída:
+
+<Tabs>
+  <Tab title="React (Vite)">
+    ```bash
+    npm run build
+    # Compacte o conteúdo da pasta dist/
+    ```
+  </Tab>
+  <Tab title="Vue">
+    ```bash
+    npm run build
+    # Compacte o conteúdo da pasta dist/
+    ```
+  </Tab>
+  <Tab title="Svelte">
+    ```bash
+    npm run build
+    # Compacte o conteúdo da pasta build/
+    ```
+  </Tab>
+  <Tab title="Angular">
+    ```bash
+    ng build
+    # Compacte o conteúdo da pasta dist/project-name/
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Envie somente o conteúdo da pasta de build (arquivos compilados), e não o código-fonte inteiro. O arquivo `index.html` precisa estar na raiz do ZIP.
+</Warning>
+
+## Observações
+
+- Sites estáticos não precisam de servidor de backend
+- Todas as rotas são servidas pelo servidor interno da plataforma
+- **SSL automático** (HTTPS) em todos os domínios
+- **CDN** e cache automático para os arquivos estáticos
+- Não há suporte a reescrita de rotas (SPAs com roteamento no cliente precisam de configuração especial)

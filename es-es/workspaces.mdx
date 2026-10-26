@@ -1,0 +1,118 @@
+---
+title: 'Workspaces de equipo en Vertra Cloud: permisos, roles e invitaciones'
+sidebarTitle: 'Workspaces'
+description: 'Los workspaces agrupan aplicaciones y bases de datos y los comparten con un equipo, con roles personalizados basados en 20 permisos granulares. Plan Enterprise.'
+icon: 'users'
+---
+
+## ¿Qué son los workspaces?
+
+Los workspaces son espacios colaborativos que agrupan aplicaciones y bases de datos y los comparten con un
+equipo. Crear uno requiere el plan **Enterprise**; el número máximo de miembros y de roles personalizados
+aumenta con el nivel del plan.
+
+## Permisos, no roles fijos
+
+Un miembro no tiene un rol fijo como "Admin" o "Viewer": tiene un **rol que defines tú**, y un rol es solo un
+nombre con un subconjunto elegido de **20 permisos**. Al crear el workspace se generan cuatro roles (Admin,
+Developer, Operator, Viewer), pero a partir de ahí son roles normales: renómbralos, edita sus permisos o
+elimínalos como cualquier otro.
+
+El **propietario** tampoco es un rol. La propiedad es la posesión del propio workspace: el propietario siempre
+tiene todos los permisos, sin necesidad de asignar ningún rol, y solo él puede renombrar o eliminar el
+workspace, o vincular y desvincular una aplicación o una base de datos.
+
+### Catálogo de permisos
+
+| Grupo | Permisos |
+|---|---|
+| Aplicaciones | `apps:read`, `apps:manage`, `apps:lifecycle`, `apps:envs`, `apps:files`, `apps:delete` |
+| Bases de datos | `databases:read`, `databases:manage`, `databases:lifecycle`, `databases:credentials`, `databases:data`, `databases:delete` |
+| Snapshots | `snapshots:read`, `snapshots:manage` |
+| Blob Storage | `blob:read`, `blob:manage` |
+| Miembros | `members:read`, `members:manage` |
+| Roles | `roles:manage` |
+| Actividades | `activities:read` |
+
+`apps:delete` y `databases:delete` se separan de `apps:manage` y `databases:manage` a propósito: eliminar es la
+única acción que merece controlarse por separado de la gestión del día a día. Por eso el rol **Admin**
+predeterminado tampoco incluye `snapshots:manage` (restaurar o eliminar un snapshot es lo bastante destructivo
+como para que el propietario lo habilite de forma explícita).
+
+Los dos permisos de Blob Storage, `blob:read` y `blob:manage`, tampoco forman parte de ningún rol predeterminado:
+el propietario se los concede a los roles que deban acceder al almacenamiento de archivos del propietario.
+
+<Note>
+  Un miembro no puede crear ni editar un rol con permisos que él mismo no tenga, incluidas las acciones
+  exclusivas del propietario, que ningún rol puede conceder nunca. Así se cierra la vía obvia de escalada:
+  `roles:manage` te permite diseñar roles, no conceder accesos por encima de los tuyos.
+</Note>
+
+## Roles personalizados
+
+Crea tantos roles como permita el nivel de tu plan (los cuatro roles iniciales cuentan para ese límite) y elige
+cualquier subconjunto de los 20 permisos.
+
+Un rol asignado a un miembro o con una invitación pendiente no se puede eliminar (`WORKSPACE_ROLE_IN_USE`):
+reasígnalo o revócalo antes.
+
+## Invitar miembros
+
+Las invitaciones sustituyen por completo al antiguo código compartido único:
+
+- **Por correo electrónico** — se envía a una dirección concreta, caduca en 7 días y solo puede haber una
+  invitación pendiente por dirección. Volver a invitar a la misma dirección renueva y reenvía la invitación.
+- **Por enlace** — una URL para compartir, válida durante 24 horas, con un número máximo de usos opcional.
+
+Ambos tipos asignan un rol desde el principio y pueden llevar una **fecha de caducidad del acceso**: el miembro
+que se una mediante esa invitación pierde el acceso automáticamente en esa fecha, a menos que establezcas otra
+después. Todo lo relativo a esto —enviar, listar, revocar— es una acción exclusiva del panel; no existe un
+equivalente con clave de API, así que una clave filtrada no puede añadir ni quitar personas.
+
+Para invitar a alguien, abre tu workspace en el panel y usa la opción de invitaciones en el área de miembros.
+
+## Solicitar acciones sensibles
+
+Un miembro que quiera hacer algo para lo que no tiene permiso —eliminar una aplicación, eliminar una base de
+datos, crear o restaurar un snapshot— puede **solicitarlo**. Cualquiera que tenga el permiso correspondiente
+puede aprobar o rechazar la solicitud desde la pestaña **Solicitudes** del workspace. Al aprobarla, la acción se
+ejecuta de verdad, como el aprobador, usando exactamente los parámetros enviados con la solicitud; nunca se usa
+nada reenviado en el momento de la aprobación. Una solicitud caduca a las 24 horas si no se resuelve.
+
+## Actividad
+
+La pestaña **Actividades** abarca todo el workspace, no solo tus propias acciones, e incluye una exportación en
+CSV limitada a una ventana de 90 días por descarga.
+
+## Carpetas y favoritos
+
+Las carpetas y los favoritos de un workspace son preferencias **individuales**. Cada miembro organiza las
+aplicaciones y bases de datos a las que tiene acceso en su propia vista; crear una carpeta, cambiar su nombre o
+color, mover un recurso y marcar favoritos no altera la organización de los demás miembros.
+
+Las carpetas pueden contener aplicaciones y bases de datos, y usar los colores `neutral`, `red`, `orange`,
+`yellow`, `green`, `blue` y `purple`. Los favoritos son independientes de las carpetas. Estas preferencias se
+guardan en la cuenta, con ámbito personal o del workspace, y no en el almacenamiento local del navegador.
+
+Las mismas acciones se pueden hacer desde el panel, mediante workflows o con clientes que usen una clave de API,
+como la CLI, MCP o la extensión de VS Code. Cada acción genera una actividad en el historial; el cliente no
+necesita enviar el origen ni el autor.
+
+<Note>
+  Una carpeta y un grupo de Flow son conceptos distintos. La carpeta organiza las aplicaciones y bases de datos de
+  la cuenta; el grupo organiza los elementos del lienzo local de Flow. No hay sincronización ni migración entre ambos.
+</Note>
+
+## Workspaces congelados
+
+Si el plan del propietario caduca o baja de Enterprise, el workspace queda **congelado, no eliminado**: los
+miembros, los proyectos y los roles siguen ahí, pero las escrituras se rechazan (renombrar, invitar, cambiar un
+rol o vincular un proyecto). La lectura, salir del workspace, quitar a un miembro o a un proyecto y eliminar el
+propio workspace siguen funcionando. Todo se descongela en cuanto el plan vuelve a estar al día; lo que se
+comprueba es el plan del **propietario**, así que un miembro sin plan en un workspace de pago de otra persona no
+se ve afectado.
+
+<Note>
+  El detalle completo, endpoint por endpoint (cuerpos, permisos, códigos de error), está en
+  [Referencia de la API → Workspaces](/api-reference/endpoint/workspaces/get-all).
+</Note>

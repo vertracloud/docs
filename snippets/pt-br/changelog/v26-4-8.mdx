@@ -1,0 +1,49 @@
+### Novos bancos de dados ganham um usuário `vertracloud` dedicado
+
+Bancos de dados criados a partir desta versão vêm com um usuário dedicado chamado `vertracloud` e um banco padrão chamado `vertracloud`, nos quatro motores:
+
+| Motor | Usuário | Banco padrão | String de conexão |
+|---|---|---|---|
+| PostgreSQL | `vertracloud` (dono do próprio banco, pode criar bancos e papéis) | `vertracloud` | `postgresql://vertracloud:<password>@<host>:<port>/vertracloud` |
+| MySQL | `vertracloud` (acesso total ao banco `vertracloud`) | `vertracloud` | `mysql://vertracloud:<password>@<host>:<port>/vertracloud` |
+| MongoDB | `vertracloud` (leitura, escrita e administração em todos os bancos) | `vertracloud` | `mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin` |
+| Redis | `vertracloud` | — | `rediss://vertracloud:<password>@<host>:<port>` |
+
+TLS com o certificado de cliente continua obrigatório, como antes. O dashboard, a API e o servidor MCP mostram o usuário e a string de conexão corretos para cada banco.
+
+### Redis: o nome de usuário agora é obrigatório em novos bancos
+
+Em novos bancos Redis, faça login com o usuário e a senha (`AUTH vertracloud <password>`, ou o usuário na URL). Só a senha é recusada. Use a string de conexão exibida no dashboard ao criar um novo banco Redis.
+
+### `username` na API
+
+O objeto de banco de dados retornado pela API agora inclui `username`. Leia esse campo em vez de presumir o usuário pelo motor, já que bancos antigos e novos usam usuários diferentes. Veja [Bancos de dados](/pt-br/databases).
+
+### Aplicações só podem gravar em `/app`, `/tmp`, `/var/tmp` e `/run`
+
+O restante do sistema de arquivos do container agora é somente leitura, e `HOME` é `/app`. Tudo o que a sua aplicação grava no diretório home (caches de gerenciadores de pacotes, pastas de configuração) vai para `/app` e conta para a cota de disco. `/tmp` é a metade da RAM da aplicação, com mínimo de 128 MB e máximo de 1 GB, e `/var/tmp` é limitado a 64 MB; ambos ficam em memória e são limpos a cada reinício. Uma aplicação que grave em qualquer outro lugar recebe um erro de sistema de arquivos somente leitura. As aplicações passam para esse modelo no próximo deploy ou reinício.
+
+Arquivos temporários também não se acumulam mais no seu projeto: o `TMPDIR` da aplicação não é mais redirecionado para a pasta do projeto depois da instalação das dependências. Assim, arquivos temporários vão para `/tmp` e são limpos no reinício.
+
+### Escolha a versão do banco de dados
+
+Ao criar um banco de dados, agora você pode escolher a versão, no dashboard ou com `version` na API. A versão recomendada é o padrão.
+
+| Motor | Versões |
+|---|---|
+| PostgreSQL | 18 (recomendada), 17 |
+| MySQL | 9.7 (recomendada, LTS), 8.4 (LTS) |
+| MongoDB | 8.0 (recomendada), 9.0 |
+| Redis | 8.2 (recomendada), 7.2 |
+
+O objeto do banco retorna `version`, e o novo endpoint [Listar versões de banco de dados](/api-reference/endpoint/databases/versions) lista o que está disponível por motor. Uma `version` fora da lista falha com `INVALID_DATABASE_VERSION`.
+
+Ao criar um banco a partir de um snapshot, ele começa na versão principal do snapshot (um snapshot de MySQL 8.0 cria um banco MySQL 8.4, e um snapshot de Redis 7.4 cria um Redis 8.2). `version` pode ser igual ou mais nova, e uma mais antiga falha com `SNAPSHOT_VERSION_NEWER`. Restaurar um snapshot feito em uma versão mais nova em um banco mais antigo falha com o mesmo código, e nada é alterado.
+
+### Atualizações de segurança no reinício
+
+Bancos existentes mantêm a versão principal. Atualizações de segurança (releases de patch) são aplicadas automaticamente sempre que o banco é reiniciado: pare e inicie de novo no dashboard. Bancos MySQL 8.0 existentes continuam no 8.0 e bancos Redis 7.4 existentes continuam no 7.4; nenhuma dessas versões está disponível para novos bancos. Se você usa índices `btree_gist` em colunas float ou índices `ltree` no PostgreSQL, rode `REINDEX` neles depois do reinício.
+
+### Correção: redefinição de senha no MySQL
+
+Redefinir a senha de um banco MySQL criado com o usuário `vertracloud` agora surte efeito. Antes desta correção, a nova senha era exibida, mas não aplicada, e a antiga continuava funcionando.

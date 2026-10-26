@@ -1,0 +1,22 @@
+### Respostas vazias e erros de validação padronizados
+
+Três ajustes nos formatos de resposta da API, para que todas as rotas sigam o mesmo envelope:
+
+- **Uma resposta vazia é `{ "response": null }`.** Remover uma variável de ambiente, salvar, mover e excluir um arquivo, remover um domínio personalizado, limpar o cache, remover um webhook de deploy e excluir uma aplicação respondiam `{}`. Agora respondem `{ "response": null }`, como as rotas de workspace já faziam.
+- **O campo inválido vai para `details.path`.** Um `400 VALIDATION_ERROR` incluía `path` solto no topo da resposta; agora vem como `{ "code": "VALIDATION_ERROR", "message": "...", "details": { "path": "..." } }`.
+- **Erros de cliente do gerenciador de arquivos são `400`, não `500`.** Enviar sem arquivo (`NO_FILE_UPLOADED`) ou um zip ilegível (`INVALID_ZIP_STRUCTURE`) respondia `500`; agora responde com o status `4xx` correto.
+
+Também:
+
+- `GET /v1/apps/runtimes` responde apenas com `{ "response": { ... } }`, sem o campo extra `status`.
+- `PATCH /v1/users/me` aceita apenas `pt-br`, `en-us` ou `es-es` para `language`.
+- `POST /v1/users/{id}/snapshots/{snapshot_id}/restore` rejeita um `resource_id` inválido com `400`.
+- `POST /v1/orders/{orderId}/initiate/pix` sempre retorna `transaction_amount` como número.
+
+Se a sua integração lia `path` no topo de um erro ou tratava `{}` como sucesso, atualize para os formatos acima. Os tipos de `@vertracloud/api-types` já descrevem o novo formato.
+
+Códigos de erro relacionados a aplicações e bancos de dados também foram padronizados.
+
+### Conteúdo de arquivo sempre em base64
+
+O conteúdo de arquivo retornado por [Obter conteúdo de arquivo da aplicação](/api-reference/endpoint/apps/filemanager/content) e pelos SDKs agora é sempre base64 padrão. O campo `size` da resposta reflete o tamanho real do arquivo em bytes, e não o comprimento da string codificada. Antes, o formato variava conforme o tipo de arquivo. Se a sua integração tratava formatos diferentes de conteúdo, esse tratamento não é mais necessário.

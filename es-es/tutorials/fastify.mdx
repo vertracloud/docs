@@ -1,0 +1,131 @@
+---
+title: 'Cómo alojar una API Fastify en Vertra Cloud'
+sidebarTitle: 'Fastify'
+description: 'Despliega una API Fastify en Vertra Cloud: escucha en 0.0.0.0 y en la variable PORT, elige la versión de Node y obtén HTTPS automático en el subdominio.'
+icon: bolt
+---
+
+## Requisitos
+
+- Node.js instalado en local
+- Cuenta en [Vertra Cloud](https://vertracloud.app)
+
+## Estructura del proyecto
+
+```
+my-api-fastify/
+├── src/
+│   ├── server.js
+│   └── routes/
+│       └── index.js
+├── package.json
+└── vertracloud.config
+```
+
+## Configuración
+
+### package.json
+
+```json
+{
+  "name": "my-api-fastify",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0",
+    "@fastify/cors": "^10.0.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/server.js
+START=npm start
+VERSION=recommended
+```
+
+## Ejemplo completo
+
+```javascript
+const fastify = require('fastify')({ logger: true });
+const cors = require('@fastify/cors');
+
+fastify.register(cors, { origin: '*' });
+
+fastify.get('/', async (request, reply) => {
+  return { message: 'Fastify on Vertra Cloud!' };
+});
+
+fastify.get('/health', async (request, reply) => {
+  return { status: 'healthy', uptime: process.uptime() };
+});
+
+const start = async () => {
+  try {
+    const port = process.env.PORT || 80;
+    await fastify.listen({ port, host: '0.0.0.0' });
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();
+```
+
+<Warning>
+  Usa `host: '0.0.0.0'` en `fastify.listen()`. Fastify escucha por defecto solo en `localhost`, lo que impide las conexiones externas dentro del contenedor.
+</Warning>
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Comprime el proyecto en un `.zip` (las carpetas como `node_modules`, `venv` y `target` se eliminan automáticamente) o súbelo a GitHub.
+    2. En el panel, haz clic en **Nuevo Proyecto** y sube el `.zip` o pega la URL del repositorio.
+    3. En **Build**, revisa el runtime (**JavaScript**), el archivo principal (`index.js`) y la memoria. Los comandos de inicio y de build están en **Ajustes avanzados**.
+    4. Añade tus variables de entorno en **Variables de Entorno**.
+    5. En **Red**, activa la **publicación web** para que la aplicación reciba una dirección `*.vertraweb.app` (plan Pro o superior, 512 MB de memoria). La aplicación debe escuchar en el puerto 80.
+    6. Revisa y despliega. Sigue la salida en la pestaña **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Consulta la [CLI](/es-es/cli) para la instalación y el inicio de sesión.
+  </Tab>
+  <Tab title="VS Code">
+    Abre la carpeta con la extensión de Vertra Cloud instalada y ejecuta **Deploy current project**. Consulta la [extensión de VS Code](/es-es/vscode-extension).
+  </Tab>
+</Tabs>
+
+La guía completa está en [Primer despliegue](/es-es/how-to-host).
+
+## Versiones disponibles
+
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 24.22.1 | Más reciente | Node.js 24.22.1 (versión más reciente) |
+| 22.23.4 | Recomendada | Node.js 22.23.4 LTS (recomendada para producción) |
+
+## Diferencias con Express
+
+| Aspecto | Express | Fastify |
+|--------|---------|---------|
+| Rendimiento | Bueno | Superior (hasta 2 veces más rápido) |
+| Validación | Manual o mediante middleware | Integrada, con JSON Schema |
+| Plugins | Middleware sencillo | Sistema de plugins encapsulado |
+| TypeScript | Mediante @types | Soporte nativo |
+
+## Notas
+
+- Fastify incluye **validación de esquemas integrada**: úsala para garantizar la integridad de las peticiones
+- Para **TypeScript**, compila a JavaScript antes del despliegue
+- El **logger integrado** de Fastify aparece en los logs en tiempo real del panel
+- El **reinicio automático** está activado por defecto en todas las aplicaciones

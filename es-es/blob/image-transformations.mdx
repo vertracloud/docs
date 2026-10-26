@@ -1,0 +1,61 @@
+---
+title: 'Redimensionar y convertir imágenes al vuelo con Blob Storage'
+sidebarTitle: 'Transformaciones de imagen'
+description: 'Redimensiona, recorta y convierte imágenes públicas añadiendo parámetros a la URL; disponible desde el plan Scale con un límite mensual.'
+icon: 'image'
+---
+
+Para las **imágenes públicas**, añade parámetros de consulta a la URL del archivo y la plataforma devuelve una copia redimensionada o convertida, servida desde la CDN:
+
+```text
+https://blob.vertracloud.dev/<namespace>/images/logo.png?w=400&h=300&fit=cover&format=webp&q=80
+```
+
+| Parámetro | Significado |
+|---|---|
+| `w`, `h` | Ancho y alto de destino en píxeles, de `1` a `4096` |
+| `fit` | Cómo se ajusta la imagen a la caja: `scale-down`, `contain`, `cover`, `crop` o `pad` |
+| `format` | Formato de salida: `webp`, `avif`, `jpeg`, `png` o `auto` (elige AVIF o WebP según la cabecera `Accept` del navegador) |
+| `q` | Calidad, de `1` a `100` |
+
+Los parámetros no válidos o desconocidos se ignoran. Solo se transforman las imágenes públicas JPEG, PNG, WebP, AVIF y GIF; los SVG y otros archivos se sirven siempre tal como están guardados.
+
+<CodeGroup>
+
+```bash cURL
+curl -o logo-400.webp "https://blob.vertracloud.dev/<namespace>/images/logo.png?w=400&format=webp"
+```
+
+```javascript JavaScript
+const url = blob.imageUrl(obj, { width: 400, format: "webp" });
+```
+
+```python Python
+url = obj["url"] + "?w=400&format=webp"
+```
+
+```go Go
+url := *obj.URL + "?w=400&format=webp" // URL es nil para un objeto privado
+```
+
+</CodeGroup>
+
+## Planes y límites mensuales
+
+Las transformaciones de imagen empiezan en el plan **Scale**. En Economy y Pro, la URL con parámetros sirve la imagen original.
+
+| Plan | Transformaciones al mes |
+|---|---|
+| Economy, Pro | no incluidas |
+| Scale | 600 |
+| Intermediary | 1.000 |
+| Enterprise-4 | 1.500 |
+| Enterprise-6 | 2.000 |
+| Enterprise-8 | 2.500 |
+| Enterprise-12 y 14 | 4.000 |
+| Enterprise-16 a 24 | 5.000 |
+| Enterprise-26 a 32 | 10.000 |
+
+Solo cuentan las transformaciones **únicas**: la misma imagen con los mismos parámetros cuenta una vez al mes, y las peticiones repetidas que se sirven desde la caché no cuestan nada. Al superar el límite, la URL sigue funcionando y sirve la imagen **original**, sin error. Tu uso de este mes es `image_transformations_used` en [Obtener estadísticas](/api-reference/endpoint/blob/account/stats).
+
+Las imágenes privadas nunca se transforman.

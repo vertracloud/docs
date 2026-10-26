@@ -1,0 +1,22 @@
+### Respuestas vacías y errores de validación estandarizados
+
+Tres ajustes en los formatos de respuesta de la API, para que todas las rutas sigan el mismo envoltorio:
+
+- **Una respuesta vacía es `{ "response": null }`.** Eliminar una variable de entorno, guardar, mover y eliminar un archivo, quitar un dominio personalizado, limpiar la caché, quitar un webhook de despliegue y eliminar una aplicación respondían `{}`. Ahora responden `{ "response": null }`, igual que ya hacían las rutas de workspace.
+- **El campo no válido pasa a `details.path`.** Un `400 VALIDATION_ERROR` incluía antes `path` suelto en la parte superior de la respuesta; ahora llega como `{ "code": "VALIDATION_ERROR", "message": "...", "details": { "path": "..." } }`.
+- **Los errores de cliente del gestor de archivos son `400`, no `500`.** Subir sin archivo (`NO_FILE_UPLOADED`) o un zip que no se puede leer (`INVALID_ZIP_STRUCTURE`) respondía `500`; ahora responde con el estado `4xx` correcto.
+
+Además:
+
+- `GET /v1/apps/runtimes` responde solo con `{ "response": { ... } }`, sin el campo extra `status`.
+- `PATCH /v1/users/me` solo acepta `pt-br`, `en-us` o `es-es` para `language`.
+- `POST /v1/users/{id}/snapshots/{snapshot_id}/restore` rechaza un `resource_id` no válido con `400`.
+- `POST /v1/orders/{orderId}/initiate/pix` devuelve siempre `transaction_amount` como número.
+
+Si tu integración leía `path` en el nivel superior de un error, o trataba `{}` como éxito, actualízala a los formatos de arriba. Los tipos de `@vertracloud/api-types` ya describen el nuevo formato.
+
+También se estandarizaron los códigos de error relacionados con aplicaciones y bases de datos.
+
+### Contenido de archivos siempre en base64
+
+El contenido de archivo que devuelven [Obtener contenido de archivo de la aplicación](/api-reference/endpoint/apps/filemanager/content) y los SDK ahora siempre es base64 estándar, y el campo `size` de la respuesta refleja el tamaño real en bytes del archivo, y no la longitud de la cadena codificada. Antes el formato variaba según el tipo de archivo. Si tu integración distinguía por formato de contenido, esa rama ya no es necesaria.

@@ -1,0 +1,172 @@
+---
+title: 'Subir archivos a Blob Storage: simple, directa y por partes'
+sidebarTitle: 'Subidas'
+description: 'Sube hasta 100 MB en una petición, o hasta 10 GB directo al almacenamiento en partes reanudables, con checksums y control de sobrescritura.'
+icon: 'upload'
+---
+
+Hay dos formas de subir. Usa la subida simple para archivos de hasta 100 MB y la subida directa para cualquier cosa más grande, o cuando los bytes no deban pasar por la API. El `put()` del SDK de JavaScript elige la correcta por ti.
+
+| | Simple | Directa |
+|---|---|---|
+| Tamaño | Hasta 100 MB | Hasta 10 GB |
+| Peticiones | Una (`multipart/form-data`) | Crear, enviar, completar |
+| Los bytes pasan por la API | Sí, en streaming | No, van directamente al almacenamiento |
+| Reanudable | No | Sí |
+| Ruta | [Subir objeto](/api-reference/endpoint/blob/objects/upload) | [Crear subida](/api-reference/endpoint/blob/uploads/create) |
+
+## Subida simple
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://blob.vertracloud.app/v1/objects?path=docs/report.pdf&random_suffix=true" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -F "file=@./report.pdf"
+```
+
+```javascript JavaScript
+const obj = await blob.put("docs/report.pdf", file, { randomSuffix: true });
+```
+
+```python Python
+obj = client.blob.put("docs/report.pdf", open("report.pdf", "rb"), random_suffix=True)
+```
+
+```go Go
+f, _ := os.Open("report.pdf")
+info, _ := f.Stat()
+
+suffix := true
+obj, err := client.Blob.Put(ctx, "docs/report.pdf", f, info.Size(),
+    &vertracloud.BlobPutOptions{RandomSuffix: &suffix})
+```
+
+</CodeGroup>
+
+## Opciones
+
+Estas se aplican a ambos flujos. En la subida simple son parámetros de consulta.
+
+| Opción | Por defecto | Significado |
+|---|---|---|
+| `path` | obligatoria | Dónde vive el archivo, por ejemplo `images/avatars/joao.png` |
+| `visibility` | `private` | `public` o `private` |
+| `overwrite` | `false` | Reemplaza un archivo existente en la misma ruta; si no, `BLOB_OBJECT_ALREADY_EXISTS` |
+| `rename_on_conflict` | `false` | Si la ruta está ocupada, guarda como `nombre-1.ext`, `nombre-2.ext`… (el primer nombre libre) y devuelve la `path` final. No se usa con `overwrite` |
+| `random_suffix` | `false` | Inserta `-` más 10 caracteres aleatorios antes de la extensión, para que los nombres nunca choquen |
+| `cache_control` | ninguno | `immutable` o `max-age=N` |
+| `content_disposition` | según el tipo | `inline` o `attachment` |
+| `filename` | ninguno | Nombre que el navegador sugiere al descargar |
+| `expires_at` | ninguno | Momento en que el archivo se borra automáticamente |
+| `metadata` | ninguno | Hasta 5 claves, en los planes que lo incluyen ([límites](/es-es/blob/limits-and-quotas)) |
+| `checksum_sha256` | ninguno | La plataforma verifica la subida con él (`BLOB_CHECKSUM_MISMATCH` si falla). Solo para la subida en una petición y para una subida directa enviada en una sola parte; una subida por partes lo rechaza con `VALIDATION_ERROR` |
+
+### Reglas de ruta
+
+Una ruta tiene de 1 a 1024 caracteres y hasta 16 segmentos. Cada segmento tiene de 1 a 255 caracteres de `A-Z`, `a-z`, `0-9`, `.`, `_`, `-` y espacio, y no puede empezar por `.` ni terminar en espacio. No se admiten `//`, `/` al principio o al final, ni `..`, y el archivo debe tener extensión. Una ruta no válida falla con `VALIDATION_ERROR`; la plataforma nunca la reescribe en silencio.
+
+## Subida directa
+
+<Steps>
+  <Step title="Crea la subida">
+    Envía la ruta y el tamaño exacto. La respuesta indica si la subida es `single` (un PUT) o `multipart`, y en el caso multiparte devuelve el `part_size` y el `part_count` fijos.
+
+    ```bash
+    curl -X POST "https://blob.vertracloud.app/v1/uploads" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "path": "videos/launch.mp4", "size": 2147483648, "visibility": "public" }'
+    ```
+  </Step>
+  <Step title="Envía los bytes">
+    Para `single`, haz `PUT` del archivo a la `url` devuelta. Para `multipart`, pide URL para hasta 100 partes a la vez con [Obtener URL de partes](/api-reference/endpoint/blob/uploads/parts) y haz `PUT` de cada parte. Envía exactamente los `headers` devueltos con cada URL; forman parte de la firma. Las partes pueden ir en paralelo y la última puede ser más pequeña.
+  </Step>
+  <Step title="Completa">
+    Llama a [Completar subida](/api-reference/endpoint/blob/uploads/complete). La plataforma comprueba las partes, el tamaño total, el checksum y el tipo de archivo, y después crea el objeto. Una discrepancia responde `BLOB_UPLOAD_INCOMPLETE`.
+  </Step>
+</Steps>
+
+En los SDK es una sola llamada:
+
+<CodeGroup>
+
+```javascript JavaScript
+const controller = new AbortController(); // controller.abort() cancela la subida
+
+await blob.put("videos/launch.mp4", file, {
+  visibility: "public",
+  onProgress: ({ loaded, total }) => console.log(`${Math.round((loaded / total) * 100)}%`),
+  signal: controller.signal,
+});
+```
+
+```python Python
+client.blob.put("videos/launch.mp4", open("launch.mp4", "rb"),
+                visibility="public", on_progress=lambda sent, total: print(sent, total))
+```
+
+```go Go
+f, _ := os.Open("launch.mp4")
+info, _ := f.Stat()
+obj, err := client.Blob.Put(ctx, "videos/launch.mp4", f, info.Size(), &vertracloud.BlobPutOptions{
+    Visibility: "public",
+    OnProgress: func(loaded, total int64) { fmt.Println(loaded, total) },
+})
+// cancelar ctx aborta la subida
+```
+
+</CodeGroup>
+
+### Reanudar
+
+Una subida directa interrumpida se puede reanudar hasta que caduque (`expires_at` de la subida). [Obtener subida](/api-reference/endpoint/blob/uploads/get) devuelve `uploaded_parts`; envía solo lo que falta. [Abortar subida](/api-reference/endpoint/blob/uploads/abort) la cancela y libera la cuota reservada.
+
+<CodeGroup>
+
+```javascript JavaScript
+let uploadId;
+try {
+  await blob.put("videos/launch.mp4", file, { onUpload: (upload) => (uploadId = upload.id) });
+} catch {
+  await blob.resume(uploadId, file, { onProgress }); // envía solo las partes que faltan
+}
+```
+
+```python Python
+open_uploads = client.blob.uploads()  # subidas directas aún en curso
+client.blob.resume(open_uploads[0]["id"], open("launch.mp4", "rb"))  # envía solo las partes que faltan
+```
+
+```go Go
+// f debe dar el mismo archivo desde su primer byte
+obj, err := client.Blob.Resume(ctx, uploadID, f, nil)
+```
+
+</CodeGroup>
+
+## Cuota y reservas
+
+Al crear una subida, el tamaño declarado se reserva contra tu cuota. Si `usado + reservado + nuevo` superara la cuota, la subida se rechaza con `STORAGE_QUOTA_EXCEEDED`. Las subidas caducadas o abortadas liberan su reserva. Tener demasiadas subidas abiertas a la vez responde `BLOB_UPLOAD_LIMIT`. El límite de subidas abiertas y los demás límites de tu plan están en `limits` de [Obtener estadísticas](/api-reference/endpoint/blob/account/stats).
+
+### Límites de tamaño
+
+- Una subida simple admite archivos de hasta 100 MB.
+- En una subida por partes, cada parte mide de 5 MiB a 5 GiB (la última puede ser más pequeña), con un máximo de 10.000 partes.
+- Un objeto puede tener hasta 10 GB.
+
+## Velocidad de subida
+
+Los planes por debajo de Enterprise-12 tienen un límite de **una subida por segundo** por cuenta; Enterprise-12 y superiores no tienen límite propio, más allá de la protección contra abusos de toda la plataforma. Superarlo responde `RATE_LIMIT_EXCEEDED` con un encabezado `Retry-After`; espera ese tiempo y vuelve a intentarlo. La cifra exacta para tu plan es `limits.uploads_per_second` en [Obtener estadísticas](/api-reference/endpoint/blob/account/stats).
+
+## Errores comunes
+
+| Código | Causa |
+|---|---|
+| `BLOB_FILE_TOO_LARGE` | Por encima del límite del plan, del límite de subida simple, de una regla de carpeta o del token |
+| `BLOCKED_FILE_TYPE` | Extensión bloqueada, fuera de la regla o del token, o un ejecutable disfrazado |
+| `BLOB_OBJECT_ALREADY_EXISTS` | La ruta está ocupada y `overwrite` es `false` |
+| `BLOB_UPLOAD_EXPIRED` | La subida superó su plazo; inicia una nueva |
+| `STORAGE_QUOTA_EXCEEDED` | No hay cuota suficiente |
+
+Todos los códigos están en el [catálogo de errores](/api-reference/errors).

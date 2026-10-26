@@ -1,0 +1,56 @@
+### Varios dominios personalizados por aplicación
+
+Una aplicación puede tener ahora varios dominios personalizados, y añadir, cambiar o quitar uno nunca reinicia la aplicación. Los dominios personalizados empiezan en el plan Intermediary, y el número por aplicación crece con el plan:
+
+| Plan | Dominios por aplicación |
+|---|---:|
+| Intermediary | 1 |
+| Enterprise-4 a Enterprise-8 | 2 |
+| Enterprise-12 a Enterprise-24 | 5 |
+| Enterprise-26 a Enterprise-32 | 20 |
+
+- **`www` automático:** al añadir `example.com` se añade también `www.example.com`, y viceversa. El complementario redirige al dominio principal, no cuenta para tu límite y puede desactivarse. Cualquiera de los dos puede convertirse en el dominio principal.
+- **Puerto por dominio:** cada dominio puede llegar a un puerto distinto de tu aplicación, del 1 al 65535, con hasta 5 puertos además del 80 por aplicación.
+- **Prefijo de ruta:** un dominio puede añadir una ruta como `/api` delante de cada petición. Recomendado para APIs.
+- **Redirecciones:** un dominio puede redirigir a otro dominio de la misma aplicación con un `301`, `302`, `307` o `308` (por defecto `308`), manteniendo la ruta y la cadena de consulta.
+- **Estado y limpieza:** cada dominio muestra su estado y el de su certificado. Un dominio que pase 14 días sin DNS se elimina automáticamente y recibes un correo. Cuando un dominio se elimina, ya sea por ti, al dejar de publicarlo o por esta limpieza, borra sus registros `CNAME` y `TXT` de validación en tu proveedor de DNS. Los dominios raíz muestran una advertencia, porque un `CNAME` en la raíz necesita un proveedor de DNS con aplanamiento de CNAME (CNAME flattening).
+
+Nuevas rutas gestionan los dominios bajo `/v1/apps/{id}/domains`: [listar](/api-reference/endpoint/apps/domains/list), [añadir](/api-reference/endpoint/apps/domains/create), [actualizar](/api-reference/endpoint/apps/domains/update), [quitar](/api-reference/endpoint/apps/domains/delete) y [registros DNS](/api-reference/endpoint/apps/domains/dns). Los SDK, la CLI, el servidor MCP y la extensión de VS Code los admiten. Consulta [Conectar dominios personalizados](/es-es/guides/custom-domain).
+
+### Cambio incompatible: los planes se identifican por nombre en la API
+
+La API identifica un plan por su nombre, como `pro` o `enterprise-8`. El ID numérico del plan ya no existe.
+
+- `GET /v1/users/me` ya no devuelve `plan_id` ni `plan.id`. Lee `plan.name` en su lugar. `plan` es `null` cuando la cuenta no tiene un plan activo.
+- Las aplicaciones, las bases de datos y los workspaces devuelven `owner_plan` (el nombre del plan, o `null`) en lugar de `owner_plan_id`.
+- Las cuentas sin un plan activo reciben `PLAN_REQUIRED` al crear aplicaciones o bases de datos, o al publicar un sitio. `FREE_PLAN_SUSPENDED` y `FREE_PLAN_NO_WEB_PUBLISH` ya no se devuelven.
+- La lista completa de nombres está en la [base de conocimiento](/knowledge-base#plan-names).
+
+### Cambio incompatible: rutas de dominio personalizado reemplazadas
+
+`GET`, `POST` y `DELETE /v1/apps/{id}/network/custom`, y `GET /v1/apps/{id}/network/dns`, se reemplazan por las rutas de dominios de arriba.
+
+- Los objetos de aplicación devuelven `domains`, una lista, en lugar de `custom_domain`. `public_url` apunta al dominio principal. Las rutas de publicación devuelven los nombres de host en `domains`.
+- `NO_CUSTOM_DOMAIN` ya no se devuelve: una aplicación sin dominios tiene una lista vacía.
+- `DOMAIN_ALREADY_IN_USE` responde ahora `409`, y `CUSTOM_DOMAIN_REGISTRATION_FAILED` responde `502`.
+- Nuevos códigos de error: `DOMAIN_NOT_FOUND`, `DOMAIN_LIMIT_REACHED`, `DOMAIN_PORT_LIMIT_REACHED`, `INVALID_DOMAIN_PORT`, `INVALID_PATH_PREFIX`, `INVALID_REDIRECT_TARGET` y `DOMAIN_CONNECT_UNAVAILABLE`. Consulta [Errores](/api-reference/errors).
+
+Actualiza a la vez los SDK, la CLI y el servidor MCP junto con cualquier código que lea `plan_id`, `owner_plan_id` o `custom_domain`.
+
+### SDK, CLI, servidor MCP y extensión de VS Code 0.3.0
+
+Las nuevas versiones de los [SDK](/es-es/sdks) (JavaScript, Python y Go), de la [CLI](/es-es/cli), del [servidor MCP](/es-es/mcp) y de la [extensión de VS Code](/es-es/vscode-extension) admiten varios dominios personalizados por aplicación y planes por nombre. Siguen los cambios incompatibles de arriba, así que actualízalos juntos.
+
+- **CLI:** nuevos comandos `vertra app domains` (consulta [CLI](/es-es/cli#dominios-personalizados)). Detener una aplicación o una base de datos y eliminar una variable de entorno ahora piden confirmación; rechazar cualquier confirmación termina con código 1.
+- **Servidor MCP:** nuevas herramientas de dominios. Las herramientas que eliminan, sobrescriben, detienen, reinician o cambian el acceso se marcan como destructivas, así que el cliente pide confirmación antes de ejecutarlas. Los logs, archivos y otros contenidos de tus aplicaciones se marcan como no confiables. Consulta [MCP](/es-es/mcp).
+- **Extensión de VS Code:** gestiona todos los dominios personalizados de una aplicación y muestra los nombres de los planes.
+- **Tu clave de API se queda solo en la API de Vertra Cloud:** el servidor MCP y la extensión de VS Code ya no siguen redirecciones, y los SDK descartan la clave cuando una redirección sale de la API. Los SDK y el servidor MCP también rechazan las rutas de petición no válidas antes de enviar nada.
+- **GitHub Action v1.0.4** usa por defecto la CLI 0.3.0. Consulta [GitHub Actions](/es-es/github-actions).
+
+### Límite de variables de entorno ampliado a 256
+
+Una aplicación puede tener ahora hasta 256 variables de entorno, frente a las 25 anteriores. Las claves pueden tener hasta 255 caracteres y los valores hasta 3.072. Consulta [Configuración](/es-es/configuration).
+
+### Un JSON mal formado ahora devuelve 400
+
+Una petición con JSON mal formado en el cuerpo recibe ahora `400` con `INVALID_JSON`, donde antes recibía `500`. Otros problemas de la petición también responden con su propio estado y un código estable: `UNSUPPORTED_MEDIA_TYPE` (`415`), `BAD_REQUEST` (`400`) y `REQUEST_TIMEOUT` (`408`). Una petición con `content-type: application/json` y un cuerpo vacío sigue devolviendo `400` `EMPTY_BODY`. Consulta [Errores](/api-reference/errors).

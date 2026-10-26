@@ -1,0 +1,175 @@
+---
+title: 'Cómo alojar un bot de Discord en Vertra Cloud'
+sidebarTitle: 'Bots de Discord'
+description: 'Despliega un bot de discord.js o discord.py en Vertra Cloud: estructura del proyecto, token como variable de entorno, intents y reinicio automático 24/7.'
+icon: 'discord'
+---
+
+## Alojar un bot de Discord en Vertra Cloud
+
+Un bot de Discord se ejecuta en Vertra Cloud como una aplicación de tipo **bot**: un proceso en segundo plano sin puerto HTTP expuesto, que se reinicia automáticamente si falla y cuyos logs se transmiten en directo al panel.
+Vertra Cloud es una plataforma brasileña de alojamiento de aplicaciones (PaaS), y los bots de Discord, WhatsApp y Telegram son cargas de trabajo de primera clase en ella: los mismos contenedores, snapshots y métricas que cualquier otra aplicación.
+
+Esta guía cubre `discord.js` (JavaScript) y `discord.py` (Python).
+
+## Discord.js (JavaScript)
+
+### Estructura
+
+```
+my-bot-js/
+├── src/
+│   └── index.js
+├── package.json
+└── vertracloud.config
+```
+
+### package.json
+
+```json
+{
+  "name": "my-bot-discord",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+### Ejemplo
+
+```javascript
+const { Client, GatewayIntentBits } = require('discord.js');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
+client.once('ready', () => {
+  console.log(`Bot online as ${client.user.tag}`);
+});
+
+client.on('messageCreate', (message) => {
+  if (message.author.bot) return;
+  if (message.content === '!ping') {
+    message.reply('Pong! ');
+  }
+});
+
+client.login(process.env.DISCORD_TOKEN);
+```
+
+---
+
+## Discord.py (Python)
+
+### Estructura
+
+```
+my-bot-py/
+├── main.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+### requirements.txt
+
+```txt
+discord.py==2.3.2
+```
+
+### vertracloud.config
+
+```ini
+MAIN=main.py
+VERSION=recommended
+```
+
+### Ejemplo
+
+```python
+import discord
+import os
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+client = discord.Client(intents=intents)
+
+@client.event
+async def on_ready():
+    print(f'Bot online as {client.user}')
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+    if message.content == '!ping':
+        await message.channel.send('Pong! ')
+
+client.run(os.environ['DISCORD_TOKEN'])
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Comprime el proyecto en un `.zip` (las carpetas como `node_modules`, `venv` y `target` se eliminan automáticamente) o súbelo a GitHub.
+    2. En el panel, haz clic en **Nuevo Proyecto** y sube el `.zip` o pega la URL del repositorio.
+    3. En **Build**, revisa el runtime (**JavaScript o Python**), el archivo principal (`index.js` o `main.py`) y la memoria. Los comandos de inicio y de build están en **Ajustes avanzados**.
+    4. Añade tus variables de entorno en **Variables de Entorno**.
+    5. En **Red**, deja la publicación web **desactivada**: un bot no recibe tráfico entrante y se ejecuta en segundo plano en cualquier plan.
+    6. Revisa y despliega. Sigue la salida en la pestaña **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Consulta la [CLI](/es-es/cli) para la instalación y el inicio de sesión.
+  </Tab>
+  <Tab title="VS Code">
+    Abre la carpeta con la extensión de Vertra Cloud instalada y ejecuta **Deploy current project**. Consulta la [extensión de VS Code](/es-es/vscode-extension).
+  </Tab>
+</Tabs>
+
+La guía completa está en [Primer despliegue](/es-es/how-to-host).
+
+## Versiones disponibles
+
+### Node.js
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 24.22.1 | Más reciente | Node.js 24.22.1 (versión más reciente) |
+| 22.23.4 | Recomendada | Node.js 22.23.4 LTS (recomendada para producción) |
+
+### Python
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 3.13.17 | Recomendada y la más reciente | Python 3.13 (recomendada para producción) |
+| 3.12.15 | Estable | Línea Python 3.12 |
+| 3.11.17 | Legado | Línea Python 3.11 |
+
+## Notas
+
+- **Tipo bot**: selecciona siempre **Bot** al crear la aplicación (no Sitio web)
+- **Variables de entorno**: configura `DISCORD_TOKEN` en las variables de la aplicación
+- **Reinicio automático**: activado por defecto, mantiene el bot en línea si se desconecta
+- **Memoria**: 256 MB bastan para bots sencillos; 512 MB o más para los complejos
+- **Logs**: usa `console.log()` (JS) o `logging` (Python) para monitorizar en tiempo real
+- **Gateway**: ambas bibliotecas mantienen una conexión WebSocket persistente con el gateway de Discord, así que el bot no necesita tráfico entrante ni publicación web

@@ -1,0 +1,47 @@
+### Nova aparência para a página de aplicações
+
+A página pública de aplicações agora abre com uma nova ilustração, mantendo espaço livre para a mensagem principal.
+
+### Comando de build, vCPU por aplicação e novos limites de armazenamento
+
+#### Comando de build
+
+- **Novo campo `build_command`, em todos os planos.** Ele roda em todo deploy (criação, upload de zip, deploy pelo GitHub, reinstalação de dependências ou troca do próprio comando), sempre depois da instalação das dependências e antes de a aplicação iniciar. Um restart simples não roda o build de novo se o anterior já tiver terminado com sucesso com o mesmo comando.
+- Ele roda em um ambiente isolado da aplicação: 2× a RAM dela (mínimo de 1 GB, máximo de 4 GB) e 2× a vCPU dela (mínimo de 1, máximo de 2), com timeout de 10 minutos. A instalação de dependências mantém um timeout próprio e separado, agora de até 15 minutos.
+- Nova chave `BUILD` em `vertracloud.config`, ao lado de `START`.
+- Criar uma aplicação a partir de um zip de Next.js, Nuxt, SvelteKit, Remix, React Router, Astro, Gatsby ou Vite agora sugere automaticamente os comandos certos de build e de start, editáveis antes de criar. O arquivo de entrada também passa a ser reconhecido nesses projetos, que não têm `index.js`.
+- O ambiente de build tem o dobro da banda e do limite de requisições da aplicação, porque baixar dependências pesa mais do que servir tráfego. Ao excedê-lo, o deploy é interrompido, do mesmo jeito que já acontecia com uma aplicação no ar.
+
+#### Armazenamento
+
+- **Aplicações**: 10 GB fixos, independentemente da memória (antes, o teto crescia com a RAM).
+- **Bancos de dados**: 6 GB + 1 GB para cada 512 MB de RAM alocada, sempre arredondado para GB inteiros. Um banco de 1 GB agora tem 8 GB; um de 2 GB tem 10 GB. Nenhum banco existente perde espaço.
+
+#### vCPU por aplicação
+
+- Uma aplicação com 2 GB ou mais de RAM agora recebe a vCPU completa do plano; abaixo disso, recebe um terço da vCPU do plano, com piso de 1 vCPU. Mais memória nunca resulta em menos vCPU.
+
+#### Limite horário de deploys
+
+- Criar uma aplicação, enviar um zip, fazer deploy pelo GitHub, reinstalar dependências e trocar o comando de build passam a contar para um teto horário por conta: 5 no Free, 10 no Economy, 20 no Pro, 40 no Scale e 60 a partir do Intermediary. Reiniciar e parar não contam, e um push no GitHub acima do limite é ignorado e registrado no histórico de atividades.
+
+### Apresentando o Vertra Flow
+
+O Vertra Flow ganhou página própria no site. Ela apresenta o canvas interativo e explica como grupos, notas, previews e anexos ajudam a organizar aplicações e bancos de dados.
+
+A página também deixa claro o que ainda está em desenvolvimento: colaboração em tempo real, comentários no canvas e formas mais expressivas de representar redes de aplicações.
+
+### O vertracloud.config não fica mais no volume
+
+#### O que mudou
+
+O `vertracloud.config` **não é mais gravado no volume da aplicação**. Até agora ele era gravado uma vez, na criação, e nunca acompanhava as mudanças feitas na aba Configurações: o usuário abria o arquivo no gerenciador de arquivos, via a memória e o comando de start antigos, editava, e nada acontecia.
+
+Agora:
+
+- **Ao baixar o projeto**, o zip vem com um `vertracloud.config` gerado a partir da configuração atual: nome, arquivo de entrada, memória, versão, comando de start, reinício automático e subdomínio.
+- **Ao criar um snapshot**, vale o mesmo: o snapshot já levava o arquivo gerado, e continua levando.
+- **Ao enviar um zip**, o arquivo é lido para preencher o formulário e descartado na extração; ele não aparece mais no gerenciador de arquivos.
+- Aplicações existentes perdem a cópia antiga no próximo restart ou rebuild.
+
+O formato não mudou: `KEY=value`, com as chaves `NAME`, `DESCRIPTION`, `MAIN`, `MEMORY`, `AUTORESTART`, `START`, `VERSION` e `SUBDOMAIN`.

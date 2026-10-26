@@ -1,0 +1,101 @@
+---
+title: 'Servir archivos de Blob Storage desde tu propio dominio'
+sidebarTitle: 'Dominios personalizados'
+description: 'Sirve archivos públicos de Blob Storage desde un subdominio tuyo, como cdn.example.com, con un CNAME hacia cname.vertracloud.dev. Solo en planes Enterprise.'
+icon: 'globe'
+---
+
+En los planes Enterprise, los archivos públicos se pueden servir desde tu propio subdominio, por ejemplo `cdn.example.com/images/logo.png`, con HTTPS emitido y renovado automáticamente.
+
+| Plan | Dominios |
+|---|---|
+| Economy a Intermediary | 0 |
+| Enterprise-4, 6 y 8 | 1 |
+| Enterprise-12 a 24 | 3 |
+| Enterprise-26 a 32 | 10 |
+
+Sin el plan adecuado, la llamada responde `PLAN_RESTRICTED_FEATURE`. `BLOB_CUSTOM_DOMAIN_LIMIT` solo aparece en un plan que tiene dominios y ya los ha usado todos.
+
+<Steps>
+  <Step title="Añade el nombre de host">
+    Usa solo un subdominio; no se acepta un dominio raíz. Opcionalmente define un `prefix` para que el dominio sirva una sola carpeta.
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl -X POST "https://blob.vertracloud.app/v1/domains" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+      -d '{ "hostname": "cdn.example.com", "prefix": "images/" }'
+    ```
+
+    ```javascript JavaScript
+    const domain = await blob.domains.add("cdn.example.com");
+    ```
+
+    ```python Python
+    domain = client.blob.domains.add("cdn.example.com")
+    ```
+
+    ```go Go
+    domain, err := client.Blob.Domains.Add(ctx, "cdn.example.com", "", false)
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Crea el registro CNAME">
+    En tu proveedor de DNS:
+
+    | Tipo | Nombre | Valor |
+    |---|---|---|
+    | `CNAME` | `cdn` | `cname.vertracloud.dev` |
+  </Step>
+  <Step title="Crea el registro TXT de propiedad">
+    Mientras el dominio esté `pending`, la respuesta incluye un objeto `verification` con el registro TXT que demuestra que el nombre de host es tuyo. Créalo junto al CNAME:
+
+    | Tipo | Nombre | Valor |
+    |---|---|---|
+    | `TXT` | `verification.name` | `verification.value` |
+
+    El dominio nunca pasa a `active` solo con el CNAME. Cuando esté `active`, `verification` ya no se devuelve.
+  </Step>
+  <Step title="Verifica">
+    El dominio empieza como `pending`. Cuando el CNAME y el registro TXT de propiedad se resuelven y el certificado se emite, pasa a `active`. Fuerza una nueva comprobación con [Verificar dominio](/api-reference/endpoint/blob/domains/verify); `ssl_status` muestra el progreso del certificado. Mientras no se encuentren el CNAME o el registro TXT, el dominio sigue en `pending`. El estado `failed` significa que no se pudo configurar el nombre de host o su certificado. Los cambios en DNS pueden tardar unos minutos en propagarse. Puedes volver a leer `verification` en cualquier momento desde [Listar](/api-reference/endpoint/blob/domains/list).
+  </Step>
+</Steps>
+
+## Servir páginas web
+
+Por defecto, un dominio personalizado solo sirve archivos para descargar: `.html`, `.htm`, `.xhtml`, `.svg` y `.xml` siempre se descargan, igual que en el enlace público por defecto. Activa `web_content` para servir esos tipos en el navegador con su tipo de contenido real, por ejemplo para alojar una página estática o mostrar un SVG en línea.
+
+Las páginas servidas de este modo ejecutan JavaScript en un sandbox: sin formularios, sin cookies y sin navegar por la pestaña superior. Aun así, estás publicando contenido que los visitantes abren en su navegador, así que actívalo solo en dominios cuyos archivos controles, y usa un `prefix` para limitarlo a una carpeta. El enlace público por defecto nunca sirve estos tipos en el navegador, sea cual sea la configuración.
+
+<Steps>
+  <Step title="En el panel">
+    Abre Blob Storage, ve a Dominios personalizados y activa el contenido web del dominio. También puedes definirlo al añadir el dominio.
+  </Step>
+  <Step title="Con la API">
+    Define el valor al añadir el dominio o cámbialo después con [Actualizar dominio](/api-reference/endpoint/blob/domains/update).
+
+    ```bash cURL
+    curl -X PATCH "https://blob.vertracloud.app/v1/domains/$DOMAIN_ID" \
+      -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+      -d '{ "web_content": true }'
+    ```
+
+    ```javascript JavaScript
+    await blob.domains.update(domain.id, { web_content: true });
+    ```
+
+    ```python Python
+    client.blob.domains.update(domain["id"], web_content=True)
+    ```
+
+    ```go Go
+    domain, err := client.Blob.Domains.Update(ctx, domain.ID, true)
+    ```
+  </Step>
+</Steps>
+
+El cambio surte efecto en un minuto aproximadamente.
+
+Un nombre de host que ya se usa en otro lugar responde `BLOB_CUSTOM_DOMAIN_TAKEN`. Los nombres de host no válidos responden `INVALID_CUSTOM_DOMAIN_FORMAT`. Para eliminar un dominio usa [Borrar dominio](/api-reference/endpoint/blob/domains/delete); consulta también [Listar](/api-reference/endpoint/blob/domains/list) y [Añadir](/api-reference/endpoint/blob/domains/add).

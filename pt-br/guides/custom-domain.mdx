@@ -1,0 +1,188 @@
+---
+title: 'Conecte domínios personalizados à sua aplicação'
+sidebarTitle: 'Domínios personalizados'
+description: 'Adicione um ou mais domínios a uma aplicação na Vertra Cloud, configure o DNS e ajuste www, portas, prefixos de caminho e redirecionamentos sem reiniciar.'
+icon: 'globe'
+---
+
+Toda aplicação publicada responde em um subdomínio `*.vertraweb.app`. Domínios personalizados permitem que a mesma aplicação responda em endereços que você possui, como `api.suaempresa.com`, com um certificado HTTPS que a plataforma emite e renova para você. Adicionar, alterar ou remover um domínio nunca reinicia a aplicação.
+
+## Antes de começar
+
+<Check>A aplicação está **publicada na web** (plano Pro ou superior, com pelo menos 512 MB de RAM).</Check>
+<Check>Sua conta está no plano **Intermediary** ou superior. O número de domínios por aplicação cresce com o plano, veja [Limites](#limites).</Check>
+<Check>Você consegue editar os registros DNS do domínio no seu registrador ou provedor de DNS.</Check>
+
+## Adicionar um domínio
+
+<Steps>
+  <Step title="Adicione o domínio no painel">
+    Abra a aplicação, vá em **Rede** e, em **Domínios**, escolha **Adicionar domínio**. Digite o hostname, por exemplo
+    `example.com` ou `api.example.com`. Mantenha **Incluir também www** ativado se quiser o complemento automático descrito
+    [abaixo](#domínios-raiz-e-www).
+  </Step>
+  <Step title="Crie os registros DNS">
+    Abra **Registros DNS** no domínio. Crie cada registro no seu provedor de DNS exatamente como mostrado. A tabela tem um
+    `CNAME` que aponta o hostname para a Vertra Cloud e, geralmente, um registro de validação para o certificado.
+
+    | Tipo | Nome | Valor |
+    |---|---|---|
+    | `CNAME` | `app` | o endereço exibido em **Registros DNS** |
+
+    Remova antes qualquer registro `A`, `AAAA` ou `CNAME` existente com o mesmo nome: dois registros para um mesmo nome é o
+    motivo mais comum de um domínio nunca ser validado.
+  </Step>
+  <Step title="Aguarde o DNS e o certificado">
+    A maioria dos provedores propaga em minutos; no pior caso, são 48 horas. Assim que os registros forem resolvidos, a
+    plataforma valida o domínio e emite o certificado SSL automaticamente. HTTP é redirecionado para HTTPS.
+  </Step>
+  <Step title="Confira">
+    ```bash
+    dig +short app.example.com CNAME
+    curl -I https://app.example.com
+    ```
+    O primeiro comando precisa exibir o endereço de destino; o segundo precisa responder com o código de status da sua aplicação.
+  </Step>
+</Steps>
+
+O mesmo fluxo está disponível na [API](/api-reference/endpoint/apps/domains/create), na CLI (`vertra app domains`)
+e no servidor MCP.
+
+## Domínios raiz e www
+
+Ao adicionar um domínio raiz (`example.com`), a plataforma também adiciona `www.example.com`, e, ao adicionar
+`www.example.com`, ela também adiciona a raiz. Este **complemento automático** redireciona para o domínio que você
+adicionou, com um redirecionamento permanente (`308`), então os dois endereços funcionam e apenas um é o canônico. O
+complemento **não conta** no limite de domínios do seu plano e é removido junto com o domínio principal. Desative
+**Incluir também www** (`"www": false` na API) para adicionar apenas o hostname que você digitou. Outros subdomínios,
+como `app.example.com`, não têm complemento.
+
+Para trocar qual deles é o domínio principal, abra o menu do complemento e escolha **Tornar principal**. Ele passa a
+servir a aplicação, e o antigo domínio principal redireciona para ele.
+
+<Warning>
+  **Um registro `CNAME` no domínio raiz só funciona em provedores de DNS que suportam CNAME flattening, `ALIAS` ou `ANAME`.**
+  O padrão DNS não permite `CNAME` na raiz, e muitos registradores não oferecem uma alternativa. O painel avisa quando um
+  domínio é um domínio raiz. Se o seu provedor não conseguir fazer isso, adicione `www.example.com` com o complemento
+  desativado e aponte apenas esse nome.
+</Warning>
+
+## Porta, prefixo de caminho e redirecionamento
+
+Abra **Opções avançadas** ao adicionar um domínio, ou **Editar** em um domínio existente. As três opções são aplicadas na
+hora, sem reinício.
+
+<AccordionGroup>
+  <Accordion title="Porta" icon="plug">
+    Por padrão, um domínio alcança sua aplicação na porta `80`. Um domínio pode apontar para qualquer porta de **1 a 65535**,
+    então uma mesma aplicação pode servir um site em um domínio e uma API em outro. Uma aplicação pode usar até **5 portas
+    além da 80** entre os seus domínios; a plataforma responde `DOMAIN_PORT_LIMIT_REACHED` além disso. Sua aplicação precisa
+    escutar na porta escolhida, em `0.0.0.0`, além da porta 80, que continua sendo usada pelo endereço `*.vertraweb.app`.
+  </Accordion>
+  <Accordion title="Prefixo de caminho" icon="route">
+    Um caminho literal adicionado antes de cada requisição que chega ao domínio. Com `/api`, uma requisição para
+    `https://api.example.com/users` chega à sua aplicação como `/api/users`. Ele começa com `/`, não termina com `/` e
+    aceita apenas letras, dígitos e `. _ ~ -`.
+
+    **Recomendado para APIs.** Um site precisa funcionar sob esse caminho: seus arquivos estáticos e seus próprios
+    redirecionamentos precisam respeitá-lo.
+  </Accordion>
+  <Accordion title="Redirecionamento" icon="arrow-right-arrow-left">
+    Envia cada requisição deste domínio para **outro domínio da mesma aplicação**, mantendo o caminho e a query string.
+    Escolha o código de status: `301` ou `308` (permanente), `302` ou `307` (temporário). `307` e `308` mantêm o método da
+    requisição; `301` e `302` podem transformar um `POST` em `GET`. O padrão é `308`. Um redirecionamento não pode apontar
+    para outro redirecionamento, e o domínio de destino precisa estar ativo.
+  </Accordion>
+</AccordionGroup>
+
+## Status e SSL
+
+Cada domínio mostra um status e um estado do certificado.
+
+| Status | Significado |
+|---|---|
+| `pending` | Aguardando os registros DNS serem resolvidos. |
+| `active` | Servindo sua aplicação. |
+| `moved` | O domínio deixou de apontar para a Vertra Cloud (o registro foi alterado ou removido). |
+| `deleted` | O domínio não está mais registrado na plataforma. |
+
+| SSL | Significado |
+|---|---|
+| `pending` | O certificado está sendo emitido. |
+| `active` | HTTPS funciona. |
+| `failed` | Não foi possível emitir o certificado. Confira os registros DNS e tente novamente. |
+
+Os status são atualizados em segundo plano e sempre que você abre **Registros DNS**.
+
+<Note>
+  Um domínio que permanece em `pending`, `moved` ou `deleted` por **14 dias** é removido automaticamente, e avisamos você
+  por e-mail. Não há aviso anterior, então verifique os domínios que não ficaram `active`. Corrija os registros DNS ou
+  remova o domínio você mesmo. Após a remoção automática, [apague os registros DNS](#remover-um-domínio) que você criou.
+</Note>
+
+## Remover um domínio
+
+Abra o menu do domínio em **Rede** e escolha **Remover**, ou chame
+[Remover domínio da aplicação](/api-reference/endpoint/apps/domains/delete). O domínio deixa de responder na hora, e a
+aplicação não é reiniciada.
+
+<Warning>
+  **Remover um domínio não altera o seu DNS.** Apague o `CNAME` e os registros `TXT` de validação no seu provedor de DNS,
+  do domínio e do seu complemento `www`. Se eles permanecerem, o nome continua apontando para a Vertra Cloud e outro cliente
+  poderia reivindicá-lo. Faça o mesmo depois de despublicar a aplicação e após a remoção automática de um domínio que ficou
+  14 dias sem DNS.
+</Warning>
+
+## Usando o Cloudflare
+
+Se o DNS do domínio estiver no Cloudflare, crie o CNAME com o proxy **desativado** (nuvem cinza, "somente DNS") até o
+certificado ser emitido. Com o proxy ativado, a validação enxerga os endereços do Cloudflare em vez do seu registro. Depois
+que o HTTPS funcionar, você pode ativar o proxy; nesse caso, defina o modo SSL como **Full (strict)**, pois a aplicação já
+serve um certificado válido. O modo **Flexible** causa um loop de redirecionamento, porque a plataforma redireciona HTTP
+para HTTPS.
+
+## Limites
+
+Domínios personalizados começam no plano **Intermediary**. Domínios por aplicação, sem contar o complemento automático:
+
+| Plano | Domínios por aplicação |
+|---|---:|
+| Economy, Pro, Scale | 0 |
+| Intermediary | 1 |
+| Enterprise-4 a Enterprise-8 | 2 |
+| Enterprise-12 a Enterprise-24 | 5 |
+| Enterprise-26 a Enterprise-32 | 20 |
+
+Até 5 portas diferentes além de `80` por aplicação, em todos os planos que têm domínios.
+[Planos e limites](/pt-br/plans-and-limits#quantos-domínios-personalizados-e-portas-cada-plano-permite) é a referência.
+
+## Solução de problemas
+
+<AccordionGroup>
+  <Accordion title="O domínio continua em pending">
+    Execute `dig +short app.example.com`. Nenhuma resposta significa que o registro ainda não existe ou tem um erro de
+    digitação; um endereço IP em vez do destino significa que ainda há um registro `A` antigo, ou que o proxy do Cloudflare
+    está ativado.
+  </Accordion>
+  <Accordion title="O navegador mostra erro de certificado">
+    O certificado só é emitido após a validação do DNS. Aguarde alguns minutos depois que os registros forem resolvidos e
+    recarregue a página. Se persistir, remova o domínio e adicione-o novamente em **Rede**.
+  </Accordion>
+  <Accordion title="Muitos redirecionamentos">
+    Você está atrás de um proxy no modo SSL Flexible. Troque para Full (strict).
+  </Accordion>
+  <Accordion title="O domínio abre, mas a aplicação não responde">
+    O domínio está correto; a aplicação não está escutando. Ela precisa escutar em `0.0.0.0` e na porta definida para
+    aquele domínio (`80` por padrão, veja `PORT` em [Configuração](/pt-br/configuration#porta-e-publicação-web)).
+  </Accordion>
+  <Accordion title="Não consigo adicionar o domínio">
+    `DOMAIN_LIMIT_REACHED` significa que a aplicação já tem tantos domínios quanto o plano permite.
+    `DOMAIN_ALREADY_IN_USE` significa que o hostname está vinculado a outra aplicação. `APP_NOT_PUBLISHED` significa que a
+    aplicação ainda não tem um endereço `*.vertraweb.app`; publique-a primeiro. A lista completa está em [Erros](/api-reference/errors).
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  Despublicar a aplicação remove todos os seus domínios personalizados junto com o subdomínio, mas não os seus registros DNS:
+  [apague-os](#remover-um-domínio). Publicar de novo significa adicionar os domínios outra vez e criar os registros mostrados para cada um.
+</Note>

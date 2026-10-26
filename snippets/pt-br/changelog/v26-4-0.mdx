@@ -1,0 +1,54 @@
+### Menu da conta
+
+O menu da conta agora abre um painel agrupado: perfil, aparência, idioma, configurações, faturamento, CLI, VS Code, MCP, changelog, documentação, suporte, troca de workspace e sair.
+
+### Pague com cartão, com renovação automática
+
+Agora você pode pagar um plano com cartão de crédito Visa ou Mastercard, além do Pix, sem sair do checkout da Vertra.
+
+- Um cartão fica salvo na sua conta, e seu plano **renova automaticamente** no cartão padrão. O cartão é cobrado 3 dias antes de o plano expirar, e você recebe um e-mail no mesmo dia. Se a cobrança falhar, ela é tentada de novo em cada um dos 2 dias seguintes e no dia da expiração; se todas as tentativas falharem, o plano expira normalmente. Se o seu banco pedir confirmação, você recebe um e-mail para confirmá-la.
+- Não há período de fidelidade. Para parar a renovação automática, use **Cancelar renovação** no cartão do plano em Faturamento: seu plano continua ativo até a data de vencimento, o cartão fica salvo, e você pode reativar a renovação a qualquer momento.
+- Pagamentos via Pix não renovam sozinhos; você continua recebendo o aviso de expiração habitual.
+- O plano Economy é pago somente via Pix, então nunca renova automaticamente.
+- A Vertra nunca vê nem armazena o número do seu cartão: o cartão e os seus dados de cobrança ficam guardados pela Stripe, e a Vertra mantém apenas a bandeira, os últimos 4 dígitos e a validade.
+
+### Dados de cobrança
+
+Comprar um plano agora exige dados de cobrança, porque eles são necessários para emitir a nota fiscal de serviço (NFS-e). No Brasil: nome, CPF ou CNPJ e endereço completo (CEP, rua, número e bairro; cidade e estado são preenchidos a partir do CEP). Fora do Brasil: nome, rua, cidade, país e código postal. O telefone é opcional. Preencha em Faturamento; se faltarem, o checkout pede antes do pagamento. Salvar um cartão novo não altera esses dados.
+
+### Períodos de cobrança: 1, 3 ou 12 meses
+
+Os planos podem ser comprados para 1, 3 ou 12 meses. Uma compra de 3 meses tem 5% de desconto, e uma de 12 meses tem 15% de desconto sobre o preço mensal. A opção de 6 meses foi removida. Os preços continuam em R\$, e o site agora mostra, ao lado deles, um valor aproximado em dólar americano como referência.
+
+### Notas fiscais de serviço automáticas (NFS-e)
+
+A nota fiscal de serviço (NFS-e) brasileira é emitida automaticamente para todo pedido pago e enviada **por e-mail**, em nome e com o CPF ou CNPJ dos seus dados de cobrança. A emissão pode levar alguns minutos, e um reembolso integral cancela a nota fiscal. Pedidos sem cobrança e códigos de resgate não geram nota.
+
+### Mudanças na API
+
+- `POST /v1/orders` aceita apenas `months` com `1`, `3` ou `12`; qualquer outro valor retorna `400 INVALID_MONTHS`. O plano Economy aceita apenas `1`.
+- Criar um pedido e consultar o status agora retornam `allowed_payment_methods`. Para o plano Economy, o valor é `["pix"]`.
+- `POST /v1/orders/{orderId}/initiate/pix` retorna o mesmo QR code enquanto ele ainda for válido, e o QR code expira junto com o pedido. Retorna `409 ORDER_NOT_PAYABLE` enquanto um pagamento por cartão do mesmo pedido está sendo confirmado.
+
+### SDKs (JavaScript, Python e Go)
+
+- Novos `billing.details()` e `billing.updateDetails()` (`update_details()` em Python, `Details` e `UpdateDetails` em Go) leem e atualizam seus dados de cobrança pela rota `/v1/users/me/billing`, com o endereço estruturado, CPF ou CNPJ e telefone opcional. `orders.create` falha com `BILLING_DETAILS_INCOMPLETE` até que estejam completos.
+- As respostas de pedido incluem `allowed_payment_methods`, e cada pedido na lista inclui `has_receipt`.
+- O filtro da lista de pedidos aceita `card` como provedor, além de `pix` e `redeem_code`.
+- JavaScript: os tipos de cobrança, runtime e reinício agora vêm direto de `@vertracloud/api-types` 0.3.2. `apps.runtimes()` retorna `APIApplicationRuntimes`, e `apps.restart()` recebe `RESTPostAPIApplicationRestartBody`. Se você importava os nomes de tipo locais antigos, troque para estes.
+- Os READMEs listam pagamento com cartão, cartões salvos, renovação automática, prévia de cupom e recibos como exclusivos do dashboard, e não mencionam mais a transferência de propriedade do workspace, que foi removida.
+
+### Servidor MCP
+
+- Novas ferramentas para ler e atualizar seus dados de cobrança.
+- `create_app` e `update_app_config` aceitam o comando de build (`build`).
+- `create_app`, `create_database` e `create_order` explicam o erro `FREE_PLAN_SUSPENDED`.
+
+### Extensão do VS Code
+
+- Criar uma aplicação ou um banco de dados no plano Free suspenso mostra uma mensagem clara com um botão **Ver planos**.
+- Abrir um caminho de arquivo como pasta no explorador de arquivos remoto agora mostra o erro certo, em vez de uma falha genérica.
+
+### CLI
+
+- Nenhuma mudança necessária. A CLI recebe as atualizações do SDK Go na próxima versão.

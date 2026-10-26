@@ -1,0 +1,318 @@
+---
+title: 'Planos e limites da Vertra Cloud'
+sidebarTitle: 'Planos e limites'
+description: 'Preço, RAM, vCPU, projetos e limite de API de cada plano da Vertra Cloud, do Economy ao Enterprise-32.'
+icon: 'table-list'
+---
+
+A Vertra Cloud é uma plataforma brasileira de hospedagem de aplicações (PaaS): deploy a partir do GitHub ou de um arquivo zip,
+containers isolados, bancos de dados gerenciados, armazenamento de arquivos, snapshots, uma CLI e uma extensão do VS Code.
+Esta página reúne, em um só lugar, todos os números públicos da plataforma — preço, memória, vCPU,
+projetos e limite de API por plano.
+
+Os valores abaixo são os mesmos usados pela plataforma em produção. Os preços estão em reais
+brasileiros. Você pode comprar 1, 3 ou 12 meses por vez: 3 meses têm 5% de desconto e 12 meses têm 15% de desconto
+(o Economy é somente mensal). Pague com PIX ou cartão de crédito (Visa e Mastercard; o Economy é somente PIX). Um plano
+pago no cartão renova automaticamente no seu cartão padrão, 3 dias antes de vencer; use **Cancelar renovação** em
+Faturamento para interromper. Pagamentos por PIX nunca renovam sozinhos. Os preços abaixo são o preço mensal.
+
+## Quanto custa cada plano da Vertra Cloud?
+
+Os planos vão de R\$ 1,99/mês (Economy) a R\$ 191,99/mês (Enterprise-32, 32 GB de RAM).
+A memória é a única coisa que aplicações e bancos de dados consomem — não há cobrança por hora nem por requisição.
+
+| Plano | Preço/mês | RAM | vCPU | Projetos | Requisições de API/dia |
+|---|---:|---:|---:|---:|---:|
+| Economy | R\$ 1,99 | 256 MB | 0,3 | Limitado pela RAM | 5.000 |
+| Pro | R\$ 5,99 | 1.024 MB | 0,5 | Limitado pela RAM | 20.000 |
+| Scale | R\$ 10,99 | 2.048 MB | 1 | Limitado pela RAM | 86.400 |
+| Intermediary | R\$ 18,99 | 3.072 MB | 1,5 | Limitado pela RAM | 115.200 |
+| Enterprise-4 | R\$ 23,99 | 4.096 MB | 2 | Limitado pela RAM | 144.000 |
+| Enterprise-6 | R\$ 35,99 | 6.144 MB | 3 | Limitado pela RAM | 180.000 |
+| Enterprise-8 | R\$ 47,99 | 8.192 MB | 4 | Limitado pela RAM | 216.000 |
+| Enterprise-12 | R\$ 71,99 | 12.288 MB | 5 | Limitado pela RAM | 324.000 |
+| Enterprise-14 | R\$ 83,99 | 14.336 MB | 5,5 | Limitado pela RAM | 378.000 |
+| Enterprise-16 | R\$ 95,99 | 16.384 MB | 6 | Limitado pela RAM | 432.000 |
+| Enterprise-18 | R\$ 107,99 | 18.432 MB | 6,5 | Limitado pela RAM | 486.000 |
+| Enterprise-20 | R\$ 119,99 | 20.480 MB | 7,5 | Limitado pela RAM | 540.000 |
+| Enterprise-22 | R\$ 131,99 | 22.528 MB | 8,5 | Limitado pela RAM | 594.000 |
+| Enterprise-24 | R\$ 143,99 | 24.576 MB | 9 | Limitado pela RAM | 648.000 |
+| Enterprise-26 | R\$ 155,99 | 26.624 MB | 9,5 | Limitado pela RAM | 702.000 |
+| Enterprise-28 | R\$ 167,99 | 28.672 MB | 10,5 | Limitado pela RAM | 756.000 |
+| Enterprise-30 | R\$ 179,99 | 30.720 MB | 11,5 | Limitado pela RAM | 810.000 |
+| Enterprise-32 | R\$ 191,99 | 32.768 MB | 12 | Limitado pela RAM | 864.000 |
+
+Nenhum plano tem um limite de quantidade de projetos — o limite real é a **RAM** do plano: a criação é recusada com `MEMORY_LIMIT_EXCEEDED` quando
+a RAM do plano acaba, então um app de 100 MB cabe 10 vezes em um plano Pro.
+
+Todos os planos incluem o **Vertra Shield**, a proteção de tráfego da plataforma. Quando uma aplicação está pausada, o dashboard mostra o motivo e o tempo restante. Os [limites de banda por memória](/api-reference/limitations#bandwidth-limits), os certificados TLS automáticos e o SLA de 99,99% também valem para todos os planos.
+
+A coluna "Requisições de API/dia" acima só vale para chamadas autenticadas com uma **chave de API**
+(o uso pelo dashboard não conta) e é zerada à meia-noite no fuso horário de Brasília. O mesmo limite
+também tem uma janela por minuto. Uma conta sem plano ativo tem 30 requisições/min e 1.000 requisições/dia.
+
+| Plano | Requisições/min |
+|---|---:|
+| Sem plano ativo | 30 |
+| Economy | 60 |
+| Pro | 120 |
+| Scale | 180 |
+| Intermediary | 240 |
+| Enterprise-4 | 300 |
+| Enterprise-6 | 300 |
+| Enterprise-8 | 300 |
+| Enterprise-12 a Enterprise-32 | 480 |
+
+Os detalhes das duas janelas, dos headers de resposta e dos códigos de erro estão em
+[Limites da API](/api-reference/limitations#api-request-limits).
+
+<Card title="Compare os planos e assine" icon="tag" href="https://vertracloud.app/pricing">
+  A página de preços do site tem a comparação completa de recursos e o checkout.
+</Card>
+
+## Quanta vCPU uma aplicação realmente recebe?
+
+A coluna de vCPU acima é o teto por aplicação no plano, não um total dividido entre os
+projetos da conta. Dentro desse teto, a vCPU de um projeto cresce com a RAM do projeto:
+
+- **Crescimento:** em planos com até 2 vCPU, +1 vCPU a cada 512 MB de RAM; em planos com mais de 2 vCPU, +1 vCPU a cada 1 GB (1.024 MB).
+- **Piso:** um projeto com 512 MB ou mais recebe pelo menos 2 vCPU; abaixo de 512 MB, pelo menos 1 vCPU.
+- **Teto:** nunca mais do que a vCPU do plano. O Economy (0,3) e o Pro (0,5) sempre dão ao projeto a vCPU inteira do plano.
+
+A mesma regra vale para os bancos de dados. Mais RAM nunca resulta em menos vCPU. Uma alteração entra em vigor na próxima vez que o projeto for reiniciado ou receber um deploy.
+
+| Plano | vCPU do plano | 256 MB | 512 MB | 1 GB | 2 GB | 4 GB | 8 GB | 12 GB+ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Scale | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
+| Intermediary | 1,5 | 1 | 1,5 | 1,5 | 1,5 | 1,5 | 1,5 | 1,5 |
+| Enterprise-4 | 2 | 1 | 2 | 2 | 2 | 2 | 2 | 2 |
+| Enterprise-32 | 12 | 1 | 2 | 2 | 2 | 4 | 8 | 12 |
+
+## O que acontece com uma conta sem plano ativo?
+
+Uma conta sem plano ativo **não pode criar aplicações nem bancos de dados, nem publicar um site**: essas
+requisições são recusadas com `PLAN_REQUIRED` (`403`). Assine um plano, a partir do Economy, para continuar.
+
+**Projetos que ficam offline por mais de 30 dias em uma conta sem plano ativo são apagados
+automaticamente**, com um snapshot feito antes e avisos por e-mail nos dias 7, 23 e 27.
+
+## Quais recursos cada plano libera?
+
+Todo recurso tem um plano mínimo, e ele vale para o **dono** do recurso — convidar alguém
+com um plano superior para um workspace não libera o recurso.
+
+| Recurso | Plano mínimo |
+|---|---|
+| Publicação na web (subdomínio `*.vertraweb.app`) | Pro |
+| Gerenciador de arquivos | Pro |
+| Métricas avançadas | Pro |
+| Escolher o nome do subdomínio | Scale |
+| Snapshot de segurança ao apagar uma aplicação | Pro |
+| Backups diários e manuais | Scale |
+| Domínios personalizados | Intermediary |
+| Gerenciador de dados do banco (aba Dados) | Intermediary |
+| Deploy automático via webhook do GitHub | Intermediary |
+| Histórico de deploys (aba Rollbacks) | Todos os planos (somente leitura no Economy) |
+| Rollback manual para uma versão anterior | Pro |
+| Rollback automático quando uma nova versão falha ao iniciar | Intermediary |
+| Deploys sem downtime | Enterprise |
+| Blob Storage | Economy |
+| Workspaces | Enterprise |
+
+No Pro o subdomínio é atribuído aleatoriamente pela plataforma; escolher o nome exige o Scale ou
+superior. Publicar uma aplicação na web exige pelo menos **512 MB de RAM** alocados a ela.
+
+## Quantos domínios personalizados e portas cada plano permite?
+
+Os domínios personalizados começam no plano **Intermediary**. O limite é por aplicação e vale para o plano
+do dono da aplicação. O `www` (ou raiz) automático que acompanha um domínio **não conta**.
+
+| Plano | Domínios personalizados por aplicação |
+|---|---:|
+| Economy, Pro, Scale | 0 |
+| Intermediary | 1 |
+| Enterprise-4 a Enterprise-8 | 2 |
+| Enterprise-12 a Enterprise-24 | 5 |
+| Enterprise-26 a Enterprise-32 | 20 |
+
+Além dos domínios do plano, toda aplicação com domínios pode atendê-los em até **5 portas diferentes além da porta
+80**; cada domínio também aceita um prefixo de caminho opcional e um redirecionamento opcional para outro domínio da mesma
+aplicação. Ao atingir o limite de domínios, a resposta é `DOMAIN_LIMIT_REACHED`, e para o limite de portas, `DOMAIN_PORT_LIMIT_REACHED`.
+Um domínio que fica `pending`, `moved` ou `deleted` por 14 dias é removido automaticamente; depois de qualquer remoção, apague os registros `CNAME` e `TXT` dele no seu provedor de DNS. Veja
+[Conecte domínios personalizados](/pt-br/guides/custom-domain).
+
+## Como conecto ferramentas de IA à Vertra Cloud?
+
+Conecte seu agente compatível pelo [servidor MCP](/pt-br/mcp) para operar os recursos da sua conta.
+
+## Quais linguagens e versões a Vertra Cloud suporta?
+
+A plataforma constrói e executa aplicações em 13 runtimes. Cada um tem uma versão `recommended`, uma
+versão `latest` (muitas vezes a mesma) e versões mais antigas que você pode fixar pelo número — no assistente, em
+Config → Geral, em `VERSION` ou pela API. As versões mais antigas são removidas quando chegam ao fim do suporte; uma aplicação salva em uma versão removida roda na versão mais recente da mesma linha, ou na `recommended` se a linha inteira foi removida.
+
+| Linguagem | Recomendada | Mais recente | Outras versões |
+|---|---|---|---|
+| JavaScript | Node.js 22.23.4 | Node.js 24.22.1 | — |
+| TypeScript | Node.js 22.23.4 + ts-node | Node.js 24.22.1 | — |
+| Python | 3.13.17 | 3.13.17 | 3.12.15, 3.11.17 |
+| Go | 1.26.10 | 1.27.3 | — |
+| Rust | 1.99.1 | 1.99.1 | — |
+| Java | Temurin JRE 21 | 21 | 17 |
+| Bun | 1.3.14 | 1.4.4 | — |
+| PHP | 8.3.36 | 8.4.27 | 8.2.35 (até o fim do suporte, 31/12/2026) |
+| Ruby | 3.3.12 | 3.4.11 | — |
+| Deno | 2.9.8 | 2.9.8 | 2.8.3 |
+| .NET (C#) | 10.0.402 | 10.0.402 | — |
+| Elixir | 1.20.4 (OTP 28) | 1.20.4 | — |
+| Estático | — | — | HTML, CSS e JavaScript |
+
+## Quais bancos de dados são gerenciados?
+
+Há quatro engines gerenciadas, todas com TLS obrigatório e certificados (CA, servidor e cliente)
+gerados automaticamente pela plataforma.
+
+| Banco de dados | Versões para novos bancos | Usuário | TLS | Autenticação |
+|---|---|---|---|---|
+| PostgreSQL | **18** (recomendada), 17 | `vertracloud` (banco `vertracloud`) | Obrigatório | Senha + certificado de cliente |
+| MongoDB | **8.0** (recomendada), 9.0 | `vertracloud` (banco `vertracloud`, banco de autenticação `admin`) | Obrigatório | Senha + certificado de cliente |
+| Redis | **8.2** (recomendada), 7.2 | `vertracloud` | Obrigatório | Usuário + senha + certificado de cliente |
+| MySQL | **9.7** (recomendada, LTS), 8.4 (LTS) | `vertracloud` (banco `vertracloud`) | Obrigatório | Senha + certificado de cliente X509 |
+
+Você escolhe a versão ao criar um banco de dados (o seletor no dashboard, ou `version` na API); a recomendada
+é a padrão. Os bancos existentes mantêm a versão major, e as atualizações de segurança (patch releases) são aplicadas
+automaticamente sempre que o banco é reiniciado (parar e depois iniciar, no dashboard). Se você usa índices `btree_gist` em colunas float ou índices `ltree` no PostgreSQL, execute `REINDEX` neles após a reinicialização. Os bancos MySQL 8.0 existentes continuam
+na 8.0, que não está disponível para novos bancos. Os bancos Redis 7.4 existentes continuam na 7.4. Um banco criado a partir de um snapshot nasce na versão major do snapshot (um snapshot de MySQL 8.0 cria um
+banco MySQL 8.4, e um snapshot de Redis 7.4 cria um Redis 8.2); `version`
+pode ser a mesma ou uma mais nova, nunca mais antiga (`SNAPSHOT_VERSION_NEWER`). Restaurar um snapshot feito em uma versão mais nova em um banco mais antigo
+é recusado com o mesmo código e nada é alterado.
+
+`vertracloud` é o usuário dos bancos criados a partir da v26.4.8, e não é superusuário. Os bancos mais antigos mantêm o
+usuário da engine: `postgres` (banco `postgres`), `default` no MongoDB (banco de autenticação `admin`) e no Redis, e `root`
+(banco `default`) no MySQL. O campo `username` do banco na API indica qual usar.
+
+A porta é **única por banco de dados** — não a padrão da engine — e aparece na página do banco. Veja [como conectar](/pt-br/databases#como-me-conecto-a-cada-motor).
+
+
+## Quais são os limites da aba Dados?
+
+A aba **Dados** navega e edita o conteúdo do banco de dados pelo dashboard ou pela API, sem
+expor a senha nem a string de conexão, e exige o plano **Intermediary** ou superior.
+Abaixo desse plano, a API responde com `PLAN_RESTRICTED_FEATURE` (403).
+
+| Limite | Valor |
+|---|---|
+| Linhas, documentos ou chaves por página | 200 |
+| Timeout da operação (incluindo o console SQL) | 10 s |
+| Linhas retornadas pelo console SQL | 200 por padrão, 1.000 no máximo |
+| Tamanho do SQL enviado ao console | 64 KB |
+| Tamanho do resultado do console | 5 MB serializados |
+| Corpo de escrita (linha, documento, valor de chave) | 1 MB |
+| Itens em uma coleção Redis (list, set, zset, hash, stream) | 1.000 |
+| Consultas simultâneas no console por banco de dados | 1 |
+| Limite de requisições — console SQL | 30/min por usuário |
+| Limite de requisições — demais rotas de dados | 120/min por usuário |
+
+A leitura vale para qualquer membro do workspace; **a escrita e o console SQL são somente para dono ou admin**.
+Comandos administrativos e execução arbitrária de código são recusados no console do Redis e do MongoDB.
+
+## Quanto Blob Storage cada plano inclui?
+
+O Blob Storage está disponível a partir do Economy. A cota conta todos os arquivos armazenados do dono do workspace. As regras de pasta,
+os domínios personalizados e as transformações de imagem também dependem do plano. As regras completas estão na
+[seção de Blob Storage da base de conhecimento](/knowledge-base#22-blob-storage).
+
+| Plano | Cota de Blob | Regras de pasta | Domínios personalizados | Transformações de imagem/mês |
+|---|---:|---:|---:|---:|
+| Economy | 1 GB | 5 | 0 | nenhuma |
+| Pro | 5 GB | 5 | 0 | nenhuma |
+| Scale | 15 GB | 5 | 0 | 600 |
+| Intermediary | 20 GB | 5 | 0 | 1.000 |
+| Enterprise-4 | 30 GB | 5 | 1 | 1.500 |
+| Enterprise-6 | 50 GB | 5 | 1 | 2.000 |
+| Enterprise-8 | 100 GB | 5 | 1 | 2.500 |
+| Enterprise-12 / 14 | 150 GB | 10 | 3 | 4.000 |
+| Enterprise-16 a 24 | 250 GB | 10 | 3 | 5.000 |
+| Enterprise-26 a 32 | 250 GB | 20 | 10 | 10.000 |
+
+Acima da cota, os uploads são bloqueados. O uso acima da cota só pode vir de um downgrade, e é cobrado a
+R\$ 0,20 por GB iniciado na renovação. Quando um plano expira, há 72 horas de carência antes de os arquivos serem apagados.
+
+## Quais são os limites de deploy e de recursos?
+
+| Limite | Valor |
+|---|---|
+| Tamanho máximo do `.zip` de deploy | 100 MB |
+| Tempo máximo de instalação de dependências | 15 minutos |
+| Tempo máximo do comando de build (`build_command`) | 10 minutos |
+| Armazenamento de uma aplicação | 10 GB fixos, independentemente da RAM |
+| Armazenamento de um banco de dados | 6 GB + 1 GB a cada 512 MB de RAM, arredondado para GB inteiros, ou 3× a RAM quando for maior (a partir de 6 GB de RAM) |
+| Portas expostas por aplicação | Porta 80, mais até 5 outras por meio de domínios personalizados |
+| RAM mínima de uma aplicação | 100 MB (512 MB para publicar na web) |
+| Variáveis de ambiente por aplicação | 256 (chave de até 255 caracteres, valor de até 3.072) |
+| Domínios personalizados por aplicação | 0 a 20, conforme o plano ([tabela](#quantos-domínios-personalizados-e-portas-cada-plano-permite)) |
+| Nome de aplicação, banco de dados ou workspace | 50 caracteres |
+| Profundidade da árvore no gerenciador de arquivos | 6 níveis |
+| Intervalo mínimo entre alterações de subdomínio | 5 minutos |
+| Reset de banco de dados (destrutivo) | 1 por hora |
+| Criação manual de snapshot | 1 a cada 5 minutos por projeto, 10 por hora por conta |
+| Downgrade de plano | 1 a cada 3 horas |
+
+A banda de rede é proporcional à RAM alocada: 50 Mbit com 100 MB, 100 Mbit com 256 MB, 200
+Mbit com 512 MB, 400 Mbit com 1.024 MB, 800 Mbit com 2.048 MB e 1.600 Mbit com 4.096 MB.
+
+### Limite de deploys por hora
+
+Conta como deploy: criar uma aplicação, enviar um zip, fazer deploy pelo GitHub (manual ou por
+push), reinstalar dependências e alterar o comando de build. Reiniciar e parar não
+contam. Um push do GitHub que chega depois do limite é ignorado e registrado no histórico de atividades.
+
+| Plano | Deploys/hora |
+|---|---:|
+| Economy | 10 |
+| Pro | 20 |
+| Scale | 40 |
+| Intermediary | 60 |
+| Enterprise (qualquer nível) | 60 |
+
+### Limites do histórico de deploys e do rollback
+
+Cada aplicação guarda o código das versões anteriores por um tempo limitado, para que você possa fazer rollback para
+uma delas. A versão que está em execução agora nunca expira. A validade de uma versão anterior conta a partir
+do momento em que ela deixa de ser a versão em execução.
+
+| Plano | Versões anteriores mantidas | Validade da versão |
+|---|---:|---:|
+| Economy | — | — |
+| Pro | 3 | 7 dias |
+| Scale | 5 | 14 dias |
+| Intermediary | 10 | 30 dias |
+| Enterprise (E-4 a E-8) | 15 | 30 dias |
+| Enterprise (E-12 a E-16) | 20 | 30 dias |
+| Enterprise (E-18 a E-24) | 25 | 30 dias |
+| Enterprise (E-26 a E-32) | 30 | 30 dias |
+
+O Economy mostra o histórico de deploys, somente leitura, e não guarda versões anteriores para fazer rollback.
+
+### Rollback automático e deploys sem downtime
+
+**Rollback automático** (Intermediary e Enterprise): se a nova versão de uma aplicação parar em até 60 segundos após um deploy, a plataforma volta uma vez para a versão anterior e avisa você. Vem desativado por padrão; ative nas configurações da aplicação.
+
+**Deploys sem downtime** (Enterprise): a nova versão inicia ao lado da que está em execução e assume quando estiver saudável. Vem desativado por padrão (`off`); `auto` aplica o recurso às aplicações que recebem tráfego web e `on` a todas as aplicações. Veja [Atualizar a configuração da aplicação](/api-reference/endpoint/apps/updateconfig) para a configuração.
+
+## Próximos passos
+
+<CardGroup cols={2}>
+  <Card title="Hospedar uma aplicação" icon="upload" href="/pt-br/how-to-host">
+    O passo a passo do seu primeiro deploy, do login até a aplicação no ar.
+  </Card>
+  <Card title="Agentes de IA (MCP)" icon="robot" href="/pt-br/mcp">
+    Conecte Claude, Cursor ou Codex à sua conta para investigar e operar.
+  </Card>
+  <Card title="Downgrade de plano" icon="arrow-down" href="/pt-br/plan-downgrade">
+    Como os dias restantes são convertidos quando você troca de plano.
+  </Card>
+  <Card title="Limites da API" icon="plug" href="/api-reference/limitations">
+    Limites de recursos e de requisições da API pública.
+  </Card>
+</CardGroup>

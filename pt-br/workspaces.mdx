@@ -1,0 +1,81 @@
+---
+title: 'Workspaces de equipe na Vertra Cloud: permissões, papéis e convites'
+sidebarTitle: 'Workspaces'
+description: 'Workspaces agrupam aplicações e bancos e os compartilham com uma equipe, em papéis personalizados feitos de 20 permissões granulares. Plano Enterprise.'
+icon: 'users'
+---
+
+## O que são workspaces?
+
+Workspaces são espaços colaborativos que agrupam aplicações e bancos de dados e os compartilham com uma equipe. Criar um exige o plano **Enterprise**; o número máximo de membros e de papéis personalizados cresce conforme o nível do plano.
+
+## Permissões, não papéis fixos
+
+Um membro não tem um papel fixo como "Admin" ou "Viewer" — ele tem um **papel que você define**, e um papel é apenas um nome com um subconjunto escolhido de **20 permissões**. Quatro papéis são criados quando o workspace é criado (Admin, Developer, Operator, Viewer), mas, a partir daí, são papéis comuns: renomeie-os, edite as permissões deles ou apague-os como qualquer outro.
+
+O **proprietário** também não é um papel. A propriedade é a posse do próprio workspace: o proprietário sempre tem todas as permissões, sem precisar de atribuição de papel, e só ele pode renomear ou apagar o workspace, ou vincular e desvincular uma aplicação ou um banco de dados.
+
+### Catálogo de permissões
+
+| Grupo | Permissões |
+|---|---|
+| Aplicações | `apps:read`, `apps:manage`, `apps:lifecycle`, `apps:envs`, `apps:files`, `apps:delete` |
+| Bancos de dados | `databases:read`, `databases:manage`, `databases:lifecycle`, `databases:credentials`, `databases:data`, `databases:delete` |
+| Snapshots | `snapshots:read`, `snapshots:manage` |
+| Blob Storage | `blob:read`, `blob:manage` |
+| Membros | `members:read`, `members:manage` |
+| Papéis | `roles:manage` |
+| Atividades | `activities:read` |
+
+`apps:delete` e `databases:delete` são separadas de `apps:manage` e `databases:manage` de propósito — apagar é a única ação que vale a pena restringir separadamente da gestão do dia a dia, e por isso o papel **Admin** pré-criado também não inclui `snapshots:manage` por padrão (restaurar ou apagar um snapshot é destrutivo o bastante para que o proprietário opte por isso explicitamente).
+
+As duas permissões de Blob Storage, `blob:read` e `blob:manage`, também não fazem parte de nenhum papel pré-criado: o proprietário as concede aos papéis que devem acessar o armazenamento de arquivos dele.
+
+<Note>
+  Um membro não pode criar nem editar um papel com permissões que ele mesmo não possui — incluindo as ações exclusivas do proprietário, que nenhum papel pode conceder. Isso fecha o caminho óbvio de escalonamento de privilégios: `roles:manage` permite moldar papéis, não conceder acesso acima do seu próprio.
+</Note>
+
+## Papéis personalizados
+
+Crie quantos papéis o nível do seu plano permitir (os quatro papéis pré-criados contam nesse limite), escolhendo qualquer subconjunto das 20 permissões.
+
+Um papel atribuído a um membro ou com convite pendente não pode ser apagado (`WORKSPACE_ROLE_IN_USE`) — reatribua ou revogue antes.
+
+## Convidando membros
+
+Os convites substituem por completo o antigo código único compartilhado:
+
+- **Por e-mail** — enviado para um endereço específico, expira em 7 dias, com um convite pendente por endereço. Convidar o mesmo endereço de novo renova e reenvia o convite.
+- **Por link** — uma URL compartilhável, válida por 24 horas, com limite opcional de usos.
+
+Os dois tipos atribuem um papel desde o início e podem ter uma **data de expiração de acesso**: o membro que entrar pelo convite perde o acesso automaticamente nessa data, a menos que você defina outra depois. Tudo aqui — enviar, listar, revogar — é uma ação exclusiva do dashboard; não existe equivalente com chave de API, então uma chave vazada não consegue adicionar nem remover pessoas.
+
+Para convidar alguém, abra seu workspace no dashboard e use a opção de convites na área de membros.
+
+## Solicitando ações sensíveis
+
+Um membro que queira fazer algo para o qual não tem permissão — apagar uma aplicação, apagar um banco, criar ou restaurar um snapshot — pode **solicitar** a ação. Quem tiver a permissão correspondente pode aprovar ou rejeitar a solicitação na aba **Solicitações** do workspace. Ao aprovar, a ação é executada de verdade, como o aprovador, usando exatamente os parâmetros enviados com a solicitação — nunca nada reenviado no momento da aprovação. Uma solicitação expira em 24 horas se não for resolvida.
+
+## Atividades
+
+A aba **Atividades** abrange o workspace inteiro, e não apenas as suas próprias ações, com exportação em CSV limitada a uma janela de 90 dias por download.
+
+## Pastas e favoritos
+
+As pastas e os favoritos de um workspace são preferências **individuais**. Cada membro organiza as aplicações e os bancos a que tem acesso na própria visão; criar uma pasta, mudar o nome ou a cor dela, mover um recurso e favoritar não alteram a organização dos outros membros.
+
+Pastas podem conter aplicações e bancos de dados e usar as cores `neutral`, `red`, `orange`, `yellow`, `green`, `blue` e `purple`. Favoritos são independentes das pastas. Essas preferências são salvas na conta, com escopo pessoal ou do workspace, e não no armazenamento local do navegador.
+
+As mesmas ações podem ser feitas pelo dashboard, por workflows ou por clientes que usam uma chave de API, como a CLI, o MCP e a extensão do VS Code. Cada ação gera uma atividade no histórico; o cliente não precisa enviar a origem nem o autor.
+
+<Note>
+  Pasta e grupo do Flow são conceitos diferentes. A pasta organiza aplicações e bancos na conta; o grupo organiza elementos na tela local do Flow. Não há sincronização nem migração entre eles.
+</Note>
+
+## Workspaces congelados
+
+Se o plano do proprietário expirar ou cair abaixo do Enterprise, o workspace fica **congelado, não apagado**: membros, projetos e papéis continuam existindo, mas as escritas são recusadas — renomear, convidar, mudar um papel, vincular um projeto. Leitura, saída do workspace, remoção de um membro ou de um projeto e a exclusão do próprio workspace continuam funcionando. Tudo descongela assim que o plano voltar a estar vigente; o que é verificado é o plano do **proprietário**, então um membro sem plano em um workspace pago de outra pessoa não é afetado.
+
+<Note>
+  O detalhe completo, endpoint por endpoint — corpos, permissões, códigos de erro — está em [Referência da API → Workspaces](/api-reference/endpoint/workspaces/get-all).
+</Note>

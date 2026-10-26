@@ -1,0 +1,20 @@
+### Se eliminan los campos de reinicio automático de la API
+
+El reinicio automático está activo en todas las aplicaciones de todos los planes desde el 17 de septiembre. Los campos que quedaban ya se han eliminado:
+
+- **Respuestas:** las aplicaciones ya no incluyen `auto_restart`. Si tu integración lo lee, trata el reinicio automático como siempre activo.
+- **Peticiones:** `autorestart` en `POST /v1/apps` y `auto_restart` en `PATCH /v1/apps/{id}/config` ya no forman parte de la API. Los clientes que todavía los envían siguen funcionando: el campo simplemente se ignora.
+- **SDK y CLI:** los SDK de JavaScript, Python y Go eliminan el campo, y la CLI elimina la opción `--autorestart`.
+- **`vertracloud.config`:** una línea `AUTORESTART` antigua se ignora y no bloquea la subida.
+
+### La versión de runtime que eliges es la que se ejecuta
+
+La versión de runtime elegida en el asistente, en Ajustes → General, en `VERSION` o a través de la API es ahora la versión que ejecuta la aplicación.
+
+- **Elegir la última versión ejecuta la última versión.** Antes, al elegir Node.js 24.5.0 o Ruby 3.4 (la `latest` de cada uno), la aplicación podía compilarse en silencio con la versión recomendada.
+- **La versión que confirmas es la que cuenta.** Cuando un `.zip` tiene un `VERSION` en `vertracloud.config`, el asistente lo rellena; si eliges otra antes de crear la aplicación, ahora se ejecuta la que elegiste. Antes, el valor del archivo podía anular tu elección.
+- **Las versiones desconocidas se rechazan.** Una versión que no existe para el lenguaje de la aplicación responde `400 INVALID_VERSION` en lugar de recurrir en silencio a otra. Consulta [Listar runtimes](/api-reference/endpoint/apps/runtimes) para ver los valores válidos.
+
+<Warning>
+  Una aplicación creada con Node.js 24.5.0 o Ruby 3.4 que estaba ejecutándose con la versión recomendada cambia a la versión que eligió en su **próximo despliegue, recompilación o reinicio**. Si depende del runtime anterior, establece la versión en `recommended` en Ajustes → General antes de reiniciarla.
+</Warning>

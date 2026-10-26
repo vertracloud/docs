@@ -1,0 +1,148 @@
+---
+title: 'Como hospedar uma aplicação Bun na Vertra Cloud'
+sidebarTitle: 'Bun'
+description: 'Faça deploy de uma aplicação ou servidor Bun 1.3 na Vertra Cloud: script start no package.json, bun install na plataforma e a variável PORT.'
+icon: bread-slice
+---
+
+## Requisitos
+
+- Bun 1.3+ instalado localmente
+- Conta na [Vertra Cloud](https://vertracloud.app)
+- `package.json` configurado
+
+## Estrutura do projeto
+
+```
+my-server-bun/
+├── src/
+│   └── index.ts
+├── package.json
+├── bunfig.toml
+└── vertracloud.config
+```
+
+## Configuração
+
+### package.json
+
+```json
+{
+  "name": "my-server-bun",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "elysia": "^0.7.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}
+```
+
+### bunfig.toml
+
+```toml
+[build]
+target = "bun"
+```
+
+### vertracloud.config
+
+```ini
+MAIN=package.json
+START=bun run src/index.ts
+VERSION=recommended
+```
+
+## Exemplo: servidor simples com Bun.serve()
+
+### src/index.ts
+
+```typescript
+const port = parseInt(process.env.PORT || "80");
+const hostname = "0.0.0.0";
+
+const server = Bun.serve({
+  port: port,
+  hostname: hostname,
+  fetch(request: Request) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/" && request.method === "GET") {
+      return Response.json({
+        message: "API Bun on Vertra Cloud",
+        version: "1.0.0",
+        runtime: "Bun"
+      });
+    }
+
+    // Health check
+    if (url.pathname === "/health" && request.method === "GET") {
+      return Response.json({
+        status: "healthy",
+        service: "bun-api",
+        uptime: Math.floor(process.uptime())
+      });
+    }
+
+    // API items
+    if (url.pathname === "/api/items" && request.method === "GET") {
+      const items = [
+        { id: 1, name: "Item 1", description: "Description 1" },
+        { id: 2, name: "Item 2", description: "Description 2" }
+      ];
+      return Response.json(items);
+    }
+
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+});
+
+console.log(`Server running at http://${hostname}:${port}/`);
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Painel">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie para o GitHub.
+    2. No painel, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**Bun**), o arquivo principal (`index.ts`) e a memória. Os comandos de start e de build ficam em **Configurações Avançadas**.
+    4. Adicione suas variáveis de ambiente em **Ambiente**.
+    5. Em **Rede**, ative a **publicação web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Fazer deploy do projeto atual**. Veja [Extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 1.4.4 | Mais recente | Bun 1.4 (versão mais recente) |
+| 1.3.14 | Recomendada | Bun 1.3 (recomendada para produção) |
+
+## Observações
+
+- **Desempenho**: o Bun é significativamente mais rápido que o Node.js
+- **TypeScript nativo**: o Bun executa TypeScript diretamente, sem compilação
+- **Compatibilidade**: o Bun é compatível com Node.js/npm, mas tem algumas diferenças
+- **Variáveis de ambiente**: acesse via `process.env.KEY`
+- **Logs**: use `console.log()` para logs que aparecem no painel
+- **Módulos**: use `bun add` para adicionar dependências
+- Escute em `0.0.0.0` na porta `$PORT`

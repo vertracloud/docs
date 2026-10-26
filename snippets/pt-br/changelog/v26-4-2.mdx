@@ -1,0 +1,73 @@
+### Deploys sem queda no Enterprise
+
+No Enterprise, um deploy ou um reinício agora pode iniciar a nova versão ao lado da que está rodando, verificar se ela está saudável e só então trocar. Assim, uma aplicação que recebe tráfego web continua acessível durante a atualização. A versão antiga recebe um pedido de desligamento assim que a nova assume.
+
+- **Modos:** `off` (o padrão, inclusive para aplicações criadas antes desta atualização) continua parando a versão em execução primeiro; `auto` usa deploy sem queda para aplicações que recebem tráfego web; `on` força o modo, inclusive para aplicações sem tráfego web. Bots e outras aplicações sem tráfego web continuam com parar e iniciar no `auto`, porque duas cópias de um bot responderiam ao mesmo evento duas vezes. Ative nas configurações da aplicação, em **Deploy**; a mudança vale a partir do próximo reinício ou deploy.
+- **Caminho do health check:** defina o caminho que a plataforma chama na nova versão, `/` por padrão, com o novo campo `deploy.health_check_path` de [Atualizar configuração da aplicação](/api-reference/endpoint/apps/updateconfig) ou nas configurações da aplicação. Qualquer resposta HTTP conta como saudável, inclusive `404`; uma conexão recusada, um timeout ou uma resposta `5xx` não contam.
+- **Deploys descartados:** se a nova versão não ficar saudável em cerca de 2 minutos, ela é descartada, você recebe um aviso com o log dela, e a versão anterior continua rodando. O log ao vivo mostra o mesmo aviso.
+- **Fallback:** se a segunda cópia não puder ser iniciada naquele momento, o deploy volta a parar a versão em execução primeiro.
+
+As duas versões compartilham a pasta da aplicação por um curto período. Por isso, leia as [limitações](/pt-br/guides/rollback-and-zero-downtime-deploys#limitações-conhecidas) antes de ativar o modo para uma aplicação que grava arquivos de dados ou lê seus arquivos a cada requisição. O novo [guia de rollback e deploy sem queda](/pt-br/guides/rollback-and-zero-downtime-deploys) explica como releases, rollback e deploys sem queda funcionam em conjunto.
+
+### Rollback automático quando uma nova versão não inicia
+
+No Intermediary e no Enterprise, uma aplicação que para em até 60 segundos depois de um deploy agora volta sozinha para a versão anterior. Assim, um deploy quebrado não deixa mais a aplicação fora do ar.
+
+- **Quando age:** só se a nova versão parar nos primeiros 60 segundos após um deploy. Uma parada depois disso é tratada como queda normal e fica a cargo do reinício automático.
+- **Uma vez só:** a plataforma volta uma única vez. Se a versão anterior também parar, a aplicação fica parada e você é notificado.
+- **O que volta:** os arquivos de código, não as variáveis de ambiente. Para trazer as variáveis de volta, use o rollback manual com a opção de variáveis.
+- **Você é avisado:** você recebe uma notificação, a aba Rollbacks marca a versão com falha com o log dela, e o rollback automático aparece como uma nova versão atribuída à Vertra Cloud. O log ao vivo da aplicação mostra os mesmos avisos.
+- **Configuração:** vem desativado por padrão, inclusive para aplicações criadas antes desta atualização. Ative nas configurações da aplicação, em **Deploy**, ou com o novo campo `deploy.auto_rollback` de [Atualizar configuração da aplicação](/api-reference/endpoint/apps/updateconfig). Alterar essa opção não reinicia a aplicação.
+
+[Obter aplicação](/api-reference/endpoint/apps/get) agora retorna um objeto `deploy` com as configurações de deploy salvas. Depois de um downgrade, o valor salvo permanece, mas ele só atua em um plano que inclua o recurso.
+
+### Snapshot de segurança ao excluir uma aplicação
+
+Nos planos Pro e superiores, excluir uma aplicação agora faz antes um snapshot de segurança dela, como a exclusão de um banco de dados já fazia. O snapshot fica guardado por 30 dias em **Snapshots**, onde você pode baixá-lo.
+
+- **Se o snapshot falhar,** a aplicação não é excluída e a requisição responde `SNAPSHOT_FAILED`; entre em contato com o suporte. Snapshots de segurança demais em pouco tempo respondem `FORCED_SNAPSHOT_RATE_LIMIT`.
+- **No Free e no Economy,** a aplicação é excluída na hora, sem cópia. O diálogo de exclusão avisa disso e oferece baixar o projeto antes.
+- **A expiração do plano** continua fazendo um snapshot de cada projeto antes de removê-lo, em todos os planos.
+
+### Volte uma aplicação para uma versão anterior
+
+A aba **Rollbacks** agora permite voltar a uma versão anterior do código de uma aplicação. Escolha uma versão e confirme: a aplicação volta ao código que tinha nessa versão e reinicia.
+
+- **O que volta:** todo o código daquela versão. Arquivos de código que a versão não tinha são removidos.
+- **O que fica:** dados que a aplicação criou enquanto rodava, como um arquivo de banco ou uploads. Para trazer dados de volta, use um snapshot.
+- **Variáveis de ambiente (opcional):** marque a opção para restaurar as variáveis salvas com aquela versão. A confirmação lista apenas os nomes das variáveis que serão adicionadas, alteradas ou removidas. Os valores nunca são mostrados.
+- **Desfazer:** um rollback é uma nova versão no histórico, então você pode voltar à versão de onde veio. Dois rollbacks da mesma aplicação precisam de 30 segundos de intervalo.
+- **Limites por plano:** o rollback começa no Pro. O Pro mantém as 3 versões anteriores por 7 dias, o Scale 5 por 14 dias, o Intermediary 10 por 30 dias, e o Enterprise de 15 a 30 por nível, por 30 dias. O prazo de uma versão começa quando ela deixa de rodar; a versão em execução nunca expira. Economy e Free mostram o histórico sem a opção de rollback.
+
+A API tem uma [prévia](/api-reference/endpoint/apps/releases/rollback-preview) das mudanças de variáveis e um endpoint de [rollback](/api-reference/endpoint/apps/releases/rollback). Fazer rollback exige o escopo `apps:write`, além de `apps:envs` ao restaurar variáveis.
+
+### Histórico de deploys e mensagens de commit para toda aplicação
+
+Cada aplicação agora tem uma aba **Rollbacks** no dashboard. Ela lista cada versão do código da aplicação, qualquer que seja a origem: um push para o GitHub, a CLI, um upload pelo dashboard ou pela API, ou uma edição no gerenciador de arquivos. Cada entrada mostra status, mensagem, autor, data e tempo de build. A aba está disponível em todos os planos.
+
+O histórico começa com o primeiro envio de código depois desta atualização. Aplicações criadas a partir de um snapshot não ganham uma entrada inicial. Edições feitas no gerenciador de arquivos são agrupadas no histórico no próximo reinício ou envio de código. Arquivos enviados sem reiniciar aparecem como **Aguardando reinício** até a aplicação reiniciar, porque até lá ela continua rodando a versão anterior.
+
+Você pode escrever uma mensagem para cada versão:
+
+- **Dashboard:** um campo opcional de mensagem no diálogo de upload.
+- **API:** um campo `message` no endpoint de upload de arquivos.
+- **CLI:** `vertra app commit -m "..."`. Sem `-m`, dentro de um repositório git, a CLI usa o assunto do último commit.
+
+A API expõe o mesmo histórico para as suas ferramentas. [Listar releases](/api-reference/endpoint/apps/releases/list) retorna as versões de uma aplicação, e [log da release](/api-reference/endpoint/apps/releases/log) retorna o log de uma delas. Os dois exigem o escopo `apps:read`. O SDK Go adiciona `Apps.Releases()` e um campo `Message` nos uploads.
+
+### O auto-deploy do GitHub faz o build do commit que você enviou
+
+O auto-deploy pelo GitHub agora faz o build exatamente do commit que foi enviado. Antes, o build pegava o que estivesse na ponta da branch quando o download começava, então dois pushes próximos podiam mostrar um commit no histórico de deploys enquanto um mais novo estava rodando. Agora cada deploy corresponde ao commit que ele lista.
+
+Um push que exclui a branch `main` ou `master` não inicia mais um deploy.
+
+### Releases, rollback e configurações de deploy pela CLI, SDKs e MCP
+
+A CLI, os SDKs de JavaScript, Python e Go e o servidor MCP agora cobrem releases, rollback e configurações de deploy, com os mesmos planos e escopos de chave de API do dashboard e da API.
+
+- **CLI:** `vertra app releases` lista as versões e `vertra app releases log` mostra o log de uma com falha. `vertra app rollback` mostra o que vai acontecer e pede confirmação antes de executar; com `--env`, lista apenas os nomes das variáveis que mudam. Sem terminal, exige `--yes`. `vertra app config` aceita `--zero-downtime`, `--auto-rollback`, `--health-path` e `--clear-health-path`.
+- **SDKs:** `apps.releases` lista releases, lê um log, faz a prévia de um rollback e o executa, nas três linguagens. Atualizar a configuração de uma aplicação aceita as configurações de deploy, e os uploads aceitam uma mensagem.
+- **MCP:** novas ferramentas `list_releases`, `get_release_log`, `preview_rollback` e `rollback_app`. `rollback_app` é marcada como destrutiva, então seu cliente pede confirmação. `update_app_config` aceita as configurações de deploy, e `deploy_app` aceita uma mensagem.
+- **Escopos:** `apps:read` para listar e ler logs, `apps:envs` para a prévia e para restaurar variáveis, `apps:write` para fazer rollback.
+
+Veja [CLI](/pt-br/cli#releases-e-rollback), [SDKs](/pt-br/sdks#releases-e-rollback), [MCP](/pt-br/mcp#releases-rollback-e-configurações-de-deploy) e o [guia de rollback e deploy sem queda](/pt-br/guides/rollback-and-zero-downtime-deploys).

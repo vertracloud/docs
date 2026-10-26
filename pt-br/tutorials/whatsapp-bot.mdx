@@ -1,0 +1,246 @@
+---
+title: 'Como hospedar um bot do WhatsApp na Vertra Cloud'
+sidebarTitle: 'Bots do WhatsApp'
+description: 'Faça deploy de um bot do WhatsApp em Node.js na Vertra Cloud: estrutura do projeto, persistência da sessão entre reinícios, pareamento por QR e memória.'
+icon: 'whatsapp'
+---
+
+## Visão geral
+
+A Vertra Cloud é ideal para hospedar bots do WhatsApp usando o `whatsapp-web.js`, uma biblioteca Node.js que emula a interface web do WhatsApp.
+
+<Warning>
+  **Importante**: a biblioteca `whatsapp-web.js` usa Puppeteer e Chromium, que exigem **512 MB de memória ou mais**. **1 GB recomendado** para operação estável já vem configurado na aplicação.
+</Warning>
+
+## Requisitos
+
+- Node.js 18+ instalado localmente
+- Conta na [Vertra Cloud](https://vertracloud.app)
+- Número de telefone válido para a conta do WhatsApp
+
+## Estrutura do projeto
+
+```
+my-bot-whatsapp/
+├── src/
+│   └── index.js
+├── sessions/
+│   └── .gitkeep
+├── package.json
+└── vertracloud.config
+```
+
+## Configuração
+
+### package.json
+
+```json
+{
+  "name": "my-bot-whatsapp",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.25.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
+```
+
+<Note>
+  A plataforma instala as dependências do `whatsapp-web.js`, e o Puppeteer usa o Chromium já disponível na imagem do runtime, então nenhum navegador é baixado durante a instalação. Não inclua `node_modules` no upload.
+</Note>
+
+### vertracloud.config
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+## Exemplo completo de bot
+
+```javascript
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const fs = require('fs');
+const path = require('path');
+
+// Configuração da sessão, com persistência
+const client = new Client({
+  authStrategy: new LocalAuth({
+    clientId: 'bot-whatsapp',
+    dataPath: path.join(process.cwd(), 'sessions')
+  }),
+  puppeteer: {
+    // Configuração para ambientes com pouca memória
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process'  // Reduz o uso de memória, use com cuidado
+    ]
+  }
+});
+
+client.on('qr', (qr) => {
+  console.log('QR Code received. Scan with your phone:');
+  qrcode.generate(qr, { small: true });
+});
+
+client.on('ready', () => {
+  console.log('WhatsApp bot successfully connected!');
+});
+
+client.on('authenticated', () => {
+  console.log('Authentication successful!');
+});
+
+client.on('disconnected', () => {
+  console.log('Bot was disconnected!');
+});
+
+client.on('message', async (message) => {
+  try {
+    if (message.from.includes('@g.us')) {
+      return;
+    }
+
+    const text = message.body.toLowerCase().trim();
+    const contact = await message.getContact();
+    const chatName = contact.pushname || contact.name || 'User';
+
+    console.log(`Message received from ${chatName}: ${text}`);
+
+    if (text === '/start' || text === 'hi' || text === 'hello') {
+      await message.reply(`
+Welcome to the WhatsApp bot! 
+
+Available commands:
+- /menu - View menu
+/info - Bot information
+❓ /help - Help
+ /home - Go back to the beginning
+      `);
+    }
+
+    else if (text === '/menu') {
+      await message.reply(`
+*MENU* 
+
+1 - Service 1
+2 - Service 2
+3 - Service 3
+
+Type the number or text to request.
+      `);
+    }
+
+    else if (text === '/info') {
+      await message.reply(`
+*BOT INFORMATION* 
+
+Version: 1.0.0
+Platform: Vertra Cloud
+Developed with: whatsapp-web.js
+
+For support, contact our team!
+      `);
+    }
+
+    else if (text === '/help') {
+      await message.reply(`
+*HELP* ❓
+
+Type /start to see the initial menu.
+All commands start with /.
+
+Main commands:
+/menu - Menu of options
+/info - Information
+/help - This message
+      `);
+    }
+
+    else {
+      await message.reply(`
+Sorry, I didn't understand your message.
+
+Type /menu to see available options.
+      `);
+    }
+
+  } catch (error) {
+    console.error('Error processing message:', error);
+    message.reply('Sorry, an error occurred while processing your message.');
+  }
+});
+
+client.on('error', (error) => {
+  console.error('Client error:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Promise rejection:', reason);
+});
+
+client.initialize();
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie-o ao GitHub.
+    2. No dashboard, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**JavaScript**), o arquivo principal (`index.js`) e a memória. Os comandos de start e build ficam em **Configurações avançadas**.
+    4. Adicione suas variáveis de ambiente em **Variáveis de Ambiente**.
+    5. Em **Rede**, deixe a publicação na web **desativada**: um bot não recebe tráfego de entrada e roda em segundo plano em qualquer plano.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja a [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Deploy current project**. Veja a [extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Primeira execução: autenticação
+
+<Steps>
+  <Step title="Faça o deploy e aguarde o QR code">
+    Depois do deploy, acompanhe os logs. Você verá um QR code exibido no terminal.
+  </Step>
+  <Step title="Leia com o celular">
+    Abra o WhatsApp no celular, vá em **Configurações → Aparelhos conectados** e leia o QR code.
+  </Step>
+  <Step title="Persistência da sessão">
+    A pasta `sessions/` guarda os dados de autenticação. Não a limpe, ou o bot precisará ser autenticado de novo.
+  </Step>
+  <Step title="Confirmação">
+    Quando você vir "Authentication successful!" nos logs, o bot estará pronto para receber mensagens.
+  </Step>
+</Steps>
+
+## Observações importantes
+
+- **Memória crítica**: whatsapp-web.js + Puppeteer/Chromium exigem **pelo menos 512 MB**, mas **1 GB recomendado** para operação estável
+- **Sessões persistentes**: a pasta `sessions/` guarda os dados de autenticação. Configure um volume persistente, se necessário
+- **QR code**: exibido só na primeira execução. Leia-o rapidamente antes que expire (geralmente em 30 segundos)
+- **Reinício automático**: ativado por padrão, mantém o bot online
+- **Logs**: acompanhe regularmente para detectar problemas de conexão
+- **Limite de envio**: o WhatsApp tem limites de mensagens. Implemente pausas entre os envios
+- **Tipo bot**: sempre selecione **Bot** ao criar a aplicação

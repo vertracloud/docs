@@ -1,0 +1,198 @@
+### Descripción general
+
+La versión 26.0 es la mayor actualización de Vertra Cloud desde su lanzamiento. Introduce workspaces colaborativos, varios proveedores de autenticación y un panel rediseñado.
+
+---
+
+### Novedades
+
+#### Workspaces
+Espacios de equipo colaborativos con control de acceso basado en roles.
+
+- Crear, editar y eliminar workspaces
+- **5 roles**: Owner, Admin, Developer, Operator, Viewer
+- Gestión de miembros con enlaces de invitación
+- Asignar aplicaciones y bases de datos a los workspaces
+- Disponible desde el plan **Enterprise** (de 5 a 24 miembros)
+
+#### Autenticación
+Varias opciones de inicio de sesión y gestión de cuentas.
+
+- **Magic Link** — Autenticación por correo electrónico sin contraseña
+- **GitHub OAuth** — Inicio de sesión y vinculación de cuentas
+- **Google OAuth** — Inicio de sesión y vinculación de cuentas
+- **Discord OAuth** — Proveedor ya existente, ahora con vinculación y desvinculación de cuentas
+- **Cambio de cuenta** — Hasta 5 cuentas guardadas en el mismo navegador
+- **Gestión de sesiones** — Ver las sesiones activas y revocar todas las sesiones
+- **Generación de claves de API** — Para el acceso programático
+
+#### Notificaciones
+Sistema de notificaciones de la plataforma integrado en el panel.
+
+- Notificaciones desde la API con estado de leída o no leída
+- Marcar una notificación o todas como leídas
+- Visualización en tiempo real en la cabecera del panel
+- Plantillas de correo localizadas en 3 idiomas (EN, PT-BR, ES)
+- Plantillas para: caducidad del plan, aviso de eliminación y confirmación de compra
+
+#### Cambio a un plan inferior
+Los usuarios pueden ahora cambiar a un plan inferior directamente desde el panel o la API.
+
+- Cambio al plan Free mediante `POST /v1/users/me/downgrade`
+- Límite de peticiones para evitar abusos
+- Avisos sobre el impacto en los recursos existentes
+
+#### Snapshots
+Sustituyen al antiguo sistema de copias de seguridad y commits por snapshots unificados.
+
+- Crear snapshots manuales de aplicaciones y bases de datos
+- Restaurar desde cualquier snapshot anterior (con tiempo de espera)
+- Descargar el contenido de un snapshot
+- Inserción automática de `vertracloud.config` durante la creación del snapshot
+- Vista de snapshots agrupados en el panel
+
+#### Limpieza del plan Free
+Gestión automática de los recursos inactivos del plan Free.
+
+- Los proyectos sin conexión durante más de 30 días se eliminan automáticamente
+- Avisos por correo a los días 7, 23 y 27
+- Enlace de reactivación incluido en los avisos
+
+#### Versiones de runtime dinámicas
+La selección de runtime ahora obtiene las versiones disponibles de forma dinámica.
+
+- Selector de versión en el asistente de creación de proyectos
+- Etiquetas `recommended` y `latest`
+- Nuevos lenguajes compatibles: **Ruby**, **Rust**, **Java**
+
+---
+
+### Panel
+
+#### Rediseño completo
+El panel se ha reconstruido desde cero.
+
+- **Asistente de nuevo proyecto**: creación en varios pasos con diseño vertical animado
+- **Gestor de archivos**: reescrito con Monaco Editor (arrastrar y soltar, subida de ZIP, validación de rutas prohibidas)
+- **Terminal integrada**: transmisión de logs en tiempo real mediante SSE, con colores ANSI y desplazamiento automático
+- **Ajustes de cuenta**: conexiones de autenticación, gestión de sesiones, generación de claves de API y códigos de canje
+- **Cabecera adaptable**: modo compacto, prevención de desbordamiento y menús que se cierran al hacer clic fuera
+
+#### Internacionalización
+Soporte completo de idiomas en todo el panel.
+
+- 3 idiomas: inglés, portugués (BR) y español
+- Mensajes de error y de éxito, y plantillas de correo localizados
+- Archivos de mensajes granulares, organizados por función
+
+#### Integración con GitHub
+Soporte mejorado de GitHub en el flujo de creación de proyectos.
+
+- Selección de repositorios, incluidos los privados
+- Selección de rama
+- Alternativa con ZIP cuando GitHub no está disponible
+- Configuración de webhooks para los despliegues automáticos
+
+---
+
+### Cambios en la API
+
+#### Endpoints nuevos
+- `POST /v1/users/me/downgrade`: cambio a un plan inferior
+- `GET /v1/users/me/sessions`: listar las sesiones activas
+- `DELETE /v1/users/me/sessions`: revocar todas las sesiones
+- `POST /v1/users/me/generate-api-key`: generar una clave de API
+- `GET /v1/notifications`: listar notificaciones
+- `POST /v1/notifications/:id/read`: marcar como leída
+- `POST /v1/notifications/read-all`: marcar todas como leídas
+- `POST /v1/workspaces`: crear un workspace
+- `GET /v1/workspaces`: listar workspaces
+- `GET/PUT/DELETE /v1/workspaces/:id`: CRUD de workspaces
+- `POST/DELETE /v1/workspaces/:id/members`: gestión de miembros
+- `POST/DELETE /v1/workspaces/:id/apps/:appId`: asociación de aplicaciones
+- `POST/DELETE /v1/workspaces/:id/databases/:dbId`: asociación de bases de datos
+- `GET /v1/apps/runtimes`: versiones de runtime disponibles
+- `POST /v1/orders`: crear pedido
+- `GET /v1/orders`: listar pedidos
+- `POST /v1/orders/:id/initiate/pix`: pago por PIX
+- `POST /v1/redeem/:code`: canjear código
+
+#### Formato de respuesta
+Formato de respuesta de la API estandarizado en todos los endpoints:
+- Éxito: `{ "status": "success", "response": { ... } }`
+- Error: `{ "code": "ERROR_CODE", "message": "..." }`
+
+#### Seguridad de tipos
+- Publicado el paquete `@vertracloud/api-types` con definiciones completas de TypeScript
+- Todos los tipos de respuesta de los endpoints REST documentados con enlaces `@see` a la documentación
+- Cobertura completa de tipos: aplicaciones, bases de datos, workspaces, pedidos, snapshots y notificaciones
+
+---
+
+### Mejoras
+
+#### Detección de bucles de reinicio
+Reinicio automático inteligente con prevención de abusos.
+
+- 5 caídas en 10 minutos desactivan el reinicio automático durante 24 horas
+- Filtrado por código de salida (la salida normal con código 0 no cuenta)
+- Pausa de 1 hora entre reinicios
+- Mínimo de 60 segundos de funcionamiento para considerarlo estable
+
+#### Logs en tiempo real
+Transmisión de logs mejorada, con más fiabilidad y entrega en tiempo real.
+
+#### Gestión del subdominio personalizado
+- Elegir el subdominio personalizado al crear el proyecto
+- Cambiar el subdominio mediante la API (`PATCH /v1/apps/:id/network/subdomain`)
+- Validación de disponibilidad
+
+#### Gestor de archivos
+- Subida mediante arrastrar y soltar con soporte de ZIP
+- Validación de directorios y archivos prohibidos
+- Ordenación inteligente del árbol de archivos
+- Mensajes de error localizados
+
+---
+
+### Correcciones de errores
+
+- Corregidas las incoherencias en la monitorización del estado de las bases de datos
+- Corregida la entrega de notificaciones durante la migración de datos
+- Corregido el desbordamiento horizontal en la cabecera adaptable del panel
+- Corregidos varios errores en el flujo del asistente de creación de proyectos
+- Corregida la detección de bucles de reinicio en contenedores con errores de sintaxis
+- Corregida la verificación de los registros DNS de dominios personalizados
+
+---
+
+### Cambios incompatibles
+
+<Warning>
+  Revisa estos cambios antes de actualizar. Pueden afectar a integraciones existentes.
+</Warning>
+
+- **Sistema de snapshots**: sustituye al antiguo sistema de copias de seguridad y commits. Los endpoints antiguos de copias de seguridad están obsoletos.
+- **Autenticación**: nueva autenticación basada en sesiones. Las claves de API existentes siguen funcionando.
+- **Endpoints de workspaces**: `/v1/organizations/*` renombrado a `/v1/workspaces/*`
+- **Comportamiento del reinicio automático**: ahora incluye la detección de bucles de reinicio con desactivación automática
+- **Limpieza del plan Free**: los proyectos inactivos se eliminan tras 30 días (con avisos por correo)
+
+---
+
+### v26.1 — 25 y 26 de marzo de 2026
+
+#### Correcciones de errores
+
+- **Eliminación de archivos en despliegues de GitHub**: corregido que los despliegues eliminaran de forma agresiva `.env` y los archivos de configuración no rastreados
+- **Conservación de archivos en el despliegue de aplicaciones**: las actualizaciones de aplicaciones ahora conservan los archivos locales existentes, en lugar de borrar el contenido no rastreado
+- **Recogida de métricas**: corregido que no se recogieran métricas de algunas aplicaciones en ejecución
+- **Visualización de métricas**: corregidos los campos de red que faltaban, los fallos con valores nulos y las etiquetas de tiempo duplicadas en los gráficos
+- **Validación de UUID**: los parámetros de ruta de la API para los IDs de aplicaciones y bases de datos ahora validan el formato UUID y devuelven 400 si el valor no es válido
+- **Eliminación de variables de entorno**: corregida la llamada al endpoint de eliminación desde el panel (faltaba el ID de la variable en la ruta)
+- **Edición de la clave de variables de entorno**: corregido que el campo de clave no se actualizara al editar una variable de entorno existente
+- **Color del texto de la superposición de subida**: corregido el texto de descripción de bajo contraste en el diálogo de progreso de subida de commits
+
+#### Mejoras
+
+- **Persistencia de vertracloud.config**: el archivo de configuración ahora se escribe en el directorio de la aplicación al crearla, de modo que las subidas futuras heredan la configuración

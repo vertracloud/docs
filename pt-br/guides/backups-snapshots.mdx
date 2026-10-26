@@ -1,0 +1,54 @@
+---
+title: 'Faça backup e restaure com snapshots'
+sidebarTitle: 'Backups e snapshots'
+description: 'Tire um snapshot antes de mudanças arriscadas, restaure uma aplicação ou um banco para um estado anterior e mantenha uma cópia fora da plataforma.'
+icon: 'clock-rotate-left'
+---
+
+Um snapshot é uma cópia de uma aplicação ou de um banco em um determinado momento. Você pode restaurá-lo depois ou
+baixá-lo como `.zip`. Snapshots manuais estão disponíveis a partir do plano **Scale**.
+
+## Quando criar um
+
+- Antes de um deploy que altera formatos de dados ou executa migrações.
+- Antes de um **Reset** de banco, de uma importação grande ou de uma exclusão em massa.
+- Em uma programação regular, se os dados forem importantes para você.
+
+## Crie um snapshot
+
+<Steps>
+  <Step title="Abra o recurso">
+    Abra a aplicação ou o banco e vá até **Snapshots**.
+  </Step>
+  <Step title="Crie o snapshot">
+    Clique em **Criar snapshot**. Você pode criar um a cada 5 minutos por recurso, e 10 por hora em toda a conta; acima
+    disso, a requisição é recusada com `SNAPSHOT_RATE_LIMITED`.
+  </Step>
+</Steps>
+
+## Restaure
+
+Escolha um snapshot na lista e clique em **Restaurar**. O recurso volta ao conteúdo que tinha naquele momento, então
+tudo o que foi escrito depois se perde: crie um snapshot novo antes, caso precise do estado atual. As restaurações têm
+um intervalo de 30 segundos entre si. Um arquivo de snapshot danificado é recusado antes de qualquer alteração
+(`INVALID_ZIP_STRUCTURE`): os arquivos da aplicação e o banco em execução continuam como estavam.
+
+## Mantenha uma cópia fora da plataforma
+
+**Baixe** qualquer snapshot como `.zip` e guarde-o em outro lugar. O download de uma aplicação inclui um
+`vertracloud.config` com as configurações atuais, então ele pode ser enviado novamente como um novo projeto exatamente
+como estava.
+
+## Snapshot automático de segurança antes de excluir
+
+Excluir ou resetar um banco sempre cria um snapshot antes. Excluir uma aplicação também cria um, no **Pro e superiores**.
+Se esse snapshot falhar, a exclusão ou o reset é bloqueado (`SNAPSHOT_FAILED`) e nada se perde. O snapshot é mantido
+por 30 dias e pode ser baixado em **Snapshots**.
+
+No Economy, uma aplicação excluída desaparece sem nenhuma cópia: baixe o projeto antes (o diálogo de exclusão oferece essa opção).
+
+## Automatize
+
+Os snapshots também estão disponíveis pela [API](/api-reference/introduction), pelos [SDKs](/pt-br/sdks) e pela
+[CLI](/pt-br/cli), então uma tarefa agendada (por exemplo, um workflow do [GitHub Actions](/pt-br/github-actions) com
+um gatilho `schedule`) pode criá-los em uma rotina.

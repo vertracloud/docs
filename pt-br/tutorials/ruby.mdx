@@ -1,0 +1,180 @@
+---
+title: 'Como hospedar uma aplicação Ruby na Vertra Cloud'
+sidebarTitle: 'Ruby'
+description: 'Faça deploy de uma aplicação Ruby na Vertra Cloud: Gemfile e Gemfile.lock, bundler na plataforma, ponto de entrada e escuta em 0.0.0.0.'
+icon: 'gem'
+---
+
+## Requisitos
+
+- Ruby 3.3+ instalado localmente
+- Bundler para gerenciamento de dependências
+- Conta na [Vertra Cloud](https://vertracloud.app)
+
+## Estrutura do projeto
+
+```
+my-app-ruby/
+├── app.rb
+├── Gemfile
+├── Gemfile.lock
+└── vertracloud.config
+```
+
+## Configuração
+
+### Gemfile
+
+```ruby
+source 'https://rubygems.org'
+
+ruby '3.3.0'
+
+gem 'sinatra', '~> 3.0'
+gem 'rack', '~> 2.2'
+gem 'pry', '~> 0.14'
+gem 'pg', '~> 1.5'  # Para PostgreSQL
+gem 'json', '~> 2.6'
+
+group :development do
+  gem 'rerun', '~> 1.14'
+end
+```
+
+<Note>
+  A plataforma executa `bundle install` automaticamente. Não inclua a pasta `vendor` no envio.
+</Note>
+
+### vertracloud.config
+
+```ini
+MAIN=app.rb
+START=bundle exec ruby app.rb -p $PORT -o 0.0.0.0
+VERSION=recommended
+```
+
+## Exemplo: aplicação Sinatra
+
+### app.rb
+
+```ruby
+require 'sinatra'
+require 'json'
+require 'pg'
+
+set :bind, '0.0.0.0'
+set :port, ENV['PORT'] || 80
+
+# Configuração do banco de dados
+def get_db_connection
+  begin
+    PG.connect(
+      host: ENV['DB_HOST'] || 'localhost',
+      dbname: ENV['DB_NAME'] || 'vertracloud',
+      user: ENV['DB_USER'] || 'vertracloud',
+      password: ENV['DB_PASSWORD'] || '',
+      port: ENV['DB_PORT'] || 5432
+    )
+  rescue PG::Error => e
+    puts "Database connection error: #{e.message}"
+    nil
+  end
+end
+
+before do
+  content_type :json
+end
+
+# Rota raiz
+get '/' do
+  {
+    message: 'Ruby Sinatra API on Vertra Cloud',
+    version: '1.0.0'
+  }.to_json
+end
+
+# Verificação de saúde
+get '/health' do
+  {
+    status: 'healthy',
+    service: 'ruby-api',
+    uptime: Time.now.to_i
+  }.to_json
+end
+
+# Lista itens
+get '/api/items' do
+  conn = get_db_connection
+  return { error: 'Database connection failed' }.to_json if conn.nil?
+
+  begin
+    result = conn.exec('SELECT id, name, description FROM items LIMIT 20')
+    items = result.map do |row|
+      {
+        id: row['id'].to_i,
+        name: row['name'],
+        description: row['description']
+      }
+    end
+    items.to_json
+  rescue PG::Error => e
+    { error: e.message }.to_json
+  ensure
+    conn.close if conn
+  end
+end
+
+# Tratamento de erros
+error do
+  status 500
+  { error: 'Internal server error' }.to_json
+end
+
+not_found do
+  status 404
+  { error: 'Not found' }.to_json
+end
+
+puts "Server starting on #{settings.bind}:#{settings.port}"
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Painel">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie para o GitHub.
+    2. No painel, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**Ruby**), o arquivo principal (`app.rb`) e a memória. Os comandos de start e de build ficam em **Configurações Avançadas**.
+    4. Adicione suas variáveis de ambiente em **Ambiente**.
+    5. Em **Rede**, ative a **publicação web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Fazer deploy do projeto atual**. Veja [Extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 3.4.11 | Mais recente | Ruby 3.4 (versão mais recente) |
+| 3.3.12 | Recomendada | Ruby 3.3 (recomendada para produção) |
+
+## Observações
+
+- **Dependências**: use o Bundler para gerenciar as gems
+- **Variáveis de ambiente**: acesse via `ENV['KEY']`
+- **Banco de dados**: configure as credenciais como variáveis de ambiente
+- **Logs**: use `puts` ou `STDOUT.puts` para logs que aparecem no painel
+- **GIL**: o Ruby usa o Global Interpreter Lock; considere múltiplos processos para trabalhos intensivos de I/O
+- Escute em `0.0.0.0` na porta `$PORT`

@@ -1,0 +1,60 @@
+---
+title: 'Compartilhe arquivos do Blob Storage com expiração, senha e limite de downloads'
+sidebarTitle: 'Compartilhamento'
+description: 'Crie uma página de compartilhamento para um arquivo privado, com expiração de até 30 dias, limite de downloads e senha, e revogue quando quiser.'
+icon: 'share-nodes'
+---
+
+Um compartilhamento dá a alguém acesso a um arquivo privado por meio de uma página em `https://vertracloud.app/share/<token>`, sem credenciais e sem tornar o arquivo público. Diferente de um [link temporário](/pt-br/blob/links-and-visibility#link-temporário), um compartilhamento pode ser revogado e limitado.
+
+A página mostra o nome e o tamanho do arquivo, pede a senha quando há uma, e oferece um botão de download. Cada download cria um link de vida curta e é contado de forma atômica.
+
+| Opção | Intervalo | Padrão |
+|---|---|---|
+| `expires_in` | 60 segundos a 30 dias | 24 horas |
+| `max_downloads` | 1 a 10000 | ilimitado |
+| `password` | 8 a 128 caracteres, em planos com o recurso ([limites](/pt-br/blob/limits-and-quotas)) | nenhuma |
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://blob.vertracloud.app/v1/shares" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "object_id": "'"$OBJECT_ID"'", "expires_in": 86400, "max_downloads": 10 }'
+```
+
+```javascript JavaScript
+const share = await blob.shares.create(id, { expiresIn: 3600, maxDownloads: 10, password: "correct horse" });
+console.log(share.url);
+await blob.shares.list({ objectId: id });
+await blob.shares.revoke(share.id);
+```
+
+```python Python
+share = client.blob.shares.create(id, expires_in=3600, max_downloads=10, password="correct horse")
+print(share["url"])
+client.blob.shares.list(id)
+client.blob.shares.revoke(share["id"])
+```
+
+```go Go
+share, err := client.Blob.Shares.Create(ctx, vertracloud.BlobShareInput{
+    ObjectID:     id,
+    ExpiresIn:    3600,
+    MaxDownloads: 10,
+    Password:     "correct horse",
+})
+fmt.Println(share.URL)
+_, err = client.Blob.Shares.List(ctx, id)
+err = client.Blob.Shares.Revoke(ctx, share.ID)
+```
+
+</CodeGroup>
+
+A resposta inclui `remaining_downloads` e `has_password`. Revogar um compartilhamento ([Revogar compartilhamento](/api-reference/endpoint/blob/shares/revoke)) para a página imediatamente.
+
+<Warning>Um arquivo **público** é acessível pela sua URL, não importa o que aconteça. A resposta o sinaliza com `object_is_public: true`; torne o arquivo privado se o compartilhamento precisar ser a única forma de acesso.</Warning>
+
+Uma senha errada responde `BLOB_SHARE_PASSWORD_INVALID` (com limite de tentativas por IP), um limite esgotado responde `BLOB_SHARE_EXHAUSTED`, e um compartilhamento expirado ou revogado responde `BLOB_SHARE_NOT_FOUND`.
+
+Veja [Criar compartilhamento](/api-reference/endpoint/blob/shares/create) e [Listar compartilhamentos](/api-reference/endpoint/blob/shares/list).

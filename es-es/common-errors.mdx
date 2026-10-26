@@ -1,0 +1,444 @@
+---
+title: 'Errores comunes de despliegue en Vertra Cloud y cómo solucionarlos'
+sidebarTitle: 'Errores comunes'
+description: 'Síntoma, causa y solución de los errores de despliegue más frecuentes en Vertra Cloud: OOMKilled, crash loop, módulo ausente, timeout y token no válido.'
+icon: triangle-exclamation
+---
+
+Esta guía enumera los errores más frecuentes al desplegar en Vertra Cloud, en formato síntoma → causa →
+solución. Si tu aplicación no arranca, el motivo casi siempre es uno de estos: memoria insuficiente
+(OOMKilled), una dependencia que falta en el manifiesto, un script de inicio ausente o el servidor
+escuchando en `localhost` en lugar de `0.0.0.0`.
+
+## Errores de la plataforma
+
+Los errores de esta sección proceden de la plataforma, no de tu código: memoria, ciclo de vida del
+contenedor, subida de archivos y límites del plan.
+
+### La aplicación no arranca / se cae
+
+<AccordionGroup>
+  <Accordion title="OOMKilled — Aplicación terminada por falta de memoria" icon="memory">
+    **Síntoma:** La aplicación se detiene sin ningún mensaje de error, o aparece `Killed` en los logs.
+
+    **Causa:** La aplicación usa más RAM de la que tiene asignada.
+
+    **Solución:**
+    - Aumenta la memoria asignada (prueba con un 50 % más)
+    - Java/JVM necesita 512 MB o más, y las aplicaciones con Puppeteer también necesitan 512 MB o más
+    - Optimiza el código para reducir el uso de memoria
+  </Accordion>
+
+  <Accordion title="Crash loop — reinicio automático desactivado" icon="rotate">
+    **Síntoma:** La aplicación se cayó 5 veces en 10 minutos y el reinicio automático se desactivó durante 24 horas.
+
+    **Causa:** Un error persistente en el código (token no válido, dependencia ausente, error de sintaxis).
+
+    **Solución:**
+    - Revisa los logs para identificar el error de origen
+    - Corrige el problema y vuelve a desplegar
+    - Los errores de sintaxis y las salidas con código 0 NO activan el reinicio automático: la aplicación simplemente se detiene
+  </Accordion>
+
+  <Accordion title="La aplicación se detiene de inmediato (código de salida 0)" icon="circle-stop">
+    **Síntoma:** La aplicación arranca y se detiene justo después, sin ningún error.
+
+    **Causa:** No hay nada que mantenga vivo el proceso (ningún servidor HTTP, ningún bot con sesión iniciada, ningún event loop).
+
+    **Solución:**
+    - En bots: asegúrate de que el cliente inicie sesión (`client.login(token)`)
+    - En servidores: asegúrate de que se llame a `app.listen()`
+    - Comprueba que `process.exit()` no se esté llamando por error
+  </Accordion>
+</AccordionGroup>
+
+### Errores de despliegue
+
+<AccordionGroup>
+  <Accordion title="ZIP demasiado grande (máximo 100 MB)" icon="file-zipper">
+    **Causa:** Se incluyen en el ZIP directorios de dependencias (`node_modules`, `venv`, `.git`, etc).
+
+    **Solución:** Excluye estos elementos antes de comprimir:
+    - **JS/TS:** `node_modules`, `.npm`, `.next`, `dist`
+    - **Python:** `venv`, `.venv`, `__pycache__`, `.cache`
+    - **Go:** `vendor` | **Rust:** `target` | **.NET:** `bin`, `obj` | **Elixir:** `_build`, `deps` | **Java:** `target`, `.gradle`, `build`
+  </Accordion>
+
+  <Accordion title="La instalación de dependencias supera el límite de tiempo (15 minutos)" icon="clock">
+    **Causa:** Instalar las dependencias tarda demasiado (demasiados paquetes, compilación nativa). Error: `INSTALL_TIMEOUT`.
+
+    **Solución:**
+    - Elimina las dependencias innecesarias
+    - En aplicaciones Node.js grandes, considera ejecutar `npm install` en local e incluir solo lo necesario
+  </Accordion>
+
+  <Accordion title="El comando de build falla o supera el límite de tiempo (10 minutos)" icon="hammer">
+    **Causa:** El `build_command` (el campo `BUILD` de `vertracloud.config`) terminó con un error
+    (`BUILD_FAILED`) o no acabó a tiempo (`BUILD_TIMEOUT`). Se ejecuta después de instalar las dependencias
+    y antes de que la aplicación arranque, en un entorno con 2× la RAM de la aplicación. Una aplicación nueva
+    se sigue creando, detenida, con la salida del build en sus logs.
+
+    **Solución:**
+    - Ejecuta el comando en local para ver el error real
+    - Simplifica el build o aumenta la memoria de la aplicación (el entorno de build escala con ella)
+  </Accordion>
+
+  <Accordion title="Límite de despliegues por hora alcanzado" icon="hourglass">
+    **Causa:** Crear una aplicación, subir un ZIP, desplegar desde GitHub, reinstalar dependencias o cambiar el
+    comando de build cuentan para un límite por hora por cuenta (de 10 en Economy hasta 60 en Intermediary y en
+    cualquier nivel Enterprise). Error: `DEPLOY_RATE_LIMITED`.
+
+    **Solución:**
+    - Espera el tiempo indicado en `details.retry_after`
+    - Reiniciar y detener la aplicación no cuentan para este límite
+  </Accordion>
+
+  <Accordion title="Estructura de ZIP no válida" icon="folder-tree">
+    **Causa:** El ZIP tiene una carpeta extra que envuelve los archivos (por ejemplo, `my-project/src/index.js` en lugar de `src/index.js`).
+
+    **Solución:** Los archivos deben estar en la raíz del ZIP, no dentro de una subcarpeta extra.
+  </Accordion>
+</AccordionGroup>
+
+### Errores de red
+
+<AccordionGroup>
+  <Accordion title="El sitio devuelve timeout / Connection refused" icon="globe">
+    **Causa:** La aplicación escucha en `localhost` o `127.0.0.1` en lugar de `0.0.0.0`.
+
+    **Solución:**
+    ```js
+    app.listen(80, '0.0.0.0')
+
+    app.listen(80, 'localhost')
+    app.listen(80, '127.0.0.1')
+    ```
+    Usa siempre `0.0.0.0` como host y el puerto configurado en `PORT`.
+  </Accordion>
+
+  <Accordion title="El dominio personalizado no funciona" icon="link-slash">
+    **Causa:** El DNS todavía no se ha propagado, el CNAME es incorrecto o el plan no lo admite.
+
+    **Solución:**
+    - Confirma que tu plan es Intermediary o superior (dominios personalizados)
+    - Comprueba que el registro CNAME apunta a la dirección que aparece en **Registros DNS** del dominio
+    - En un dominio raíz (`example.com`), tu proveedor de DNS debe admitir CNAME flattening
+    - Un dominio que permanezca sin DNS durante 14 días se elimina automáticamente; después, borra sus registros `CNAME` y `TXT` en tu proveedor de DNS
+    - La propagación del DNS puede tardar hasta 48 horas
+    - El SSL se provisiona automáticamente después de la validación
+  </Accordion>
+</AccordionGroup>
+
+### Errores de base de datos
+
+<AccordionGroup>
+  <Accordion title="Connection refused / SSL required" icon="database">
+    **Causa:** Conexión sin TLS, sin el certificado de cliente o usando el puerto por defecto del motor.
+
+    **Solución:**
+    - Descarga los tres archivos de certificado en la pestaña **Certificados** de la base de datos
+    - Pasa el certificado de cliente (`.crt` + `.key`) y usa el `.pem` como CA: todos los motores lo exigen
+    - Usa el puerto propio de la base de datos que aparece en su página; no es 5432, 27017, 6379 ni 3306
+    - En MongoDB, añade `authSource=admin` a la URI
+    - Consulta [¿Cómo me conecto a cada motor?](/es-es/databases#cómo-me-conecto-a-cada-motor)
+  </Accordion>
+
+  <Accordion title="Demasiadas conexiones abiertas" icon="diagram-project">
+    **Causa:** Cada conexión consume memoria. Sin pool de conexiones, las conexiones se acumulan.
+
+    **Solución:**
+    - Usa connection pooling en tu cliente de base de datos
+    - Reduce el número de conexiones simultáneas
+    - Aumenta la memoria de la base de datos si hace falta
+  </Accordion>
+</AccordionGroup>
+
+### Protecciones de la plataforma
+
+<AccordionGroup>
+  <Accordion title="Aplicación pausada por Vertra Shield" icon="shield">
+    **Síntoma:** Los botones de iniciar y reiniciar aparecen desactivados, con un aviso "Pausada por Vertra Shield" y una cuenta atrás en el panel.
+
+    **Causa:** Vertra Shield detuvo temporalmente la aplicación tras detectar tráfico por encima de los límites. El panel muestra el motivo y el tiempo de pausa restante, que puede llegar a 1 hora. Shield solo detiene la aplicación: nunca la elimina, ni elimina sus archivos o sus datos.
+
+    **Solución:**
+    - **Espera el tiempo que muestra el panel** antes de iniciar o reiniciar la aplicación.
+    - **Revisa el código:** busca bucles infinitos, llamadas recursivas sin límite o peticiones masivas sin control.
+    - **Añade rate limiting:** implementa límites de peticiones por IP o por sesión en tu código.
+    - **Corrige la causa antes de que termine la pausa:** iniciar, reiniciar, desplegar, cambiar la configuración y eliminar la aplicación siguen bloqueados hasta entonces, y las repeticiones alargan la siguiente pausa.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Node.js / JavaScript
+
+<AccordionGroup>
+  <Accordion title="Cannot find module 'xxx' / MODULE_NOT_FOUND" icon="js">
+    **Causa:** El módulo no está en `dependencies` del `package.json`, o solo está en `devDependencies`.
+
+    **Solución:** Sin un comando de build, la plataforma solo instala `dependencies`; con uno, instala también `devDependencies`. Si el paquete se necesita en tiempo de ejecución, muévelo a `dependencies`:
+    ```bash
+    npm install discord.js --save
+    ```
+  </Accordion>
+
+  <Accordion title="npm ERR! missing script: start" icon="terminal">
+    **Causa:** El `package.json` no tiene definido ningún script `start`.
+
+    **Solución:** Añade al `package.json`:
+    ```json
+    {
+      "scripts": {
+        "start": "node index.js"
+      }
+    }
+    ```
+    O define el campo `START` en `vertracloud.config`.
+  </Accordion>
+
+  <Accordion title="SyntaxError: Cannot use import statement outside a module" icon="code">
+    **Causa:** Se usa `import` (ES Module) en un proyecto CommonJS.
+
+    **Solución:** Añade al `package.json`:
+    ```json
+    {
+      "type": "module"
+    }
+    ```
+    O convierte el código a `require()`.
+  </Accordion>
+
+  <Accordion title="ERR_REQUIRE_ESM — require() of ES Module not supported" icon="code">
+    **Causa:** Se intenta usar `require()` con un paquete que solo admite ESM (por ejemplo, `node-fetch` v3+, `chalk` v5+).
+
+    **Solución:** Cambia a ESM (`"type": "module"`) o usa una versión anterior del paquete (por ejemplo, `node-fetch@2`).
+  </Accordion>
+
+  <Accordion title="ERESOLVE — unable to resolve dependency tree" icon="cubes">
+    **Causa:** Conflicto de versiones entre dependencias (peer dependencies).
+
+    **Solución:** Crea un archivo `.npmrc` en la raíz del proyecto con:
+    ```
+    legacy-peer-deps=true
+    ```
+  </Accordion>
+
+  <Accordion title="Error: listen EADDRINUSE" icon="plug">
+    **Causa:** El puerto ya está en uso, o la aplicación intenta escuchar dos veces.
+
+    **Solución:** Asegúrate de que solo haya un `app.listen()` en el código. Usa la variable `PORT` del entorno.
+  </Accordion>
+
+  <Accordion title="Could not locate the bindings file (better-sqlite3)" icon="database">
+    **Causa:** Los módulos nativos compilados en macOS/Windows no funcionan en el contenedor Linux.
+
+    **Solución:** No incluyas `node_modules/` en la subida. La plataforma compila automáticamente los módulos nativos para Linux.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## TypeScript
+
+<AccordionGroup>
+  <Accordion title="tsx / ts-node: command not found" icon="code">
+    **Causa:** El runtime de TypeScript no está en las dependencias.
+
+    **Solución:** Añade `tsx` o `ts-node` a `dependencies`:
+    ```bash
+    npm install tsx --save
+    ```
+  </Accordion>
+
+  <Accordion title="TSError: Unable to compile TypeScript" icon="triangle-exclamation">
+    **Causa:** Errores de compilación de TypeScript que no aparecieron en local, o un `tsconfig.json` ausente.
+
+    **Solución:** Incluye `tsconfig.json` en la subida. Corrige todos los errores de TS en local antes de desplegar. Considera precompilar y subir `dist/`.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Python
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError: No module named 'xxx'" icon="python">
+    **Causa:** El módulo no está en `requirements.txt`.
+
+    **Solución:** Genera el archivo con:
+    ```bash
+    pip freeze > requirements.txt
+    ```
+    Asegúrate de que esté en la raíz del proyecto.
+  </Accordion>
+
+  <Accordion title="requirements.txt no encontrado" icon="file">
+    **Causa:** El archivo falta, tiene un nombre incorrecto o tiene una doble extensión (`.txt.txt`, habitual en Windows).
+
+    **Solución:** Revisa el nombre exacto del archivo. En Windows, activa "mostrar extensiones de archivo" para comprobarlo.
+  </Accordion>
+
+  <Accordion title="SyntaxError: invalid syntax" icon="code">
+    **Causa:** El código usa funciones de una versión de Python más nueva que la seleccionada (por ejemplo, `match/case` de 3.10 en el runtime 3.9).
+
+    **Solución:** Selecciona la versión correcta de Python en la configuración. Usa `VERSION=recommended` para la última versión estable.
+  </Accordion>
+
+  <Accordion title="UnicodeDecodeError / Errores de codificación" icon="language">
+    **Causa:** Archivos con caracteres que no son UTF-8, o el locale del contenedor no está configurado.
+
+    **Solución:** Guarda todos los archivos en UTF-8. Usa `encoding='utf-8'` al abrir archivos:
+    ```python
+    with open('file.txt', 'r', encoding='utf-8') as f:
+        ...
+    ```
+  </Accordion>
+
+  <Accordion title="Flask/Django no accesible desde el exterior" icon="globe">
+    **Causa:** Se usa el servidor de desarrollo, que escucha en `127.0.0.1`.
+
+    **Solución:** Usa Gunicorn en producción:
+    ```
+    START=gunicorn app:app --bind 0.0.0.0:80
+    ```
+    Nunca uses el servidor de desarrollo de Flask/Django en producción.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Go
+
+<AccordionGroup>
+  <Accordion title="go.mod not found / cannot find main module" icon="golang">
+    **Causa:** `go.mod` no está en la raíz del proyecto.
+
+    **Solución:**
+    ```bash
+    go mod init module-name
+    go mod tidy
+    ```
+    Incluye `go.mod` y `go.sum` en la subida.
+  </Accordion>
+
+  <Accordion title="El build falla / Binario incompatible" icon="hammer">
+    **Causa:** El binario se compiló para macOS/Windows, no para Linux.
+
+    **Solución:** Si subes código fuente, incluye `go.mod` y `go.sum`. Si subes un binario, compílalo para Linux:
+    ```bash
+    GOOS=linux GOARCH=amd64 go build -o app main.go
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Java
+
+<AccordionGroup>
+  <Accordion title="no main manifest attribute, in app.jar" icon="java">
+    **Causa:** El JAR no tiene `Main-Class` en MANIFEST.MF.
+
+    **Solución:** Configura la herramienta de build para generar un fat JAR. En Maven, usa `maven-shade-plugin` o `spring-boot-maven-plugin`.
+  </Accordion>
+
+  <Accordion title="OutOfMemoryError: Java heap space" icon="memory">
+    **Causa:** El heap de la JVM supera la memoria asignada al contenedor.
+
+    **Solución:** Las aplicaciones Java necesitan 512 MB o más. Limita el heap:
+    ```
+    START=java -Xmx256m -Xms128m -jar app.jar
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## PHP
+
+<AccordionGroup>
+  <Accordion title="Dependencias no instaladas / composer.json no encontrado" icon="php">
+    **Causa:** `composer.json` falta en la raíz, o se subió `vendor/` (que puede ser incompatible).
+
+    **Solución:** Incluye `composer.json` y `composer.lock` en la raíz. No subas el directorio `vendor/`.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Bots de Discord
+
+<AccordionGroup>
+  <Accordion title="An invalid token was provided / Improper token" icon="robot">
+    **Causa:** El token del bot no es válido, ha caducado o se ha regenerado.
+
+    **Solución:**
+    - Genera un token nuevo en el [Discord Developer Portal](https://discord.com/developers/applications)
+    - Guárdalo como variable de entorno (no lo escribas fijo en el código)
+    - Reinicia la aplicación después de actualizarlo
+  </Accordion>
+
+  <Accordion title="Used disallowed intents / DisallowedIntents" icon="shield">
+    **Causa:** El bot usa intents privilegiados que no están activados en el Developer Portal.
+
+    **Solución:** Discord Developer Portal → Bot → Privileged Gateway Intents → activa:
+    - **Message Content Intent** (para leer el contenido de los mensajes)
+    - **Server Members Intent** (para eventos de miembros)
+    - **Presence Intent** (para el estado de presencia)
+  </Accordion>
+
+  <Accordion title="Valid intents must be provided / ClientMissingIntents" icon="list-check">
+    **Causa:** No se especificó ningún intent al crear el cliente.
+
+    **Solución:**
+    ```js
+    const client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+      ]
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="El bot se desconecta de forma aleatoria" icon="wifi">
+    **Causa:** Memoria insuficiente que provoca un cierre, o una versión desactualizada de discord.js/discord.py.
+
+    **Solución:**
+    - Aumenta la memoria asignada
+    - Actualiza discord.js/discord.py a la última versión
+    - Busca fugas de memoria
+  </Accordion>
+
+  <Accordion title="on_message no funciona (discord.py)" icon="message">
+    **Causa:** Falta el intent `message_content` (obligatorio desde discord.py 2.0+).
+
+    **Solución:**
+    ```python
+    intents = discord.Intents.default()
+    intents.message_content = True
+    client = discord.Client(intents=intents)
+    ```
+    Actívalo también en el Developer Portal.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Variables de entorno
+
+<AccordionGroup>
+  <Accordion title="Valores undefined / null en la configuración" icon="key">
+    **Causa:** Las variables de entorno no se configuraron en la plataforma.
+
+    **Solución:** Configura todas las variables desde el panel o la API. Nunca escribas valores sensibles en el código. Usa un `.env.example` para documentar qué variables son obligatorias.
+  </Accordion>
+
+  <Accordion title="El archivo .env no funciona en la plataforma" icon="file">
+    **Causa:** La plataforma no lee los archivos `.env` automáticamente.
+
+    **Solución:** Configura las variables desde el panel de Vertra Cloud (pestaña **Variables de Entorno**) o mediante la API. No dependas de que `dotenv` cargue un archivo `.env` en producción.
+  </Accordion>
+</AccordionGroup>

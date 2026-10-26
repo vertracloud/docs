@@ -1,0 +1,63 @@
+### Deno, .NET y Elixir
+
+Hay tres nuevos lenguajes disponibles al crear una aplicación.
+
+- **Deno** (`deno`): 2.9.8, recomendada y más reciente, además de 2.8.3. Se detecta a partir de `deno.json`, `deno.jsonc` o `deno.lock`. `MAIN` es el archivo de entrada, como `main.ts`.
+- **.NET** (`dotnet`, se muestra como .NET (C#)): 10.0.402. Se detecta a partir de `.csproj`, `.fsproj`, `.sln` o `global.json`. `MAIN` es el `.csproj`, y la aplicación escucha en el puerto indicado en `ASPNETCORE_HTTP_PORTS`, que ya está definido como 80.
+- **Elixir** (`elixir`): 1.20.4 sobre OTP 28. Se detecta a partir de `mix.exs`. Phoenix es compatible con `SECRET_KEY_BASE` y `PHX_HOST` definidos como variables de entorno. Ejecuta `mix assets.deploy` antes de crear el zip, o usa un proyecto sin assets.
+
+Guías paso a paso: [Deno](/es-es/tutorials/deno), [.NET](/es-es/tutorials/dotnet) y [Elixir](/es-es/tutorials/elixir).
+
+### Runtimes actualizados y fin de soporte
+
+Todos los runtimes pasaron a su última versión de parche:
+
+| Lenguaje | Recomendada | Más reciente |
+|---|---|---|
+| JavaScript y TypeScript | Node.js 22.23.4 | 24.22.1 |
+| Bun | 1.3.14 | 1.4.4 |
+| Python | 3.13.17 | 3.13.17 (también disponibles 3.12.15 y 3.11.17) |
+| Go | 1.26.10 | 1.27.3 |
+| PHP | 8.3.36 | 8.4.27 (8.2.35 se mantiene hasta el fin de su soporte, el 31 de diciembre de 2026) |
+| Ruby | 3.3.12 | 3.4.11 |
+| Rust | 1.99.1 | 1.99.1 |
+
+Se eliminaron las versiones que llegaron al fin de su soporte: Node.js 18 y 20, Bun 1.2, Go 1.21 a 1.23, Ruby 3.2, y Rust 1.97 y 1.98. Una aplicación guardada con una versión anterior ahora se ejecuta con la versión más reciente de la misma rama (por ejemplo, Python 3.11 se ejecuta con 3.11.17). Si se eliminó toda la rama, se ejecuta con la versión `recommended`. Consulta la lista completa en la [base de conocimiento](/knowledge-base#2-supported-languages) o con [Listar runtimes](/api-reference/endpoint/apps/runtimes).
+
+### Correcciones de seguridad en los runtimes actualizados
+
+Las nuevas versiones incluyen estas correcciones de seguridad de upstream. Las aplicaciones las obtienen en su próximo despliegue o reinicio.
+
+- **Node.js 22.23.4 y 24.22.1**: siete correcciones, entre ellas CVE-2026-111497 en el decodificador Brotli. 24.22.1 corrige también CVE-2026-105483. [Aviso de Node.js](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)
+  <br />`CVE-2026-105481` `CVE-2026-105482` `CVE-2026-106069` `CVE-2026-106072` `CVE-2026-106073` `CVE-2026-106074`
+- **PHP 8.2.35, 8.3.36 y 8.4.27**: CVE-2026-109618 y CVE-2026-109619, ambas en el núcleo de PHP. [GHSA-w8hw-w9fx-j79w](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w) y [GHSA-6wmf-4rv5-p3rp](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp)
+- **Python 3.11.17, 3.12.15 y 3.13.17**: ocho correcciones, entre ellas CVE-2026-82049 en `tarfile`. 3.13.17 incluye también certificados raíz actualizados. Notas de la versión: [3.11.17](https://www.python.org/downloads/release/python-31117/), [3.12.15](https://www.python.org/downloads/release/python-31215/) y [3.13.17](https://www.python.org/downloads/release/python-31317/)
+  <br />`CVE-2026-15310` `CVE-2026-15806` `CVE-2026-17084` `CVE-2026-19445` `CVE-2026-19553` `CVE-2026-19672` `CVE-2026-87910`
+- **Go 1.26.10 y 1.27.3**: CVE-2026-56866 en `net/http`, CVE-2026-111943 en `crypto/x509` y las demás correcciones de las ramas 1.26 y 1.27. [Historial de versiones de Go](https://go.dev/doc/devel/release)
+- **Bun 1.3.14 y 1.4.4**: correcciones de HTTP request smuggling, TLS, WebSocket y del gestor de paquetes. [Bun 1.3.14](https://bun.sh/blog/bun-v1.3.14) y [Bun 1.4.4](https://bun.sh/blog/bun-v1.4.4)
+
+### Detección de lenguaje más fiable
+
+La plataforma lee ahora solo los archivos de manifiesto de la raíz del proyecto y comprueba cada ecosistema antes que `package.json`. Un proyecto de Python, PHP (Laravel) o Ruby (Rails) que además tenga un `package.json` de front-end ya no se toma por JavaScript. `bun.lock` se reconoce como Bun, los proyectos Java también se reconocen por `build.gradle.kts`, `settings.gradle(.kts)`, `mvnw` y `gradlew`, y se acepta `MAIN=./src/index.js`.
+
+Para forzar un lenguaje, define `LANGUAGE=<slug>` en `vertracloud.config` (la clave es `"language"` en `vertracloud.config.json`) o envía `language` en `POST /v1/apps`. La precedencia es el campo de la API, luego el archivo de configuración y, por último, la detección. Consulta [Configuración](/es-es/configuration).
+
+### El asistente de creación muestra lo que se detectó
+
+Antes de crear una aplicación, el asistente de creación del panel muestra ahora el lenguaje detectado, el archivo principal y la versión, para que los compruebes (o los configures tú) antes de que se construya nada.
+
+### La vCPU crece ahora con la RAM de cada proyecto
+
+La vCPU de un proyecto crece ahora con su RAM, hasta la vCPU del plan: en planes de hasta 2 vCPU, +1 vCPU por cada 512 MB, y en planes con más de 2 vCPU, +1 vCPU por cada 1 GB. Los proyectos con 512 MB o más reciben al menos 2 vCPU (nunca más de las que tiene el plan), y los más pequeños reciben al menos 1. Los proyectos pequeños en planes más pequeños ganan vCPU, y en planes con más de 2 vCPU la vCPU de un proyecto sigue ahora a su RAM (por ejemplo, 4 GB = 4 vCPU). El cambio se aplica la próxima vez que el proyecto se reinicie o se despliegue. Consulta [Planes y límites](/es-es/plans-and-limits).
+
+### Cambio incompatible: `missing_dependencies` eliminado
+
+La advertencia sobre dependencias ausentes que se mostraba antes de enviar un proyecto ya no existe, y el campo `missing_dependencies` ya no se devuelve en las respuestas de subida ni de aplicación. Si tu código lee este campo, elimínalo. Cuando una aplicación se cae porque falta una dependencia, sus logs siguen mostrándolo.
+
+### Limpieza automática al cambiar de lenguaje
+
+Cuando cambias el lenguaje de una aplicación, las dependencias del lenguaje anterior se limpian ahora automáticamente en el siguiente reinicio. El campo `cleanup_old_runtime_language` de la ruta de reinicio se eliminó y se ignora si se envía.
+
+### `INVALID_LANGUAGE` responde 400
+
+`INVALID_LANGUAGE` está ahora documentado y se devuelve como HTTP `400` en lugar de `500`, porque informa de un valor que envió la petición. Consulta [Errores](/api-reference/errors).

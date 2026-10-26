@@ -1,0 +1,67 @@
+---
+title: 'Descubra por que sua aplicação trava'
+sidebarTitle: 'Depurar app que trava'
+description: 'Leia os logs e reconheça mortes por falta de memória, loops de reinício e saídas silenciosas. Corrija as causas da maioria dos deploys que falham.'
+icon: 'bug'
+---
+
+Quando uma aplicação vai para **Error** ou fica reiniciando sem parar, a resposta quase sempre está na saída dela.
+Este guia mostra onde procurar e como interpretar o que você encontrar.
+
+## Onde estão os logs
+
+- **Painel**: a aba **Logs** da aplicação mostra a saída em tempo real, incluindo a instalação das dependências e o build.
+- **CLI**: `vertra logs -f` acompanha a saída pelo terminal. Veja [CLI](/pt-br/cli).
+- **API**: [Obter logs](/api-reference/endpoint/apps/logs).
+
+Leia sempre a partir da **primeira** linha de erro, não da última: a última linha costuma ser consequência.
+
+## O que a plataforma faz quando a aplicação trava
+
+O reinício automático fica sempre ligado. Uma saída com código `0` é tratada como parada normal e não é reiniciada;
+qualquer outra saída é reiniciada. Se a aplicação travar **5 vezes em 10 minutos**, o reinício automático é pausado por
+24 horas e a aplicação permanece parada: corrija a causa e inicie-a manualmente.
+
+## Relacione o sintoma
+
+<AccordionGroup>
+  <Accordion title="O processo para na hora, sem erro">
+    Código de saída `0`: o programa simplesmente terminou. Um servidor precisa continuar escutando, e um bot precisa continuar
+    conectado. Confira se o ponto de entrada em **Config → Geral** aponta para o arquivo certo.
+  </Accordion>
+  <Accordion title="Morre sem stack trace, geralmente sob carga">
+    Isso é uma morte por falta de memória (out-of-memory). Acompanhe o gráfico de memória na aba **Visão geral**: se ele
+    sobe até o limite antes de cada queda, aumente a RAM em **Config → Geral** ou reduza o que o processo mantém em memória.
+    Java, navegadores headless e caches grandes precisam de 512 MB ou mais.
+  </Accordion>
+  <Accordion title="Cannot find module / ModuleNotFoundError">
+    A dependência não está declarada. Node.js: ela está em `devDependencies` (instalada somente quando a aplicação tem um
+    comando de build) ou falta no `package.json`.
+    Python: falta no `requirements.txt`. O container instala apenas o que o manifesto lista.
+  </Accordion>
+  <Accordion title="O deploy falha antes de a aplicação iniciar">
+    `INSTALL_TIMEOUT` significa que a instalação das dependências passou de 15 minutos; `BUILD_FAILED` significa que o seu
+    comando de build terminou com erro (a saída do build está nos logs); `BUILD_TIMEOUT` significa que ele passou de
+    10 minutos. Uma aplicação nova continua sendo criada, parada: abra-a, leia os logs, corrija os arquivos e inicie-a de novo.
+  </Accordion>
+  <Accordion title="Online, mas o site não responde">
+    O servidor escuta em `localhost` ou em uma porta fixa. Escute em `0.0.0.0` e leia `PORT`:
+    ```javascript
+    app.listen(process.env.PORT || 80, '0.0.0.0');
+    ```
+  </Accordion>
+  <Accordion title="Uma variável fica undefined">
+    Arquivos `.env` não são lidos em tempo de execução. Defina a variável em **Config → Variáveis de ambiente** e reinicie: uma variável
+    alterada só chega ao processo depois de um reinício.
+  </Accordion>
+  <Accordion title="Funciona localmente, falha aqui">
+    Compare as versões do runtime (defina `VERSION` em [Configuração](/pt-br/configuration)), não envie `node_modules` ou
+    `venv` gerados na sua máquina, e lembre-se de que nomes de arquivo diferenciam maiúsculas de minúsculas no Linux:
+    `./Config.js` e `./config.js` são arquivos diferentes.
+  </Accordion>
+</AccordionGroup>
+
+## Verifique antes de fazer o deploy
+
+`vertra doctor` inspeciona o diretório atual em busca dos problemas mais comuns antes de qualquer envio.
+A lista completa de códigos de erro está em [Erros comuns](/pt-br/common-errors).

@@ -1,0 +1,170 @@
+---
+title: 'Cómo alojar una aplicación Flask en Vertra Cloud'
+sidebarTitle: 'Flask'
+description: 'Despliega una aplicación Flask en Vertra Cloud con Gunicorn enlazado a 0.0.0.0, requirements.txt, la variable PORT y un subdominio con HTTPS.'
+icon: 'python'
+---
+
+## Requisitos
+
+- Python 3.11+ instalado en local
+- Cuenta en [Vertra Cloud](https://vertracloud.app)
+- Archivo `requirements.txt` en la raíz del proyecto
+
+## Estructura del proyecto
+
+```
+my-api-flask/
+├── app.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+## Configuración
+
+### requirements.txt
+
+```txt
+flask==3.0.0
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+requests==2.31.0
+```
+
+<Note>
+  La plataforma ejecuta `pip install -r requirements.txt` automáticamente. No incluyas `venv` ni `__pycache__` en la subida.
+</Note>
+
+### vertracloud.config
+
+```ini
+MAIN=app.py
+START=gunicorn --bind 0.0.0.0:$PORT app:app
+VERSION=recommended
+```
+
+## Ejemplo: API REST con Flask
+
+```python
+from flask import Flask, jsonify, request
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+app = Flask(__name__)
+
+# Conexión a la base de datos
+def get_db_connection():
+    conn = psycopg2.connect(
+        host=os.environ.get('DB_HOST'),
+        database=os.environ.get('DB_NAME'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASSWORD'),
+        port=os.environ.get('DB_PORT'),  # única por base de datos, cópiala desde el panel
+        # Las bases de datos de Vertra exigen TLS y certificado de cliente (consulta /es-es/databases)
+        sslmode='verify-full',
+        sslrootcert=os.environ.get('DB_SSL_PEM', 'certificate.pem'),
+        sslcert=os.environ.get('DB_SSL_CRT', 'certificate.crt'),
+        sslkey=os.environ.get('DB_SSL_KEY', 'certificate.key'),
+    )
+    return conn
+
+@app.route('/')
+def index():
+    return jsonify({
+        'message': 'Flask API on Vertra Cloud',
+        'version': '1.0.0'
+    })
+
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'healthy',
+        'client_ip': request.remote_addr
+    })
+
+@app.route('/api/items', methods=['GET'])
+def get_items():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT * FROM items LIMIT 10;')
+        items = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify(items), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/items', methods=['POST'])
+def create_item():
+    try:
+        data = request.get_json()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            'INSERT INTO items (name, description) VALUES (%s, %s) RETURNING id;',
+            (data['name'], data.get('description', ''))
+        )
+        item_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': item_id, 'name': data['name']}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def server_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Comprime el proyecto en un `.zip` (las carpetas como `node_modules`, `venv` y `target` se eliminan automáticamente) o súbelo a GitHub.
+    2. En el panel, haz clic en **Nuevo Proyecto** y sube el `.zip` o pega la URL del repositorio.
+    3. En **Build**, revisa el runtime (**Python**), el archivo principal (`app.py`) y la memoria. Los comandos de inicio y de build están en **Ajustes avanzados**.
+    4. Añade tus variables de entorno en **Variables de Entorno**.
+    5. En **Red**, activa la **publicación web** para que la aplicación reciba una dirección `*.vertraweb.app` (plan Pro o superior, 512 MB de memoria). La aplicación debe escuchar en el puerto 80.
+    6. Revisa y despliega. Sigue la salida en la pestaña **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Consulta la [CLI](/es-es/cli) para la instalación y el inicio de sesión.
+  </Tab>
+  <Tab title="VS Code">
+    Abre la carpeta con la extensión de Vertra Cloud instalada y ejecuta **Deploy current project**. Consulta la [extensión de VS Code](/es-es/vscode-extension).
+  </Tab>
+</Tabs>
+
+La guía completa está en [Primer despliegue](/es-es/how-to-host).
+
+## Versiones disponibles
+
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 3.13.17 | Recomendada y la más reciente | Python 3.13 (recomendada para producción) |
+| 3.12.15 | Estable | Línea Python 3.12 |
+| 3.11.17 | Legado | Línea Python 3.11 |
+
+## Notas
+
+- **Servidor de producción**: usa `gunicorn` en lugar de `app.run()` en producción
+- **Variables de entorno**: configura las credenciales de la base de datos en el panel
+- **Dependencias de base de datos**: usa `psycopg2-binary` para PostgreSQL
+- **Logs**: disponibles en tiempo real en la terminal del panel
+- **Reinicio automático**: activado por defecto para reiniciar tras una caída
+- Escucha siempre en el puerto de la variable de entorno `PORT` y en el host `0.0.0.0`

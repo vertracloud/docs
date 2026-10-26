@@ -1,0 +1,144 @@
+---
+title: 'Como hospedar uma aplicação Python na Vertra Cloud'
+sidebarTitle: 'Python'
+description: 'Faça deploy de uma aplicação Python na Vertra Cloud: requirements.txt, versão do Python, ponto de entrada e leitura de tracebacks nos logs ao vivo.'
+icon: 'python'
+---
+
+## Requisitos
+
+- Python 3.x instalado localmente
+- Conta na [Vertra Cloud](https://vertracloud.app)
+- Arquivo `requirements.txt` na raiz do projeto
+
+## Estrutura do projeto
+
+```
+my-project/
+├── main.py
+├── requirements.txt
+└── vertracloud.config  (optional)
+```
+
+## Configuração
+
+### requirements.txt
+
+Liste todas as dependências do projeto:
+
+```txt
+flask==3.0.0
+gunicorn==21.2.0
+requests==2.31.0
+```
+
+<Note>
+  A plataforma executa `pip install -r requirements.txt` automaticamente. Não inclua `venv` nem `__pycache__` no upload.
+</Note>
+
+### vertracloud.config (opcional)
+
+```ini
+MAIN=main.py
+VERSION=recommended
+```
+
+## Exemplo: bot do Discord (discord.py)
+
+```python
+import discord
+import os
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+client = discord.Client(intents=intents)
+
+@client.event
+async def on_ready():
+    print(f'{client.user} is online!')
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+    if message.content == '!ping':
+        await message.channel.send('Pong!')
+
+client.run(os.environ['DISCORD_TOKEN'])
+```
+
+## Exemplo: API Flask
+
+```python
+from flask import Flask, jsonify
+import os
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return jsonify({'message': 'Hello from Vertra Cloud!'})
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 80))
+    app.run(host='0.0.0.0', port=port)
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie-o ao GitHub.
+    2. No dashboard, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**Python**), o arquivo principal (`main.py`) e a memória. Os comandos de start e build ficam em **Configurações avançadas**.
+    4. Adicione suas variáveis de ambiente em **Variáveis de Ambiente**.
+    5. Em **Rede**, ative a **publicação na web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja a [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Deploy current project**. Veja a [extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 3.13.17 | Recomendada e mais recente | Padrão para novas aplicações |
+| 3.12.15 | Disponível | |
+| 3.11.17 | Disponível | |
+
+## Observações
+
+- **Dependências** são instaladas automaticamente via `pip install -r requirements.txt`
+- Para **bots do Discord**, defina o token como variável de ambiente `DISCORD_TOKEN` no dashboard
+- Para **APIs web**, escute na porta `PORT` e no host `0.0.0.0`
+- **Poetry** e **pipenv** não são suportados nativamente; use `requirements.txt`
+
+## Problemas comuns
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError">
+    Verifique se o módulo está listado no `requirements.txt` com a versão correta.
+  </Accordion>
+  <Accordion title="SyntaxError: invalid syntax">
+    Confirme que está usando a versão correta do Python. Código do Python 3.10+ pode não funcionar em versões anteriores.
+  </Accordion>
+  <Accordion title="O bot não conecta ao Discord">
+    Verifique se a variável de ambiente `DISCORD_TOKEN` está configurada nas variáveis de ambiente da aplicação.
+  </Accordion>
+</AccordionGroup>

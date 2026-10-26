@@ -1,0 +1,128 @@
+---
+title: 'Cómo funciona el downgrade de plan en Vertra Cloud'
+sidebarTitle: 'Downgrade de plan'
+description: 'En Vertra Cloud, tus días restantes pasan al plan más económico según la proporción de precios, sin perder tiempo pagado. Fórmula y ejemplo.'
+icon: 'arrow-down'
+---
+
+## Cómo funciona el downgrade
+
+Cuando haces downgrade de un plan de Vertra Cloud, tus **días restantes se convierten** en días equivalentes
+del plan más económico, en proporción a la diferencia de precio: no se pierde ningún tiempo pagado.
+
+El valor no usado del plan actual se convierte según la proporción de precios. Como el plan de destino cuesta
+menos, siempre acabas con más días de los que tenías.
+
+<Info>
+  Los downgrades siempre pasan al **plan inmediatamente anterior** en la jerarquía. No se pueden saltar planes.
+</Info>
+
+## Fórmula de conversión
+
+Tu tiempo restante se convierte de forma proporcional:
+
+```
+newDays = remainingDays × (currentPlanPrice / targetPlanPrice)
+```
+
+Como el plan de destino es más barato, siempre obtienes **más días** de los que te quedaban.
+
+### Ejemplo
+
+<Card title="Enterprise-4 → Intermediary" icon="calculator">
+  | | Valor |
+  |---|---|
+  | **Plan actual** | Enterprise-4 (R\$23,99/mes) |
+  | **Plan de destino** | Intermediary (R\$18,99/mes) |
+  | **Días restantes** | 15 días |
+  | **Días convertidos** | 15 × (23,99 ÷ 18,99) ≈ 18,95, redondeado hacia arriba a **19 días** en Intermediary |
+</Card>
+
+## Jerarquía de planes
+
+```
+ECONOMY → PRO → SCALE → INTERMEDIARY → ENTERPRISE-4 → ... → ENTERPRISE-32
+```
+
+<Warning>
+  El plan **ECONOMY** no puede degradarse más.
+</Warning>
+
+<Note>
+  Los downgrades solo se hacen desde los **Ajustes de la cuenta**. El checkout nunca acepta un plan inferior al
+  actual: el selector de planes los oculta, y `POST /v1/orders` responde `400 NOT_AN_UPGRADE` para cualquier tipo
+  de pedido que reduzca el plan.
+</Note>
+
+## Antes de hacer el downgrade
+
+El sistema comprueba lo siguiente antes de procesarlo:
+
+<Steps>
+  <Step title="Uso de memoria">
+    El uso total de memoria de todas tus aplicaciones y bases de datos debe caber en el límite de memoria del
+    plan de destino. Si lo supera, primero tendrás que reducir la asignación de recursos.
+  </Step>
+  <Step title="Límite de frecuencia">
+    Solo puedes hacer downgrade una vez cada **3 horas**, para evitar abusos.
+  </Step>
+</Steps>
+
+## Qué cambia con el downgrade
+
+<AccordionGroup>
+  <Accordion title="Recursos y límites">
+    - El límite de memoria se reduce a la asignación del plan de destino
+    - Las aplicaciones y bases de datos que superen el nuevo límite deben redimensionarse antes
+    - La asignación de CPU se ajusta proporcionalmente
+  </Accordion>
+  <Accordion title="Funcionalidades">
+    - Las funcionalidades exclusivas de los planes superiores se desactivan de inmediato
+    - Por ejemplo: dominios personalizados, copias de seguridad diarias, etc.
+  </Accordion>
+  <Accordion title="Workspaces">
+    Si haces downgrade desde un plan **Enterprise** a un plan que no sea Enterprise, perderás la capacidad de
+    crear y gestionar workspaces. Los workspaces existentes se verán afectados.
+  </Accordion>
+</AccordionGroup>
+
+## Historial de despliegues en el downgrade
+
+Al hacer downgrade, las versiones anteriores de tus aplicaciones que superen el límite del nuevo plan dejan de
+estar disponibles para rollback de inmediato. Si el nuevo plan no tiene rollback, como en Economy, todas las
+versiones anteriores dejan de estar disponibles. Su código se elimina poco después. Volver a hacer upgrade no
+recupera el código que ya se eliminó. La versión en ejecución nunca se ve afectada.
+
+Consulta [Límites de historial de despliegues y rollback](/es-es/plans-and-limits#límites-del-historial-de-despliegues-y-del-rollback)
+para saber cuántas versiones conserva cada plan.
+
+## Ajustes de despliegue en el downgrade
+
+Los ajustes de rollback automático y de despliegue sin tiempo de inactividad de tu aplicación no se borran al
+hacer downgrade. El valor guardado se mantiene en la aplicación, pero solo surte efecto en un plan que incluya
+la función: rollback automático desde Intermediary, despliegues sin tiempo de inactividad en Enterprise. Si
+vuelves a hacer upgrade, los valores guardados vuelven a aplicarse. Mientras estés por debajo del plan requerido,
+puedes desactivar cualquiera de los dos ajustes, pero no activarlo.
+
+## Cómo hacer el downgrade
+
+<Tabs>
+  <Tab title="Desde el panel">
+    1. Ve a **Panel → Ajustes → Cuenta**
+    2. Desplázate hasta la sección **Downgrade de Plan**
+    3. Revisa el plan de destino y confirma
+  </Tab>
+  <Tab title="Desde la API">
+    ```bash
+    curl -X POST \
+      -H "Authorization: Bearer $VERTRA_API_KEY" \
+      https://api.vertracloud.app/v1/users/me/downgrade
+    ```
+
+    **Respuestas posibles:**
+    - `200` — Downgrade realizado correctamente
+    - `400 DOWNGRADE_NOT_AVAILABLE` — Ya estás en ECONOMY
+    - `400 INSUFFICIENT_MEMORY_FOR_DOWNGRADE` — Reduce primero el uso de recursos
+    - `429` — Límite de frecuencia alcanzado (espera 3 horas)
+  </Tab>
+</Tabs>

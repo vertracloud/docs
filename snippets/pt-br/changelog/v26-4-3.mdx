@@ -1,0 +1,37 @@
+### Blob Storage
+
+A Vertra Cloud agora guarda arquivos dos seus projetos: uploads de usuários, imagens, vídeos, exportações e backups. Os arquivos ficam separados do disco da sua aplicação, sobrevivem a redeploys e são servidos por uma CDN global. Gerencie-os pela nova página **Blob Storage** do dashboard, pela [API](/api-reference/endpoint/blob/objects/list), pelos SDKs, pela CLI, pelo servidor MCP ou por qualquer ferramenta compatível com S3. Comece pela [visão geral](/pt-br/blob/overview) e pelo [início rápido](/pt-br/blob/quickstart).
+
+#### Arquivos públicos e privados
+
+Todo arquivo é público ou privado, e os novos arquivos são privados. Um arquivo público tem uma URL permanente em `blob.vertracloud.dev`, colocada em cache pela CDN. Um arquivo privado é lido por meio de um [link temporário](/pt-br/blob/links-and-visibility) (de 60 segundos a 24 horas) ou de uma [página de compartilhamento](/pt-br/blob/sharing) com expiração, limite de downloads e, a partir do Enterprise-12, senha. Você pode trocar um arquivo entre os dois modos a qualquer momento sem mudar o ID dele.
+
+#### Uploads de até 10 GB
+
+Arquivos de até 100 MB vão em uma única requisição. Arquivos maiores, de até 10 GB, são enviados em partes direto para o armazenamento, com retomada e cancelamento. Um navegador pode fazer upload com um token de upload de curta duração criado pelo seu backend, para que sua chave de API nunca chegue até ele; veja o [guia de uploads de usuários](/pt-br/guides/serve-user-uploads). Quando um caminho já está ocupado, `overwrite` substitui o arquivo e `rename_on_conflict` o salva como `nome-1.ext`, `nome-2.ext` e assim por diante. Detalhes em [Uploads](/pt-br/blob/uploads).
+
+#### Seguro por padrão
+
+Executáveis e instaladores são recusados, mesmo quando renomeados. Arquivos HTML, SVG e XML sempre baixam no endereço padrão em vez de abrir no navegador, e o tipo de conteúdo vem da extensão.
+
+#### Regras de pasta, transformações de imagem e domínios personalizados
+
+- **[Regras de pasta](/pt-br/blob/folder-rules):** padrões e limites por pasta, como visibilidade, tamanho máximo, extensões permitidas, cache e exclusão automática após um número de dias.
+- **[Transformações de imagem](/pt-br/blob/image-transformations):** redimensionar, recortar e converter imagens públicas por parâmetros na URL, a partir do Scale.
+- **[Domínios personalizados](/pt-br/blob/custom-domains):** servir arquivos públicos por um subdomínio seu, como `cdn.example.com`, a partir do Enterprise-4. Um domínio também pode servir HTML, SVG e XML no navegador, em sandbox, quando você ativa `web_content`.
+
+#### Cota por plano
+
+O Blob Storage está incluído a partir do Economy: 1 GB no Economy, 5 GB no Pro, 15 GB no Scale, 20 GB no Intermediary e de 30 a 250 GB no Enterprise. Uploads acima da cota respondem `STORAGE_QUOTA_EXCEEDED`. Depois de um downgrade seus arquivos permanecem, e o uso acima da nova cota é cobrado a R\$0,20 por GB iniciado na próxima renovação. Quando um plano expira, os arquivos ficam online por um período de carência de 72 horas e depois são excluídos permanentemente, sem backup. A tabela completa está em [Limites e cotas](/pt-br/blob/limits-and-quotas).
+
+#### Chaves de API e workspaces
+
+As chaves de API ganharam dois novos escopos, `blob:read` e `blob:write`. Os workspaces ganharam duas permissões, `blob:read` e `blob:manage`, que atuam sobre os arquivos e a cota do dono. Nenhum papel existente as recebe, então o dono precisa concedê-las explicitamente. Veja [Autenticação](/pt-br/blob/authentication).
+
+#### SDKs, S3, CLI e MCP
+
+- **JavaScript:** um SDK dedicado, `@vertracloud/blob`, para Node, navegadores e runtimes de borda. Veja [SDK JavaScript](/pt-br/blob/sdk-javascript).
+- **Python e Go:** `client.blob` e `client.Blob` nos SDKs existentes. Veja [SDKs Python e Go](/pt-br/blob/sdk-python-go).
+- **S3:** aws-cli, rclone, boto3 e outras ferramentas S3 funcionam com credenciais derivadas da sua chave de API. Veja [Compatibilidade com S3](/pt-br/blob/s3-compatibility).
+- **CLI:** `vertra blob ls`, `put`, `get`, `link`, `rm` e `stats`. Veja [CLI](/pt-br/cli#blob-storage).
+- **MCP:** ferramentas para listar, enviar, gerar links, mudar a visibilidade e excluir arquivos. Veja [MCP](/pt-br/mcp#blob-storage).

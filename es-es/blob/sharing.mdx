@@ -1,0 +1,60 @@
+---
+title: 'Compartir archivos de Blob Storage con caducidad, contraseña y límite de descargas'
+sidebarTitle: 'Compartir'
+description: 'Crea una página compartida para un archivo privado, con caducidad de hasta 30 días, límite de descargas y contraseña, y revócala cuando quieras.'
+icon: 'share-nodes'
+---
+
+Una página compartida da a alguien acceso a un archivo privado mediante una página en `https://vertracloud.app/share/<token>`, sin credenciales y sin hacer público el archivo. A diferencia de un [enlace temporal](/es-es/blob/links-and-visibility#enlace-temporal), una página compartida se puede revocar y limitar.
+
+La página muestra el nombre y el tamaño del archivo, pide la contraseña cuando la hay y ofrece un botón de descarga. Cada descarga crea un enlace de corta duración y se cuenta de forma atómica.
+
+| Opción | Rango | Por defecto |
+|---|---|---|
+| `expires_in` | De 60 segundos a 30 días | 24 horas |
+| `max_downloads` | De 1 a 10000 | sin límite |
+| `password` | De 8 a 128 caracteres, en los planes con esta función ([límites](/es-es/blob/limits-and-quotas)) | ninguna |
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://blob.vertracloud.app/v1/shares" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "object_id": "'"$OBJECT_ID"'", "expires_in": 86400, "max_downloads": 10 }'
+```
+
+```javascript JavaScript
+const share = await blob.shares.create(id, { expiresIn: 3600, maxDownloads: 10, password: "correct horse" });
+console.log(share.url);
+await blob.shares.list({ objectId: id });
+await blob.shares.revoke(share.id);
+```
+
+```python Python
+share = client.blob.shares.create(id, expires_in=3600, max_downloads=10, password="correct horse")
+print(share["url"])
+client.blob.shares.list(id)
+client.blob.shares.revoke(share["id"])
+```
+
+```go Go
+share, err := client.Blob.Shares.Create(ctx, vertracloud.BlobShareInput{
+    ObjectID:     id,
+    ExpiresIn:    3600,
+    MaxDownloads: 10,
+    Password:     "correct horse",
+})
+fmt.Println(share.URL)
+_, err = client.Blob.Shares.List(ctx, id)
+err = client.Blob.Shares.Revoke(ctx, share.ID)
+```
+
+</CodeGroup>
+
+La respuesta incluye `remaining_downloads` y `has_password`. Revocar una página compartida ([Revocar página compartida](/api-reference/endpoint/blob/shares/revoke)) la detiene de inmediato.
+
+<Warning>Un archivo **público** se puede alcanzar por su URL pase lo que pase. La respuesta lo marca con `object_is_public: true`; haz privado el archivo si la página compartida debe ser la única vía de acceso.</Warning>
+
+Una contraseña incorrecta responde `BLOB_SHARE_PASSWORD_INVALID` (con límite de intentos por IP), un límite agotado responde `BLOB_SHARE_EXHAUSTED` y una página caducada o revocada responde `BLOB_SHARE_NOT_FOUND`.
+
+Consulta [Crear página compartida](/api-reference/endpoint/blob/shares/create) y [Listar páginas compartidas](/api-reference/endpoint/blob/shares/list).

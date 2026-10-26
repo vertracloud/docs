@@ -1,0 +1,67 @@
+---
+title: 'Descubre por qué se cae tu aplicación'
+sidebarTitle: 'Depurar una aplicación que se cae'
+description: 'Lee los logs, reconoce los cierres por memoria, los bucles de reinicio y las salidas silenciosas, y corrige las causas de los despliegues fallidos.'
+icon: 'bug'
+---
+
+Cuando una aplicación pasa a **Error** o se reinicia sin parar, la respuesta casi siempre está en su salida.
+Esta guía muestra dónde mirar y cómo interpretar lo que encuentras.
+
+## Dónde están los logs
+
+- **Panel**: la pestaña **Logs** de la aplicación muestra la salida en vivo, incluidas la instalación de dependencias y el build.
+- **CLI**: `vertra logs -f` sigue la salida desde la terminal. Consulta [CLI](/es-es/cli).
+- **API**: [Obtener logs](/api-reference/endpoint/apps/logs).
+
+Lee siempre desde la **primera** línea de error, no desde la última: la última suele ser una consecuencia.
+
+## Qué hace la plataforma cuando la aplicación se cae
+
+El reinicio automático está siempre activo. Una salida con código `0` se trata como una parada normal y no se reinicia; cualquier
+otra salida sí se reinicia. Si la aplicación se cae **5 veces en 10 minutos**, el reinicio automático se pausa durante 24 horas y la
+aplicación permanece detenida: corrige la causa e inicia la aplicación a mano.
+
+## Relaciona el síntoma
+
+<AccordionGroup>
+  <Accordion title="El proceso se detiene de inmediato, sin error">
+    Código de salida `0`: el programa simplemente terminó. Un servidor debe seguir escuchando y un bot debe seguir conectado.
+    Comprueba que el punto de entrada en **Ajustes → General** apunte al archivo correcto.
+  </Accordion>
+  <Accordion title="Muere sin traza de pila, a menudo bajo carga">
+    Es un cierre por falta de memoria (out-of-memory). Observa la gráfica de memoria en la pestaña **Resumen**: si sube hasta el límite
+    antes de cada caída, aumenta la RAM en **Ajustes → General** o reduce lo que el proceso mantiene en memoria. Java, los navegadores headless y
+    las cachés grandes necesitan 512 MB o más.
+  </Accordion>
+  <Accordion title="Cannot find module / ModuleNotFoundError">
+    La dependencia no está declarada. En Node.js: está en `devDependencies` (se instala solo cuando la aplicación tiene un comando de
+    build) o falta en `package.json`. En Python: falta en `requirements.txt`. El contenedor solo instala lo que lista el manifiesto.
+  </Accordion>
+  <Accordion title="El despliegue falla antes de que arranque la aplicación">
+    `INSTALL_TIMEOUT` significa que la instalación de dependencias superó 15 minutos; `BUILD_FAILED` significa que tu comando de build
+    terminó con un error (la salida del build está en los logs); `BUILD_TIMEOUT` significa que superó 10 minutos. Una aplicación nueva
+    se crea igualmente, detenida: ábrela, lee los logs, corrige los archivos e inicia la aplicación de nuevo.
+  </Accordion>
+  <Accordion title="Online, pero el sitio no responde">
+    El servidor escucha en `localhost` o en un puerto fijo. Escucha en `0.0.0.0` y lee `PORT`:
+
+    ```javascript
+    app.listen(process.env.PORT || 80, '0.0.0.0');
+    ```
+  </Accordion>
+  <Accordion title="Una variable aparece como `undefined`">
+    Los archivos `.env` no se leen en tiempo de ejecución. Define la variable en **Ajustes → Variables de Entorno** y reinicia: una variable cambiada solo
+    llega al proceso después de un reinicio.
+  </Accordion>
+  <Accordion title="Funciona en local, falla aquí">
+    Compara las versiones del runtime (define `VERSION` en [Configuración](/es-es/configuration)), no subas `node_modules` ni `venv`
+    compilados en tu máquina, y recuerda que los nombres de archivo distinguen mayúsculas y minúsculas en Linux: `./Config.js` y
+    `./config.js` son archivos distintos.
+  </Accordion>
+</AccordionGroup>
+
+## Revisa antes de desplegar
+
+`vertra doctor` inspecciona el directorio actual para detectar los problemas más comunes antes de enviar nada. La lista completa de
+códigos de error está en [Errores comunes](/es-es/common-errors).

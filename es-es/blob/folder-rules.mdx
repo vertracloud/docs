@@ -1,0 +1,85 @@
+---
+title: 'Reglas de carpeta de Blob Storage: valores por defecto y límites por carpeta'
+sidebarTitle: 'Reglas por carpeta'
+description: 'Define visibilidad, caducidad, límites de tamaño, extensiones, caché y borrado automático por defecto para cada prefijo de carpeta.'
+icon: 'folder-tree'
+---
+
+Una regla de carpeta aplica valores por defecto y límites a cada archivo nuevo cuya ruta empiece por un prefijo, así que tu aplicación no tiene que repetirlos en cada subida. Los prefijos se guardan con una `/` final, y cuando varias reglas coinciden, **gana el prefijo más largo**.
+
+| Campo | Efecto |
+|---|---|
+| `visibility` | Valor por defecto de los archivos nuevos de la carpeta |
+| `expire_seconds` | Caducidad por defecto de cada archivo nuevo |
+| `max_size` | Archivo más grande permitido, de 512 bytes a 10 GB |
+| `extensions` | Solo se aceptan estas extensiones (de 1 a 50, en minúsculas, sin punto) |
+| `cache_control` | Cabecera de caché por defecto |
+| `delete_after_days` | Borra los archivos después de 1 a 3650 días |
+
+`delete_after_days` empieza a contar **24 horas después de guardar la regla**, lo que te da tiempo para deshacer un error. El campo `active_from` de la regla indica cuándo empieza a aplicarse.
+
+El número de reglas por cuenta depende del plan: 5, 10 o 20 ([límites](/es-es/blob/limits-and-quotas)). Superarlo responde `BLOB_RULE_LIMIT`. Una regla debe definir al menos un campo; `expire_seconds` no puede quedar por debajo de la caducidad mínima del plan (7 días, o 1 hora en Enterprise-26 o superiores); `extensions` admite de 1 a 50 elementos de 1 a 16 caracteres en minúsculas, sin el punto. Reemplazar la lista completa admite como máximo 100 reglas.
+
+## Editar con seguridad usando `If-Match`
+
+Al leer las reglas se devuelven la lista y un `etag`. Reemplazar la lista completa exige ese etag en una cabecera `If-Match`; si otra pestaña o script cambió las reglas entretanto, obtienes `BLOB_RULES_CONFLICT` en lugar de borrar su trabajo en silencio. Las rutas de una sola regla (guardar y borrar por prefijo) devuelven la lista completa con un etag nuevo.
+
+<CodeGroup>
+
+```bash cURL
+# leer
+curl "https://blob.vertracloud.app/v1/rules" -H "Authorization: Bearer $VERTRA_API_KEY"
+
+# añadir o cambiar una regla (el prefijo va codificado en la URL: tmp/ -> tmp%2F)
+curl -X PUT "https://blob.vertracloud.app/v1/rules/tmp%2F" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "delete_after_days": 30 }'
+
+# reemplazar todo
+curl -X PUT "https://blob.vertracloud.app/v1/rules" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "If-Match: $ETAG" \
+  -H "Content-Type: application/json" -d '{ "rules": [] }'
+```
+
+```javascript JavaScript
+const { rules, etag } = await blob.rules.get();
+
+// reemplaza la lista completa; un etag obsoleto falla con BLOB_RULES_CONFLICT
+await blob.rules.set([{ prefix: "avatars/", maxSize: 2_000_000, extensions: ["png", "jpg"] }], etag);
+
+// crear o cambiar una carpeta
+await blob.rules.put("tmp/", { deleteAfterDays: 30 });
+await blob.rules.delete("tmp/");
+```
+
+```python Python
+current = client.blob.rules.get()  # {"rules": [...], "etag": "..."}
+
+# reemplaza la lista completa; un etag obsoleto falla con BLOB_RULES_CONFLICT
+client.blob.rules.set(
+    [{"prefix": "avatars/", "max_size": 2_000_000, "extensions": ["png", "jpg"]}],
+    current["etag"],
+)
+
+client.blob.rules.put("tmp/", delete_after_days=30)
+client.blob.rules.delete("tmp/")
+```
+
+```go Go
+current, err := client.Blob.Rules.Get(ctx)
+
+// reemplaza la lista completa; un etag obsoleto falla con BLOB_RULES_CONFLICT
+maxSize := int64(2_000_000)
+_, err = client.Blob.Rules.Set(ctx, []vertracloud.BlobRuleEntry{{
+    Prefix: "avatars/",
+    BlobRuleInput: vertracloud.BlobRuleInput{MaxSize: &maxSize, Extensions: []string{"png", "jpg"}},
+}}, current.ETag)
+
+days := 30
+_, err = client.Blob.Rules.Put(ctx, "tmp/", vertracloud.BlobRuleInput{DeleteAfterDays: &days})
+_, err = client.Blob.Rules.Delete(ctx, "tmp/")
+```
+
+</CodeGroup>
+
+Referencia: [Obtener reglas](/api-reference/endpoint/blob/rules/get), [Reemplazar reglas](/api-reference/endpoint/blob/rules/replace), [Guardar regla](/api-reference/endpoint/blob/rules/put), [Borrar regla](/api-reference/endpoint/blob/rules/delete).

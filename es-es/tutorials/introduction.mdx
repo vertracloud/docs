@@ -1,0 +1,110 @@
+---
+title: 'Tutoriales de despliegue para todos los runtimes en Vertra Cloud'
+sidebarTitle: 'Tutoriales'
+description: 'Guías de despliegue para Node.js, Python, Go, Rust, Java, PHP, Ruby, Bun, Deno, .NET, Elixir, sitios estáticos y bots de Discord, Telegram y WhatsApp.'
+---
+
+## Guías de despliegue
+
+Aprende a alojar tu aplicación en Vertra Cloud con guías específicas para cada lenguaje y framework. Cada tutorial cubre la estructura del proyecto, la configuración necesaria y el proceso completo de despliegue.
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js" href="/es-es/tutorials/nodejs">
+    Aplicaciones Node.js con o sin framework.
+  </Card>
+  <Card title="Python" icon="python" href="/es-es/tutorials/python">
+    Scripts, bots y APIs en Python.
+  </Card>
+  <Card title="Express.js" icon="node-js" href="/es-es/tutorials/expressjs">
+    APIs REST con Express.js.
+  </Card>
+  <Card title="Fastify" icon="bolt" href="/es-es/tutorials/fastify">
+    APIs de alto rendimiento con Fastify.
+  </Card>
+  <Card title="Next.js" icon="react" href="/es-es/tutorials/nextjs">
+    Aplicaciones React con SSR y SSG.
+  </Card>
+  <Card title="Go" icon="golang" href="/es-es/tutorials/go">
+    APIs y servicios en Go.
+  </Card>
+  <Card title="Deno" icon="code" href="/es-es/tutorials/deno">
+    Servidores Deno con deno.json.
+  </Card>
+  <Card title=".NET (C#)" icon="code" href="/es-es/tutorials/dotnet">
+    Proyectos ASP.NET Core y de consola.
+  </Card>
+  <Card title="Elixir" icon="code" href="/es-es/tutorials/elixir">
+    Aplicaciones Elixir y Phoenix.
+  </Card>
+  <Card title="Sitios estáticos" icon="file-code" href="/es-es/tutorials/static">
+    HTML, CSS y JavaScript puro.
+  </Card>
+  <Card title="Bots de Discord" icon="discord" href="/es-es/tutorials/discord-bot">
+    Bots para Discord con discord.js o discord.py.
+  </Card>
+</CardGroup>
+
+## Estructura común
+
+Independientemente del framework elegido, todo despliegue en Vertra Cloud sigue la misma estructura:
+
+<Steps>
+  <Step title="Prepara el proyecto">
+    Asegúrate de que las dependencias estén declaradas (`package.json`, `requirements.txt`, `go.mod`, `deno.json`, `.csproj`, `mix.exs`...) y, en el caso de los sitios,
+    de que la aplicación escuche en el puerto 80.
+  </Step>
+  <Step title="Envía el código">
+    **Nuevo Proyecto** en el panel (ZIP o GitHub), `vertra upload` en la CLI (la primera vez; `vertra deploy` para las actualizaciones), o la
+    extensión de VS Code. La plataforma detecta el runtime, el archivo principal y los comandos; revísalos antes de desplegar.
+  </Step>
+  <Step title="Verifica">
+    Supervisa los logs y el estado de la aplicación en el panel.
+  </Step>
+</Steps>
+
+## Archivo `vertracloud.config`
+
+Un archivo `vertracloud.config` opcional en la raíz del proyecto rellena previamente el flujo de creación:
+
+```ini
+MAIN=index.js
+START=npm start
+MEMORY=512
+```
+
+Todas las claves y sus límites están en [Configuración](/es-es/configuration).
+
+## Puerto de la aplicación
+
+Las aplicaciones web deben escuchar en el puerto definido por la variable de entorno `PORT`. La plataforma inyecta esta variable automáticamente en el contenedor.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```javascript
+    const port = process.env.PORT || 80;
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server running on port ${port}`);
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+    port = int(os.environ.get('PORT', 80))
+    app.run(host='0.0.0.0', port=port)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "80"
+    }
+    http.ListenAndServe("0.0.0.0:"+port, nil)
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Usa siempre `0.0.0.0` como host en lugar de `localhost` o `127.0.0.1`. Dentro del contenedor, el enlace debe hacerse en todas las interfaces para que el tráfico externo llegue a la aplicación.
+</Warning>

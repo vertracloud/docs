@@ -1,0 +1,52 @@
+---
+title: 'Haz copias de seguridad y restaura con snapshots'
+sidebarTitle: 'Copias de seguridad y snapshots'
+description: 'Toma un snapshot antes de cambios arriesgados, restaura una aplicación o base de datos a un estado anterior y guarda una copia fuera de la plataforma.'
+icon: 'clock-rotate-left'
+---
+
+Un snapshot es una copia de una aplicación o de una base de datos en un momento dado. Puedes restaurarla más adelante o
+descargarla como `.zip`. Los snapshots manuales están disponibles desde el plan **Scale**.
+
+## Cuándo tomar uno
+
+- Antes de un despliegue que cambie formatos de datos o ejecute migraciones.
+- Antes de un **Restablecer** de la base de datos, una importación grande o un borrado masivo.
+- Con una programación regular, si los datos te importan.
+
+## Toma un snapshot
+
+<Steps>
+  <Step title="Abre el recurso">
+    Abre la aplicación o la base de datos y ve a **Snapshots**.
+  </Step>
+  <Step title="Créalo">
+    Haz clic en **Crear Snapshot**. Puedes tomar uno cada 5 minutos por recurso y 10 por hora en toda la cuenta; por encima de
+    eso, la petición se rechaza con `SNAPSHOT_RATE_LIMITED`.
+  </Step>
+</Steps>
+
+## Restaurar
+
+Elige un snapshot de la lista y haz clic en **Restaurar**. El recurso vuelve al contenido que tenía en ese momento, así que se
+pierde todo lo escrito después: toma antes un snapshot nuevo si puedes necesitar el estado actual. Las restauraciones tienen un
+periodo de espera de 30 segundos entre una y otra. Un archivo de snapshot dañado se rechaza antes de que cambie nada (`INVALID_ZIP_STRUCTURE`): los archivos de la aplicación y la base de datos en ejecución siguen como estaban.
+
+## Guarda una copia fuera de la plataforma
+
+**Descarga** cualquier snapshot como `.zip` y guárdalo en otro lugar. La descarga de una aplicación incluye un `vertracloud.config`
+con su configuración actual, así que puede volver a subirse como un proyecto nuevo exactamente como estaba.
+
+## Snapshot de seguridad automático antes de eliminar
+
+Eliminar o restablecer una base de datos siempre toma antes un snapshot. Eliminar una aplicación también lo hace en **Pro y
+superiores**. Si ese snapshot falla, el borrado o el restablecimiento se bloquea (`SNAPSHOT_FAILED`) y no se pierde nada. El
+snapshot se conserva durante 30 días y se puede descargar desde **Snapshots**.
+
+En Economy, una aplicación eliminada desaparece sin copia: descarga el proyecto primero (el diálogo de eliminación lo ofrece).
+
+## Automatízalo
+
+Los snapshots también están disponibles a través de la [API](/api-reference/introduction), los [SDK](/es-es/sdks) y la
+[CLI](/es-es/cli), así que un trabajo programado (por ejemplo, un flujo de [GitHub Actions](/es-es/github-actions) con un disparador
+`schedule`) puede tomarlos de forma rutinaria.

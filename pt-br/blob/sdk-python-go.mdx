@@ -1,0 +1,124 @@
+---
+title: 'Blob Storage nos SDKs Python e Go'
+sidebarTitle: 'SDKs Python e Go'
+description: 'Use o Blob Storage em Python (client.blob no vertracloud-api) e Go (client.Blob no sdk-api-go): upload, listagem, compartilhamentos, regras e domínios.'
+icon: 'code'
+---
+
+O Blob Storage é um recurso dos [SDKs Python e Go](/pt-br/sdks) existentes, usando o mesmo cliente e a mesma chave de API. A URL base padrão do Blob Storage é `https://blob.vertracloud.app/v1`. Para navegadores, use o [SDK JavaScript](/pt-br/blob/sdk-javascript).
+
+## Python
+
+```bash
+pip install vertracloud-api
+```
+
+```python
+from vertracloud import VertraClient
+
+client = VertraClient(api_key="your_key")
+
+obj = client.blob.put("images/logo.png", open("logo.png", "rb"), visibility="public",
+                      on_progress=lambda sent, total: print(sent, total))
+
+upload_id = client.blob.uploads()[0]["id"]   # uploads diretos ainda em andamento
+client.blob.resume(upload_id, open("big.mp4", "rb"))
+
+for o in client.blob.list(prefix="images/"):   # iterador; as páginas são buscadas automaticamente
+    print(o["path"])
+
+client.blob.get(id)
+client.blob.update(id, visibility="private")
+client.blob.update_many(ids, visibility="private")
+client.blob.copy(id, "backup/logo.png")
+client.blob.move(id, "img/logo.png")
+client.blob.delete(id)
+client.blob.delete_many(prefix="tmp/")
+client.blob.download_url(id, expires_in=600, disposition="attachment", filename="logo.png")
+
+client.blob.stats()
+client.blob.create_upload_token(prefix="avatars/", max_size=5_000_000, expires_in=900)
+client.blob.s3_credentials()
+
+share = client.blob.shares.create(id, expires_in=3600, max_downloads=10)
+client.blob.shares.list(id)
+client.blob.shares.revoke(share["id"])
+
+current = client.blob.rules.get()
+client.blob.rules.set([{"prefix": "tmp/", "delete_after_days": 30}], current["etag"])
+client.blob.rules.put("avatars/", max_size=2_000_000)
+client.blob.rules.delete("avatars/")
+
+domain = client.blob.domains.add("cdn.example.com")
+client.blob.domains.update(domain["id"], web_content=True)
+client.blob.domains.verify(domain["id"])
+client.blob.domains.list()
+client.blob.domains.delete(domain["id"])
+```
+
+`put()` aceita `visibility`, `overwrite`, `random_suffix`, `cache_control`, `content_disposition`, `filename`, `expires_at` e `metadata`.
+
+## Go
+
+```bash
+go get github.com/vertracloud/sdk-api-go
+```
+
+Toda chamada recebe um `context.Context` como primeiro argumento.
+
+```go
+f, _ := os.Open("logo.png")
+info, _ := f.Stat()
+obj, err := client.Blob.Put(ctx, "images/logo.png", f, info.Size(), &vertracloud.BlobPutOptions{
+    Visibility: "public",
+    OnProgress: func(loaded, total int64) { fmt.Println(loaded, total) },
+})
+
+// f deve trazer o mesmo arquivo desde o primeiro byte
+obj, err = client.Blob.Resume(ctx, uploadID, f, nil)
+
+it := client.Blob.List(ctx, &vertracloud.BlobListOptions{Prefix: "images/"})
+for it.Next(ctx) {
+    fmt.Println(it.Object().Path)
+}
+if err := it.Err(); err != nil { /* handle */ }
+
+obj, err = client.Blob.Get(ctx, id)
+owner := "alice"
+obj, err = client.Blob.Update(ctx, id, vertracloud.BlobUpdate{
+    Visibility: "private",
+    Metadata:   map[string]*string{"owner": &owner}, // um valor nil remove a chave
+    Filename:   vertracloud.NullableValue("logo.png"), // vertracloud.NullableNull[string]() restaura o padrão
+})
+obj, err = client.Blob.Copy(ctx, id, "backup/logo.png", nil)
+obj, err = client.Blob.Move(ctx, id, "img/logo.png", nil)
+err = client.Blob.Delete(ctx, id)
+res, err := client.Blob.DeleteMany(ctx, vertracloud.BlobDeleteManyOptions{Prefix: "tmp/"})
+link, err := client.Blob.DownloadURL(ctx, id, &vertracloud.BlobDownloadOptions{ExpiresIn: 600})
+
+stats, err := client.Blob.Stats(ctx)
+token, err := client.Blob.CreateUploadToken(ctx, vertracloud.BlobUploadTokenInput{Prefix: "avatars/", MaxSize: 5_000_000})
+creds, err := client.Blob.S3Credentials(ctx)
+
+share, err := client.Blob.Shares.Create(ctx, vertracloud.BlobShareInput{ObjectID: id, MaxDownloads: 10})
+shares, err := client.Blob.Shares.List(ctx, id)
+err = client.Blob.Shares.Revoke(ctx, share.ID)
+
+current, err := client.Blob.Rules.Get(ctx)
+days := 30
+rules, err := client.Blob.Rules.Put(ctx, "tmp/", vertracloud.BlobRuleInput{DeleteAfterDays: &days})
+rules, err = client.Blob.Rules.Set(ctx, []vertracloud.BlobRuleEntry{{Prefix: "tmp/", BlobRuleInput: vertracloud.BlobRuleInput{DeleteAfterDays: &days}}}, current.ETag)
+rules, err = client.Blob.Rules.Delete(ctx, "tmp/")
+
+domain, err := client.Blob.Domains.Add(ctx, "cdn.example.com", "", false)
+domain, err = client.Blob.Domains.Update(ctx, domain.ID, true)
+domain, err = client.Blob.Domains.Verify(ctx, domain.ID)
+domains, err := client.Blob.Domains.List(ctx)
+err = client.Blob.Domains.Delete(ctx, domain.ID)
+```
+
+Para agir sobre o storage de um workspace, passe `rest.WithWorkspaceID(workspaceID)` como último argumento de qualquer chamada.
+
+## Erros
+
+Os dois SDKs lançam um erro tipado da API, com o `code` estável (por exemplo `STORAGE_QUOTA_EXCEEDED`) e o status HTTP. Veja o [catálogo de erros](/api-reference/errors) e [Uploads](/pt-br/blob/uploads#erros-comuns).

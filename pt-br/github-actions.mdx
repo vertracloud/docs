@@ -1,0 +1,162 @@
+---
+title: 'Deploy na Vertra Cloud com GitHub Actions'
+sidebarTitle: 'GitHub Actions'
+description: 'Atualize uma aplicação da Vertra Cloud a cada push usando a vertracloud/github-action oficial.'
+icon: 'github'
+---
+
+A [`vertracloud/github-action`](https://github.com/vertracloud/github-action) é a GitHub
+Action oficial que envia o seu repositório para uma aplicação existente da Vertra Cloud e a
+reinicia. Ela encapsula o mesmo binário da [CLI](/pt-br/cli) usado localmente (`vertra deploy`), fixado em uma release e verificado
+por SHA-256, e roda em runners Linux e macOS (x64 e ARM64).
+
+<Note>
+  A Action **atualiza** uma aplicação existente — ela não cria uma. Crie a aplicação
+  primeiro, pelo dashboard ou com `POST /v1/apps`, e depois aponte o workflow para o ID dela.
+</Note>
+
+## Pré-requisitos
+
+- Uma aplicação da Vertra Cloud já criada (qualquer plano).
+- O ID da aplicação, mostrado no dashboard ou via `GET /v1/apps/:id`.
+- Um repositório do GitHub onde você possa adicionar secrets e workflows.
+
+## 1. Crie uma chave de API com os escopos mínimos
+
+O deploy envia arquivos e, por padrão, reinicia a aplicação em seguida. Em
+**Dashboard → Configurações → Chaves de API**, crie uma chave com:
+
+- **`apps:files`** — obrigatório, cobre o upload dos arquivos.
+- **`apps:write`** — obrigatório, a menos que você defina `restart: false` no workflow (veja
+  [variações](#variações) abaixo); cobre o reinício.
+
+Veja [Escopos](/api-reference/introduction#scopes) para o catálogo completo, caso a aplicação também
+precise de outras automações (variáveis de ambiente, rede) com a mesma chave.
+
+## 2. Salve a chave e o ID da aplicação como secrets
+
+No repositório, vá em **Settings → Secrets and variables → Actions** e adicione:
+
+| Secret | Valor |
+|---|---|
+| `VERTRA_API_KEY` | A chave de API do passo 1 |
+| `VERTRA_APP_ID` | O ID da aplicação |
+
+Nunca escreva a chave diretamente no arquivo do workflow — a Action também a mascara nos logs, mas a
+fonte da verdade deve ser sempre um secret.
+
+## 3. Adicione o workflow
+
+Salve isto como `.github/workflows/deploy.yml`:
+
+```yaml .github/workflows/deploy.yml
+name: Deploy
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vertracloud/github-action@v1
+        with:
+          api-key: ${{ secrets.VERTRA_API_KEY }}
+          app-id: ${{ secrets.VERTRA_APP_ID }}
+```
+
+Faça push na `main` e acompanhe a execução na aba **Actions** do repositório. Os arquivos são mesclados: o
+upload sobrescreve os caminhos correspondentes, mas os arquivos que existem apenas na aplicação (e não no
+repositório) são mantidos — o deploy não os apaga.
+
+## Inputs
+
+| Input | Obrigatório | Padrão | Descrição |
+|---|:---:|---|---|
+| `api-key` | sim | — | Chave de API da Vertra Cloud. Sempre passe-a a partir de um secret. |
+| `app-id` | sim | — | ID da aplicação existente a ser atualizada. |
+| `path` | não | `.` | Diretório do projeto a ser enviado, relativo à raiz do repositório. |
+| `restart` | não | `true` | Reinicia a aplicação uma vez após o upload para que os novos arquivos entrem no ar (`"true"`/`"false"`). Não tem relação com o reinício automático, que está sempre ativado. |
+| `cli-version` | não | `v0.3.1` | Tag de release da [CLI](/pt-br/cli) que a Action baixa e executa. |
+
+A Action não tem outputs: a etapa é bem-sucedida quando o deploy é bem-sucedido e falha caso contrário.
+
+## Variações
+
+### Atualizar uma aplicação existente apenas em push na `main`
+
+Este é o comportamento padrão do workflow acima — `on.push.branches: [main]` é o que limita
+as execuções a essa branch. Pushes em qualquer outra branch não disparam o job, já que o GitHub Actions só
+executa jobs que correspondem ao filtro do evento.
+
+### Monorepo — fazer deploy de uma subpasta
+
+Aponte `path` para o diretório da aplicação dentro do repositório; apenas esse diretório é
+enviado, então você não precisa empacotar o repositório inteiro:
+
+```yaml
+      - uses: vertracloud/github-action@v1
+        with:
+          api-key: ${{ secrets.VERTRA_API_KEY }}
+          app-id: ${{ secrets.VERTRA_APP_ID }}
+          path: apps/api
+```
+
+Adicione um arquivo `.vertraignore` dentro desse diretório para padrões de exclusão extras — `node_modules`,
+`.git`, `.github`, `.vscode`, `.venv`, `venv`, `vendor`, `target`, `.next` e `__pycache__` já são
+ignorados por padrão.
+
+### Enviar sem reiniciar
+
+Defina `restart: false` para apenas sincronizar os arquivos — útil quando você quer disparar o reinício separadamente
+(por exemplo, a partir de outra etapa ou em um agendamento). Com isso definido, a chave de API só precisa do
+escopo `apps:files`:
+
+```yaml
+      - uses: vertracloud/github-action@v1
+        with:
+          api-key: ${{ secrets.VERTRA_API_KEY }}
+          app-id: ${{ secrets.VERTRA_APP_ID }}
+          restart: false
+```
+
+### Fazer deploy depois dos seus testes
+
+Adicione a etapa de deploy no final de um job existente, depois das etapas de teste/build, para que os arquivos só sejam
+enviados quando tudo o que vem antes tiver passado:
+
+```yaml
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm test
+      - uses: vertracloud/github-action@v1
+        with:
+          api-key: ${{ secrets.VERTRA_API_KEY }}
+          app-id: ${{ secrets.VERTRA_APP_ID }}
+```
+
+## Alternativa: o webhook de deploy
+
+Em vez de executar a CLI em um workflow, você pode ativar o
+[deploy automático pelo GitHub](/pt-br/deploy-github#ativar-o-deploy-automático) diretamente na
+aplicação: a Vertra Cloud registra um webhook no próprio repositório e faz o redeploy a cada push
+na branch que você escolher (`main`/`master` por padrão), sem precisar de arquivo de workflow nem de secret. Use a Action quando você quiser que
+o deploy rode apenas depois de o CI passar, precisar fazer deploy de uma subpasta ou quiser que o upload não
+reinicie a aplicação.
+
+## Solução de problemas
+
+| Código | Causa |
+|---|---|
+| `403 API_KEY_SCOPE_DENIED` | A chave não tem `apps:files` (upload) ou `apps:write` (reinício, quando `restart: true`). `details.required` informa o escopo que falta. |
+| `404 APP_NOT_FOUND` | `VERTRA_APP_ID` está errado, ou a conta da chave não é dona dessa aplicação. |
+| `401 API_KEY_INVALID` | `VERTRA_API_KEY` está ausente, foi rotacionada ou foi colada incorretamente no secret. |
+| `413 PAYLOAD_TOO_LARGE` | O diretório enviado é maior que o limite de upload. Confira se `path` não aponta para o monorepo inteiro e se os artefatos de build não estão incluídos. |
+| `400 STORAGE_FULL` | O volume da aplicação não tem mais espaço para este upload. |
+| `409 OPERATION_IN_PROGRESS` | Outra operação de ciclo de vida (um reinício manual, outro deploy) já está em andamento para a aplicação. A etapa falha; execute o job novamente. |
+| `429 DEPLOY_RATE_LIMITED` | O orçamento horário de deploys da conta para o plano dela foi atingido — veja [Planos e limites](/pt-br/plans-and-limits). `details.retry_after` informa quanto tempo esperar. |
+| Falha na etapa de checksum/download | `cli-version` não é uma [tag de release da CLI](https://github.com/vertracloud/cli/releases) real, ou o SO/arquitetura do runner não é Linux/macOS x64/ARM64. |
+
+Veja o [catálogo completo de códigos de erro](/api-reference/errors) para qualquer caso não listado aqui.

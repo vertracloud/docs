@@ -1,0 +1,115 @@
+---
+title: 'Como hospedar uma aplicação Go na Vertra Cloud'
+sidebarTitle: 'Go'
+description: 'Faça deploy de um serviço Go na Vertra Cloud: go.mod e go.sum no zip, a plataforma compila para Linux, escute em 0.0.0.0 e use a variável PORT.'
+icon: 'golang'
+---
+
+## Requisitos
+
+- Go 1.26+ instalado localmente
+- Conta na [Vertra Cloud](https://vertracloud.app)
+
+## Estrutura do projeto
+
+```
+my-server-go/
+├── main.go
+├── go.mod
+├── go.sum
+└── vertracloud.config
+```
+
+## Configuração
+
+### go.mod
+
+```go
+module my-server-go
+
+go 1.26
+```
+
+### vertracloud.config
+
+```ini
+MAIN=main.go
+VERSION=recommended
+```
+
+## Exemplo: servidor HTTP
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+)
+
+func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Hello from Go on Vertra Cloud!",
+		})
+	})
+
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "healthy",
+		})
+	})
+
+	fmt.Printf("Server running on port %s\n", port)
+	http.ListenAndServe("0.0.0.0:"+port, nil)
+}
+```
+
+## Versões disponíveis
+
+| Versão | Status | Descrição |
+|--------|--------|-----------|
+| 1.27.3 | Mais recente | Go 1.27 (versão mais recente) |
+| 1.26.10 | Recomendada | Go 1.26 (recomendada para produção) |
+
+## Deploy
+
+<Tabs>
+  <Tab title="Painel">
+    1. Compacte o projeto em um `.zip` (pastas como `node_modules`, `venv` e `target` são removidas automaticamente) ou envie para o GitHub.
+    2. No painel, clique em **Novo Projeto** e envie o `.zip` ou cole a URL do repositório.
+    3. Em **Build**, confira o runtime (**Go**), o arquivo principal (`main.go`) e a memória. Os comandos de start e de build ficam em **Configurações Avançadas**.
+    4. Adicione suas variáveis de ambiente em **Ambiente**.
+    5. Em **Rede**, ative a **publicação web** para que a aplicação receba um endereço `*.vertraweb.app` (plano Pro ou superior, 512 MB de memória). A aplicação precisa escutar na porta 80.
+    6. Revise e faça o deploy. Acompanhe a saída na aba **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Veja [CLI](/pt-br/cli) para instalação e login.
+  </Tab>
+  <Tab title="VS Code">
+    Abra a pasta com a extensão da Vertra Cloud instalada e execute **Fazer deploy do projeto atual**. Veja [Extensão do VS Code](/pt-br/vscode-extension).
+  </Tab>
+</Tabs>
+
+O passo a passo completo está em [Primeiro deploy](/pt-br/how-to-host).
+
+## Observações
+
+- **Compilação automática**: o Go é compilado dentro do container durante o deploy
+- Use `os.Getenv("PORT")` para capturar a porta correta
+- Escute em `0.0.0.0` para aceitar conexões externas
+- **Memória recomendada**: 256MB para servidores simples
+- As dependências são baixadas automaticamente via `go mod download`

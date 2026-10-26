@@ -1,0 +1,56 @@
+### Vários domínios personalizados por aplicação
+
+Uma aplicação agora pode ter vários domínios personalizados, e adicionar, alterar ou remover um deles nunca reinicia a aplicação. Domínios personalizados começam no plano Intermediary, e o número por aplicação cresce com o plano:
+
+| Plano | Domínios por aplicação |
+|---|---:|
+| Intermediary | 1 |
+| Enterprise-4 a Enterprise-8 | 2 |
+| Enterprise-12 a Enterprise-24 | 5 |
+| Enterprise-26 a Enterprise-32 | 20 |
+
+- **`www` automático:** adicionar `example.com` também adiciona `www.example.com`, e vice-versa. O domínio complementar redireciona para o principal, não conta no seu limite e pode ser desativado. Qualquer um dos dois pode ser definido como o domínio principal.
+- **Porta por domínio:** cada domínio pode alcançar uma porta diferente da sua aplicação, de 1 a 65535, com até 5 portas além da 80 por aplicação.
+- **Prefixo de caminho:** um domínio pode adicionar um caminho como `/api` antes de cada requisição. Recomendado para APIs.
+- **Redirecionamentos:** um domínio pode redirecionar para outro domínio da mesma aplicação com `301`, `302`, `307` ou `308` (padrão `308`), mantendo o caminho e a query string.
+- **Status e limpeza:** cada domínio mostra seu status e o estado do certificado. Um domínio que fica sem DNS por 14 dias é removido automaticamente, e você recebe um e-mail. Quando um domínio é removido, por você, ao despublicar ou por essa limpeza, exclua os registros `CNAME` e `TXT` de validação no seu provedor de DNS. Domínios raiz mostram um aviso, porque um `CNAME` na raiz exige um provedor de DNS com CNAME flattening.
+
+Novas rotas gerenciam domínios em `/v1/apps/{id}/domains`: [listar](/api-reference/endpoint/apps/domains/list), [adicionar](/api-reference/endpoint/apps/domains/create), [atualizar](/api-reference/endpoint/apps/domains/update), [remover](/api-reference/endpoint/apps/domains/delete) e [registros DNS](/api-reference/endpoint/apps/domains/dns). Os SDKs, a CLI, o servidor MCP e a extensão do VS Code oferecem suporte a elas. Veja [Conectar domínios personalizados](/pt-br/guides/custom-domain).
+
+### Mudança incompatível: planos são identificados pelo nome na API
+
+A API identifica um plano pelo nome, como `pro` ou `enterprise-8`. O ID numérico do plano deixou de existir.
+
+- `GET /v1/users/me` não retorna mais `plan_id` nem `plan.id`. Leia `plan.name` no lugar. `plan` é `null` quando a conta não tem plano ativo.
+- Aplicações, bancos de dados e workspaces retornam `owner_plan` (o nome do plano, ou `null`) em vez de `owner_plan_id`.
+- Contas sem plano ativo recebem `PLAN_REQUIRED` ao criar aplicações ou bancos de dados ou ao publicar um site. `FREE_PLAN_SUSPENDED` e `FREE_PLAN_NO_WEB_PUBLISH` não são mais retornados.
+- A lista completa de nomes está na [base de conhecimento](/knowledge-base#plan-names).
+
+### Mudança incompatível: rotas de domínio personalizado substituídas
+
+`GET`, `POST` e `DELETE /v1/apps/{id}/network/custom` e `GET /v1/apps/{id}/network/dns` são substituídas pelas rotas de domínio acima.
+
+- Os payloads das aplicações retornam `domains`, uma lista, em vez de `custom_domain`. `public_url` aponta para o domínio principal. As rotas de publicação retornam os hostnames em `domains`.
+- `NO_CUSTOM_DOMAIN` não é mais retornado: uma aplicação sem domínios tem uma lista vazia.
+- `DOMAIN_ALREADY_IN_USE` agora responde `409`, e `CUSTOM_DOMAIN_REGISTRATION_FAILED` responde `502`.
+- Novos códigos de erro: `DOMAIN_NOT_FOUND`, `DOMAIN_LIMIT_REACHED`, `DOMAIN_PORT_LIMIT_REACHED`, `INVALID_DOMAIN_PORT`, `INVALID_PATH_PREFIX`, `INVALID_REDIRECT_TARGET` e `DOMAIN_CONNECT_UNAVAILABLE`. Veja [Erros](/api-reference/errors).
+
+Atualize os SDKs, a CLI e o servidor MCP junto com qualquer código que leia `plan_id`, `owner_plan_id` ou `custom_domain`.
+
+### SDKs, CLI, servidor MCP e extensão do VS Code 0.3.0
+
+Novas versões dos [SDKs](/pt-br/sdks) (JavaScript, Python e Go), da [CLI](/pt-br/cli), do [servidor MCP](/pt-br/mcp) e da [extensão do VS Code](/pt-br/vscode-extension) oferecem suporte a vários domínios personalizados por aplicação e a planos pelo nome. Elas seguem as mudanças incompatíveis acima, então atualize-as juntas.
+
+- **CLI:** novos comandos `vertra app domains` (veja [CLI](/pt-br/cli#domínios-personalizados)). Parar uma aplicação ou um banco de dados e remover uma variável de ambiente agora pedem confirmação; recusar qualquer confirmação encerra com código 1.
+- **Servidor MCP:** novas ferramentas de domínio. Ferramentas que excluem, sobrescrevem, param, reiniciam ou alteram acesso são marcadas como destrutivas, então o cliente pede confirmação antes de executá-las. Logs, arquivos e outros conteúdos das suas aplicações são marcados como não confiáveis. Veja [MCP](/pt-br/mcp).
+- **Extensão do VS Code:** gerencie todos os domínios personalizados de uma aplicação e veja os nomes dos planos.
+- **Sua chave de API fica na API da Vertra Cloud:** o servidor MCP e a extensão do VS Code não seguem mais redirecionamentos, e os SDKs descartam a chave quando um redirecionamento sai da API. Os SDKs e o servidor MCP também recusam caminhos de requisição inválidos antes de enviar qualquer coisa.
+- **GitHub Action v1.0.4** usa a CLI 0.3.0 por padrão. Veja [GitHub Actions](/pt-br/github-actions).
+
+### Limite de variáveis de ambiente elevado para 256
+
+Uma aplicação agora pode ter até 256 variáveis de ambiente, antes eram 25. As chaves podem ter até 255 caracteres, e os valores até 3.072. Veja [Configuração](/pt-br/configuration).
+
+### JSON malformado agora retorna 400
+
+Uma requisição com JSON malformado no corpo agora recebe `400` com `INVALID_JSON`; antes recebia `500`. Outros problemas de requisição também respondem com o próprio status e um código estável: `UNSUPPORTED_MEDIA_TYPE` (`415`), `BAD_REQUEST` (`400`) e `REQUEST_TIMEOUT` (`408`). Uma requisição com `content-type: application/json` e corpo vazio continua retornando `400` `EMPTY_BODY`. Veja [Erros](/api-reference/errors).

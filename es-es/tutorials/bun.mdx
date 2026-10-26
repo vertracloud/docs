@@ -1,0 +1,148 @@
+---
+title: 'Cómo alojar una aplicación Bun en Vertra Cloud'
+sidebarTitle: 'Bun'
+description: 'Despliega una aplicación o servidor Bun 1.3 en Vertra Cloud: script start de package.json, bun install en la plataforma y la variable PORT.'
+icon: bread-slice
+---
+
+## Requisitos
+
+- Bun 1.3+ instalado localmente
+- Cuenta en [Vertra Cloud](https://vertracloud.app)
+- `package.json` configurado
+
+## Estructura del proyecto
+
+```
+my-server-bun/
+├── src/
+│   └── index.ts
+├── package.json
+├── bunfig.toml
+└── vertracloud.config
+```
+
+## Configuración
+
+### package.json
+
+```json
+{
+  "name": "my-server-bun",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "elysia": "^0.7.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}
+```
+
+### bunfig.toml
+
+```toml
+[build]
+target = "bun"
+```
+
+### vertracloud.config
+
+```ini
+MAIN=package.json
+START=bun run src/index.ts
+VERSION=recommended
+```
+
+## Ejemplo: servidor sencillo con Bun.serve()
+
+### src/index.ts
+
+```typescript
+const port = parseInt(process.env.PORT || "80");
+const hostname = "0.0.0.0";
+
+const server = Bun.serve({
+  port: port,
+  hostname: hostname,
+  fetch(request: Request) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/" && request.method === "GET") {
+      return Response.json({
+        message: "API Bun on Vertra Cloud",
+        version: "1.0.0",
+        runtime: "Bun"
+      });
+    }
+
+    // Comprobación de estado
+    if (url.pathname === "/health" && request.method === "GET") {
+      return Response.json({
+        status: "healthy",
+        service: "bun-api",
+        uptime: Math.floor(process.uptime())
+      });
+    }
+
+    // Elementos de la API
+    if (url.pathname === "/api/items" && request.method === "GET") {
+      const items = [
+        { id: 1, name: "Item 1", description: "Description 1" },
+        { id: 2, name: "Item 2", description: "Description 2" }
+      ];
+      return Response.json(items);
+    }
+
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+});
+
+console.log(`Server running at http://${hostname}:${port}/`);
+```
+
+## Despliegue
+
+<Tabs>
+  <Tab title="Panel">
+    1. Comprime el proyecto en un `.zip` (carpetas como `node_modules`, `venv` y `target` se eliminan automáticamente) o súbelo a GitHub.
+    2. En el panel, haz clic en **Nuevo proyecto** y sube el `.zip` o pega la URL del repositorio.
+    3. En **Build**, revisa el runtime (**Bun**), el archivo principal (`index.ts`) y la memoria. Los comandos de inicio y de build están en **Ajustes avanzados**.
+    4. Agrega tus variables de entorno en **Entorno**.
+    5. En **Red**, activa **Publicación web** para que la aplicación obtenga una dirección `*.vertraweb.app` (plan Pro o superior, 512 MB de memoria). La aplicación debe escuchar en el puerto 80.
+    6. Revisa y despliega. Sigue la salida en la pestaña **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Consulta [CLI](/es-es/cli) para la instalación y el inicio de sesión.
+  </Tab>
+  <Tab title="VS Code">
+    Abre la carpeta con la extensión de Vertra Cloud instalada y ejecuta **Desplegar el proyecto actual**. Consulta [Extensión de VS Code](/es-es/vscode-extension).
+  </Tab>
+</Tabs>
+
+La guía completa está en [Primer despliegue](/es-es/how-to-host).
+
+## Versiones disponibles
+
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 1.4.4 | Última | Bun 1.4 (última versión) |
+| 1.3.14 | Recomendada | Bun 1.3 (recomendada para producción) |
+
+## Notas
+
+- **Rendimiento**: Bun es significativamente más rápido que Node.js
+- **TypeScript nativo**: Bun ejecuta TypeScript directamente, sin compilación
+- **Compatibilidad**: Bun es compatible con Node.js/npm, aunque tiene algunas diferencias
+- **Variables de entorno**: accede a ellas con `process.env.KEY`
+- **Logs**: usa `console.log()` para los logs que aparecen en el panel
+- **Módulos**: usa `bun add` para añadir dependencias
+- Escucha en `0.0.0.0` en el puerto `$PORT`

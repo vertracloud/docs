@@ -1,0 +1,85 @@
+---
+title: 'Regras de pasta do Blob Storage: padrões e limites por pasta'
+sidebarTitle: 'Regras de pasta'
+description: 'Defina visibilidade padrão, expiração, limites de tamanho, extensões permitidas, cache e exclusão automática de todos os arquivos de uma pasta.'
+icon: 'folder-tree'
+---
+
+Uma regra de pasta aplica padrões e limites a todo arquivo novo cujo caminho começa com um prefixo, para que sua aplicação não precise repeti-los em cada upload. Os prefixos são salvos com `/` no final, e, quando várias regras batem, **o prefixo mais longo vence**.
+
+| Campo | Efeito |
+|---|---|
+| `visibility` | Padrão para os arquivos novos da pasta |
+| `expire_seconds` | Expiração padrão de cada arquivo novo |
+| `max_size` | Maior arquivo permitido, de 512 bytes a 10 GB |
+| `extensions` | Somente estas extensões são aceitas (de 1 a 50, minúsculas, sem ponto) |
+| `cache_control` | Cabeçalho de cache padrão |
+| `delete_after_days` | Apaga os arquivos após 1 a 3650 dias |
+
+`delete_after_days` começa a contar **24 horas depois que a regra é salva**, o que dá tempo para desfazer um erro. O campo `active_from` da regra mostra quando ela passa a valer.
+
+O número de regras por conta depende do plano: 5, 10 ou 20 ([limites](/pt-br/blob/limits-and-quotas)). Ultrapassar o número responde `BLOB_RULE_LIMIT`. Uma regra precisa definir pelo menos um campo; `expire_seconds` não pode ficar abaixo da expiração mínima do plano (7 dias, ou 1 hora no Enterprise-26 ou superior); `extensions` aceita de 1 a 50 itens de 1 a 16 caracteres minúsculos, sem o ponto. Substituir a lista inteira aceita no máximo 100 regras.
+
+## Editando com segurança usando `If-Match`
+
+Ler as regras devolve a lista e um `etag`. Substituir a lista inteira exige esse etag em um cabeçalho `If-Match`; se outra aba ou script mudou as regras nesse meio-tempo, você recebe `BLOB_RULES_CONFLICT` em vez de apagar o trabalho deles em silêncio. As rotas de uma única regra (colocar e apagar pelo prefixo) devolvem a lista completa com um novo etag.
+
+<CodeGroup>
+
+```bash cURL
+# leitura
+curl "https://blob.vertracloud.app/v1/rules" -H "Authorization: Bearer $VERTRA_API_KEY"
+
+# adiciona ou altera uma regra (o prefixo é URL-encoded: tmp/ -> tmp%2F)
+curl -X PUT "https://blob.vertracloud.app/v1/rules/tmp%2F" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "delete_after_days": 30 }'
+
+# substitui tudo
+curl -X PUT "https://blob.vertracloud.app/v1/rules" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" -H "If-Match: $ETAG" \
+  -H "Content-Type: application/json" -d '{ "rules": [] }'
+```
+
+```javascript JavaScript
+const { rules, etag } = await blob.rules.get();
+
+// substitui a lista inteira; um etag desatualizado falha com BLOB_RULES_CONFLICT
+await blob.rules.set([{ prefix: "avatars/", maxSize: 2_000_000, extensions: ["png", "jpg"] }], etag);
+
+// cria ou altera uma pasta
+await blob.rules.put("tmp/", { deleteAfterDays: 30 });
+await blob.rules.delete("tmp/");
+```
+
+```python Python
+current = client.blob.rules.get()  # {"rules": [...], "etag": "..."}
+
+# substitui a lista inteira; um etag desatualizado falha com BLOB_RULES_CONFLICT
+client.blob.rules.set(
+    [{"prefix": "avatars/", "max_size": 2_000_000, "extensions": ["png", "jpg"]}],
+    current["etag"],
+)
+
+client.blob.rules.put("tmp/", delete_after_days=30)
+client.blob.rules.delete("tmp/")
+```
+
+```go Go
+current, err := client.Blob.Rules.Get(ctx)
+
+// substitui a lista inteira; um etag desatualizado falha com BLOB_RULES_CONFLICT
+maxSize := int64(2_000_000)
+_, err = client.Blob.Rules.Set(ctx, []vertracloud.BlobRuleEntry{{
+    Prefix: "avatars/",
+    BlobRuleInput: vertracloud.BlobRuleInput{MaxSize: &maxSize, Extensions: []string{"png", "jpg"}},
+}}, current.ETag)
+
+days := 30
+_, err = client.Blob.Rules.Put(ctx, "tmp/", vertracloud.BlobRuleInput{DeleteAfterDays: &days})
+_, err = client.Blob.Rules.Delete(ctx, "tmp/")
+```
+
+</CodeGroup>
+
+Referência: [Obter regras](/api-reference/endpoint/blob/rules/get), [Substituir regras](/api-reference/endpoint/blob/rules/replace), [Colocar regra](/api-reference/endpoint/blob/rules/put), [Apagar regra](/api-reference/endpoint/blob/rules/delete).

@@ -1,0 +1,37 @@
+### Site
+
+- **A página Enterprise agora segue o mesmo padrão da landing page.** Mesmo mesh, escala tipográfica e cards; o seletor de planos usa o mesmo azul da página de planos, em vez do laranja.
+- **A página de planos agora segue o mesmo padrão da landing page.** Economy, Pro, Scale e Enterprise ficam nos mesmos cards, Enterprise está em azul em vez de laranja, e a tabela comparativa fica fixa enquanto você rola a página — com uma caixa de busca e grupos em acordeão, no desktop e no celular.
+- **As telas de login e de cadastro agora seguem o mesmo padrão do restante do site.** Mesmo cabeçalho e rodapé da landing page, um formulário de entrada centralizado, uma visão rápida de Economy / Pro / Scale e um FAQ compacto — com um link para a página completa de planos.
+- **Login e cadastro agora são a mesma tela.** Digite seu e-mail e receba um código — sem formulário de cadastro separado e sem nome para digitar. Novas contas recebem um nome inicial a partir do endereço de e-mail, que você pode alterar a qualquer momento nas configurações do seu perfil.
+
+### Desempenho
+
+- **O site agora abre mais rápido.** A landing page e todas as páginas institucionais — Sobre, Preços, Planos, Bancos de dados, Enterprise, CLI, VS Code, Blob Storage, Privacidade e Termos — agora são pré-renderizadas com antecedência e servidas sem nenhum processamento no servidor a cada visita.
+- **Bem menos para baixar e executar na landing page.** O mapa global agora é uma imagem pré-gerada, em vez de ser construído no navegador a cada carregamento, e as animações da página agora rodam em CSS, em vez de JavaScript.
+- As traduções agora são carregadas por página, em vez de o site inteiro baixar os textos dos três idiomas em cada tela.
+- **O dashboard carrega somente o que você está vendo.** Painéis pesados — o editor de arquivos, o terminal e os gráficos — agora são carregados sob demanda, em vez de logo no início, e as requisições em segundo plano que antes rodavam em telas onde nem eram usadas foram removidas.
+
+### E-mails
+
+- **Todos os e-mails transacionais foram redesenhados.** Códigos de confirmação, comprovantes de compra e de resgate, lembretes de renovação, avisos de vencimento de plano e de exclusão de projeto agora compartilham um só layout, com a informação principal — o código, o valor, o prazo — em primeiro lugar, em vez de escondida em um parágrafo.
+- **O logo da Vertra Cloud agora aparece na sua caixa de entrada.** Ele era enviado como SVG, formato que o Gmail, o Outlook para desktop e o Yahoo não exibem de forma alguma, então a maioria dos destinatários via uma imagem quebrada.
+- Os e-mails agora trazem uma linha de pré-visualização, seguem o tema claro ou escuro do sistema e ficam legíveis no celular e com as imagens bloqueadas.
+- Corrigido o e-mail de resgate que mostrava o placeholder `{{duration}}` em vez da duração do plano, e os e-mails de compra em inglês e espanhol que mostravam o valor sem a moeda.
+
+### Backups e exclusão automática
+
+- **Projetos nunca são excluídos sem um backup verificado.** O vencimento do plano e o job de limpeza do plano FREE agora criam primeiro um snapshot e só excluem os recursos cujo snapshot foi concluído. Qualquer recurso cujo backup falhe é **parado e mantido no lugar** em vez de excluído, e fica sinalizado para revisão manual.
+- O job de limpeza do plano FREE antes excluía projetos offline sem criar nenhum snapshot. Agora ele cria um antes.
+- Os snapshots anteriores à exclusão ignoram a permissão de backup do plano — um projeto prestes a ser removido sempre tem backup, independentemente do nível.
+- **Snapshots de projetos grandes agora funcionam.** O limite de tamanho que fazia os backups de projetos maiores falharem por completo foi removido.
+- Os arquivos de snapshot não incluem mais conteúdo que pode ser reinstalado (`node_modules`, virtualenvs, `vendor`, caches de build) nem o histórico do git, por isso são bem menores.
+- Um snapshot só é registrado depois que a existência do arquivo no armazenamento é confirmada, e o tamanho informado agora vem do próprio armazenamento — um snapshot não pode mais aparecer na sua lista sem um arquivo real por trás.
+
+### Validação e mensagens de erro
+
+- Endpoints que recebem um ID de workspace, de aplicação, de banco de dados ou de variável de ambiente agora rejeitam um ID malformado com um `400` claro, em vez de falhar com um erro interno genérico.
+- Atualizar uma aplicação ou um workspace com um corpo vazio agora retorna um erro de validação, em vez de falhar.
+- `start_command` agora é limitado a 512 caracteres no momento em que você salva, em vez de falhar apenas depois, durante um rebuild.
+- Enviar um `.zip` corrompido ou truncado ao criar uma aplicação agora retorna `INVALID_ZIP`, em vez de um erro interno genérico.
+- Gravar um arquivo sobre um caminho que já existe como pasta agora retorna `TARGET_IS_DIRECTORY`, em vez de um erro interno genérico.

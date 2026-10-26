@@ -1,0 +1,70 @@
+---
+title: 'Blob Storage de Vertra: almacenamiento de archivos con CDN global'
+sidebarTitle: 'Descripción general'
+description: 'Blob Storage guarda subidas de usuarios, imágenes y archivos grandes de tus aplicaciones y los sirve desde una CDN global, con API, SDK y endpoint compatible con S3.'
+icon: 'folder-open'
+---
+
+Blob Storage es el almacenamiento de objetos de Vertra Cloud para los archivos que tu aplicación gestiona pero no construye: subidas de usuarios, imágenes, vídeos, exportaciones y copias de seguridad. Los archivos se guardan una sola vez, se sirven desde una CDN global y se gestionan a través de la [API](/api-reference/endpoint/blob/objects/list), los [SDK](/es-es/blob/sdk-javascript), el panel o cualquier herramienta compatible con S3.
+
+Es independiente del disco de tu aplicación. Lo que guardes aquí sobrevive a los redespliegues y no cuenta contra el almacenamiento de la aplicación.
+
+## Cómo funciona
+
+1. Tu código llama a la API con una [clave de API](/es-es/blob/authentication) (o un navegador usa un token de subida de corta duración).
+2. Los archivos de hasta 100 MB pueden enviarse en una sola petición. Los archivos más grandes, de hasta 10 GB, se envían directamente al almacenamiento con una URL firmada, así que los bytes nunca pasan por la API. Consulta [Subidas](/es-es/blob/uploads).
+3. El archivo se sirve desde la CDN global mediante una URL pública estable, o mediante un [enlace temporal](/es-es/blob/links-and-visibility) cuando es privado.
+
+## Archivos públicos y privados
+
+Cada archivo es **público** o **privado**, y los archivos nuevos son **privados** salvo que indiques lo contrario.
+
+| | Público | Privado |
+|---|---|---|
+| Dirección | URL permanente en `blob.vertracloud.dev` | Ninguna; creas un enlace temporal o una página compartida |
+| Quién puede leer | Cualquiera con la URL | Solo tus credenciales o un enlace que hayas emitido |
+| Cacheado por la CDN | Sí | No |
+| Uso típico | Avatares, imágenes del sitio, descargas | Facturas, copias de seguridad, documentos de usuarios |
+
+Puedes cambiar un archivo de uno a otro en cualquier momento sin cambiar su `id`. Detalles en [Enlaces y visibilidad](/es-es/blob/links-and-visibility).
+
+## Seguro por defecto
+
+- **Tipos de archivo bloqueados.** Se rechazan los ejecutables e instaladores: `exe`, `msi`, `dll`, `bat`, `cmd`, `com`, `scr`, `ps1`, `apk`, `dmg`, `pkg`, `deb`, `rpm`, `appimage` y algunos más. Los archivos que son ejecutables de verdad se rechazan aunque se les cambie el nombre.
+- **HTML, SVG y XML siempre se descargan.** Los archivos que terminan en `.html`, `.htm`, `.svg`, `.xml` o `.xhtml` se sirven siempre como descarga, nunca se muestran en el navegador, así que una subida de un usuario no puede ejecutarse como página web en la dirección de tus archivos.
+- **Tipo de contenido según la extensión.** La plataforma define el tipo de contenido por sí misma, así que no puede falsificarse en el momento de la subida.
+- **Los archivos de otras cuentas nunca se filtran.** Pedir un ID de archivo que no es tuyo responde "no encontrado".
+
+## Caché
+
+Los archivos públicos se cachean en la CDN. Define `cache_control` por archivo o por carpeta como `immutable` o `max-age=N`. El modo `no-cache` está disponible en los niveles Enterprise más altos; consulta [Límites y cuotas](/es-es/blob/limits-and-quotas). Sobrescribir o borrar un archivo público limpia su copia en caché.
+
+## Qué incluye
+
+<CardGroup cols={2}>
+  <Card title="Subidas" icon="upload" href="/es-es/blob/uploads">Subidas simples, directas y reanudables por partes.</Card>
+  <Card title="Compartir" icon="share-nodes" href="/es-es/blob/sharing">Páginas compartidas con caducidad, límite de descargas y contraseña.</Card>
+  <Card title="Reglas por carpeta" icon="folder-tree" href="/es-es/blob/folder-rules">Valores por defecto y límites por carpeta.</Card>
+  <Card title="Transformaciones de imagen" icon="image" href="/es-es/blob/image-transformations">Redimensiona y convierte desde la URL.</Card>
+  <Card title="Compatibilidad con S3" icon="plug" href="/es-es/blob/s3-compatibility">Usa aws-cli, rclone o boto3.</Card>
+  <Card title="Dominios personalizados" icon="globe" href="/es-es/blob/custom-domains">Sirve archivos desde tu propio subdominio.</Card>
+</CardGroup>
+
+## Preguntas frecuentes
+
+<AccordionGroup>
+  <Accordion title="¿Qué planes incluyen Blob Storage?">
+    Todos los planes de pago, desde 1 GB en Economy. La tabla completa está en [Límites y cuotas](/es-es/blob/limits-and-quotas).
+  </Accordion>
+  <Accordion title="¿Cuál es el archivo más grande que puedo guardar?">
+    10 GB por archivo. Los archivos de más de 100 MB usan el flujo de subida directa.
+  </Accordion>
+  <Accordion title="¿Puedo cambiar la URL de un archivo?">
+    La URL pública se construye a partir de la ruta del archivo. Mover un archivo cambia su ruta (y su URL), pero conserva su `id`, así que guarda el `id` si necesitas una referencia estable.
+  </Accordion>
+  <Accordion title="¿Qué pasa con mis archivos si caduca mi plan?">
+    Se conservan 72 horas en un periodo de gracia y después se eliminan de forma permanente, sin copia de seguridad. Consulta [Límites y cuotas](/es-es/blob/limits-and-quotas#caducidad-y-borrado).
+  </Accordion>
+</AccordionGroup>
+
+Siguiente paso: el [Inicio rápido](/es-es/blob/quickstart).

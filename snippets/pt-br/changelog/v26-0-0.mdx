@@ -1,0 +1,200 @@
+### Visão geral
+
+A versão 26.0 é a maior atualização da Vertra Cloud desde o lançamento. Ela introduz workspaces colaborativos, vários provedores de autenticação e um dashboard redesenhado.
+
+---
+
+### Novas funcionalidades
+
+#### Workspaces
+Espaços de equipe colaborativos com controle de acesso baseado em funções.
+
+- Criar, editar e excluir workspaces
+- **5 funções**: Dono, Administrador, Desenvolvedor, Operador e Visualizador
+- Gerenciamento de membros com links de convite
+- Atribuir aplicações e bancos de dados aos workspaces
+- Disponível a partir do plano **Enterprise** (de 5 a 24 membros)
+
+#### Autenticação
+Várias opções de login e gerenciamento de conta.
+
+- **Magic Link** — Autenticação por e-mail sem senha
+- **GitHub OAuth** — Login e vinculação de conta
+- **Google OAuth** — Login e vinculação de conta
+- **Discord OAuth** — Provedor que já existia, agora com vinculação e desvinculação de conta
+- **Troca de conta** — Até 5 contas salvas no mesmo navegador
+- **Gerenciamento de sessões** — Ver sessões ativas, revogar todas as sessões
+- **Geração de chave de API** — Para acesso programático
+
+#### Notificações
+Sistema de notificações da plataforma integrado ao dashboard.
+
+- Notificações pela API com status de lida e não lida
+- Marcar notificações individuais ou todas como lidas
+- Exibição em tempo real no cabeçalho do dashboard
+- Templates de e-mail localizados em 3 idiomas (EN, PT-BR, ES)
+- Templates para: vencimento do plano, aviso de exclusão e confirmação de compra
+
+#### Downgrade de plano
+Os usuários agora podem fazer o downgrade do plano diretamente pelo dashboard ou pela API.
+
+- Downgrade para o plano Free via `POST /v1/users/me/downgrade`
+- Limite de requisições para evitar abuso
+- Avisos sobre o impacto nos recursos existentes
+
+#### Snapshots
+Substituiu o sistema anterior de backup e commit por snapshots unificados.
+
+- Criar snapshots manuais de aplicações e bancos de dados
+- Restaurar a partir de qualquer snapshot anterior (com cooldown)
+- Baixar o conteúdo do snapshot
+- Injeção automática de `vertracloud.config` durante a criação do snapshot
+- Visualização de snapshots agrupados no dashboard
+
+#### Limpeza do plano Free
+Gerenciamento automático dos recursos inativos do plano Free.
+
+- Projetos offline há 30 dias ou mais são excluídos automaticamente
+- Notificações por e-mail nos dias 7, 23 e 27
+- Link de reativação incluído nos avisos
+
+#### Versões dinâmicas de runtime
+A seleção de runtime agora busca as versões disponíveis dinamicamente.
+
+- Seletor de versão no assistente de criação de projeto
+- Tags `recommended` e `latest`
+- Novas linguagens suportadas: **Ruby**, **Rust** e **Java**
+
+---
+
+### Dashboard
+
+#### Redesenho completo
+O dashboard foi reconstruído do zero.
+
+- **Assistente de novo projeto** — Criação em várias etapas, com layout vertical animado
+- **Gerenciador de arquivos** — Reescrito com o Monaco Editor (arrastar e soltar, upload de ZIP, validação de caminhos proibidos)
+- **Terminal embutido** — Transmissão de logs em tempo real via SSE, com cores ANSI e rolagem automática
+- **Configurações da conta** — Conexões de autenticação, gerenciamento de sessões, geração de chaves de API e códigos de resgate
+- **Cabeçalho responsivo** — Modo compacto, prevenção de overflow e menus que fecham ao clicar fora
+
+#### Internacionalização
+Suporte completo a i18n em todo o dashboard.
+
+- 3 idiomas: inglês, português (BR) e espanhol
+- Mensagens de erro, mensagens de sucesso e templates de e-mail localizados
+- Arquivos de mensagens granulares, organizados por funcionalidade
+
+#### Integração com o GitHub
+Suporte aprimorado ao GitHub no fluxo de criação de projetos.
+
+- Seleção de repositório, incluindo repositórios privados
+- Seleção de branch
+- Alternativa com ZIP quando o GitHub está indisponível
+- Configuração de webhook para deploys automáticos
+
+---
+
+### Mudanças na API
+
+#### Novos endpoints
+- `POST /v1/users/me/downgrade` — Downgrade de plano
+- `GET /v1/users/me/sessions` — Listar sessões ativas
+- `DELETE /v1/users/me/sessions` — Revogar todas as sessões
+- `POST /v1/users/me/generate-api-key` — Gerar chave de API
+- `GET /v1/notifications` — Listar notificações
+- `POST /v1/notifications/:id/read` — Marcar como lida
+- `POST /v1/notifications/read-all` — Marcar todas como lidas
+- `POST /v1/workspaces` — Criar workspace
+- `GET /v1/workspaces` — Listar workspaces
+- `GET/PUT/DELETE /v1/workspaces/:id` — CRUD de workspace
+- `POST/DELETE /v1/workspaces/:id/members` — Gerenciamento de membros
+- `POST/DELETE /v1/workspaces/:id/apps/:appId` — Associação de aplicação
+- `POST/DELETE /v1/workspaces/:id/databases/:dbId` — Associação de banco de dados
+- `GET /v1/apps/runtimes` — Versões de runtime disponíveis
+- `POST /v1/orders` — Criar pedido
+- `GET /v1/orders` — Listar pedidos
+- `POST /v1/orders/:id/initiate/pix` — Pagamento PIX
+- `POST /v1/redeem/:code` — Resgatar código
+
+#### Formato de resposta
+Formato de resposta da API padronizado em todos os endpoints:
+- Sucesso: `{ "status": "success", "response": { ... } }`
+- Erro: `{ "code": "ERROR_CODE", "message": "..." }`
+
+#### Tipagem
+- Publicado o pacote `@vertracloud/api-types`, com definições completas em TypeScript
+- Todos os tipos de resposta dos endpoints REST documentados, com links `@see` para a documentação
+- Cobertura completa de tipos: aplicações, bancos de dados, workspaces, pedidos, snapshots e notificações
+
+---
+
+### Melhorias
+
+#### Detecção de loop de falhas
+Auto-restart inteligente com prevenção de abuso.
+
+- 5 falhas em 10 minutos desativam o auto-restart por 24 horas
+- Filtragem por código de saída (o código de saída normal 0 não é contado)
+- Intervalo de 1 hora entre reinícios
+- Mínimo de 60 segundos de execução para ser considerado estável
+
+#### Logs em tempo real
+Transmissão de logs aprimorada, com mais confiabilidade e entrega em tempo real.
+
+#### Gerenciamento de subdomínio personalizado
+
+- Selecionar um subdomínio personalizado durante a criação do projeto
+- Alterar o subdomínio pela API (`PATCH /v1/apps/:id/network/subdomain`)
+- Validação de disponibilidade
+
+#### Gerenciador de arquivos
+
+- Upload por arrastar e soltar, com suporte a ZIP
+- Validação de diretórios e arquivos proibidos
+- Ordenação inteligente da árvore de arquivos
+- Mensagens de erro localizadas
+
+---
+
+### Correções de bugs
+
+- Corrigidas inconsistências no monitoramento de status dos bancos de dados
+- Corrigida a entrega de notificações durante a migração de dados
+- Corrigido o overflow horizontal no cabeçalho responsivo do dashboard
+- Corrigidos diversos bugs no fluxo do assistente de criação de projeto
+- Corrigida a detecção de loop de falhas em containers com erros de sintaxe
+- Corrigida a verificação de registros DNS do domínio personalizado
+
+---
+
+### Mudanças que quebram compatibilidade
+
+<Warning>
+  Revise estas mudanças antes de atualizar. Elas podem afetar integrações existentes.
+</Warning>
+
+- **Sistema de snapshots** — Substituiu o sistema anterior de backup e commit. Os endpoints antigos de backup estão obsoletos.
+- **Autenticação** — Nova autenticação baseada em sessão. As chaves de API existentes continuam funcionando.
+- **Endpoints de workspace** — `/v1/organizations/*` renomeado para `/v1/workspaces/*`
+- **Comportamento do auto-restart** — Agora inclui detecção de loop de falhas com desativação automática
+- **Limpeza do plano Free** — Projetos inativos são excluídos após 30 dias (com avisos por e-mail)
+
+---
+
+### v26.1 — 25 e 26 de março de 2026
+
+#### Correções de bugs
+
+- **Exclusão de arquivos no deploy do GitHub** — Corrigido o caso em que os deploys removiam agressivamente o `.env` e os arquivos de configuração não rastreados
+- **Preservação de arquivos no deploy da aplicação** — Atualizações da aplicação agora preservam os arquivos locais existentes, em vez de apagar o conteúdo não rastreado
+- **Coleta de métricas** — Corrigido o caso em que as métricas não eram coletadas para algumas aplicações em execução
+- **Exibição de métricas** — Corrigidos campos de rede ausentes, falhas com valores nulos e rótulos de tempo duplicados nos gráficos
+- **Validação de UUID** — Os parâmetros de rota da API para IDs de aplicação e de banco de dados agora validam o formato UUID, retornando 400 para valores inválidos
+- **Exclusão de variável de ambiente** — Corrigida a chamada do endpoint de exclusão a partir do dashboard (faltava o ID da variável no caminho da URL)
+- **Edição da chave de variável de ambiente** — Corrigido o campo de chave, que não era atualizado ao editar uma variável existente
+- **Cor do texto da sobreposição de upload** — Corrigido o texto de descrição com baixo contraste no diálogo de progresso do upload de commit
+
+#### Melhorias
+
+- **Persistência do vertracloud.config** — O arquivo de configuração agora é gravado no diretório da aplicação na criação, garantindo que os uploads futuros herdem a configuração

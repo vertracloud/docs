@@ -1,0 +1,288 @@
+---
+title: 'Cómo alojar un bot de Telegram en Vertra Cloud'
+sidebarTitle: 'Bots de Telegram'
+description: 'Despliega un bot de Telegram escrito en Node.js o Python en Vertra Cloud: estructura del proyecto, token de BotFather, polling frente a webhook y logs.'
+icon: 'telegram'
+---
+
+## Descripción general
+
+Vertra Cloud es ideal para alojar bots de Telegram: ofrece disponibilidad continua, reinicio automático y monitorización de logs en tiempo real.
+
+<Warning>
+  Al crear la aplicación para un bot, selecciona el tipo **Bot** (no Sitio web). Los bots no necesitan un puerto HTTP expuesto.
+</Warning>
+
+## Node.js con node-telegram-bot-api
+
+### Estructura
+
+```
+my-bot-telegram-js/
+├── src/
+│   └── index.js
+├── package.json
+└── vertracloud.config
+```
+
+### package.json
+
+```json
+{
+  "name": "my-bot-telegram-js",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.63.0"
+  }
+}
+```
+
+### vertracloud.config
+
+```ini
+MAIN=src/index.js
+START=npm start
+VERSION=recommended
+```
+
+### Ejemplo (Node.js)
+
+```javascript
+const TelegramBot = require('node-telegram-bot-api');
+
+const token = process.env.BOT_TOKEN;
+if (!token) {
+  throw new Error('BOT_TOKEN environment variable is required');
+}
+
+const bot = new TelegramBot(token, { polling: true });
+
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  const replyMarkup = {
+    keyboard: [
+      [{ text: ' Hello' }, { text: '❓ Help' }],
+      [{ text: 'Information' }]
+    ],
+    resize_keyboard: true
+  };
+
+  bot.sendMessage(chatId, 'Welcome to the bot! Choose an option:', {
+    reply_markup: replyMarkup
+  });
+});
+
+bot.onText(/\/help|❓ Help/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `
+Available commands:
+/start - Start the bot
+/help - Show this help
+/info - Bot information
+  `);
+});
+
+bot.onText(/\/info|Information/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, 'This is an example bot on Vertra Cloud!');
+});
+
+// Responde a los mensajes de texto
+bot.on('message', (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+
+  if (text === ' Hello') {
+    bot.sendMessage(chatId, 'Hello! How can I help you?');
+  } else if (text && !text.startsWith('/')) {
+    // Eco del mensaje
+    bot.sendMessage(chatId, `You said: ${text}`);
+  }
+});
+
+// Gestión de errores
+bot.on('polling_error', (error) => {
+  console.error('Polling error:', error.message);
+});
+
+console.log('Bot started and waiting for messages...');
+```
+
+---
+
+## Python con python-telegram-bot
+
+### Estructura
+
+```
+my-bot-telegram-py/
+├── main.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+### requirements.txt
+
+```txt
+python-telegram-bot==20.3
+python-dotenv==1.0.0
+```
+
+### vertracloud.config
+
+```ini
+MAIN=main.py
+VERSION=recommended
+```
+
+### Ejemplo (Python)
+
+```python
+import os
+import logging
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+
+# Configuración de logs
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+if not BOT_TOKEN:
+    raise ValueError('BOT_TOKEN environment variable is required')
+
+# Handlers
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Start command"""
+    keyboard = [
+        [' Hello', '❓ Help'],
+        ['Information']
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text('Welcome to the bot! Choose an option:', reply_markup=reply_markup)
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Help command"""
+    help_text = """Available commands:
+/start - Start the bot
+/help - Show this help
+/info - Bot information
+"""
+    await update.message.reply_text(help_text)
+
+async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Info command"""
+    await update.message.reply_text('This is an example bot on Vertra Cloud!')
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle text messages"""
+    text = update.message.text
+
+    if text == ' Hello':
+        await update.message.reply_text('Hello! How can I help you?')
+    elif text == '❓ Help':
+        await help_command(update, context)
+    elif text == 'Information':
+        await info_command(update, context)
+    else:
+        # Eco
+        await update.message.reply_text(f'You said: {text}')
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle errors"""
+    logger.error(msg='Exception while handling an update:', exc_info=context.error)
+
+async def main() -> None:
+    """Start the bot"""
+    # Crea la aplicación
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    # Registra los handlers
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(CommandHandler('info', info_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Handler de errores
+    application.add_error_handler(error_handler)
+
+    # Inicia el bot
+    logger.info('Bot started and waiting for messages...')
+    await application.run_polling()
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
+```
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Comprime el proyecto en un `.zip` (las carpetas como `node_modules`, `venv` y `target` se eliminan automáticamente) o súbelo a GitHub.
+    2. En el panel, haz clic en **Nuevo Proyecto** y sube el `.zip` o pega la URL del repositorio.
+    3. En **Build**, revisa el runtime (**JavaScript o Python**), el archivo principal (`src/index.js` o `main.py`) y la memoria. Los comandos de inicio y de build están en **Ajustes avanzados**.
+    4. Añade tus variables de entorno en **Variables de Entorno**.
+    5. En **Red**, deja la publicación web **desactivada**: un bot no recibe tráfico entrante y se ejecuta en segundo plano en cualquier plan.
+    6. Revisa y despliega. Sigue la salida en la pestaña **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Consulta la [CLI](/es-es/cli) para la instalación y el inicio de sesión.
+  </Tab>
+  <Tab title="VS Code">
+    Abre la carpeta con la extensión de Vertra Cloud instalada y ejecuta **Deploy current project**. Consulta la [extensión de VS Code](/es-es/vscode-extension).
+  </Tab>
+</Tabs>
+
+La guía completa está en [Primer despliegue](/es-es/how-to-host).
+
+## Configuración de variables de entorno
+
+<Steps>
+  <Step title="Obtén el token del bot">
+    Habla con @BotFather en Telegram para crear un bot nuevo y obtener el `BOT_TOKEN`.
+  </Step>
+  <Step title="Configura en el panel">
+    Después de crear la aplicación, añade la variable de entorno:
+    - **Nombre**: `BOT_TOKEN`
+    - **Valor**: (tu token de @BotFather)
+  </Step>
+  <Step title="Revisa los logs">
+    Supervisa los logs tras el despliegue para confirmar que el bot está en línea y conectado.
+  </Step>
+</Steps>
+
+## Versiones disponibles
+
+### Node.js
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 24.22.1 | Más reciente | Node.js 24.22.1 (versión más reciente) |
+| 22.23.4 | Recomendada | Node.js 22.23.4 LTS (recomendada para producción) |
+
+### Python
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 3.13.17 | Recomendada y la más reciente | Python 3.13 LTS (recomendada para producción) |
+| 3.12.15 | Estable | Python 3.12 con soporte extendido |
+| 3.11.17 | Otra | Python 3.11 (disponible hasta que la plataforma retire la línea) |
+
+## Notas
+
+- **Tipo bot**: selecciona siempre **Bot** al crear la aplicación (no Sitio web)
+- **Variables de entorno**: configura `BOT_TOKEN` en las variables de la aplicación
+- **Reinicio automático**: activado por defecto, mantiene el bot en línea si se desconecta
+- **Memoria**: 256 MB bastan para bots sencillos; 512 MB o más para los complejos
+- **Logs**: usa `console.log()` (JS) o `logging` (Python) para monitorizar en tiempo real
+- **Polling**: ambas bibliotecas usan polling, que es más sencillo pero consume más recursos que los webhooks

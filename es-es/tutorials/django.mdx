@@ -1,0 +1,175 @@
+---
+title: 'Cómo alojar una aplicación Django en Vertra Cloud'
+sidebarTitle: 'Django'
+description: 'Despliega un proyecto Django en Vertra Cloud: Gunicorn, ALLOWED_HOSTS con tu subdominio, archivos estáticos, migraciones y una base de datos gestionada.'
+icon: 'python'
+---
+
+## Requisitos
+
+- Python 3.11+ instalado en local
+- Cuenta en [Vertra Cloud](https://vertracloud.app)
+- Archivo `requirements.txt` en la raíz del proyecto
+
+## Estructura del proyecto
+
+```
+my-django-project/
+├── manage.py
+├── my_project/
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── my_apps/
+│   ├── models.py
+│   ├── views.py
+│   └── urls.py
+├── requirements.txt
+└── vertracloud.config
+```
+
+## Configuración
+
+### requirements.txt
+
+```txt
+django==4.2.0
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+python-decouple==3.8
+whitenoise==6.5.0
+```
+
+<Note>
+  La plataforma ejecuta `pip install -r requirements.txt` automáticamente. No incluyas `venv` ni `__pycache__` en la subida.
+</Note>
+
+### settings.py
+
+Configura tu `settings.py` para producción:
+
+```python
+import os
+from pathlib import Path
+from decouple import config
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Seguridad
+SECRET_KEY = config('SECRET_KEY')  # sin valor por defecto: configúralo en las variables de entorno de la aplicación
+DEBUG = config('DEBUG', default=False, cast=bool)
+ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(',')  # p. ej. mi-app.vertraweb.app,example.com
+
+# Aplicaciones
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'my_apps',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Añade WhiteNoise
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+]
+
+ROOT_URLCONF = 'my_project.urls'
+
+# Base de datos
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME', default='vertracloud'),
+        'USER': config('DB_USER', default='vertracloud'),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT'),  # única por base de datos, cópiala desde el panel
+        # Las bases de datos de Vertra exigen TLS y certificado de cliente (consulta /es-es/databases)
+        'OPTIONS': {
+            'sslmode': 'verify-full',
+            'sslrootcert': config('DB_SSL_PEM', default='certificate.pem'),
+            'sslcert': config('DB_SSL_CRT', default='certificate.crt'),
+            'sslkey': config('DB_SSL_KEY', default='certificate.key'),
+        },
+    }
+}
+
+# Archivos estáticos
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# HTTPS: TLS termina en el proxy de la plataforma, así que confía en su cabecera de protocolo reenviado
+# (sin ella, SECURE_SSL_REDIRECT redirigiría cada petición en bucle)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+```
+
+<Note>
+  Configura `SECRET_KEY` y `ALLOWED_HOSTS` (tu subdominio `*.vertraweb.app` y cualquier dominio personalizado, separados por comas) en las variables de entorno de la aplicación antes del primer despliegue: sin ellas la aplicación no arranca.
+</Note>
+
+### vertracloud.config
+
+```ini
+MAIN=manage.py
+START=gunicorn --bind 0.0.0.0:$PORT my_project.wsgi:application
+VERSION=recommended
+```
+
+<Warning>
+  Antes del despliegue, ejecuta `python manage.py collectstatic --noinput` en local para generar los archivos estáticos.
+</Warning>
+
+## Deploy
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Comprime el proyecto en un `.zip` (las carpetas como `node_modules`, `venv` y `target` se eliminan automáticamente) o súbelo a GitHub.
+    2. En el panel, haz clic en **Nuevo Proyecto** y sube el `.zip` o pega la URL del repositorio.
+    3. En **Build**, revisa el runtime (**Python**), el archivo principal (`manage.py`) y la memoria. Los comandos de inicio y de build están en **Ajustes avanzados**.
+    4. Añade tus variables de entorno en **Variables de Entorno**.
+    5. En **Red**, activa la **publicación web** para que la aplicación reciba una dirección `*.vertraweb.app` (plan Pro o superior, 512 MB de memoria). La aplicación debe escuchar en el puerto 80.
+    6. Revisa y despliega. Sigue la salida en la pestaña **Logs**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    vertra upload
+    vertra logs -f
+    ```
+    Consulta la [CLI](/es-es/cli) para la instalación y el inicio de sesión.
+  </Tab>
+  <Tab title="VS Code">
+    Abre la carpeta con la extensión de Vertra Cloud instalada y ejecuta **Deploy current project**. Consulta la [extensión de VS Code](/es-es/vscode-extension).
+  </Tab>
+</Tabs>
+
+La guía completa está en [Primer despliegue](/es-es/how-to-host).
+
+## Versiones disponibles
+
+| Versión | Estado | Descripción |
+|--------|--------|-----------|
+| 3.13.17 | Recomendada y la más reciente | Python 3.13 (recomendada para producción) |
+| 3.12.15 | Estable | Línea Python 3.12 |
+| 3.11.17 | Legado | Línea Python 3.11 |
+
+## Notas
+
+- **Servidor de producción**: usa `gunicorn` para servir la aplicación Django
+- **Archivos estáticos**: ejecuta `collectstatic` y configura `WhiteNoise` antes del despliegue
+- **Base de datos**: configura `psycopg2-binary` para PostgreSQL
+- **Migraciones**: ejecuta `python manage.py migrate` antes del primer despliegue
+- **Variables de entorno**: configura `SECRET_KEY`, las credenciales de la base de datos y `DEBUG=False`
+- **Reinicio automático**: activado por defecto
