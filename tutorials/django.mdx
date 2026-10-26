@@ -57,9 +57,9 @@ from decouple import config
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
-SECRET_KEY = config('SECRET_KEY', default='dev-key-change-in-production')
+SECRET_KEY = config('SECRET_KEY')  # no default: set it in the application's environment variables
 DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(',')  # e.g. my-app.vertraweb.app,example.com
 
 # Applications
 INSTALLED_APPS = [
@@ -108,11 +108,17 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# HTTPS
+# HTTPS: TLS ends at the platform proxy, so trust its forwarded protocol header
+# (without it, SECURE_SSL_REDIRECT would redirect every request in a loop)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 ```
+
+<Note>
+  Set `SECRET_KEY` and `ALLOWED_HOSTS` (your `*.vertraweb.app` subdomain and any custom domain, separated by commas) in the application's environment variables before the first deploy: the app doesn't start without them.
+</Note>
 
 ### vertracloud.config
 
@@ -139,7 +145,7 @@ VERSION=recommended
   </Tab>
   <Tab title="CLI">
     ```bash
-    vertra deploy
+    vertra upload
     vertra logs -f
     ```
     See [CLI](/cli) for installation and login.

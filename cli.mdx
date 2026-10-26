@@ -51,11 +51,20 @@ Paste an API key created on the API keys page of the dashboard. In CI and script
 
 ```bash
 vertra doctor   # checks the project for problems before sending it
-vertra deploy   # sends the current directory
+vertra upload   # creates the application from the current directory and links the folder to it
 vertra logs -f  # follows the application output live
 ```
 
-Creating an application is asynchronous: when `vertra app create` (or `vertra app upload`) makes a new
+`vertra upload` (also `vertra app upload` or `vertra app create`) creates a new application. It reads `NAME`,
+`MEMORY`, `MAIN`, `VERSION`, `SUBDOMAIN`, `START` and `LANGUAGE` from [`vertracloud.config`](/configuration) and
+asks for the name, memory and main file when they are missing; in scripts, pass `--name`, `--memory` and `--main`.
+When it finishes, it saves the new application's `ID` in `vertracloud.config`.
+
+From then on, `vertra deploy` (an alias of `vertra app commit`) sends the current directory to that existing
+application. It never creates one: without a linked application, it asks which one to update, or fails in
+scripts unless you pass the application ID.
+
+Creating an application is asynchronous: when `vertra upload` makes a new
 application, the CLI waits for the build to finish and shows its result. Add `--no-wait` to return right after
 the upload; the application keeps building in the background.
 
@@ -64,6 +73,23 @@ Add `--json` to any command for structured output ready for automation.
 To give a deploy a message in the [deploy history](/guides/rollback-and-zero-downtime-deploys#what-a-release-is),
 use `vertra app commit -m "fix login"`. Without `-m`, inside a git repository, the CLI uses the subject of
 the latest commit.
+
+## Link a folder to an app
+
+A folder is linked to an application when its `vertracloud.config` has an `ID=` line. `vertra upload` writes it
+for you. Commands that take an application ID (`deploy`, `logs`, `app releases`, `app env`...) use the linked
+application when you leave the ID out.
+
+```bash
+vertra link              # pick one of your applications and link this folder to it
+vertra link <app-id>     # link this folder to a specific application
+vertra link --show       # print the folder's vertracloud.config values
+vertra unlink            # remove the ID line; the application itself is untouched
+```
+
+Without a link, an interactive terminal shows a picker and a script fails asking for the ID. Other commands
+you may want: `vertra projects` lists your applications and databases together, with their status, and
+`vertra lang pt|en|es` sets the language of the CLI messages (`--lang` or `VERTRA_LANG` override it for one run).
 
 ## Releases and rollback
 

@@ -85,7 +85,8 @@ description: Takes a snapshot of an application or database volume right now. Th
 
 <ResponseField name="code" type="string">
   The error code indicating the reason for failure. Possible values:
-  - `UNAUTHORIZED`: The user is not authenticated.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: The `Authorization` header is missing, the API key is invalid, or the dashboard session was revoked (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: The API key is used from an IP outside its allowlist, or it lacks the scope the route requires (`403`).
   - `USER_NOT_FOUND`: The authenticated user was not found.
   - `APP_NOT_FOUND`: The specified application does not exist.
   - `DATABASE_NOT_FOUND`: The specified database does not exist.
@@ -94,16 +95,14 @@ description: Takes a snapshot of an application or database volume right now. Th
   - `DATABASE_NOT_RUNNING`: The database must be running to take a snapshot (`409`). Redis has no such requirement.
   - `SNAPSHOT_RATE_LIMITED`: The resource was snapshotted less than 5 minutes ago, or the account already created 10 snapshots this hour (`429`). Comes with `details.scope` and `details.retry_after`.
   - `OPERATION_IN_PROGRESS`: Another lifecycle operation on the same resource is already running (`409`). Nothing was snapshotted — wait a few seconds and retry.
-  - `INTERNAL_SERVER_ERROR`: The snapshot could not be stored. Retry later.
-  - `UNKNOWN_ERROR`: An unexpected platform error occurred.
-  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+  - `INTERNAL_SERVER_ERROR`: The snapshot could not be stored, or an unexpected failure occurred (`500`). Retry later.
 </ResponseField>
 
 <ResponseExample>
 
 ```json Error Response (401)
 {
-  "code": "UNAUTHORIZED"
+  "code": "AUTH_TOKEN_MISSING"
 }
 ```
 

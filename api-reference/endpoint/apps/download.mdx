@@ -20,18 +20,19 @@ description: "Downloads the application files as a ZIP file by its ID."
 The response is a binary ZIP file containing the application files plus a `vertracloud.config` generated from the current settings (name, main file, memory, version, start command, auto-restart, subdomain), so the ZIP can be uploaded again with the same configuration.
 
 - **Content-Type**: `application/zip`
-- **Content-Disposition**: `attachment; filename="{id}.zip"`
-- **Content-Length**: O tamanho do arquivo ZIP em bytes.
+- **Content-Disposition**: `attachment; filename="app-{id}.zip"`
+- **Content-Length**: The size of the ZIP file in bytes.
 
 ### Error Responses
 
 <ResponseField name="code" type="string">
   The error code indicating the reason for the failure. Possible values:
 
-  - `UNAUTHORIZED`: The user is not authenticated or does not have sufficient permissions.
-  - `APP_NOT_FOUND`: The specified application does not exist.
-  - `FORBIDDEN`: The user does not have permission to access the application.
-  - `DOWNLOAD_FAILED`: The application files could not be downloaded.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: The `Authorization` header is missing, the API key is invalid, or the dashboard session was revoked (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: The API key is used from an IP outside its allowlist, or it lacks the scope the route requires (`403`).
+  - `ACCESS_DENIED`: The application belongs to another account, or you lack the workspace permission to download its files (`403`).
+  - `APP_NOT_FOUND`: The specified application does not exist (`404`).
+  - `INTERNAL_SERVER_ERROR`: The application files could not be downloaded (`500`).
 </ResponseField>
 
 <ResponseField name="message" type="string">
@@ -46,17 +47,15 @@ The response is a binary ZIP file containing the application files plus a `vertr
 }
 ```
 
-
 ```json Error Response (403)
 {
-  "code": "FORBIDDEN"
+  "code": "ACCESS_DENIED"
 }
 ```
 
-
-```json Error Response (400)
+```json Error Response (500)
 {
-  "code": "DOWNLOAD_FAILED"
+  "code": "INTERNAL_SERVER_ERROR"
 }
 ```
 

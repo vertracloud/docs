@@ -42,13 +42,15 @@ All three clients take the API key at construction — the same key created unde
 ```javascript JavaScript
 import { VertraClient } from "@vertracloud/sdk-api";
 
-const client = new VertraClient({ apiKey: process.env.VERTRA_API_KEY });
+const client = new VertraClient({ apiKey: process.env.VERTRA_API_KEY! });
 ```
 
 ```python Python
+import os
+
 from vertracloud import VertraClient
 
-client = VertraClient(api_key="your_key")
+client = VertraClient(api_key=os.environ["VERTRA_API_KEY"])
 ```
 
 ```go Go
@@ -79,7 +81,7 @@ options at the end — for example, `rest.WithWorkspaceID(id)` to act on a works
 
 ```javascript JavaScript
 const app = await client.apps.get("app-abc123");
-await client.apps.restart("app-abc123", { hard: false });
+await client.apps.restart("app-abc123");
 const runtimes = await client.apps.runtimes();
 ```
 
@@ -96,6 +98,8 @@ runtimes, err := client.Apps.Runtimes(ctx)
 ```
 
 </CodeGroup>
+
+`restart` also takes optional `reinstall_dependencies` and `force_build` flags (for example `{ force_build: true }` in JavaScript); a restart that sets either one runs a build and counts against the plan's deploys-per-hour limit.
 
 Creating an application answers right away with `status: "building"`; the build continues in the background.
 Wait for it to finish with the helper for your language. It returns the application once it is `up` and
@@ -224,7 +228,7 @@ await client.snapshots.restore("app-abc123", created.id, { scope: "applications"
 ```python Python
 snapshots = client.snapshots.list("app-abc123", scope="applications")
 created = client.snapshots.create("app-abc123", scope="applications")
-client.snapshots.restore("app-abc123", created.id, scope="applications")
+client.snapshots.restore("app-abc123", created["id"], scope="applications")
 ```
 
 ```go Go
@@ -288,12 +292,12 @@ const pix = await client.billing.orders.initiatePix(order.id);
 
 ```python Python
 order = client.billing.orders.create({"type": "purchase", "plan": "pro", "months": 1})
-pix = client.billing.orders.initiate_pix(order.id)
+pix = client.billing.orders.initiate_pix(order["id"])
 ```
 
 ```go Go
 order, err := client.Billing.Orders().Create(ctx, vertracloud.OrderCreateBody{
-	Type: vertracloud.OrderCreateTypePurchase, Plan: "pro", Months: 1,
+	Type: vertracloud.OrderTypePurchase, Plan: "pro", Months: 1,
 })
 pix, err := client.Billing.Orders().InitiatePix(ctx, order.ID)
 ```

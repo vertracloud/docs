@@ -5,7 +5,7 @@ description: 'vertracloud.config keys, fields editable after deploy, environment
 icon: 'sliders'
 ---
 
-An application's configuration on Vertra Cloud lives in the dashboard, on the **Config** tab. The
+An application's configuration on Vertra Cloud lives in the dashboard, under **Settings** (the **General**, **Deploy**, **Environment variables** and **Network** tabs). The
 `vertracloud.config` file is optional and only pre-fills the creation flow: name, description,
 main file, memory, commands and subdomain. Once created, the application uses what's saved in the
 dashboard.
@@ -29,15 +29,18 @@ LANGUAGE=javascript
 
 | Key | What it sets | Limit | Can change later? |
 |---|---|---|---|
-| `NAME` | Project name | 50 characters | Yes, in the Config tab |
-| `DESCRIPTION` | Project description | 128 characters | Yes, in the Config tab |
-| `MAIN` | Main file, relative to the root | — | Yes, in the Config tab |
-| `MEMORY` | Memory in MB | minimum 100, maximum what's free on the plan | Yes, in the Config tab |
-| `VERSION` | Runtime version: `recommended`, `latest`, or a specific version from the [runtime list](/plans-and-limits#which-languages-and-versions-does-vertra-cloud-support). When the file is in your `.zip` or snapshot, the wizard pre-fills it and you can still change it before creating | must exist for the application's language, otherwise `INVALID_VERSION` | Yes, in the Config tab |
+| `NAME` | Project name | 50 characters | Yes, in Settings → General |
+| `DESCRIPTION` | Project description | 128 characters | Yes, in Settings → General |
+| `MAIN` | Main file, relative to the root | — | Yes, in Settings → General |
+| `MEMORY` | Memory in MB | minimum 100, maximum what's free on the plan | Yes, in Settings → General |
+| `VERSION` | Runtime version: `recommended`, `latest`, or a specific version from the [runtime list](/plans-and-limits#which-languages-and-versions-does-vertra-cloud-support). When the file is in your `.zip` or snapshot, the wizard pre-fills it and you can still change it before creating | must exist for the application's language, otherwise `INVALID_VERSION` | Yes, in Settings → General |
 | `BUILD` | Build command, runs before start on every deploy | 512 characters | Yes; counts as a deploy |
-| `START` | Start command | 512 characters | Yes, in the Config tab |
-| `LANGUAGE` | Forces the runtime language instead of detecting it: `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet` or `elixir`. The precedence is: the `language` field of `POST /v1/apps`, then this key (or `"language"` in `vertracloud.config.json`), then detection | one of the slugs above, otherwise `INVALID_LANGUAGE` | Yes, in the Config tab |
-| `SUBDOMAIN` | Subdomain under `*.vertraweb.app` (turns on web publishing) | 3 to 50 characters, `a-z`, `0-9` and `-` | Yes, with 5 minutes between changes |
+| `START` | Start command | 512 characters | Yes, in Settings → General |
+| `LANGUAGE` | Forces the runtime language instead of detecting it: `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet` or `elixir`. The precedence is: the `language` field of `POST /v1/apps`, then this key (or `"language"` in `vertracloud.config.json`), then detection | one of the slugs above, otherwise `INVALID_LANGUAGE` | Yes, in Settings → General |
+| `SUBDOMAIN` | Subdomain under `*.vertraweb.app` (turns on web publishing) | 3 to 50 characters, `a-z`, `0-9` and `-` | Yes, in Settings → Network, with 5 minutes between changes |
+| `ID` | The application this folder is linked to. Written by `vertra upload` and `vertra link`, removed by `vertra unlink`; used by the [CLI](/cli#link-a-folder-to-an-app) only | an application ID | Not applicable; the platform ignores it |
+
+Keys are case-insensitive, and a value may be wrapped in single or double quotes. Lines starting with `#` are comments; the CLI also accepts `;`, but the API reads `;` lines as ordinary text, so prefer `#`. When you create an application with `vertra upload`, the CLI reads `NAME`, `MEMORY`, `MAIN`, `VERSION`, `SUBDOMAIN`, `START` and `LANGUAGE` from the file, but not `DESCRIPTION` or `BUILD`: pass `--description`, and set the build command in Settings → General. Restoring a snapshot whose `vertracloud.config` is larger than 64 KB or 64 lines fails with `INVALID_CONFIG`.
 
 `vertracloud.config.json` is also accepted, with lowercase keys: `name`, `description`,
 `main`, `memory`, `build`, `start`, `subdomain` and `language`. The language is set by `LANGUAGE=` in the text file and by `"language"` in the JSON file.
@@ -99,7 +102,7 @@ register it.
 ## Environment variables
 
 Environment variables are injected into the container when it starts and are encrypted at rest.
-You set them in the **Environment** step of the creation flow, in the **Config** tab, via the
+You set them in Settings → Environment variables, via the
 [API](/api-reference/endpoint/apps/enviroments/get), the [CLI](/cli) or [MCP](/mcp).
 
 | Limit | Value |
