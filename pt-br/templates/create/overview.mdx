@@ -1,0 +1,65 @@
+---
+title: 'Criar um template na Vertra Cloud: código ou imagem, público ou privado'
+sidebarTitle: 'Visão geral'
+description: 'Do que um template é feito, quando enviar código ou uma imagem Docker e como templates públicos, privados e compartilhados diferem para quem os cria.'
+icon: 'wand-magic-sparkles'
+---
+
+Um template é um arquivo de manifesto, `vertracloud.template.yaml`, mais as fontes para as quais ele aponta. A Vertra Cloud lê o manifesto e cria os apps e bancos de dados que ele descreve, pergunta a quem usa apenas o que você declarou e desfaz tudo se algum passo falhar. Você escreve o template uma vez; todo mundo que o usa obtém o mesmo resultado com um clique.
+
+## O que um template contém
+
+| Parte | O que é |
+|---|---|
+| **Manifesto** | `vertracloud.template.yaml`: identidade, perguntas, serviços, variáveis, permissões, comportamento de deploy e saídas. Veja a [referência do manifesto](/pt-br/templates/create/manifest-reference). |
+| **Fontes** | O código de cada serviço `code` ou a imagem de cada serviço `image`. |
+| **Docs** | Um `README.md` (e uma pasta `docs/` opcional) exibido ao lado do template. |
+| **Ícone** | Um arquivo SVG ou PNG referenciado por `icon`. |
+
+Um template com **um app e nenhum banco de dados** cria só o app. Um template com **dois ou mais serviços** (apps, bancos de dados, pastas do Blob) cria uma [stack](/pt-br/templates/create/stacks): um recurso que os agrupa e os mantém conectados.
+
+## Código ou imagem
+
+Todo serviço de app escolhe um tipo de fonte. A escolha define o plano de que o usuário precisa e se ele gasta uma vaga de imagem.
+
+| | `code` | `image` |
+|---|---|---|
+| Como executa | O código é extraído em `/app` do app e roda em um dos runtimes de linguagem (`language`, `main`, `build`, `start`). | Uma imagem Docker roda com o mesmo sandbox de qualquer outro app. |
+| Ideal para | Projetos iniciais, bots e APIs que o usuário vai ler e editar. | Software pronto (n8n, uma ferramenta de administração de banco de dados) ou qualquer coisa que os runtimes não cubram. |
+| Vaga de imagem | Não usa. | Usa **1 vaga por imagem distinta** que o usuário executa, nunca por app. |
+| Plano | Apenas o que os serviços precisam (RAM, publicação na web). | Um plano que inclua [imagens Docker personalizadas](/pt-br/guides/custom-docker-images), com uma vaga livre. |
+| Editável pelo usuário | Sim por padrão (`code.edit`). | Não por padrão. |
+
+Três apps criados a partir do mesmo template de imagem usam uma vaga, e uma versão mais nova do mesmo template a reutiliza. Um template de código nunca usa uma vaga. Os limites por plano estão em [Planos e limites](/pt-br/plans-and-limits).
+
+Nos dois casos, **`/app` é o único disco persistente** e o restante do sistema de arquivos é somente leitura. Leia as [Boas práticas](/pt-br/templates/create/best-practices) antes de escrever o primeiro manifesto.
+
+## Público, privado ou compartilhado
+
+| | Público (catálogo) | Privado | Compartilhado por link |
+|---|---|---|---|
+| Quem é o dono | Vertra Cloud | Sua conta ou seu workspace | O autor; quem recebe fica com uma cópia do que usa |
+| Como é publicado | Um pull request revisado no repositório público de templates | Você cria no dashboard, a partir do GitHub ou com a CLI | Você cria um link de compartilhamento para um template privado |
+| Quem pode usar | Qualquer conta que atenda aos requisitos | Você; em um workspace, apenas o dono usa e gerencia, e os membros o veem | Qualquer conta que tenha o link |
+| Selo | **Vertra** ou **Community** | **Private** ou **From the workspace** | **Not verified by Vertra** |
+| Código | Sempre aberto | Aberto ou [fechado](/pt-br/templates/create/permissions#templates-fechados) | Aberto ou fechado, conforme você definir |
+| Plano para criar | Não se aplica | Um plano que possa criar imagens personalizadas | Igual ao privado |
+
+Você não pode publicar no catálogo público pelo dashboard. Um template da comunidade passa por um pull request, uma revisão e uma execução de teste; veja [Contribuir com o catálogo público](/pt-br/templates/create/contribute).
+
+## Escolha seu caminho
+
+<CardGroup cols={2}>
+  <Card title="Escreva o manifesto" icon="file-code" href="/pt-br/templates/create/manifest-reference">
+    Todos os campos, com um exemplo de cada.
+  </Card>
+  <Card title="Perguntas e placeholders" icon="sliders" href="/pt-br/templates/create/placeholders-and-inputs">
+    Peça valores ao usuário e conecte os serviços entre si.
+  </Card>
+  <Card title="Templates privados" icon="lock" href="/pt-br/templates/create/private-templates">
+    Salve um app como template, vincule um repositório do GitHub ou use o editor.
+  </Card>
+  <Card title="Valide e teste" icon="circle-check" href="/pt-br/templates/create/validate-and-test">
+    Confira o manifesto pela CLI e teste como um template privado.
+  </Card>
+</CardGroup>

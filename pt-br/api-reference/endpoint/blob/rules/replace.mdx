@@ -1,0 +1,124 @@
+---
+title: "Substituir todas as regras de pasta"
+sidebarTitle: "Substituir regras"
+api: "PUT https://blob.vertracloud.app/v1/rules"
+authMethod: bearer
+description: "Substitui a lista inteira de regras de pasta. Envie o etag da última leitura em If-Match, para que uma alteração feita em outro lugar não seja sobrescrita."
+---
+
+{/* @see RESTPutAPIBlobRulesBody, RESTPutAPIBlobRulesHeaders, RESTPutAPIBlobRulesResponse, APIBlobRules — @vertracloud/api-types */}
+
+Substitui a lista inteira de regras de pasta pela lista que você enviar. O cabeçalho `If-Match` precisa conter o `etag` da sua última leitura; se a lista mudou desde então, a chamada falha com `BLOB_RULES_CONFLICT` e nada é salvo. Para alterar uma única regra, use [Criar ou atualizar uma regra](/pt-br/api-reference/endpoint/blob/rules/put).
+
+**Escopo:** `blob:write`.
+
+<ParamField header="If-Match" type="string" required>
+  O `etag` da última leitura da lista de regras.
+</ParamField>
+
+<ParamField body="rules" type="object[]" required>
+  A lista completa de regras. Cada item aceita `prefix` (obrigatório) mais os campos de [Criar ou atualizar uma regra](/pt-br/api-reference/endpoint/blob/rules/put). Até 100 regras, e cada regra precisa de pelo menos um campo além do prefixo. `expire_seconds` não pode ser menor que a expiração mínima do plano.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X PUT "https://blob.vertracloud.app/v1/rules" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "If-Match: v3" \
+  -H "Content-Type: application/json" \
+  -d '{"rules":[{"prefix":"tmp/","delete_after_days":30}]}'
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A lista salva e o seu novo etag.
+  <Expandable title="propriedades">
+  <ResponseField name="rules" type="object[]">Regras de pasta. Vale o prefixo correspondente mais longo.</ResponseField>
+  <ResponseField name="rules[].prefix" type="string">Prefixo da pasta, sempre armazenado com `/` no fim.</ResponseField>
+  <ResponseField name="rules[].visibility" type="string">Visibilidade padrão dos novos objetos da pasta.</ResponseField>
+  <ResponseField name="rules[].expire_seconds" type="number">Expiração padrão de cada novo objeto, em segundos.</ResponseField>
+  <ResponseField name="rules[].max_size" type="number">Maior arquivo aceito, em bytes, de 512 B a 10 GB.</ResponseField>
+  <ResponseField name="rules[].extensions" type="string[]">Extensões aceitas, de 1 a 50, em minúsculas, sem o ponto.</ResponseField>
+  <ResponseField name="rules[].cache_control" type="string">`cache_control` padrão dos novos objetos.</ResponseField>
+  <ResponseField name="rules[].delete_after_days" type="number">Os objetos são excluídos esta quantidade de dias depois do upload, de 1 a 3650.</ResponseField>
+  <ResponseField name="rules[].active_from" type="string">Quando `delete_after_days` passa a valer, definido pela plataforma (24 horas depois que a regra é salva).</ResponseField>
+  <ResponseField name="rules[].created_at" type="string">Data em ISO 8601 em que a regra foi criada.</ResponseField>
+  <ResponseField name="etag" type="string">Versão da lista inteira de regras. Envie-a de volta em `If-Match` quando substituir a lista.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "rules": [
+      {
+        "prefix": "tmp/",
+        "delete_after_days": 30,
+        "active_from": "2026-10-15T12:00:00.000Z",
+        "created_at": "2026-10-14T12:00:00.000Z"
+      }
+    ],
+    "etag": "v3"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `VALIDATION_ERROR` (`400`): um parâmetro ou campo do corpo falhou na validação. `details.path` informa o campo; um cabeçalho `If-Match` ausente retorna este erro com `details.path` igual a `if-match`.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): o armazenamento de blob da conta está suspenso, ou o plano expirou.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): uma regra define `cache_control` como `no-cache` em um plano abaixo do Enterprise-26.
+  - `BLOB_RULES_CONFLICT` (`409`): o etag de `If-Match` está desatualizado. Leia a lista de novo e tente outra vez.
+  - `BLOB_RULE_LIMIT` (`409`): a lista tem mais regras do que o plano permite: 5, 10 ou 20.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_RULES_CONFLICT"
+}
+```
+
+</ResponseExample>

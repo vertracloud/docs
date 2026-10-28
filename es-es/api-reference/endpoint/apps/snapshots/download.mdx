@@ -1,0 +1,60 @@
+---
+title: Descargar snapshot de la aplicación
+sidebarTitle: Descargar snapshot
+api: GET https://api.vertracloud.app/v1/users/{id}/snapshots/{snapshot_id}/download
+authMethod: bearer
+description: Descarga el archivo ZIP de un snapshot concreto de una aplicación o base de datos.
+---
+
+{/* @see binary — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación o de la base de datos.
+</ParamField>
+
+<ParamField path="snapshot_id" type="string" required>
+  El ID del snapshot que quieres descargar.
+</ParamField>
+
+<ParamField query="scope" type="string" required>
+  El tipo de recurso. Valores posibles: `applications`, `databases`.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="file">
+  El archivo ZIP con el snapshot de la aplicación o de la base de datos, devuelto como descarga binaria con `Content-Disposition: attachment`.
+</ResponseField>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
+  - `ACCESS_DENIED`: El snapshot no pertenece al usuario autenticado.
+  - `SNAPSHOT_NOT_FOUND`: El snapshot indicado no existe.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "SNAPSHOT_NOT_FOUND"
+}
+```
+
+</ResponseExample>

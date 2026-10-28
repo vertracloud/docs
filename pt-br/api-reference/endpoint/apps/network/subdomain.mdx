@@ -1,0 +1,115 @@
+---
+title: Alterar subdomínio da aplicação
+sidebarTitle: Alterar subdomínio
+api: PATCH https://api.vertracloud.app/v1/apps/{id}/network/subdomain
+authMethod: bearer
+description: Renomeia o subdomínio vertraweb.app de uma aplicação que já está publicada na web.
+---
+
+{/* @see RESTPatchAPIApplicationSubdomainResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID da aplicação.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma aplicação que não lhes pertence.
+</ParamField>
+
+<ParamField body="subdomain" type="string" required>
+  O novo subdomínio, sem o sufixo `.vertraweb.app` (por exemplo, `myapp`). Entre 3 e 50
+  caracteres, seguindo `^[a-z0-9][a-z0-9-]*[a-z0-9]$` — letras minúsculas, dígitos e hífens, sem nunca
+  começar ou terminar com hífen.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="subdomain" type="string">
+    O subdomínio completo que agora serve a aplicação, incluindo o sufixo.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "subdomain": "myapp.vertraweb.app"
+  }
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta rota apenas renomeia um subdomínio existente. Uma aplicação criada sem publicação na web
+  responde `APP_HAS_NO_SUBDOMAIN` — ligue a publicação primeiro com
+  [Publicar aplicação na web](/pt-br/api-reference/endpoint/apps/network/publish).
+</Note>
+
+<Warning>
+  O subdomínio anterior é liberado no momento em que a mudança é concluída. Ele não fica reservado para você,
+  e qualquer pessoa pode pegá-lo depois.
+</Warning>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: o path parameter ou o body falhou na validação (`400`). A resposta também
+    traz `message` e `path`.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
+  - `USER_NOT_FOUND`: o usuário autenticado não pôde ser identificado (`401`).
+  - `ACCESS_DENIED`: o usuário não tem permissão para agir sobre a aplicação (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN`: o plano do dono não permite escolher o nome do
+    subdomínio (`403`).
+  - `APP_NOT_FOUND`: a aplicação informada não existe (`404`).
+  - `APP_HAS_NO_SUBDOMAIN`: a aplicação não está publicada na web, então não há nada a
+    renomear (`400`).
+  - `INVALID_SUBDOMAIN_FORMAT`: o valor não é um subdomínio válido depois da normalização (`400`).
+  - `SUBDOMAIN_FORBIDDEN`: o subdomínio pedido está na lista de nomes reservados da plataforma (`400`).
+  - `SUBDOMAIN_TAKEN`: outra aplicação já usa esse subdomínio (`409`).
+  - `SUBDOMAIN_CHANGE_RATE_LIMITED`: o subdomínio desta aplicação foi alterado há menos de 5
+    minutos (`429`).
+  - `INTERNAL_SERVER_ERROR`: falha inesperada (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "APP_HAS_NO_SUBDOMAIN"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "SUBDOMAIN_TAKEN"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "SUBDOMAIN_CHANGE_RATE_LIMITED"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta rota tem orçamento próprio de 5 requisições por minuto, além do cooldown de 5 minutos entre
+  alterações do endereço público de uma aplicação. Esse cooldown é **compartilhado com a
+  [Publicar](/pt-br/api-reference/endpoint/apps/network/publish)**: publicar uma aplicação também a inicia,
+  e despublicar e publicar de novo com outro nome não contorna o limite. Veja
+  [Limite de requisições](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa).
+</Note>

@@ -1,0 +1,343 @@
+---
+title: Criar aplicação
+sidebarTitle: Criar aplicação
+api: POST https://api.vertracloud.app/v1/apps
+authMethod: bearer
+description: Cria uma nova aplicação com a configuração e os arquivos informados.
+---
+
+{/* @see APIApplication, RESTPostAPIApplicationCreateBody — @vertracloud/api-types */}
+A aplicação tem **duas fontes mutuamente exclusivas** — envie exatamente uma entre `file` e `snapshot_id`. Nenhuma → `SOURCE_REQUIRED`; as duas → `SOURCE_CONFLICT`.
+
+<ParamField body="file" type="file">
+  O arquivo ZIP com o código da aplicação (tamanho máximo: 100 MB). Ausente quando a fonte é `snapshot_id`.
+</ParamField>
+
+<ParamField body="snapshot_id" type="string">
+  Fonte alternativa a `file`: o ID de um snapshot de **aplicação** a partir do qual criar a aplicação. A plataforma baixa
+  o snapshot (que já traz o `vertracloud.config`) e constrói a aplicação a partir dele. Enviado como campo de texto do
+  corpo multipart — mesmo limite de tamanho de `file` (100 MB).
+</ParamField>
+
+<ParamField body="memory" type="string">
+  A quantidade de RAM a alocar para a aplicação, em MB. Mínimo de 100 MB. Obrigatório com `file`; com `snapshot_id` é
+  opcional e usa como padrão o `vertracloud.config` do snapshot. Quando um `subdomain` é solicitado, o valor é elevado
+  automaticamente para pelo menos 512 MB — aplicações web têm o seu próprio piso de memória.
+</ParamField>
+
+<ParamField body="start" type="string">
+  O comando de inicialização da aplicação.
+</ParamField>
+
+<ParamField body="build" type="string">
+  Um comando de build opcional, de até 512 caracteres (por exemplo `npm run build`). É executado após a instalação das
+  dependências e antes de a aplicação iniciar, em um ambiente de build isolado — 2× a RAM da aplicação (mínimo de 1.024 MB,
+  máximo de 4.096 MB), com timeout de 10 minutos. As `devDependencies` são instaladas quando um comando de build está
+  definido. Disponível em todos os planos. Veja [Atualizar configuração da aplicação](/pt-br/api-reference/endpoint/apps/updateconfig) para alterá-lo depois.
+</ParamField>
+
+<ParamField body="main" type="string">
+  O arquivo principal da aplicação. Obrigatório com `file`; com `snapshot_id` é opcional e usa como padrão o `vertracloud.config` do snapshot.
+</ParamField>
+
+<ParamField body="language" type="string">
+  Opcional. Força a linguagem de runtime em vez de detectá-la a partir do projeto: uma de `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet`, `elixir`. Precedência: este campo, depois `LANGUAGE=` no `vertracloud.config`, depois a detecção. Qualquer outro valor é recusado com `INVALID_LANGUAGE`.
+</ParamField>
+
+<ParamField body="version" type="string">
+  Obrigatório com `file`; com `snapshot_id` usa como padrão o `vertracloud.config` do snapshot. A versão do runtime da
+  aplicação: `recommended`, `latest` ou uma versão específica suportada pelo runtime detectado (por exemplo `22`).
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  O nome de exibição da aplicação. Máximo de 50 caracteres.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Uma descrição da aplicação.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O ID do workspace a associar à aplicação, se aplicável.
+</ParamField>
+
+<ParamField body="subdomain" type="string">
+  O subdomínio da aplicação (por exemplo `myapp`). Espaços são trocados por `-` e o valor é convertido para minúsculas
+  antes da validação; o formato aceito é `^[a-z0-9-]+$`. Envie `random` para que a plataforma escolha um para você.
+  Omita o campo para criar uma aplicação privada, sem publicação na web — você pode ativá-la depois com
+  [Publicar aplicação na web](/pt-br/api-reference/endpoint/apps/network/publish).
+
+  Requer suporte do plano à publicação na web.
+</ParamField>
+
+<ParamField body="envs" type="string">
+  Uma string JSON com um array de variáveis de ambiente, cada uma com `key`, `value` e um `note` opcional. Tamanho máximo
+  da chave: 255. Tamanho máximo do valor: 3072. Tamanho máximo da nota: 50.
+</ParamField>
+
+### Resposta
+
+A criação é assíncrona: a resposta é `202 Accepted` com a aplicação em `status: "building"`. Acompanhe com [Detalhes da aplicação](/pt-br/api-reference/endpoint/apps/get) ou com os [logs em tempo real](/pt-br/api-reference/endpoint/apps/realtime) até que `status` seja `up` ou `down`. Enquanto estiver `building`, iniciar, parar, reiniciar, deploys de arquivos, rollback, snapshots, restaurações e alterações de configuração respondem `409 APP_BUILDING`; excluir a aplicação é permitido. Se o build for interrompido, a aplicação permanece `down` e `BUILD_INTERRUPTED` aparece no log dela; se a plataforma cancelar a criação (por exemplo, porque a fila está cheia), a aplicação deixa de existir e os Detalhes da aplicação respondem `404`.
+
+<ResponseField name="response" type="object">
+  Os detalhes da aplicação criada.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID da aplicação.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    O ID do dono da aplicação.
+  </ResponseField>
+
+  <ResponseField name="owner_plan" type="string | null">
+    O nome do plano do dono (por exemplo, `pro` ou `enterprise-8`), ou `null` quando o dono não tem plano.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    O nome da aplicação.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    A descrição da aplicação.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="integer">
+    O ID do cluster da aplicação.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    O status da aplicação. A criação responde `202 Accepted` com `building`; a instalação e o build continuam em segundo
+    plano. Quando terminam, o status passa a `up`, ou `down` se a instalação das dependências ou o comando `build`
+    falhar (a saída fica nos logs, então você pode corrigir os arquivos e iniciar de novo sem reenviar o upload).
+  </ResponseField>
+
+  <ResponseField name="last_build_error" type="string | null">
+    O código da última falha de build ou de instalação, ou `null` após um build bem-sucedido. Um de `BUILD_FAILED`,
+    `BUILD_TIMEOUT`, `BUILD_INTERRUPTED`, `INSTALL_FAILED`, `INSTALL_OUT_OF_MEMORY`, `INSTALL_TIMEOUT` ou
+    `INSTALL_SHIELD_BLOCKED`. O detalhe está nos logs da aplicação; veja [Erros](/pt-br/api-reference/errors#códigos-de-falha-de-build)
+    para saber o que fazer com cada código.
+  </ResponseField>
+
+  <ResponseField name="ram" type="integer">
+    A RAM da aplicação em MB.
+  </ResponseField>
+
+  <ResponseField name="type" type="integer">
+    O tipo da aplicação.
+  </ResponseField>
+
+  <ResponseField name="language" type="string">
+    A linguagem de programação da aplicação (por exemplo, `javascript`, `deno`, `dotnet`, `elixir`).
+  </ResponseField>
+
+  <ResponseField name="subdomain" type="string | null">
+    O subdomínio da aplicação, se aplicável.
+  </ResponseField>
+
+  <ResponseField name="domains" type="APIApplicationDomain[]">
+    Os domínios personalizados da aplicação. Sempre vazio logo após a criação; adicione-os com
+    [Adicionar domínio à aplicação](/pt-br/api-reference/endpoint/apps/domains/create).
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    O timestamp de quando a aplicação foi criada.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    O timestamp de quando a aplicação foi atualizada pela última vez.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    O timestamp do último snapshot da aplicação.
+  </ResponseField>
+
+  <ResponseField name="main_file" type="string">
+    O arquivo principal da aplicação.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    A versão do runtime (por exemplo `recommended` ou `latest`).
+  </ResponseField>
+
+  <ResponseField name="start_command" type="string | null">
+    O comando de inicialização da aplicação, se especificado.
+  </ResponseField>
+
+  <ResponseField name="build_command" type="string | null">
+    O comando de build, se especificado. É executado após a instalação das dependências e antes de a aplicação iniciar.
+  </ResponseField>
+
+  <ResponseField name="offline_since" type="string | null" format="date-time">
+    O timestamp desde quando a aplicação ficou offline, se aplicável.
+  </ResponseField>
+
+  <ResponseField name="shield_cooldown" type="object | null">
+    Presente enquanto o Vertra Shield pausou a aplicação. Inclui `until` (o fim da pausa), `reason` (`burst` ou
+    `rate_limit`) e `direction` (`in` ou `out`); `null` quando nenhuma pausa está ativa.
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    Repositório do GitHub vinculado (`repo_owner`, `repo_name`) quando o deploy automático está conectado; `null` quando
+    a aplicação foi criada a partir de um zip ou de um snapshot. A URL do webhook não está incluída — use
+    `GET /v1/apps/{id}/deploys/webhook` para obtê-la.
+  </ResponseField>
+
+  <ResponseField name="custom_image" type="object | null">
+    A imagem Docker personalizada a partir da qual a aplicação roda; `null` para uma aplicação comum. Com uma imagem,
+    `language`, `version`, `main_file`, `start_command` e `build_command` não se aplicam: eles vêm da imagem. Veja
+    [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images).
+
+    <Expandable title="Propriedades de custom_image">
+      <ResponseField name="image_id" type="string">
+        O ID da imagem. `id` e `name` deste objeto são os da aplicação, não os da imagem.
+      </ResponseField>
+
+      <ResponseField name="port" type="integer | null">
+        A porta em que a aplicação escuta e para a qual a plataforma roteia; `null` para uma aplicação sem tráfego web.
+      </ResponseField>
+
+      <ResponseField name="version_id" type="string | null">
+        A versão da imagem que a aplicação roda, ou `null` quando ela ainda não iniciou em nenhuma versão.
+      </ResponseField>
+
+      <ResponseField name="outdated" type="boolean">
+        `true` quando a imagem tem uma versão mais nova do que a que a aplicação roda. Ela passa para essa versão no próximo reinício ou deploy que você solicitar.
+      </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="deploy" type="object">
+    Como um deploy substitui a versão em execução e o que acontece se ele falhar.
+
+    <Expandable title="Propriedades de deploy">
+      <ResponseField name="zero_downtime" type="string">
+        A escolha salva: `off` (o padrão), `auto` ou `on`. Altere com [Atualizar configuração da aplicação](/pt-br/api-reference/endpoint/apps/updateconfig).
+      </ResponseField>
+
+      <ResponseField name="zero_downtime_active" type="boolean">
+        O que vale para o próximo reinício ou deploy: `true` no Enterprise quando `zero_downtime` é `on`, ou quando é `auto` e a aplicação recebe tráfego web.
+      </ResponseField>
+
+      <ResponseField name="auto_rollback" type="boolean">
+        A escolha salva, `false` por padrão. Devolve o valor salvo em qualquer plano, mas só passa a valer a partir do Intermediary.
+      </ResponseField>
+
+      <ResponseField name="health_check_path" type="string | null">
+        O caminho HTTP chamado em uma nova versão para verificar se ela está saudável. `null` significa `/`.
+      </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="warning" type="string">
+    Somente quando você cria a partir do snapshot de uma aplicação que roda uma imagem Docker personalizada e a versão da imagem registrada no snapshot não existe mais: `IMAGE_VERSION_NOT_FOUND`. A aplicação é criada na versão atual da imagem.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "owner_id": "user-123456789012345678",
+    "owner_plan": "pro",
+    "name": "API Simples",
+    "description": "I have a description :)",
+    "cluster": 1,
+    "status": "building",
+    "ram": 128,
+    "type": 2,
+    "language": "javascript",
+    "subdomain": "myapp.vertraweb.app",
+    "domains": [],
+    "last_snapshot": "2026-03-20T19:58:00Z",
+    "main_file": "index.js",
+    "version": "recommended",
+    "start_command": null,
+    "build_command": null,
+    "offline_since": null,
+    "shield_cooldown": null,
+    "github": null,
+    "custom_image": null,
+    "deploy": {
+      "zero_downtime": "off",
+      "zero_downtime_active": false,
+      "auto_rollback": false,
+      "health_check_path": null
+    },
+    "created_at": "2026-03-20T19:58:00Z",
+    "updated_at": "2026-03-20T19:58:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: o corpo multipart falhou na validação (`400`). A resposta também traz `message` e `path` apontando para o campo com problema.
+  - `USER_NOT_FOUND`: não foi possível identificar o usuário autenticado (`401`).
+  - `MAX_APPS_REACHED`: foi atingido o limite de aplicações do plano (`403`).
+  - `INVALID_ZIP`: o arquivo enviado não é um ZIP legível (truncado ou corrompido) (`400`).
+  - `MAIN_FILE_NOT_FOUND`: o arquivo indicado em `main` não existe dentro do ZIP (`400`).
+  - `ZIP_TOO_SMALL`: o arquivo enviado tem menos de 100 bytes (`400`).
+  - `FILE_TOO_LARGE`: o arquivo enviado ultrapassa o limite de 100 MB (`400`).
+  - `SOURCE_REQUIRED`: nem `file` nem `snapshot_id` foram enviados (`400`).
+  - `SOURCE_CONFLICT`: `file` e `snapshot_id` foram enviados juntos (`400`).
+  - `SNAPSHOT_NOT_FOUND`: o `snapshot_id` não existe ou não pertence a quem fez a chamada (`404`).
+  - `SNAPSHOT_TYPE_MISMATCH`: o snapshot é de banco de dados, não de aplicação (`400`).
+  - `SNAPSHOT_TOO_LARGE`: o snapshot ultrapassa o mesmo limite de criação de 100 MB de `file` (`400`).
+  - `MEMORY_REQUIRED`: `memory` foi omitido e o `vertracloud.config` do snapshot não tem um `MEMORY` utilizável (`400`).
+  - `PLAN_REQUIRED`: o dono não tem um plano ativo, então uma nova aplicação não pode ser criada, ou um `subdomain` foi solicitado sem um (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH`: um `subdomain` foi solicitado, mas o plano do dono não inclui publicação na web (`403`).
+  - `INVALID_MEMORY_FORMAT`: `memory` não é um número (`400`).
+  - `MEMORY_MUST_BE_INTEGER`: `memory` não é um inteiro (`400`).
+  - `MEMORY_BELOW_MINIMUM`: `memory` está abaixo do mínimo para o tipo da aplicação (`400`).
+  - `MEMORY_LIMIT_EXCEEDED`: a memória solicitada excede a memória ainda disponível no plano (`400`).
+  - `SUBDOMAIN_TAKEN`: outra aplicação já usa esse subdomínio (`409`).
+  - `SUBDOMAIN_FORBIDDEN`: o subdomínio solicitado está na lista de nomes reservados da plataforma (`400`).
+  - `USER_LIMITS_NOT_FOUND`: o registro de limites do dono não pôde ser carregado (`404`).
+  - `INVALID_LANGUAGE`: a linguagem não é suportada ou não pôde ser determinada (`400`).
+  - `DEPLOY_RATE_LIMITED`: foi atingido o orçamento horário de deploys da conta para o seu plano (`429`). Veja [Introdução à referência da API](/pt-br/api-reference/introduction).
+  - `INTERNAL_SERVER_ERROR`: falha inesperada, incluindo uma aplicação que foi criada mas não pôde ser lida de volta (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro. Presente em `VALIDATION_ERROR`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Main file is required",
+  "path": "main"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "MAIN_FILE_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "PLAN_REQUIRED"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Uma aplicação criada sem `subdomain` continua privada. Você pode ativar a publicação na web depois com
+  [Publicar aplicação na web](/pt-br/api-reference/endpoint/apps/network/publish), e desativá-la de novo na mesma rota.
+</Note>

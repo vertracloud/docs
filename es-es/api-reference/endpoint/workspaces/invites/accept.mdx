@@ -1,0 +1,42 @@
+---
+title: Aceptar invitación
+sidebarTitle: Aceptar
+api: POST https://api.vertracloud.app/v1/workspaces/invites/{token}/accept
+authMethod: bearer
+description: Acepta una invitación y entra al workspace. Cualquier cuenta con sesión iniciada; una clave de API necesita el scope `workspaces:invites`.
+---
+
+{/* @see RESTPostAPIWorkspaceInviteAcceptResponse — @vertracloud/api-types */}
+<Note>
+  Una clave de API necesita el scope `workspaces:invites` y actúa como la cuenta que la posee: una invitación por correo
+  solo coincide si el correo de esa cuenta es el invitado. Mismo límite de 10/min por sesión + IP que
+  [Previsualizar invitación](/es-es/api-reference/endpoint/workspaces/invites/preview).
+</Note>
+
+Para una invitación por **correo**, el correo de la cuenta que acepta debe coincidir con la dirección invitada
+(se compara normalizado con NFKC y sin distinguir mayúsculas); si no, `WORKSPACE_INVITE_EMAIL_MISMATCH`. Una
+invitación por **enlace** no tiene esa comprobación.
+
+<Note>
+  Aceptar es idempotente si ya eres miembro: recibes `200`, no un `409`. Abrir un enlace de invitación antiguo que ya
+  usaste no da error.
+</Note>
+
+### Ruta
+
+<ParamField path="token" type="string" required>El token de la invitación.</ParamField>
+
+### Respuesta
+
+Misma forma que [Obtener workspace](/es-es/api-reference/endpoint/workspaces/get): el workspace al que acabas de unirte.
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Se llamó con una clave de API que no tiene el scope `workspaces:invites`. |
+| 403 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | (invitación por correo) El correo de quien llama no coincide con la dirección invitada. |
+| 403 | `WORKSPACE_INVITES_DISABLED` | El workspace tiene las invitaciones desactivadas. |
+| 404 | `WORKSPACE_INVITE_NOT_FOUND` | El token no existe, o la invitación fue revocada o agotada. |
+| 409 | `WORKSPACE_MEMBER_LIMIT_REACHED` | Se alcanzó el límite de miembros del plan del propietario. |
+| 410 | `WORKSPACE_INVITE_EXPIRED` | La invitación existió, pero ya venció. |

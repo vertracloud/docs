@@ -1,0 +1,50 @@
+---
+title: Visualizar convite
+sidebarTitle: Visualizar
+api: GET https://api.vertracloud.app/v1/workspaces/invites/{token}
+authMethod: bearer
+description: Mostra para onde um convite leva, antes de aceitar. Qualquer conta logada; uma chave de API precisa do escopo `workspaces:invites`.
+---
+
+{/* @see APIWorkspaceInvitePreview, RESTGetAPIWorkspaceInvitePreviewResponse — @vertracloud/api-types */}
+<Note>
+  Uma chave de API precisa do escopo `workspaces:invites`. Limitada a **10 requisições por minuto**,
+  por sessão e IP combinados — o token é adivinhável em teoria (32 bytes aleatórios, mas continua sendo
+  um segredo de portador na URL), então esta rota tem um limite mais apertado que o resto de `/v1/workspaces`.
+</Note>
+
+Qualquer conta logada pode chamar isto — o próprio token é a credencial, não a participação no workspace.
+
+<Info>
+  `410 WORKSPACE_INVITE_EXPIRED` significa que o convite existiu e o prazo acabou — `404
+  WORKSPACE_INVITE_NOT_FOUND` cobre convites revogados, já aceitos e esgotados (link com `max_uses`),
+  porque esses três casos devem aparecer de forma diferente para quem tem o link do que um "você chegou tarde demais".
+</Info>
+
+### Caminho
+
+<ParamField path="token" type="string" required>
+  O token do convite, vindo da URL ou do e-mail. Opaco, de 16 a 128 caracteres.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="APIWorkspaceInvitePreview">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="workspace" type="object">`{ id, name }`.</ResponseField>
+  <ResponseField name="inviter" type="object">`{ display_name }`.</ResponseField>
+  <ResponseField name="role_name" type="string" />
+  <ResponseField name="kind" type="'email' | 'link'" />
+  <ResponseField name="expires_at" type="string" format="date-time" />
+
+  </Expandable>
+</ResponseField>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Chamada com uma chave de API que não tem o escopo `workspaces:invites`. |
+| 404 | `WORKSPACE_INVITE_NOT_FOUND` | O token não existe, ou o convite foi revogado, aceito ou esgotado. |
+| 410 | `WORKSPACE_INVITE_EXPIRED` | O convite existiu, mas o prazo dele já passou. |

@@ -1,0 +1,148 @@
+---
+title: "Crear o actualizar una regla de carpeta"
+sidebarTitle: "Crear o actualizar regla"
+api: "PUT https://blob.vertracloud.app/v1/rules/{prefix}"
+authMethod: bearer
+description: "Crea o cambia la regla de un prefijo de carpeta, dejando el resto de reglas como están."
+---
+
+{/* @see RESTPutAPIBlobRuleBody, RESTPutAPIBlobRuleResponse, APIBlobRules — @vertracloud/api-types */}
+
+Crea la regla de un prefijo de carpeta o la cambia, y deja las demás reglas intactas. Pon el prefijo en la URL, codificado
+en URL (por ejemplo `tmp%2F`). La respuesta es la lista completa con su nuevo `etag`.
+
+**Ámbito:** `blob:write`.
+
+<ParamField path="prefix" type="string" required>
+  Prefijo de carpeta, codificado en URL. Se guarda con `/` al final.
+</ParamField>
+
+Una regla necesita al menos un campo además del prefijo; una regla vacía devuelve `VALIDATION_ERROR`.
+
+<ParamField body="visibility" type="string">
+  Visibilidad por defecto de los objetos nuevos de la carpeta: `public` o `private`.
+</ParamField>
+
+<ParamField body="expire_seconds" type="number">
+  Caducidad por defecto de cada objeto nuevo, en segundos. Como mínimo el plazo mínimo de caducidad del plan (7 días, o
+  1 hora en Enterprise-26 o superior).
+</ParamField>
+
+<ParamField body="max_size" type="number">
+  Archivo aceptado más grande, de 512 bytes a 10 GB.
+</ParamField>
+
+<ParamField body="extensions" type="string[]">
+  Extensiones aceptadas: de 1 a 50 elementos, cada uno de 1 a 16 caracteres en minúsculas (letras y dígitos), sin el punto.
+</ParamField>
+
+<ParamField body="cache_control" type="string">
+  `cache_control` por defecto de los objetos nuevos. `no-cache` requiere Enterprise-26 o superior.
+</ParamField>
+
+<ParamField body="delete_after_days" type="number">
+  Elimina los objetos estos días después de subirlos, de 1 a 3650. Se aplica 24 horas después de guardar la regla.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X PUT "https://blob.vertracloud.app/v1/rules/tmp%2F" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"delete_after_days":30}'
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La lista completa de reglas y su nuevo etag.
+  <Expandable title="propiedades">
+  <ResponseField name="rules" type="object[]">Reglas de carpeta. Se aplica el prefijo coincidente más largo.</ResponseField>
+  <ResponseField name="rules[].prefix" type="string">Prefijo de carpeta, que siempre se guarda con `/` al final.</ResponseField>
+  <ResponseField name="rules[].visibility" type="string">Visibilidad por defecto de los objetos nuevos de la carpeta.</ResponseField>
+  <ResponseField name="rules[].expire_seconds" type="number">Caducidad por defecto de cada objeto nuevo, en segundos.</ResponseField>
+  <ResponseField name="rules[].max_size" type="number">Archivo aceptado más grande, en bytes, de 512 B a 10 GB.</ResponseField>
+  <ResponseField name="rules[].extensions" type="string[]">Extensiones aceptadas, de 1 a 50, en minúsculas, sin el punto.</ResponseField>
+  <ResponseField name="rules[].cache_control" type="string">`cache_control` por defecto de los objetos nuevos.</ResponseField>
+  <ResponseField name="rules[].delete_after_days" type="number">Los objetos se eliminan estos días después de subirlos, de 1 a 3650.</ResponseField>
+  <ResponseField name="rules[].active_from" type="string">Cuándo empieza a aplicarse `delete_after_days`, lo fija la plataforma (24 horas después de guardar la regla).</ResponseField>
+  <ResponseField name="rules[].created_at" type="string">Fecha ISO 8601 de creación de la regla.</ResponseField>
+  <ResponseField name="etag" type="string">Versión de la lista completa de reglas. Envíala de vuelta en `If-Match` cuando reemplaces la lista.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "rules": [
+      {
+        "prefix": "tmp/",
+        "delete_after_days": 30,
+        "active_from": "2026-10-15T12:00:00.000Z",
+        "created_at": "2026-10-14T12:00:00.000Z"
+      }
+    ],
+    "etag": "v3"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): El almacenamiento de blob de la cuenta está suspendido, o su plan expiró. Las subidas y otras escrituras se rechazan desde el inicio del periodo de gracia de 72 horas.
+  - `VALIDATION_ERROR` (`400`): Un parámetro o un campo del cuerpo no superó la validación. `details.path` indica el campo.
+  - `BLOB_RULE_LIMIT` (`409`): Añadir esta regla superaría el límite de reglas del plan: 5, 10 o 20.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `cache_control` es `no-cache` en un plan inferior a Enterprise-26.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_RULE_LIMIT"
+}
+```
+
+</ResponseExample>

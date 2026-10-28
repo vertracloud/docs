@@ -1,0 +1,113 @@
+---
+title: "Atualizar um domínio personalizado de blob"
+sidebarTitle: "Atualizar domínio"
+api: "PATCH https://blob.vertracloud.app/v1/domains/{domain_id}"
+authMethod: bearer
+description: "Liga ou desliga o conteúdo web de um domínio personalizado: se ele serve HTML, SVG e XML no navegador ou se sempre os baixa."
+---
+
+{/* @see RESTPatchAPIBlobDomainBody, RESTPatchAPIBlobDomainResponse, APIBlobCustomDomain — @vertracloud/api-types */}
+
+Altera `web_content` de um domínio personalizado e retorna o domínio. Com `true`, o domínio serve os arquivos `.html`, `.htm`, `.xhtml`, `.svg` e `.xml` no navegador com o tipo real; as páginas executam JavaScript em um sandbox, sem formulários, sem cookies e sem navegar pela aba principal. Com `false` (o padrão), esses tipos sempre são baixados. A mudança passa a valer em cerca de um minuto. O link público padrão sempre baixa esses tipos, independentemente desta configuração. Veja [Domínios personalizados](/pt-br/blob/custom-domains#servir-páginas-web) para os riscos.
+
+**Escopo:** `blob:write`.
+
+<ParamField path="domain_id" type="string" required>
+  O ID do domínio.
+</ParamField>
+
+<ParamField body="web_content" type="boolean">
+  Liga (`true`) ou desliga (`false`) o conteúdo web para este domínio.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X PATCH "https://blob.vertracloud.app/v1/domains/9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"web_content":true}'
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O domínio atualizado.
+  <Expandable title="propriedades">
+  <ResponseField name="id" type="string">ID do domínio.</ResponseField>
+  <ResponseField name="hostname" type="string">Somente o subdomínio, por exemplo `cdn.example.com`.</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `active`, `failed` ou `suspended`. Somente `active` serve arquivos.</ResponseField>
+  <ResponseField name="ssl_status" type="string">Status do certificado TLS do hostname.</ResponseField>
+  <ResponseField name="cname_target" type="string">Aponte um registro CNAME de `hostname` para este valor.</ResponseField>
+  <ResponseField name="prefix" type="string | null">Quando definido, o domínio serve somente esta pasta.</ResponseField>
+  <ResponseField name="web_content" type="boolean">`true` quando o domínio serve `.html`, `.htm`, `.xhtml`, `.svg` e `.xml` no navegador (em sandbox); `false` quando esses tipos sempre são baixados.</ResponseField>
+  <ResponseField name="verification" type="object | null">
+    O registro TXT que comprova que você é dono do hostname. Presente somente enquanto o domínio não está `active`; ausente ou `null` depois.
+    <Expandable title="propriedades">
+    <ResponseField name="type" type="string">Sempre `txt`.</ResponseField>
+    <ResponseField name="name" type="string">Nome do registro TXT a ser criado.</ResponseField>
+    <ResponseField name="value" type="string">Valor do registro TXT.</ResponseField>
+    </Expandable>
+  </ResponseField>
+  <ResponseField name="created_at" type="string">Data de criação em ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5",
+    "hostname": "cdn.example.com",
+    "status": "active",
+    "ssl_status": "active",
+    "cname_target": "cname.vertracloud.dev",
+    "prefix": "images/",
+    "web_content": true,
+    "verification": null,
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `VALIDATION_ERROR` (`400`): `web_content` está ausente ou não é um booleano. `details.path` informa o campo.
+  - `BLOB_CUSTOM_DOMAIN_NOT_FOUND` (`404`): não existe domínio com esse ID nesta conta.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

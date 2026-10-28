@@ -1,0 +1,202 @@
+---
+title: 'Tutorial: Package an App as an Image Template'
+sidebarTitle: 'First image template'
+description: 'Build an image from your Dockerfile, then wrap it in a private template with the port, a healthcheck, one question and safe deploy settings.'
+icon: 'docker'
+---
+
+An **image template** runs an app from a Docker image instead of from source code. You build the image from your own `Dockerfile`, then write a manifest that points to that image and declares its port, memory, healthcheck and questions. In this tutorial you package a small web app that keeps a visit counter on the persistent disk, and you end with a private template anyone on your account can deploy in a few clicks.
+
+Use an image template when the app needs another language or version, system packages, its own start process, or when you are packaging ready-made software. If plain source code is enough, a [code template](/templates/tutorials/discord-bot-code) is simpler and does not use an image slot.
+
+## Before you start
+
+<Check>The Vertra CLI signed in with an API key that has the `templates:read`, `templates:write` and `templates:deploy` scopes, plus the scopes that build images.</Check>
+<Check>A plan that can create Docker images and private templates (see [Plans and limits](/plans-and-limits)). Each account keeps up to 5 private templates.</Check>
+<Check>You know the rules of [custom Docker images](/guides/custom-docker-images): writable paths, user `1000:1000`, the `PORT` variable and what the build refuses.</Check>
+
+<Note>Every image in use takes **one image slot** in the account that uses it, no matter how many apps run from it. When you deploy your own template, the image is already yours; people who receive it through a link get their own copy and use one slot each.</Note>
+
+## Step by step
+
+<Steps>
+  <Step title="Write an app that follows the platform rules">
+    An image runs with the same isolation as any application: the root filesystem is read-only, the user is always `1000:1000`, `/app` is the only persistent disk, and the server must listen on the `PORT` variable. Create this folder:
+
+    ```text
+    hello-counter/
+    ├── Dockerfile
+    ├── server.js
+    └── vertracloud.template.yaml
+    ```
+
+    `server.js` serves the page, counts visits in a file under `/app/data` and answers `/healthz` for the healthcheck:
+
+    ```javascript title="server.js"
+    "use strict";
+
+    const http = require("node:http");
+    const fs = require("node:fs");
+    const path = require("node:path");
+
+    const port = Number(process.env.PORT || 3000);
+    const greeting = process.env.GREETING || "Hello";
+    const dataDir = process.env.DATA_DIR || "/app/data";
+    const counterFile = path.join(dataDir, "visits.txt");
+
+    fs.mkdirSync(dataDir, { recursive: true });
+
+    function nextVisit() {
+      let visits = 0;
+      try {
+        visits = Number(fs.readFileSync(counterFile, "utf8")) || 0;
+      } catch {}
+      visits += 1;
+      fs.writeFileSync(counterFile, String(visits));
+      return visits;
+    }
+
+    http
+      .createServer((req, res) => {
+        if (req.url === "/healthz") {
+          res.writeHead(200, { "content-type": "text/plain" });
+          return res.end("ok");
+        }
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        res.end(`${greeting}! Visit number ${nextVisit()}.\n`);
+      })
+      .listen(port, "0.0.0.0", () => console.log(`Listening on ${port}`));
+    ```
+
+    The `Dockerfile` keeps the program outside `/app` (anything the image puts in `/app` is hidden by the persistent disk when the app runs) and does not use `USER`, `VOLUME` or `HEALTHCHECK`, which the platform ignores or refuses:
+
+    ```dockerfile title="Dockerfile"
+    FROM node:22-alpine
+    WORKDIR /srv
+    COPY server.js .
+    EXPOSE 3000
+    CMD ["node", "server.js"]
+    ```
+
+    <Tip>Test it locally the same way it will run: `docker run --rm --read-only --user 1000:1000 --tmpfs /tmp -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. If it only works with a writable root or as root, it will not work on the platform.</Tip>
+  </Step>
+  <Step title="Build the image on the platform">
+    The template does not carry the `Dockerfile`: it references an image that already exists in your account. Build it from the folder:
+
+    ```bash
+    vertra image build --name hello-counter --context .
+    vertra image logs <image-id> --follow
+    ```
+
+    Find the image id with `vertra image list`. Wait until the build is `success`; a failure shows the reason in the log. The `.env*` files are removed from the context and `.dockerignore` is respected. Each successful build becomes a new version of the same image, with the same id.
+  </Step>
+  <Step title="Write the manifest">
+    Create `vertracloud.template.yaml`. The value of `source.image` is the **id of your image**; replace the example id with yours:
+
+    ```yaml title="vertracloud.template.yaml"
+    id: hello-counter
+    version: 1.0.0
+    name:
+      pt-br: Contador de visitas
+      en: Visit counter
+    description:
+      pt-br: Página simples que conta as visitas em disco. Exemplo de template de imagem.
+      en: A simple page that counts visits on disk. An image template example.
+    category: starters
+    tags: [starter, counter]
+
+    inputs:
+      - id: greeting
+        type: text
+        label:
+          pt-br: Saudação da página
+          en: Page greeting
+        default: Hello
+        validation: { max_length: 40 }
+
+    services:
+      app:
+        source: { type: image, image: 3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b }
+        port: 3000
+        ram: { min: 512, recommended: 512 }
+        web: required
+        env:
+          GREETING: "{{inputs.greeting}}"
+          DATA_DIR: /app/data
+        healthcheck: { path: /healthz, timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+          rollback: { with_data: optional }
+
+    permissions:
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Endereço
+          en: Address
+        value: "{{app.url}}"
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+        value:
+          pt-br: "Abra o endereço e recarregue a página: o contador sobe e sobrevive a reinícios."
+          en: "Open the address and reload the page: the counter goes up and survives restarts."
+    ```
+
+    The fields that differ from a code template:
+
+    | Field | What to know |
+    |---|---|
+    | `source.image` | The id of an image of your own account. Images from the catalog, from other accounts or copies of another template are refused. The template pins the image **version** that is current when you create it, so a later rebuild does not change what the template deploys. |
+    | `port` | The port the server listens on. If you leave it out, the platform uses the first `EXPOSE` of the image, or 80 when there is none. The platform also injects it as `PORT`. |
+    | `web: required` | The wizard always publishes the app on the web. Use `none` for a bot or worker and `optional` to let the user choose. Publishing needs at least 512 MB, which is why `ram.min` is 512. |
+    | `healthcheck` | `path` is an HTTP path that must answer successfully before the wizard reports the app as ready, and `timeout` is how long to wait, up to 900 seconds. The `HEALTHCHECK` instruction of the `Dockerfile` is ignored, so this is the only one that counts. Give slow starters (migrations on boot) a larger `timeout`. |
+    | `deploy.zero_downtime` | Blue-green runs two copies for a moment. This app writes a file, so two copies would race on it: off and locked. |
+    | `deploy.rollback.with_data` | `optional` lets the owner roll back only the image and code. Use `required` for software that migrates its database when it updates, so a rollback also restores the data. |
+
+    <Note>`source.context` and image digests (`@sha256:...`) belong to templates in the public catalog, where the image is pinned by digest and built from the template folder. In a private template the image of your account is the source. The [last tutorial](/templates/tutorials/private-to-public-pr) shows how a private template becomes a catalog one.</Note>
+  </Step>
+  <Step title="Validate">
+    ```bash
+    vertra template validate
+    ```
+
+    Fix every finding. An image template can also be refused at creation for a reason `validate` cannot see, such as an image that is not yours (`IMAGE_NOT_FOUND`) or not built yet (`IMAGE_NOT_READY`).
+  </Step>
+  <Step title="Create the template and deploy it">
+    ```bash
+    vertra template create
+    vertra template deploy hello-counter --name my-counter --set greeting="Welcome"
+    ```
+
+    No zip is uploaded: a service that runs an image of your account needs none. The deploy job creates the app from the image, sets the variables, publishes the address, waits for `/healthz` and prints the outputs. Open the address and reload it: the counter must go up. Restart the app from the panel and reload again: the number survives, because `/app` is persistent.
+  </Step>
+  <Step title="Ship a new version">
+    Change the code, run `vertra image rebuild <image-id> --context .`, wait for `success`, raise `version` in the manifest and run `vertra template create --template hello-counter --changelog "Describe the change"`. The new template version pins the new image version. Apps created from the template see "New version available" and update when their owner chooses, with a safety snapshot first.
+
+    <Warning>You cannot delete an image that is the source of the current version of a private template: the request fails with `IMAGE_IN_USE`. Publish a version that uses another image, or delete the template first.</Warning>
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| The build fails with `IMAGE_VOLUME_REFUSED` or a warning about `WORKDIR /app` | Nothing the image puts in `/app` survives, because `/app` is the persistent disk. Use another directory such as `/srv` and never `VOLUME /app`. |
+| The app boots and the wizard fails at the healthcheck | The path answers an error or the server listens on another port. Listen on `PORT` on `0.0.0.0` and confirm that `healthcheck.path` returns 200. Raise `timeout` if the boot is slow. |
+| The app crashes with a permission error | The image writes outside `/app`, `/tmp`, `/var/tmp` and `/run`. Everything else is read-only; point logs, caches and data to `/app`. |
+| `create` fails with `IMAGE_NOT_FOUND` | `source.image` is not the id of an image of your own account. Check it with `vertra image list`. |
+| `create` fails with `IMAGE_NOT_READY` | The image has no successful build yet. Wait for `success`. |
+| `validate` reports `invalid_source` | A field of the wrong kind: `main`, `start` and `language` are only for code services; `port` is only for image services. |
+| Deploy fails with `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | The account that deploys has no free image slot. Delete an image it no longer uses or use a larger plan. |
+
+## Next steps
+
+- [Requirements and plan](/templates/create/requirements): how `ram`, `web` and the image decide the required plan and slots.
+- [Deploy settings](/templates/create/deploy-settings): when to lock blue-green and require rollback with data.
+- [Best practices](/templates/create/best-practices): where data goes, the read-only root, user 1000 and the port.
+- [Manifest reference](/templates/create/manifest-reference): every field of an app service.
+- [Custom Docker images](/guides/custom-docker-images): the build rules, versions and rollback of the image itself.
+- Next tutorial: [a stack with Postgres and Redis](/templates/tutorials/postgres-redis-stack).

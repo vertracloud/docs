@@ -1,0 +1,114 @@
+---
+title: Publicar una nueva versión de una plantilla privada
+sidebarTitle: Nueva versión
+api: POST https://api.vertracloud.app/v1/templates/{template_id}/versions
+authMethod: bearer
+description: Publica una nueva versión de una plantilla privada a partir de un manifiesto actualizado y, para los servicios con código, nuevos archivos ZIP.
+---
+
+{/* @see RESTPostAPITemplateVersionBody, RESTPostAPITemplateVersionResponse — @vertracloud/api-types */}
+Esta llamada publica una nueva versión de una plantilla privada y responde `201` con la versión. La petición es `multipart/form-data`, igual que en [Crear una plantilla privada](/es-es/api-reference/endpoint/templates/create). El número de versión del manifiesto debe ser mayor que el actual, y el `id` del manifiesto no puede cambiar. Una versión publicada nunca cambia, y un número que ya se usó queda reservado aunque su versión se haya eliminado.
+
+Necesita el ámbito `templates:write` cuando se llama con una clave de API, y solo el propietario de la plantilla (en un workspace, su propietario) puede publicar. Un servicio `code` sin una nueva parte ZIP conserva el código de la versión anterior; si no tenía ninguno, la llamada falla con `TEMPLATE_SOURCE_REQUIRED`. Una variable listada en `env_hidden` y ausente de `env` conserva su valor anterior, y si la envías de nuevo, lo reemplaza. Las aplicaciones ya creadas desde la plantilla no se tocan: cada usuario [actualiza](/es-es/templates/use/updates-and-rollback) cuando lo decide.
+
+<ParamField path="template_id" type="string" required>
+  El ID de la plantilla.
+</ParamField>
+
+<ParamField body="manifest" type="string" required>
+  El manifiesto de la nueva versión, como cadena JSON serializada.
+</ParamField>
+
+<ParamField body="sources[service_id]" type="file">
+  Una parte ZIP con el nuevo código de un servicio, con el nombre del ID del servicio. Es opcional para un servicio que ya tiene código.
+</ParamField>
+
+<ParamField body="changelog" type="string">
+  Qué cambió, como objeto JSON serializado con `pt-br` (obligatorio), `en` y `es`.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/tpl-abc123def456/versions \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -F 'manifest=<manifest.json' \
+  -F 'changelog={"pt-br":"Corrige o login","en":"Fixes login"}' \
+  -F 'sources[bot]=@bot.zip'
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La nueva versión.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la versión.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    La versión semántica.
+  </ResponseField>
+
+  <ResponseField name="security" type="boolean">
+    `true` para una versión de seguridad.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    El changelog por idioma (`pt-br`, `en`, `es`), o `null`.
+  </ResponseField>
+
+  <ResponseField name="manifest" type="object | null">
+    El manifiesto de la versión. Los valores de `env_hidden` nunca se incluyen.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se publicó la versión.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tplv-555666777888",
+    "version": "1.1.0",
+    "security": false,
+    "changelog": { "pt-br": "Corrige o login", "en": "Fixes login" },
+    "manifest": { "id": "support-bot", "version": "1.1.0", "category": "bots", "services": {} },
+    "created_at": "2026-10-27T15:30:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: La plantilla no existe o no es tuya (`404`).
+  - `TEMPLATE_MANIFEST_INVALID`: El manifiesto no es válido, la versión no es mayor que la actual, o el `id` cambió; `details.issues` lista los hallazgos.
+  - `TEMPLATE_SOURCE_REQUIRED`: Un servicio `code` no tiene parte ZIP ni código de una versión anterior.
+  - `TEMPLATE_SECRET_IN_SOURCE`: Un ZIP contiene un secreto; `details.files` lista las rutas (`400`).
+  - `IMAGE_NOT_FOUND`: Un servicio `image` apunta a una imagen que no es tuya o que no tiene una compilación exitosa.
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace publica versiones de sus plantillas.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_SOURCE_REQUIRED"
+}
+```
+
+</ResponseExample>

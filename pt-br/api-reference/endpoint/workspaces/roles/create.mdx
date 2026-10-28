@@ -1,0 +1,45 @@
+---
+title: Criar papel
+sidebarTitle: Criar
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/roles
+authMethod: bearer
+description: Cria um papel personalizado. Exige `roles:manage`.
+---
+
+{/* @see RESTPostAPIWorkspaceRoleBody, RESTPostAPIWorkspaceRoleResponse — @vertracloud/api-types */}
+Exige `roles:manage`. Uma chave de API precisa do escopo `workspaces:write`.
+
+<Note>
+  **Guarda contra escalonamento de privilégio:** quem não é dono só pode conceder um conjunto de
+  permissões que ele mesmo já tem. Não há verificação separada para "criar" e "editar" — sem isso,
+  `roles:manage` sozinho permitiria que um membro criasse um papel com todas as permissões, inclusive
+  as que ele não tem.
+</Note>
+
+O número de papéis que um workspace pode ter é limitado pelo nível do plano do dono — **os 4 papéis
+iniciais contam nesse limite.**
+
+### Caminho
+
+<ParamField path="id" type="string" required>ID do workspace.</ParamField>
+
+### Corpo
+
+<ParamField body="name" type="string" required>De 1 a 50 caracteres.</ParamField>
+<ParamField body="permissions" type="WorkspacePermission[]" required>
+  Subconjunto do catálogo de 20 entradas. Deve ser um subconjunto das permissões do próprio chamador, a menos que o chamador seja o dono.
+</ParamField>
+<ParamField body="position" type="number">De 0 a 999, ordem de exibição.</ParamField>
+
+### Resposta
+
+Mesmo formato de uma linha de [Listar papéis](/pt-br/api-reference/endpoint/workspaces/roles/list).
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Quem chama não tem `roles:manage`. |
+| 403 | `WORKSPACE_PERMISSION_ESCALATION` | Quem chama não é o dono e pediu uma permissão que não tem. |
+| 404 | `WORKSPACE_NOT_FOUND` | O workspace não existe ou você não é membro. |
+| 409 | `WORKSPACE_ROLE_LIMIT_REACHED` | Atingido o teto de papéis do nível de plano do dono (os papéis iniciais incluídos). |

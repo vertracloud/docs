@@ -1,0 +1,94 @@
+---
+title: Listar versiones de la imagen
+sidebarTitle: Listar versiones
+api: GET https://api.vertracloud.app/v1/images/{image_id}/versions
+authMethod: bearer
+description: Lista las versiones de una imagen, de la más reciente a la más antigua. Cada build exitoso es una nueva versión de la misma imagen.
+---
+
+{/* @see APICustomImageVersion[], RESTGetAPICustomImageVersionsResult — @vertracloud/api-types */}
+Requiere el scope `images:read` cuando se llama con una clave de API.
+
+<ParamField path="image_id" type="string" required>
+  El ID de la imagen.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la imagen pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúen sobre una imagen que no les pertenece.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="array">
+  Un array de versiones, de la más reciente a la más antigua.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la versión. Úsalo como `version_id` para leer el log de build de esa versión.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string">
+    Digest (`sha256:...`) de la versión.
+  </ResponseField>
+
+  <ResponseField name="source" type="string">
+    Lo que disparó el build: `upload` (se subió un contexto completo), `commit` (archivos confirmados sobre el contexto actual) o `github` (un push a la rama vinculada).
+  </ResponseField>
+
+  <ResponseField name="message" type="string | null">
+    El mensaje enviado con la subida o el commit, o `null`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se construyó la versión.
+  </ResponseField>
+
+  <ResponseField name="in_use" type="boolean">
+    `true` cuando al menos una aplicación ejecuta esta versión.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "imgv-111aaa222bbb",
+      "digest": "sha256:3f1c0a9d5b7e2c4a8d6f1b0e9c3a7d5f2b4e6a8c0d1f3b5a7c9e2d4f6a8b0c1e",
+      "source": "upload",
+      "message": "first build",
+      "created_at": "2026-10-23T14:09:00Z",
+      "in_use": true
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Una aplicación conserva hasta 30 releases durante 30 días en los planes Enterprise, y cada release apunta a una versión de la imagen. Para volver atrás una aplicación, usa [Revertir aplicación](/es-es/api-reference/endpoint/apps/releases/rollback). Una versión solo se elimina cuando ningún release de ninguna aplicación la usa y no es la actual.
+</Note>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope necesario (`403`).
+  - `IMAGE_NOT_FOUND`: La imagen no existe o no puedes acceder a ella (`404`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

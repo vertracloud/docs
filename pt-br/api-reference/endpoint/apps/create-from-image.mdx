@@ -1,0 +1,100 @@
+---
+title: Criar aplicação a partir de imagem
+sidebarTitle: Criar a partir de imagem
+api: POST https://api.vertracloud.app/v1/apps/image
+authMethod: bearer
+description: Cria uma aplicação que roda a partir de uma imagem Docker personalizada.
+---
+
+{/* @see RESTPostAPIApplicationImageBody, RESTPostAPIApplicationImageResult — @vertracloud/api-types */}
+A imagem precisa estar pronta (`status: "success"`). Várias aplicações podem compartilhar a mesma imagem, cada uma com suas próprias variáveis. A linguagem, a versão, o arquivo principal e os comandos de start e de build não se aplicam: eles vêm da imagem. Precisa do escopo `apps:write` quando chamada com uma chave de API. Veja [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images).
+
+<ParamField body="image_id" type="string" required>
+  O ID da imagem da qual a aplicação roda.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  O nome de exibição da aplicação. Máximo de 50 caracteres.
+</ParamField>
+
+<ParamField body="memory" type="integer" required>
+  A quantidade de RAM a alocar, em MB.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Uma descrição da aplicação.
+</ParamField>
+
+<ParamField body="web" type="boolean" required>
+  `true` publica a aplicação na web (`subdomain` e `port` se aplicam). `false` cria uma aplicação sem tráfego, como um bot ou um worker.
+</ParamField>
+
+<ParamField body="subdomain" type="string">
+  O subdomínio da aplicação. Envie `random` para que a plataforma escolha um. Somente com `web: true`.
+</ParamField>
+
+<ParamField body="port" type="integer">
+  A porta em que a aplicação escuta. Somente com `web: true`. Padrão: o primeiro `EXPOSE` do `Dockerfile` da imagem, ou `80`. A plataforma injeta a porta como a variável de ambiente `PORT`.
+</ParamField>
+
+<ParamField body="envs" type="object[]">
+  Variáveis de ambiente, cada uma com `key`, `value` e um `note` opcional. Tamanho máximo da chave: 255. Tamanho máximo do valor: 3072. Tamanho máximo da nota: 50.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O workspace a associar à aplicação.
+</ParamField>
+
+### Resposta
+
+A criação é assíncrona: a resposta é `202 Accepted` com a aplicação em `status: "building"` e `custom_image` preenchido (`image_id`, `port`, `version_id`, `outdated`). A aplicação tem os mesmos campos de [Criar aplicação](/pt-br/api-reference/endpoint/apps/create). Depois disso, acompanhe com [Detalhes da aplicação](/pt-br/api-reference/endpoint/apps/get) até que `status` seja `up` ou `down`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "name": "my-api-prod",
+    "status": "building",
+    "ram": 512,
+    "subdomain": "myapp.vertraweb.app",
+    "custom_image": {
+      "id": "app-abc123def456",
+      "name": "my-api-prod",
+      "version_id": null,
+      "outdated": false,
+      "image_id": "img-abc123def456",
+      "port": 3000
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: a chave de API não tem o escopo `apps:write` (`403`).
+  - `VALIDATION_ERROR`: o corpo da requisição falhou na validação (`400`).
+  - `IMAGE_NOT_FOUND`: a imagem não existe ou você não tem acesso a ela (`404`).
+  - `IMAGE_NOT_READY`: a imagem ainda não tem um build concluído com sucesso (`409`).
+  - `MAX_APPS_REACHED`: foi atingido o limite de aplicações do plano (`403`).
+  - `MEMORY_BELOW_MINIMUM`, `MEMORY_LIMIT_EXCEEDED`: a memória está abaixo do mínimo ou acima do que o plano ainda tem disponível (`400`).
+  - `SUBDOMAIN_TAKEN`, `SUBDOMAIN_FORBIDDEN`: o subdomínio está em uso ou é reservado (`409`, `400`).
+  - `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH`: `web: true` em um plano sem publicação na web (`403`).
+  - `DEPLOY_RATE_LIMITED`: foi atingido o orçamento horário de deploys da conta (`429`).
+  - `INTERNAL_SERVER_ERROR`: falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_NOT_READY"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,112 @@
+---
+title: "Obtener un enlace temporal de descarga para un objeto blob"
+sidebarTitle: "Descargar objeto"
+api: "GET https://blob.vertracloud.app/v1/objects/{object_id}/download"
+authMethod: bearer
+description: "Devuelve un enlace temporal para descargar un objeto blob. Redirige por defecto; el enlace no se puede revocar."
+---
+
+{/* @see RESTGetAPIBlobObjectDownloadQuery, RESTGetAPIBlobObjectDownloadResponse, APIBlobDownload — @vertracloud/api-types */}
+
+Devuelve un enlace de descarga temporal para un objeto y, por defecto, redirige a él (`302`). Úsalo para objetos privados.
+El enlace caduca después de `expires_in` segundos y no se puede revocar. Con `redirect=false`, la respuesta contiene el
+enlace en su lugar.
+
+**Ámbito:** `blob:read`.
+
+<ParamField path="object_id" type="string" required>
+  El ID del objeto.
+</ParamField>
+
+<ParamField query="expires_in" type="number">
+  Segundos que el enlace sigue válido, de 60 a 86400. Por defecto `3600`.
+</ParamField>
+
+<ParamField query="disposition" type="string">
+  `inline` o `attachment` para esta descarga. Por defecto: el `content_disposition` del objeto.
+</ParamField>
+
+<ParamField query="filename" type="string">
+  Nombre para esta descarga. Por defecto: el `filename` del objeto.
+</ParamField>
+
+<ParamField query="redirect" type="boolean">
+  `true` devuelve un `302` al enlace. `false` devuelve el enlace como JSON. Por defecto `true`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -L -o logo.png "https://blob.vertracloud.app/v1/objects/0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c/download?expires_in=600" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Solo con `redirect=false`. Con el valor por defecto `redirect=true`, la respuesta es un `302` al enlace y no tiene cuerpo.
+  <Expandable title="propiedades">
+  <ResponseField name="url" type="string">Enlace de descarga temporal.</ResponseField>
+  <ResponseField name="expires_at" type="string">Cuándo deja de funcionar el enlace, como marca de tiempo ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "url": "https://blob.vertracloud.dev/d/eyJrIjoiazdwMm05eDRxYS9pbWFnZXMvbG9nby5wbmcifQ.c2lnbmF0dXJl",
+    "expires_at": "2026-10-14T12:10:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `VALIDATION_ERROR` (`400`): Un parámetro o un campo del cuerpo no superó la validación. `details.path` indica el campo.
+  - `BLOB_OBJECT_NOT_FOUND` (`404`): No existe ningún objeto con ese ID en esta cuenta (o en el blob del workspace).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,138 @@
+---
+title: Crear un enlace para compartir una plantilla
+sidebarTitle: Crear enlace
+api: POST https://api.vertracloud.app/v1/templates/{template_id}/share-links
+authMethod: bearer
+description: Crea un enlace para compartir una plantilla privada, en modo de uso o de copia completa, con un límite de usos y una caducidad opcionales.
+---
+
+{/* @see RESTPostAPITemplateShareLinkBody, RESTPostAPITemplateShareLinkResponse — @vertracloud/api-types */}
+Esta llamada crea un enlace para compartir una plantilla privada y responde `201` con el enlace y su token. **El token solo se muestra en esta respuesta y no puede recuperarse**: guárdalo ahora. Solo se guarda un hash de él, y la respuesta no se guarda en caché. Un token empieza por `vtpl_`.
+
+Un enlace tiene uno de dos modos. Un enlace `use` permite a quien lo abre crear sus propias aplicaciones desde la plantilla, sin copiarla. Un enlace `full_copy` le da una plantilla privada propia, independiente de la tuya, que cuenta contra su límite de 5 plantillas privadas. `full_copy` necesita `share.full_copy` en `true` en la plantilla, y no está disponible para una [plantilla cerrada](/es-es/templates/use/closed-templates) ni para una versión que tenga variables `env_hidden`. Lee [Enlaces para compartir](/es-es/templates/create/share-links) antes de elegir.
+
+Necesita el ámbito `templates:write` cuando se llama con una clave de API. Solo el propietario de la plantilla puede crear enlaces; en un workspace, un miembro ni siquiera puede listarlos. Quienes reciben el enlace ven el aviso "No verificado por Vertra" en la vista previa.
+
+<ParamField path="template_id" type="string" required>
+  El ID de la plantilla.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la plantilla pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<ParamField body="mode" type="string">
+  `use` o `full_copy`. Por defecto, `use`.
+</ParamField>
+
+<ParamField body="max_uses" type="integer">
+  El número máximo de usos. Si no se indica, no hay límite. Un uso se cuenta cuando alguien empieza a crear desde el enlace; un uso rechazado o deshecho se devuelve.
+</ParamField>
+
+<ParamField body="expires_in_days" type="integer">
+  El número de días hasta que el enlace caduca. Si no se indica, el enlace no caduca.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/tpl-abc123def456/share-links \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "mode": "use", "max_uses": 10, "expires_in_days": 7 }'
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El enlace.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID del enlace.
+  </ResponseField>
+
+  <ResponseField name="template_id" type="string">
+    La plantilla a la que pertenece el enlace.
+  </ResponseField>
+
+  <ResponseField name="mode" type="string">
+    `use` o `full_copy`.
+  </ResponseField>
+
+  <ResponseField name="last4" type="string">
+    Los últimos 4 caracteres del token, para distinguir los enlaces.
+  </ResponseField>
+
+  <ResponseField name="uses" type="integer">
+    Cuántas veces se usó el enlace.
+  </ResponseField>
+
+  <ResponseField name="max_uses" type="integer | null">
+    El número máximo de usos, o `null` si no hay límite.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null" format="date-time">
+    Cuándo caduca el enlace, o `null` si no caduca.
+  </ResponseField>
+
+  <ResponseField name="revoked_at" type="string | null" format="date-time">
+    Cuándo lo revocó el autor, o `null`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó el enlace.
+  </ResponseField>
+
+  <ResponseField name="token" type="string">
+    El token completo. Se muestra una vez.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "lnk-abc123def456",
+    "template_id": "tpl-abc123def456",
+    "mode": "use",
+    "last4": "x9Qa",
+    "uses": 0,
+    "max_uses": 10,
+    "expires_at": "2026-11-03T14:02:00Z",
+    "revoked_at": null,
+    "created_at": "2026-10-27T14:02:00Z",
+    "token": "vtpl_EXAMPLE_TOKEN_SHOWN_ONLY_ONCE_x9Qa"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: La plantilla no existe, está eliminada o no es tuya (`404`).
+  - `TEMPLATE_SAVE_NOT_ALLOWED`: Se pidió `full_copy` y la plantilla no lo permite (`share.full_copy` no es `true`) (`403`).
+  - `TEMPLATE_CLOSED`: Se pidió `full_copy` para una plantilla cerrada (`403`).
+  - `VALIDATION_ERROR`: `max_uses` o `expires_in_days` no es un entero positivo (`400`).
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace crea enlaces para sus plantillas.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_CLOSED"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,179 @@
+---
+title: Fazer rollback da aplicação para uma release
+sidebarTitle: Fazer rollback
+api: POST https://api.vertracloud.app/v1/apps/{id}/releases/{release_id}/rollback
+authMethod: bearer
+description: Faz o rollback de uma aplicação para uma release anterior, restaurando o código, removendo os arquivos que ela não tinha e reiniciando-a, com variáveis opcionais.
+---
+
+{/* @see RESTPostAPIApplicationRollbackBody, RESTPostAPIApplicationRollbackResponse — @vertracloud/api-types */}
+Faz o rollback da aplicação para o código que ela tinha nesta release, depois a reinicia. O rollback é registrado como uma nova release com `source: "rollback"`, então você pode desfazê-lo do mesmo jeito. Opcionalmente, ele também restaura as variáveis de ambiente salvas com essa release.
+
+Fazer rollback não altera os dados que a aplicação criou enquanto roda, como um arquivo de banco de dados ou uploads. Para trazer os dados de volta, use um [snapshot](/pt-br/api-reference/endpoint/apps/snapshots/restore).
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação. Se a aplicação pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField path="release_id" type="string" required>
+  O ID da release para a qual fazer o rollback, como retornado pela [lista de releases](/pt-br/api-reference/endpoint/apps/releases/list). Precisa ser uma release cujo código ainda é mantido (`rollback.available` é `true`).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<ParamField body="restore_environment" type="boolean" default="false">
+  Opcional. `true` também substitui as variáveis de ambiente da aplicação pelas salvas com essa release. O padrão `false` mantém as variáveis que a aplicação tem agora. Confira antes as mudanças com a [pré-visualização do rollback](/pt-br/api-reference/endpoint/apps/releases/rollback-preview).
+</ParamField>
+
+O que o rollback faz:
+
+- **Código:** cada arquivo de código da release é restaurado exatamente como estava. Arquivos de código que a release não tinha são apagados.
+- **Dados:** arquivos criados pela aplicação enquanto roda não são alterados nem apagados.
+- **Variáveis:** não mudam, a menos que `restore_environment` seja `true`.
+- **Restart:** a aplicação reinicia com um build forçado, então o comando de build dela roda de novo, se tiver um.
+- **Histórico de releases:** a versão que estava rodando passa para `rolled_back`, e a nova release passa a ser a ativa. O `rollback.from` dela é a release que você restaurou.
+
+Outras regras se aplicam:
+
+- Um rollback não usa os slots de deploy do seu plano, mas dois rollbacks da mesma aplicação precisam de pelo menos 30 segundos entre eles. Rollbacks também têm limite horário próprio por conta, igual ao limite horário de deploy do seu plano. Ao ultrapassá-lo, a resposta é `429 DEPLOY_RATE_LIMITED`, com `details.limit`, `details.window_seconds` e `details.retry_after`, e nenhum slot de deploy é usado.
+- Se o código da release não puder ser restaurado, a requisição falha com `INTERNAL_SERVER_ERROR`. Nada muda. Se o código salvo dessa release estiver danificado, falha com `INVALID_ZIP_STRUCTURE` (`400`) antes de qualquer arquivo ser tocado.
+- Se o restart falhar depois que os arquivos foram restaurados, a resposta é o erro do restart (por exemplo `BUILD_FAILED`). A aplicação já roda o código restaurado, então corrija a causa e reinicie-a.
+
+Só as releases que o seu plano mantém podem ser restauradas. Veja [Histórico de deploys e limites de rollback](/pt-br/plans-and-limits#limites-do-histórico-de-deploys-e-do-rollback).
+
+Exige o escopo `apps:write` quando chamado com uma chave de API. Se `restore_environment` for `true`, a chave também precisa do escopo `apps:envs`; sem ele, a requisição retorna `403 API_KEY_SCOPE_DENIED`. Para um membro do workspace, exige as permissões `apps:files` e `apps:lifecycle`, além de `apps:envs` ao restaurar variáveis.
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A nova release criada pelo rollback.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+  O ID da nova release.
+  </ResponseField>
+
+  <ResponseField name="source" type="string">
+  Sempre `rollback` nesta resposta.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+  `active`, a versão que a aplicação roda agora.
+  </ResponseField>
+
+  <ResponseField name="rollback" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="available" type="boolean">
+  `false` para a release ativa.
+  </ResponseField>
+
+  <ResponseField name="from" type="string">
+  O ID da release que foi restaurada.
+  </ResponseField>
+
+  </Expandable>
+  </ResponseField>
+
+  <ResponseField name="message" type="string | null">
+  A mensagem da release. `null` quando nenhuma foi informada.
+  </ResponseField>
+
+  <ResponseField name="files_changed" type="integer">
+  Número de arquivos alterados pela operação que gerou esta release.
+  </ResponseField>
+
+  <ResponseField name="build_duration_ms" type="integer | null">
+  Tempo, em milissegundos, gasto no build e na inicialização da aplicação.
+  </ResponseField>
+
+  <ResponseField name="first_started_at" type="string | null">
+  Quando a aplicação iniciou pela primeira vez com o código desta release, ou seja, quando o restart do rollback terminou.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+  Timestamp ISO de quando o rollback foi feito.
+  </ResponseField>
+
+  <ResponseField name="author" type="string">
+  O nome do usuário que fez o rollback.
+  </ResponseField>
+
+  <ResponseField name="app_id" type="string">
+  O ID da aplicação.
+  </ResponseField>
+
+  <ResponseField name="github" type="null">
+  `null`, porque um rollback não é um push do GitHub.
+  </ResponseField>
+
+  <ResponseField name="has_log" type="boolean">
+  `true` quando um log de crash foi registrado para esta release.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+{
+  "response": {
+    "id": "5b8e3f10-2c4a-4d9b-a7e1-0f3c6b9d2e54",
+    "app_id": "7a52e0d4-19b3-4f8e-b6c2-0d9e4a1f5c73",
+    "source": "rollback",
+    "status": "active",
+    "message": null,
+    "author": "octocat",
+    "github": null,
+    "files_changed": 4,
+    "rollback": {
+      "available": false,
+      "expires_at": null,
+      "from": "3f1c2a9e-8b7d-4c21-9e0a-5d6f7a8b9c01"
+    },
+    "has_log": false,
+    "build_duration_ms": 12450,
+    "first_started_at": "2026-10-11T15:02:50.000Z",
+    "created_at": "2026-10-11T15:02:37.000Z"
+  }
+}
+```
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+Códigos de erro possíveis:
+- `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+- `API_KEY_IP_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist (`403`).
+- `APP_NOT_FOUND`: a aplicação não existe, ou não pertence a esta conta ou workspace (`404`).
+- `RELEASE_NOT_FOUND`: a release não existe, ou pertence a outra aplicação (`404`).
+- `PLAN_DOES_NOT_SUPPORT_ROLLBACK`: o seu plano não inclui fazer rollback para releases anteriores (`403`). O rollback começa no Pro.
+- `API_KEY_SCOPE_DENIED`: a chave de API não tem o escopo `apps:write`, ou não tem `apps:envs` enquanto `restore_environment` é `true` (`403`).
+- `RELEASE_ALREADY_ACTIVE`: a release já é a que a aplicação roda, ou tem o mesmo código e `restore_environment` não mudaria nada (`409`).
+- `RELEASE_EXPIRED`: o código desta release não é mais mantido, porque expirou ou é mais antigo do que o número de releases que o seu plano mantém (`410`).
+- `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida na mesma aplicação já está em execução (`409`). Nada foi alterado; aguarde alguns segundos e tente de novo.
+- `RESTORE_COOLDOWN`: o rollback anterior desta aplicação foi há menos de 30 segundos (`429`). Aguarde e tente de novo.
+- `DEPLOY_RATE_LIMITED`: o limite horário de rollbacks da conta foi atingido (`429`). `details` traz `limit`, `window_seconds` e `retry_after`. Aguarde e tente de novo.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+```json Error Response (410)
+{
+  "code": "RELEASE_EXPIRED"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RESTORE_COOLDOWN"
+}
+```
+</ResponseExample>

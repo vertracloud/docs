@@ -1,0 +1,130 @@
+---
+title: Enviar arquivos para a aplicação
+sidebarTitle: Enviar arquivos
+api: POST https://api.vertracloud.app/v1/apps/{id}/files/upload
+authMethod: bearer
+description: Envia um único arquivo ou um arquivo ZIP para uma pasta de uma aplicação. Opcionalmente reinicia a aplicação após o envio.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+Quando a aplicação roda uma imagem Docker personalizada, o envio é um commit que reconstrói a imagem, então uma chave de API precisa do escopo `images:write`, além de `apps:files`.
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação para a qual os arquivos serão enviados. Se a aplicação pertencer a um workspace, informe o ID dele no parâmetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="restart" type="string">
+  Se definido como `"true"`, a aplicação será reiniciada automaticamente após o término do envio.
+</ParamField>
+
+<ParamField query="path" type="string">
+  A pasta de destino, relativa à raiz da aplicação. Deixe vazio ou omita para enviar à raiz. Um ZIP é extraído dentro desta pasta, e um arquivo avulso é gravado em `path/<nome-do-arquivo>`. As pastas do caminho são criadas se não existirem. Segmentos como `..` são recusados.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Membros com papel de Owner, Admin ou Developer podem usar o gerenciador de arquivos em uma aplicação do workspace que não é deles; sem isso, somente o dono da aplicação pode.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  O arquivo a enviar — um único arquivo avulso (gravado no caminho de destino como está) ou um arquivo ZIP.
+
+  Um ZIP é **extraído sobre** a pasta de destino (`path`, ou a raiz da aplicação): os arquivos que ele contém sobrescrevem os caminhos correspondentes, mas os arquivos já no disco que não estão no ZIP são mantidos — é uma mesclagem, não uma substituição. Diretórios proibidos (`node_modules`, `.git`, `.local` e similares) são removidos do ZIP no servidor antes da extração, independentemente do que o arquivo contenha.
+
+  O envio multipart é limitado a 100 MB; um ZIP também é limitado a 512 MB descompactado.
+</ParamField>
+
+<ParamField body="message" type="string">
+  Uma mensagem opcional para este envio, exibida no histórico de deploys da aplicação. Até 500 caracteres. Espaços no início e no fim são removidos, e um valor vazio significa nenhuma mensagem.
+</ParamField>
+
+<ParamField query="confirm_detach" type="string">
+  Envie `true` para confirmar que a alteração desvincula uma aplicação que veio de um template aberto (ela deixa de receber versões). Sem ele, a requisição não altera nada e responde `409` `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`. Ignorado para outras aplicações. Veja [Desvincular de um template](/pt-br/api-reference/endpoint/templates/detach).
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O resultado do envio.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="image_build" type="object | null">
+    Somente para uma aplicação que roda uma imagem Docker personalizada: o envio é um commit que reconstrói a imagem, com os arquivos colocados sobre o contexto de build atual da imagem. Tem `image_id` e `build_id`. `null` ou ausente para uma aplicação comum. Veja [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images#commit-on-top-of-the-current-context).
+  </ResponseField>
+
+  <ResponseField name="message" type="string">
+    Um resumo legível, por exemplo informando que a imagem está sendo reconstruída e que a aplicação reinicia quando o build for bem-sucedido.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {}
+}
+```
+
+```json Response (application on a custom image)
+{
+  "response": {
+    "image_build": {
+      "image_id": "img-abc123def456",
+      "build_id": "bld-abc123def456"
+    },
+    "message": "The image is rebuilding. The application restarts when the build succeeds."
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões (`403`).
+  - `ACCESS_DENIED`: o usuário não tem acesso à aplicação.
+  - `API_KEY_SCOPE_DENIED`: a aplicação roda uma imagem Docker personalizada e a chave de API não tem o escopo `images:write`. `details.required` é `images:write` (`403`).
+  - `APP_NOT_FOUND`: a aplicação especificada não existe.
+  - `NO_FILE_UPLOADED`: nenhum arquivo foi enviado na requisição (`400`).
+  - `INVALID_ZIP_STRUCTURE`: o zip não pôde ser lido (`400`).
+  - `INVALID_PATH`: o parâmetro de query `path` está malformado ou tenta sair da raiz da aplicação, por exemplo com `..` (`400`).
+  - `FORBIDDEN_PATH`: o destino é uma pasta reservada pela plataforma (`403`).
+  - `PATH_IS_FILE`: o destino existe e é um arquivo, não uma pasta (`409`).
+  - `VALIDATION_ERROR`: o `message` tem mais de 500 caracteres. `details.path` é `message` (`400`).
+  - `OPERATION_IN_PROGRESS`: outro envio de código para a mesma aplicação ainda está em execução. Tente novamente em alguns segundos (`409`).
+  - `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`: a alteração desvincularia a aplicação do seu template e `confirm_detach` não foi enviado (`409`). Nada foi alterado.
+  - `INTERNAL_SERVER_ERROR`: ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "NO_FILE_UPLOADED"
+}
+```
+
+</ResponseExample>

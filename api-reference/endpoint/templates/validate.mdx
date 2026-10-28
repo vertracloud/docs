@@ -1,0 +1,150 @@
+---
+title: Validate Template Manifest
+sidebarTitle: Validate Manifest
+api: POST https://api.vertracloud.app/v1/templates/validate
+authMethod: bearer
+description: Checks a template manifest against the rules of private templates and returns the findings, the required plan and the memory it needs, creating nothing.
+---
+
+{/* @see APITemplateValidation, RESTPostAPITemplateValidateBody, RESTPostAPITemplateValidateResponse — @vertracloud/api-types */}
+Checks a manifest and reports every problem it finds, without creating anything. The call **needs authentication** and, with an API key, the `templates:read` scope. It always answers `200`: whether the manifest is valid is in the `valid` field, so a manifest that is not even an object comes back as findings, not as a malformed request. The checks are the ones applied to a private template. For the manifest fields and examples, see the [manifest reference](/templates/create/manifest-reference) and [Validate and test a template](/templates/create/validate-and-test).
+
+<ParamField body="manifest" type="object | string" required>
+  The manifest. Send it as a JSON object, or as a string with the YAML of the `vertracloud.template.yaml` file. A string that is not valid YAML is reported as a finding.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The result of the validation.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="valid" type="boolean">
+    `true` when the manifest has no findings.
+  </ResponseField>
+
+  <ResponseField name="issues" type="object[]">
+    The findings. Empty when `valid` is `true`.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="path" type="string">
+      The path of the field in the manifest, such as `services.app.ram.min`. Empty when the problem is the manifest as a whole.
+    </ResponseField>
+
+    <ResponseField name="code" type="string">
+      The kind of finding: `invalid_type`, `required`, `unknown_field`, `invalid_slug`, `invalid_version`, `invalid_category`, `invalid_text`, `invalid_ram`, `invalid_plan`, `unknown_placeholder`, `unknown_service`, `unknown_input`, `invalid_when`, `invalid_option`, `invalid_source`, `invalid_permissions`, `forbidden_env`, `forbidden_in_public`, `secret_in_manifest`, `invalid_deploy`, `invalid_connection`, `duplicate_id` or `too_many_services`.
+    </ResponseField>
+
+    <ResponseField name="message" type="string">
+      A readable explanation, in English.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="required_plan" type="string | null">
+    The lowest plan that can use the template, calculated from the manifest. `null` when the manifest is not valid enough to calculate it.
+  </ResponseField>
+
+  <ResponseField name="ram_min_total" type="integer | null">
+    The sum of the minimum memory of every service, in MB, or `null`.
+  </ResponseField>
+
+  <ResponseField name="services" type="object[]">
+    The services the manifest creates, in the same shape as in [List Templates](/api-reference/endpoint/templates/list). Empty when the manifest is not valid.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/validate \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manifest": {
+      "id": "my-bot",
+      "version": "1.0.0",
+      "name": { "pt-br": "Meu bot" },
+      "description": { "pt-br": "Um bot de exemplo." },
+      "category": "bots",
+      "services": {
+        "app": {
+          "source": { "type": "code", "path": "src" },
+          "language": "javascript",
+          "main": "index.js",
+          "ram": { "min": 128, "recommended": 256 },
+          "web": "none"
+        }
+      }
+    }
+  }'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response (valid)
+{
+  "response": {
+    "valid": true,
+    "issues": [],
+    "required_plan": "economy",
+    "ram_min_total": 128,
+    "services": [
+      {
+        "id": "app",
+        "kind": "app",
+        "source_type": "code",
+        "database": null,
+        "blob_visibility": null,
+        "ram": { "min": 128, "recommended": 256 },
+        "web": "none",
+        "conditional": false
+      }
+    ]
+  }
+}
+```
+
+```json Response (with findings)
+{
+  "response": {
+    "valid": false,
+    "issues": [
+      { "path": "category", "code": "invalid_category", "message": "category must be one of the template categories" },
+      { "path": "services.app.env.LD_PRELOAD", "code": "forbidden_env", "message": "This variable is controlled by the platform" }
+    ],
+    "required_plan": null,
+    "ram_min_total": null,
+    "services": []
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The body has no `manifest` field (`400`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:read` scope (`403`).
+  - `RATE_LIMIT_EXCEEDED`: Too many requests (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

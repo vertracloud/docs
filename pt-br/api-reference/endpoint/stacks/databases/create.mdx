@@ -1,0 +1,74 @@
+---
+title: Adicionar banco de dados à stack
+sidebarTitle: Adicionar banco de dados
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/databases
+authMethod: bearer
+description: Cria um banco de dados já dentro de uma stack e o conecta aos apps que você escolher.
+---
+
+{/* @see RESTPostAPIStackDatabaseBody, RESTPostAPIStackDatabaseResponse, APIStackDatabaseAdded — @vertracloud/api-types */}
+Cria um banco de dados dentro da stack e o conecta aos apps listados. O banco conta no seu plano como qualquer outro, com os mesmos limites de [Criar banco de dados](/pt-br/api-reference/endpoint/databases/create). Precisa do escopo `stacks:write` quando chamado com uma chave de API.
+
+O mesmo corpo funciona em `POST https://api.vertracloud.app/v1/apps/{id}/stack/databases`, que parte de um app. Quando esse app **não está em uma stack**, a chamada também cria a stack, com o nome definido por `stack_name`.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack. Em `/v1/apps/{id}/stack/databases`, o path traz o ID do app.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence, quando você age sobre ela como dono do workspace.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  O engine do banco de dados.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  O nome do banco de dados.
+</ParamField>
+
+<ParamField body="ram" type="integer" required>
+  Memória em MB.
+</ParamField>
+
+<ParamField body="version" type="string">
+  A versão do engine.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  Descrição opcional.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Os apps aos quais conectar. Cada item tem `app_id` e um `env_map` opcional (veja [Criar conexão da stack](/pt-br/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+<ParamField body="stack_name" type="string">
+  Somente para `POST /v1/apps/{id}/stack/databases` em um app que não está em uma stack: o nome da stack que será criada.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  `201`.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="stack" type="object">A stack, como em [Obter stack](/pt-br/api-reference/endpoint/stacks/get).</ResponseField>
+  <ResponseField name="database_id" type="string">O ID do novo banco de dados.</ResponseField>
+  <ResponseField name="restart_required" type="boolean">`true` quando um app precisa reiniciar para ler as novas variáveis e certificados.</ResponseField>
+  <ResponseField name="apps_to_restart" type="string[]">Os apps que precisam reiniciar.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `MAX_DATABASES_REACHED` | O limite de bancos de dados do plano foi atingido. |
+| 403 | `INSUFFICIENT_MEMORY` | Não há memória livre suficiente no plano para o banco de dados. |
+| 400 | `INVALID_DATABASE_VERSION` | A versão não existe para o engine. |
+| 409 | `STACK_MEMBER_CONFLICT` | O app já está em outra stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |

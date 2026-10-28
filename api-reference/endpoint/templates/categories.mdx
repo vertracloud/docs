@@ -1,0 +1,76 @@
+---
+title: List Template Categories
+sidebarTitle: List Categories
+api: GET https://api.vertracloud.app/v1/templates/categories
+authMethod: bearer
+description: Returns the template categories with the number of templates in each one, so a gallery can show filters and counts.
+---
+
+{/* @see APITemplateCategoryCount, RESTGetAPITemplateCategoriesResponse — @vertracloud/api-types */}
+Returns each category of the template catalog with how many public templates it holds. The call needs **no authentication**. With a session or an API key (scope `templates:read`) the counts also include your private templates; a request with an `Authorization` header is always validated, so an invalid key is a `401`. Reads are limited to 60 requests per minute per client.
+
+<ParamField query="workspace_id" type="string">
+  Also counts the private templates of that workspace. The owner of the workspace and members who can read its applications can use it.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  An array with one item per category.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="category" type="string">
+    The category: `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases` or `other`.
+  </ResponseField>
+
+  <ResponseField name="count" type="integer">
+    The number of templates in the category. Use the same value as `category` in [List Templates](/api-reference/endpoint/templates/list) to open it.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/categories
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    { "category": "automation", "count": 6 },
+    { "category": "ai-agents", "count": 4 },
+    { "category": "bots", "count": 3 },
+    { "category": "cms", "count": 2 }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: `workspace_id` is not a valid ID (`400`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:read` scope (`403`).
+  - `WORKSPACE_NOT_FOUND`: The workspace does not exist or you are not part of it (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Too many requests (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

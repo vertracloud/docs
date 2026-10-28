@@ -1,0 +1,37 @@
+---
+title: Restore Stack Snapshot
+sidebarTitle: Restore Snapshot
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots/{snapshot_id}/restore
+authMethod: bearer
+description: Brings every member of a stack back to a snapshot, databases first and then applications.
+---
+
+{/* @see RESTPostAPIStackSnapshotRestoreBody, RESTPostAPIStackSnapshotRestoreResponse — @vertracloud/api-types */}
+Restores all the members together: databases first, then applications. It stops at the first error and reports what was already restored in `details.restored`. Needs the `stacks:write` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField path="snapshot_id" type="string" required>
+  The stack snapshot ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to, when you act on it as the workspace owner.
+</ParamField>
+
+<ParamField body="restore_image_version" type="boolean" default="false">
+  Applications that run a custom image also go back to the image version of the snapshot, if it still exists.
+</ParamField>
+
+### Response
+
+The restore result, as in [Restore Application Snapshot](/api-reference/endpoint/apps/snapshots/restore).
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |

@@ -1,0 +1,142 @@
+---
+title: "Añadir un dominio personalizado para Blob Storage"
+sidebarTitle: "Añadir dominio"
+api: "POST https://blob.vertracloud.app/v1/domains"
+authMethod: bearer
+description: "Añade un subdominio que sirve archivos de blob públicos. Devuelve 201; crea los registros CNAME y TXT para activarlo."
+---
+
+{/* @see RESTPostAPIBlobDomainBody, RESTPostAPIBlobDomainResponse, APIBlobCustomDomain — @vertracloud/api-types */}
+
+Añade un subdominio, como `cdn.example.com`, que sirve los archivos de blob públicos de la cuenta. Crea un registro CNAME
+de ese nombre de host que apunte a `cname_target` y el registro TXT de `verification`, y después llama a
+[Verificar un dominio personalizado](/es-es/api-reference/endpoint/blob/domains/verify). El número de dominios depende del
+plan: 0 por debajo de Enterprise-4, y después 1, 3 y 10. Devuelve `201`.
+
+**Ámbito:** `blob:write`.
+
+<ParamField body="hostname" type="string" required>
+  Solo el subdominio, sin esquema ni ruta.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  Sirve solo esta carpeta en el dominio. Omítelo para servir toda la cuenta.
+</ParamField>
+
+<ParamField body="web_content" type="boolean">
+  Por defecto `false`. Si es `true`, el dominio sirve los archivos `.html`, `.htm`, `.xhtml`, `.svg` y `.xml` en el
+  navegador con su tipo real, en un entorno aislado (sandbox). Consulta
+  [Dominios personalizados](/es-es/blob/custom-domains#servir-páginas-web).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/domains" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"hostname":"cdn.example.com","prefix":"images/","web_content":false}'
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El dominio, que sigue `pending` hasta que se encuentra el CNAME y se verifica el registro TXT de propiedad. Solo pasa
+  a `active` después de ambos. Responde con `201`.
+  <Expandable title="propiedades">
+  <ResponseField name="id" type="string">ID del dominio.</ResponseField>
+  <ResponseField name="hostname" type="string">Solo el subdominio, por ejemplo `cdn.example.com`.</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `active`, `failed` o `suspended`. Solo `active` sirve archivos.</ResponseField>
+  <ResponseField name="ssl_status" type="string">Estado del certificado TLS del nombre de host.</ResponseField>
+  <ResponseField name="cname_target" type="string">Apunta un registro CNAME de `hostname` a este valor.</ResponseField>
+  <ResponseField name="prefix" type="string | null">Si está definido, el dominio sirve solo esta carpeta.</ResponseField>
+  <ResponseField name="web_content" type="boolean">`true` cuando el dominio sirve `.html`, `.htm`, `.xhtml`, `.svg` y `.xml` en el navegador (en entorno aislado); `false` cuando esos tipos siempre se descargan.</ResponseField>
+  <ResponseField name="verification" type="object | null">
+    El registro TXT que demuestra que eres dueño del nombre de host. Solo está presente mientras el dominio no esté
+    `active`; después queda ausente o `null`.
+    <Expandable title="propiedades">
+    <ResponseField name="type" type="string">Siempre `txt`.</ResponseField>
+    <ResponseField name="name" type="string">Nombre del registro TXT que hay que crear.</ResponseField>
+    <ResponseField name="value" type="string">Valor del registro TXT.</ResponseField>
+    </Expandable>
+  </ResponseField>
+  <ResponseField name="created_at" type="string">Fecha de creación en ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5",
+    "hostname": "cdn.example.com",
+    "status": "pending",
+    "ssl_status": "pending_validation",
+    "cname_target": "cname.vertracloud.dev",
+    "prefix": "images/",
+    "web_content": false,
+    "verification": { "type": "txt", "name": "_vertra-blob.cdn.example.com", "value": "3f9a1c7e2b5d4e8a9c0d6a1b2c3d4e5f" },
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `VALIDATION_ERROR` (`400`): Un parámetro o un campo del cuerpo no superó la validación. `details.path` indica el campo.
+  - `INVALID_CUSTOM_DOMAIN_FORMAT` (`400`): El nombre de host no es un subdominio válido.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): El plan no incluye dominios personalizados (por debajo de Enterprise-4).
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): El almacenamiento de blob de la cuenta está suspendido, o su plan expiró.
+  - `BLOB_CUSTOM_DOMAIN_LIMIT` (`409`): El plan incluye dominios personalizados y se alcanzó el límite.
+  - `BLOB_CUSTOM_DOMAIN_TAKEN` (`409`): El nombre de host ya está en uso.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_CUSTOM_DOMAIN_LIMIT"
+}
+```
+
+</ResponseExample>

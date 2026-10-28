@@ -1,0 +1,69 @@
+---
+title: Detener la aplicación
+sidebarTitle: Detener aplicación
+api: POST https://api.vertracloud.app/v1/apps/{id}/stop
+authMethod: bearer
+description: Detiene una aplicación a partir de su ID.
+---
+
+{/* @see RESTPostAPIApplicationStartResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación que quieres detener. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de consulta `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúen sobre una aplicación que no les pertenece.
+</ParamField>
+
+<Note>
+  **Detener es idempotente.** Detener una aplicación que ya está detenida es un éxito, no un error: la API responde `200` y se asegura de que el estado registrado sea `down`. No necesitas leer antes el estado para saber si la llamada es segura.
+</Note>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La respuesta con el estado de la operación.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="status" type="string">
+    El estado de la operación (`success`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "status": "success"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+  - `ACCESS_DENIED`: El usuario no tiene permiso para actuar sobre la aplicación.
+  - `OPERATION_IN_PROGRESS`: Otra operación de ciclo de vida sobre la misma aplicación ya está en curso (`409`). El contenedor no se tocó; espera unos segundos y vuelve a intentarlo. Consulta [Códigos de error comunes](/es-es/api-reference/introduction#qué-códigos-de-error-puede-devolver-la-api).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta ruta comparte con `start` y `restart` un presupuesto de 10 peticiones por minuto por aplicación. Consulta [Límite de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
+</Note>

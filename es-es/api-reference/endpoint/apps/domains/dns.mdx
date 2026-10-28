@@ -1,0 +1,117 @@
+---
+title: Registros DNS del dominio
+sidebarTitle: Registros DNS del dominio
+api: GET https://api.vertracloud.app/v1/apps/{id}/domains/{domain_id}/dns
+authMethod: bearer
+description: Devuelve los registros DNS que debes crear en tu proveedor de DNS para que un dominio personalizado se valide y obtenga su certificado HTTPS.
+---
+
+{/* @see RESTGetAPIApplicationDomainDnsResponse, APIApplicationDomainDnsRecord — @vertracloud/api-types */}
+Devuelve los registros que creas en el proveedor de DNS del dominio: un `CNAME` que apunta el nombre de host a Vertra Cloud, más los registros
+que validan la propiedad y emiten el certificado HTTPS. Cada registro tiene su propio `status`, así que puedes ver cuáles ya se resuelven.
+Llamar a esta ruta también actualiza el `status` y el `ssl_status` del dominio. Requiere el scope `apps:read` cuando se llama con una clave de API.
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación.
+</ParamField>
+
+<ParamField path="domain_id" type="string" required>
+  El ID del dominio, obtenido de [Listar dominios de la aplicación](/es-es/api-reference/endpoint/apps/domains/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Obligatorio para los miembros del workspace que actúan sobre una aplicación que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="APIApplicationDomainDnsRecord[]">
+  Los registros que hay que crear.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="type" type="string">
+    El tipo de registro: `CNAME` o `TXT`.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    El nombre del registro (por ejemplo, `example.com` o `_acme-challenge.example.com`).
+  </ResponseField>
+
+  <ResponseField name="value" type="string">
+    El valor que hay que asignar al registro.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `pending` mientras el registro todavía no se resuelve, `active` cuando ya se resuelve.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "type": "CNAME",
+      "name": "example.com",
+      "value": "cname.vertraweb.app",
+      "status": "pending"
+    },
+    {
+      "type": "TXT",
+      "name": "_acme-challenge.example.com",
+      "value": "v111d4af8cd74272a284831fbae14a8v",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Crea cada registro exactamente como se devuelve, y elimina antes cualquier otro registro `A`, `AAAA` o `CNAME` con el mismo nombre. Un dominio raíz
+  (`apex: true`) necesita un proveedor de DNS que admita `CNAME` en la raíz. Consulta la [guía de dominios personalizados](/es-es/guides/custom-domain).
+  Cuando se elimine el dominio, borra también estos registros en tu proveedor de DNS, como se explica en
+  [Eliminar dominio de la aplicación](/es-es/api-reference/endpoint/apps/domains/delete).
+</Note>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: Los parámetros de ruta no superaron la validación (`400`). La respuesta incluye también `message` y `path`.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas (`403`).
+  - `USER_NOT_FOUND`: No se pudo resolver el usuario autenticado (`401`).
+  - `ACCESS_DENIED`: El usuario no tiene permiso para leer la aplicación (`403`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `apps:read` (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe (`404`).
+  - `DOMAIN_NOT_FOUND`: La aplicación no tiene ningún dominio con ese ID (`404`).
+  - `CUSTOM_DOMAIN_RECORD_NOT_FOUND`: Los registros DNS del dominio no están disponibles (`404`). Vuelve a intentarlo en unos minutos; si sigue igual, elimina el dominio y añádelo de nuevo.
+  - `RATE_LIMIT_EXCEEDED`: Se alcanzó el presupuesto de la ruta (`429`).
+  - `INTERNAL_SERVER_ERROR`: Error inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DOMAIN_NOT_FOUND"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "CUSTOM_DOMAIN_RECORD_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta ruta tiene su propio presupuesto de 10 peticiones por minuto. Consulta [Límites de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
+</Note>

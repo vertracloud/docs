@@ -1,0 +1,77 @@
+---
+title: 'Contribuir con una plantilla al catálogo público de Vertra Cloud'
+sidebarTitle: 'Contribuir'
+description: 'Añade una plantilla de la comunidad al catálogo público con un pull request: estructura de carpetas, validación, revisión e insignia Comunidad.'
+icon: 'code-pull-request'
+---
+
+Contribuyes con una plantilla al catálogo público mediante un pull request al repositorio público de plantillas en GitHub. No hay ningún formulario de envío en el panel. Una contribución puede ser una plantilla de código o de imagen, y la plantilla sigue abierta: una plantilla pública nunca puede cerrarse.
+
+## Pasos
+
+<Steps>
+  <Step title="Haz un fork y añade una carpeta">
+    Haz un fork del repositorio y añade una carpeta con el nombre de tu plantilla, por ejemplo `discord-bot-tickets/`, con:
+
+    ```text
+    discord-bot-tickets/
+      vertracloud.template.yaml   # the manifest
+      src/                        # the code (code template), or a Dockerfile and its context (image template)
+      README.md                   # shown on the template's page
+      docs/                       # optional extra pages
+      icon.svg                    # the icon
+    ```
+  </Step>
+  <Step title="Valida el manifiesto">
+    Ejecuta la comprobación desde la carpeta. Compara el manifiesto con el esquema y las reglas de la plataforma y no crea nada:
+
+    ```bash
+    vertra template validate discord-bot-tickets
+    ```
+
+    Añade la línea del esquema al principio del manifiesto para tener ayuda en el editor: consulta el [esquema del manifiesto](/es-es/templates/reference/manifest-schema). Las plantillas públicas tienen algunas reglas adicionales, más abajo.
+  </Step>
+  <Step title="Pruébala como plantilla privada">
+    Créala como plantilla privada en tu propia cuenta y úsala de verdad; es el mismo motor que el del catálogo público. Consulta [Validar y probar](/es-es/templates/create/validate-and-test#pruébala-como-plantilla-privada).
+  </Step>
+  <Step title="Abre el pull request">
+    La CI valida el manifiesto, construye la imagen si hay un Dockerfile, busca file capabilities en ella (un binario con una de ellas no se ejecuta en la plataforma) y comprueba la licencia declarada.
+  </Step>
+  <Step title="Revisión">
+    Vertra Cloud ejecuta la plantilla en la plataforma y revisa el cambio en cuanto a seguridad (sin miners, telemetría oculta ni secretos en el código), una licencia que permita la distribución pública y la calidad del README. Corrige lo que se pida y vuelve a hacer push.
+  </Step>
+  <Step title="Merge y publicación">
+    Al hacer merge, la carpeta de ese commit se empaqueta como una versión de la plantilla y se publica con la insignia **Comunidad** y tu nombre como autor. Nadie depende de tu cuenta: el código vive en Vertra Cloud, y una plantilla de imagen pasa a ser una imagen mantenida por la plataforma.
+  </Step>
+</Steps>
+
+Las versiones nuevas son pull requests nuevos, revisados de nuevo.
+
+## Reglas adicionales para plantillas públicas
+
+| Regla | Motivo | Hallazgo si se incumple |
+|---|---|---|
+| Fija cada imagen por digest (`name@sha256:...`) | Todos los que usan una versión obtienen el mismo software | `invalid_source` |
+| Los servicios de código necesitan `source.path` | El código vive en el repositorio | `invalid_source` |
+| Sin `env_hidden` | Los valores públicos son visibles por definición | `forbidden_in_public` |
+| Sin `code.view: false` | El código público siempre es abierto | `forbidden_in_public` |
+| Sin `share.full_copy` | Los enlaces para compartir son para plantillas privadas | `forbidden_in_public` |
+| `min_plan` debe ser un id de plan real | Un plan renombrado no puede dejar una plantilla mal | `invalid_plan` |
+
+Los ids de plantilla son únicos en todo el catálogo. Escribe el `README.md` como lo necesita un usuario: qué crea la plantilla, qué hacer después del despliegue y dónde viven los datos. Declara la licencia del software original en `links.license`.
+
+## Después del merge
+
+- Vertra Cloud mantiene la plantilla. Las actualizaciones del software llegan mediante versiones nuevas; quienes usan la plantilla ven **Nueva versión disponible** y deciden cuándo actualizar.
+- Una plantilla que ya no se mantiene se marca como **obsoleta** y sale de la galería. Las apps ya creadas siguen en ejecución y se les avisa. Una imagen que una plantilla todavía usa solo se elimina con aviso previo y una vía de migración para quienes la usan.
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Tutorial: de privado a público" icon="code-pull-request" href="/es-es/templates/tutorials/private-to-public-pr">
+    Todo el camino, de una plantilla privada a un pull request.
+  </Card>
+  <Card title="Buenas prácticas" icon="list-check" href="/es-es/templates/create/best-practices">
+    Léelo antes de abrir el PR.
+  </Card>
+</CardGroup>

@@ -1,0 +1,74 @@
+---
+title: 'Ajustes de despliegue de la plantilla: blue-green, rollback automático y rollback con datos'
+sidebarTitle: 'Ajustes de despliegue'
+description: 'Define zero_downtime, auto_rollback y rollback.with_data por servicio, y cuándo bloquear blue-green en off porque dos copias romperían tu software.'
+icon: 'arrows-rotate'
+---
+
+`deploy` es un bloque dentro de un servicio de aplicación que define el valor por defecto y el bloqueo de tres comportamientos: despliegues sin downtime (blue-green), rollback automático y rollback con datos. Solo restringe: el plan sigue decidiendo qué existe, y un manifiesto nunca activa algo que el plan no incluye.
+
+```yaml
+services:
+  app:
+    # ...
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: required }
+```
+
+## Los tres ajustes
+
+| Ajuste | Valores | Qué hace |
+|---|---|---|
+| `zero_downtime.default` | `auto`, `on`, `off` | El modo inicial de la aplicación. |
+| `zero_downtime.locked` | `true` o `false` | Con `true`, el usuario no puede cambiar el modo. Un ajuste bloqueado necesita `default: on` o `default: off`; `locked: true` con `auto` da `invalid_deploy`. |
+| `auto_rollback.default` | `true` o `false` | Si un despliegue fallido vuelve atrás por sí solo. |
+| `auto_rollback.locked` | `true` o `false` | Con `true`, el usuario no puede cambiarlo. |
+| `rollback.with_data` | `required` u `optional` | `required` bloquea un rollback solo del código: el rollback restaura el código, `/app` y las bases de datos juntos, desde el snapshot de seguridad. |
+
+Pon `"off"` y `"on"` entre comillas en YAML, o el parser los lee como booleanos. Para saber cómo funcionan blue-green y el rollback en una aplicación normal, consulta [Rollback y despliegues sin downtime](/es-es/guides/rollback-and-zero-downtime-deploys).
+
+## Cuándo bloquear blue-green en off
+
+Blue-green ejecuta la copia antigua y la nueva al mismo tiempo mientras se traslada el tráfico. **Bloquéalo en off** (`default: "off"`, `locked: true`) siempre que dos copias ejecutándose a la vez pudieran causar daño.
+
+| Software | Qué se rompe con dos copias |
+|---|---|
+| Un bot que se conecta a un canal (Discord, Telegram, WhatsApp) | Ambas copias se conectan con el mismo token y cada mensaje se responde dos veces. |
+| Software con disparadores programados (n8n, ejecutores de jobs) | Las programaciones se disparan dos veces; en modo cola ambas copias pueden reclamar ser el líder. |
+| Una aplicación ligada a un número o sesión de WhatsApp | Una segunda sesión del mismo número desconecta la primera. |
+| Cualquier cosa con SQLite, o cualquier archivo de un solo escritor en `/app` | Dos procesos escribiendo el mismo archivo pueden corromperlo. |
+| Un worker que debe ser el único consumidor de una cola o un lock | Trabajo duplicado o split brain. |
+
+Déjalo abierto (`auto`, sin bloquear) para aplicaciones web y APIs sin estado que guardan sus datos en una base de datos gestionada y responden peticiones sin efectos secundarios al arrancar.
+
+## Cuándo exigir rollback con datos
+
+Usa `rollback: { with_data: required }` cuando la versión nueva **migra la base de datos o los archivos de datos** al arrancar. Hacer rollback solo del código dejaría a un programa antiguo leyendo un esquema que ya no entiende. Con `required`, se bloquean el rollback manual y el automático solo del código, y la vía de vuelta es restaurar el snapshot tomado antes de la actualización, que devuelve juntos el código, `/app` y las bases de datos del stack.
+
+Usa `optional` (el valor por defecto) cuando el código se puede revertir de forma independiente, como en un bot sin estado cuyo estado es solo un token.
+
+## Actualizaciones de la plantilla
+
+Quien usa la plantilla recibe una versión nueva solo cuando decide actualizar. Antes de la actualización, la plataforma toma un snapshot de seguridad de `/app` y de las bases de datos del stack, actualiza los servicios uno tras otro y, si un paso falla, vuelve al snapshot. `with_data: required` es lo que indica a la plataforma que restaurar las bases de datos forma parte de volver atrás.
+
+## Ejemplo: n8n y el bot de inicio
+
+n8n migra su base de datos, ejecuta programaciones y puede mantener SQLite, así que bloquea blue-green en off y exige rollback con datos:
+
+```yaml
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: required }
+```
+
+El bot de inicio no tiene datos que migrar, pero dos copias con el mismo token responderían dos veces:
+
+```yaml
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: optional }
+```

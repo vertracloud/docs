@@ -1,0 +1,73 @@
+---
+title: 'Plantilla de Open WebUI en Vertra Cloud: chat con IA para tu equipo'
+sidebarTitle: 'Open WebUI'
+description: 'Crea Open WebUI en Vertra Cloud: una interfaz de chat con IA para tu equipo con tu propia clave de modelo. Asistente, primeros pasos, variables, límites y licencia.'
+icon: 'comments'
+---
+
+Una interfaz de chat con IA para tu equipo. La plantilla ejecuta Open WebUI v0.12.4 (variante `slim`). **Tú traes la clave del modelo**: Vertra Cloud no aloja un modelo.
+
+## Qué crea
+
+Una aplicación (imagen), más una base de datos Postgres gestionada si la eliges para el almacenamiento.
+
+| | |
+|---|---|
+| Memoria | Aplicación 512 MB (1024 MB recomendados); Postgres 1024 MB cuando se elige. |
+| Plan | Un plan con imágenes Docker y un [cupo de imagen](/es-es/templates/overview#cupos-de-imagen) libre. Consulta [Planes y límites](/es-es/plans-and-limits). |
+
+## Qué pregunta el asistente
+
+| Pregunta | Qué hace |
+|---|---|
+| Model provider | OpenAI, OpenRouter, Anthropic, Google Gemini (todos mediante la API compatible con OpenAI) u otra dirección. |
+| API address | Solo con "Other"; termina en `/v1`. |
+| Provider API key | Se guarda solo en las variables cifradas de la aplicación. |
+| Administrator email and password | El administrador se crea por ti. El registro abierto está desactivado. |
+| Where does Open WebUI store its data? | **SQLite** en el disco de la aplicación (predeterminado; uso personal o un equipo pequeño) o **Postgres gestionado** (1 GB más de memoria). |
+
+## Primeros pasos
+
+<Steps>
+  <Step title="Inicia sesión">
+    Abre la dirección e inicia sesión con el correo y la contraseña de administrador que escribiste. La contraseña solo crea la cuenta mientras no exista ningún usuario; después cámbiala en **Profile > Password**.
+  </Step>
+  <Step title="Conversa">
+    Los modelos del proveedor aparecen en el selector de la parte superior del chat.
+  </Step>
+  <Step title="Invita al equipo">
+    El registro abierto está desactivado. Crea cuentas en **Admin panel > Users > Add**.
+  </Step>
+  <Step title="Añade o cambia proveedores">
+    En **Admin settings > Connections** añade cualquier API compatible con OpenAI (OpenRouter, Anthropic y Gemini mediante sus rutas compatibles, o tu propio servidor).
+  </Step>
+</Steps>
+
+## Variables
+
+| Variable | Qué hace |
+|---|---|
+| `WEBUI_SECRET_KEY` | Firma los inicios de sesión; cambiarla cierra la sesión de todos. |
+| `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD` | Crean el administrador si no existe ningún usuario. |
+| `ENABLE_SIGNUP` | `false`: registro abierto desactivado. |
+| `OPENAI_API_BASE_URL`, `OPENAI_API_KEY` | La dirección y la clave del proveedor. |
+| `DATABASE_URL` | Solo con Postgres. |
+| `DATA_DIR` | `/app/data`: datos en el disco de la aplicación. |
+
+## Límites y buenas prácticas
+
+- La variante `slim` no tiene modelo de embeddings local: la recuperación por búsqueda semántica no está disponible y los archivos adjuntos entran enteros en el contexto del modelo. Usa archivos pequeños o modelos de contexto largo.
+- Con SQLite los datos están en `/app/data/webui.db`, parte de los snapshots de la aplicación. Con Postgres viven en la base de datos del stack.
+- El despliegue sin caída está desactivado; un rollback vuelve **con los datos**.
+- Memoria: 512 MB es el mínimo (unos 300 MiB en uso); 1 GB da margen para adjuntos y varias personas.
+
+## Problemas comunes
+
+- **No aparece ningún modelo.** La clave o la dirección son incorrectas: revisa **Connections** y las variables `OPENAI_API_*`.
+- **No puedo crear una cuenta.** El registro abierto está desactivado a propósito; pídeselo al administrador.
+
+## Licencia
+
+Open WebUI se distribuye bajo la licencia BSD-3 **con una cláusula de marca** ([licencia](https://github.com/open-webui/open-webui/blob/main/LICENSE)). La marca de Open WebUI no debe alterarse, quitarse ni ocultarse, salvo en despliegues de hasta 50 usuarios finales en 30 días, con permiso escrito del titular o una licencia enterprise. Esta plantilla no cambia la marca y es un empaquetado de Vertra Cloud, no afiliado al proyecto.
+
+Consulta también las [demás plantillas oficiales](/es-es/templates/catalog).

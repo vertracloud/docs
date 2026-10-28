@@ -1,0 +1,290 @@
+---
+title: 'Limites e cotas da plataforma na Vertra Cloud'
+sidebarTitle: 'Limites'
+description: 'Limites por plano da Vertra Cloud: RAM, vCPU, conexões de banco, banda, upload, tempo de build, armazenamento e limites de deploy.'
+---
+
+Todo limite desta página é aplicado pela plataforma, não é apenas uma recomendação. A tabela completa de planos — preço,
+RAM, vCPU, projetos e requisições à API — está em [Planos e limites](/pt-br/plans-and-limits).
+
+## Limites de recursos por plano
+
+Memória e vCPU vêm do plano; as conexões com o banco de dados são limitadas a 100 por banco em todos os planos. Não há
+limite de quantidade de projetos em nenhum plano — o limite real é a RAM do plano: criar uma aplicação ou um banco é
+recusado com `MEMORY_LIMIT_EXCEEDED` quando a RAM do plano se esgota.
+
+| Plano | RAM do plano | vCPU | Projetos | Conexões com o banco |
+|------|:--------:|:----:|:------------:|:--------------:|
+| Economy | 256 MB | 0,3 | Limitados pela RAM | 100 |
+| Pro | 1.024 MB | 0,5 | Limitados pela RAM | 100 |
+| Scale | 2.048 MB | 1 | Limitados pela RAM | 100 |
+| Intermediary | 3.072 MB | 1,5 | Limitados pela RAM | 100 |
+| Enterprise-4 | 4.096 MB | 2 | Limitados pela RAM | 100 |
+| Enterprise-32 | 32.768 MB | 12 | Limitados pela RAM | 100 |
+
+## Limites de banda
+
+A banda de rede de cada recurso é proporcional à memória alocada a ele.
+
+| RAM | Banda |
+|-----|:---------:|
+| ≤ 256 MB | 50 Mbit |
+| ≤ 512 MB | 100 Mbit |
+| ≤ 1.024 MB | 200 Mbit |
+| ≤ 2.048 MB | 400 Mbit |
+| ≤ 4.096 MB | 800 Mbit |
+| ≤ 8.192 MB | 1.600 Mbit |
+| ≤ 10.240 MB | 2.000 Mbit |
+
+Recursos com mais de 10 GB de RAM recebem banda escalada em aproximadamente 50 Mbit a cada 256 MB.
+
+## Limites de upload
+
+| Recurso | Limite |
+|----------|:-----:|
+| Tamanho do ZIP | 100 MB |
+| Tempo de instalação de dependências | 15 minutos (`INSTALL_TIMEOUT`) |
+| Tempo do comando de build (`build_command`) | 10 minutos (`BUILD_TIMEOUT`) |
+| Portas expostas | Porta 80, mais até 5 adicionais por meio de domínios personalizados |
+
+## Limites de domínio personalizado
+
+| Recurso | Limite |
+|----------|:-----:|
+| Domínios por aplicação | 0 no Economy, Pro e Scale; 1 no Intermediary; 2 do Enterprise-4 ao 8; 5 do Enterprise-12 ao 24; 20 do Enterprise-26 ao 32 |
+| Domínio automático `www` (ou raiz) | Não conta para o limite |
+| Portas por aplicação | Porta 80 mais até 5 adicionais, somadas entre os seus domínios |
+| Domínio sem uso por 14 dias (`pending`, `moved` ou `deleted`) | Removido automaticamente |
+
+As regras e os números por plano estão em [Planos e limites](/pt-br/plans-and-limits#quantos-domínios-personalizados-e-portas-cada-plano-permite).
+
+## Limites de armazenamento
+
+| Recurso | Armazenamento |
+|----------|:-------:|
+| Aplicação | 10 GB, fixo, independentemente da RAM |
+| Banco de dados | 6 GB + 1 GB a cada 512 MB de RAM alocada, arredondado para GB inteiro |
+
+## Limites do Blob Storage
+
+As cotas e as regras por plano são as mesmas de [Planos e limites](/pt-br/plans-and-limits#quanto-blob-storage-cada-plano-inclui).
+
+| Recurso | Limite |
+|----------|:-----:|
+| Upload simples (`POST /v1/objects`) | 100 MB por arquivo |
+| Upload direto | 10 GB por objeto |
+| Uploads por segundo | 1 abaixo do Enterprise-12; sem limite próprio a partir do Enterprise-12 |
+| Regras de pasta | 5, 10 ou 20, conforme o plano |
+| Domínios personalizados | 0, 1, 3 ou 10, conforme o plano |
+| Metadados de objeto e senhas de compartilhamento | Enterprise-12 e superiores |
+| `no-cache` e expiração menor que 7 dias | Enterprise-26 e superiores |
+
+Os limites em uso são informados por [uso e limites](/pt-br/api-reference/endpoint/blob/account/stats), para que os
+clientes não fixem esses valores no código.
+
+## Limites de templates
+
+| Recurso | Limite |
+|----------|:-----:|
+| Templates privados por conta | 5 |
+| Perguntas em um manifesto | 40 |
+| Saídas em um manifesto | 16 |
+| Serviços em um manifesto | 8 |
+| Tags em um manifesto | 10 |
+
+Criar um template privado exige um plano que possa criar imagens Docker personalizadas. Um template que roda uma imagem
+usa um slot de imagem por imagem distinta em uso, nunca por aplicação; um template de código não usa nenhum. Só o dono
+do workspace faz deploy de templates. Veja [Erros de template](/pt-br/templates/reference/errors) e
+[Planos e limites](/pt-br/plans-and-limits).
+
+## Limites de requisições da API
+
+Estas duas camadas se aplicam apenas a requisições autenticadas com uma **chave de API** — sessões do dashboard não
+contam para elas. A janela por minuto retorna os cabeçalhos `x-ratelimit-limit`, `x-ratelimit-remaining` e
+`x-ratelimit-reset`; a janela diária retorna os cabeçalhos `x-quota-limit`, `x-quota-remaining` e `x-quota-reset`. A cota
+diária reinicia à meia-noite no fuso America/Fortaleza (Brasília). Ao exceder qualquer um dos dois limites:
+`429 RATE_LIMIT_EXCEEDED` (minuto) ou `429 DAILY_QUOTA_EXCEEDED` (dia), ambos com
+`details: { scope, limit, used, retry_after }`. Veja a [Introdução à referência da API](/pt-br/api-reference/introduction)
+para o modelo completo de três camadas, incluindo os limites fixos por rota (ciclo de vida, reset de banco de dados,
+mudanças de subdomínio e console SQL).
+
+| Plano | Req/min | Req/dia |
+|------|:-------:|:-------:|
+| Sem plano ativo | 30 | 1.000 |
+| Economy | 60 | 5.000 |
+| Pro | 120 | 20.000 |
+| Scale | 180 | 86.400 |
+| Intermediary | 240 | 115.200 |
+| Enterprise-4 | 300 | 144.000 |
+| Enterprise-6 | 300 | 180.000 |
+| Enterprise-8 | 300 | 216.000 |
+| Enterprise-12 | 480 | 324.000 |
+| Enterprise-14 | 480 | 378.000 |
+| Enterprise-16 | 480 | 432.000 |
+| Enterprise-18 | 480 | 486.000 |
+| Enterprise-20 | 480 | 540.000 |
+| Enterprise-22 | 480 | 594.000 |
+| Enterprise-24 | 480 | 648.000 |
+| Enterprise-26 | 480 | 702.000 |
+| Enterprise-28 | 480 | 756.000 |
+| Enterprise-30 | 480 | 810.000 |
+| Enterprise-32 | 480 | 864.000 |
+
+## Limites de deploy
+
+Criar uma aplicação, enviar um ZIP, fazer deploy a partir do GitHub (manual ou por push), reinstalar dependências e alterar
+o build command consomem, todos, um mesmo orçamento horário por conta. Iniciar, parar e um reinício simples não contam;
+um reinício com `reinstall_dependencies` ou `force_build` conta. Um push do GitHub além do limite é descartado e
+registrado no histórico de atividades. Ao exceder o limite: `429 DEPLOY_RATE_LIMITED`, com `details.limit`,
+`details.window_seconds` (3600) e `details.retry_after`.
+
+| Plano | Deploys/hora |
+|------|:------------:|
+| Economy | 10 |
+| Pro | 20 |
+| Scale | 40 |
+| Intermediary | 60 |
+| Enterprise (qualquer tier) | 60 |
+
+Rollbacks manuais para uma release anterior têm um orçamento horário separado por conta, com o mesmo teto da tabela
+acima. Um rollback não consome vagas de deploy, e um deploy não consome o orçamento de rollback. Ao exceder o limite:
+`429 DEPLOY_RATE_LIMITED`, com `details.limit`, `details.window_seconds` e `details.retry_after`. Veja
+[Fazer rollback da aplicação para uma release](/pt-br/api-reference/endpoint/apps/releases/rollback).
+
+## Reinício automático
+
+O reinício automático vem ligado por padrão em toda aplicação, em todos os planos, e está sujeito à detecção de loop de
+falhas. Se um container falhar **5 vezes em 10 minutos**, o reinício automático é desativado por 24 horas. Há um
+**cooldown de 1 hora** entre os reinícios, e o container precisa ficar online por pelo menos **60 segundos** para contar
+como estável.
+
+## O que acontece com uma conta sem plano ativo?
+
+Uma conta sem plano ativo não pode criar aplicações ou bancos de dados, nem publicar um site; essas requisições são
+recusadas com `PLAN_REQUIRED` (`403`). Projetos que ficarem offline por mais de **30 dias** em uma conta assim são
+excluídos automaticamente, com um snapshot feito antes. As notificações são enviadas nos dias 7, 23 e 27.
+
+## Recursos por plano
+
+Todo plano inclui o Vertra Shield, o reinício automático com detecção de loop de falhas, TLS em todos os bancos de dados,
+10 GB de armazenamento por aplicação, chaves de API com escopos, a CLI, os SDKs, o servidor MCP, a extensão do VS Code e
+o Vertra Flow. O que muda de um plano para outro são os recursos, os limites e os itens da tabela abaixo.
+
+| Recurso | Economy | Pro | Scale | Intermediary | Enterprise |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Preço/mês | R\$ 1,99 | R\$ 5,99 | R\$ 10,99 | R\$ 18,99 | a partir de R\$ 23,99 |
+| RAM | 256 MB | 1.024 MB | 2.048 MB | 3.072 MB | 4–32 GB |
+| vCPU por aplicação | 0,3 | 0,5 | 1 | 1,5 | 2–12 |
+| Aplicações | limitadas pela RAM | limitadas pela RAM | limitadas pela RAM | limitadas pela RAM | limitadas pela RAM |
+| Bancos de dados | — ¹ | Sim | Sim | Sim | Sim |
+| Requisições à API/min | 60 | 120 | 180 | 240 | 300–480 |
+| Requisições à API/dia | 5.000 | 20.000 | 86.400 | 115.200 | 144.000–864.000 |
+| Deploys/hora | 10 | 20 | 40 | 60 | 60 |
+| Publicação web (`*.vertraweb.app`) | — | Sim (subdomínio aleatório) | Sim | Sim | Sim |
+| Escolher o subdomínio | — | — | Sim | Sim | Sim |
+| Selo "Powered by Vertra Cloud" | — | Sim | — | — | — |
+| Domínios personalizados por aplicação | — | — | — | 1 | 2 a 20 |
+| Gerenciador de arquivos | — | Sim | Sim | Sim | Sim |
+| Métricas avançadas | — | Sim | Sim | Sim | Sim |
+| Backups diários | — | — | Sim | Sim | Sim |
+| Snapshots manuais | — | — | Sim | Sim | Sim |
+| Aba Data do banco de dados | — | — | — | Sim | Sim |
+| Deploy automático a partir do GitHub (push) | — | — | — | Sim | Sim |
+| Histórico de deploys (aba Rollbacks) | Somente leitura | Sim | Sim | Sim | Sim |
+| Rollback manual | — | Sim | Sim | Sim | Sim |
+| Versões anteriores mantidas | — | 3 | 5 | 10 | 15–30, conforme o tier |
+| Validade das versões | — | 7 dias | 14 dias | 30 dias | 30 dias |
+| Rollback automático | — | — | — | Sim | Sim |
+| Deploys sem downtime | — | — | — | — | Sim |
+| Workspaces | — | — | — | — | Sim (5–24 membros) |
+| Suporte | Especializado | Prioritário | Prioritário | Prioritário | Premium |
+
+¹ O menor banco de dados (Redis) precisa de 512 MB de RAM, o que não cabe nos 256 MB do Economy.
+
+<Tabs>
+  <Tab title="Economy">
+    - **Preço:** R\$ 1,99/mês
+    - **RAM:** 256 MB · **vCPU:** 0,3
+    - **Projetos:** sem limite de quantidade — limitado pela RAM (uma aplicação precisa de pelo menos 100 MB, então até 2)
+    - **Bancos de dados:** o menor (Redis) precisa de 512 MB, então eles não cabem neste plano
+    - **API:** 60 requisições/min, 5.000 requisições/dia · **Deploys:** 10/hora
+    - Vertra Shield, reinício automático, 10 GB de armazenamento por aplicação
+    - Deploy por upload de ZIP, GitHub, CLI ou extensão do VS Code
+    - Suporte especializado · SLA de 99,99%
+    - Histórico de deploys, somente leitura
+    - **Não incluído:** publicação web, gerenciador de arquivos, métricas avançadas, backups, domínio personalizado, rollback manual, workspaces
+  </Tab>
+  <Tab title="Pro">
+    - **Preço:** R\$ 5,99/mês
+    - **RAM:** 1.024 MB · **vCPU:** 0,5
+    - **Projetos:** limitados pela RAM — ex.: até 10 aplicações de 100 MB, ou um PostgreSQL/MySQL/MongoDB
+      (1.024 MB), ou um Redis (512 MB) mais aplicações
+    - **API:** 120 requisições/min, 20.000 requisições/dia · **Deploys:** 20/hora
+    - **Publicação web** com subdomínio `*.vertraweb.app` atribuído aleatoriamente e SSL automático
+    - Selo "Powered by Vertra Cloud" nas páginas HTML publicadas
+    - **Gerenciador de arquivos** no dashboard (editar, enviar, mover, excluir arquivos)
+    - **Métricas avançadas**
+    - Vertra Shield, reinício automático, 10 GB de armazenamento por aplicação
+    - Suporte prioritário · SLA de 99,99%
+    - **Histórico de deploys** com rollback manual para as últimas 3 versões, cada uma mantida por 7 dias
+    - **Não incluído:** escolha do subdomínio, backups, domínio personalizado, aba Data, deploy automático, workspaces
+  </Tab>
+  <Tab title="Scale">
+    - **Preço:** R\$ 10,99/mês
+    - **RAM:** 2.048 MB · **vCPU:** 1 por aplicação
+    - **Projetos:** limitados pela RAM
+    - **API:** 180 requisições/min, 86.400 requisições/dia · **Deploys:** 40/hora
+    - Publicação web e **escolha do nome do subdomínio**, sem o selo "Powered by"
+    - Gerenciador de arquivos e métricas avançadas
+    - **Backups diários** e **snapshots manuais** (restaurar e baixar como ZIP)
+    - **Histórico de deploys** com rollback manual para as últimas 5 versões, cada uma mantida por 14 dias
+    - Vertra Shield, reinício automático, 10 GB de armazenamento por aplicação
+    - Suporte prioritário · SLA de 99,99%
+    - **Não incluído:** domínio personalizado, aba Data, deploy automático, workspaces
+  </Tab>
+  <Tab title="Intermediary">
+    - **Preço:** R\$ 18,99/mês
+    - **RAM:** 3.072 MB · **vCPU:** 1,5 (1 para aplicações com menos de 2 GB de RAM)
+    - **Projetos:** limitados pela RAM
+    - **API:** 240 requisições/min, 115.200 requisições/dia · **Deploys:** 60/hora
+    - Publicação web, escolha do subdomínio e **domínio personalizado**
+    - Gerenciador de arquivos e métricas avançadas
+    - Backups diários e snapshots manuais
+    - **Histórico de deploys** com rollback manual para as últimas 10 versões, cada uma mantida por 30 dias
+    - **Rollback automático** quando uma nova versão para em até 60 segundos após um deploy
+    - **Aba Data do banco de dados** — navegue e edite tabelas, linhas e documentos, com console SQL
+    - **Deploy automático a partir do GitHub** a cada push
+    - Vertra Shield, reinício automático, 10 GB de armazenamento por aplicação
+    - Suporte prioritário · SLA de 99,99%
+    - **Não incluído:** workspaces
+  </Tab>
+  <Tab title="Enterprise">
+    - **Preço:** a partir de R\$ 23,99/mês (Enterprise-4) até R\$ 191,99/mês (Enterprise-32)
+    - **Projetos:** limitados pela RAM · **Deploys:** 60/hora
+    - Tudo dos outros planos: publicação web, escolha do subdomínio, domínio personalizado, gerenciador de arquivos,
+      métricas avançadas, backups diários, snapshots manuais, aba Data, deploy automático
+    - **Histórico de deploys** com rollback manual para as últimas 15 a 30 versões, conforme o tier, cada uma mantida por 30 dias
+    - **Rollback automático** e **deploys sem downtime**
+    - **Workspaces** com papéis personalizáveis e convites — membros e papéis crescem com o tier
+    - Suporte premium · SLA de 99,99% · Enterprise-32: agente dedicado + gerente exclusivo
+
+    | Tier | Preço/mês | RAM | vCPU | Requisições/min | Requisições/dia | Membros | Papéis |
+    |---|---:|---:|---:|---:|---:|---:|---:|
+    | Enterprise-4 | R\$ 23,99 | 4 GB | 2 | 300 | 144.000 | 5 | 4 |
+    | Enterprise-6 | R\$ 35,99 | 6 GB | 3 | 300 | 180.000 | 10 | 4 |
+    | Enterprise-8 | R\$ 47,99 | 8 GB | 4 | 300 | 216.000 | 10 | 4 |
+    | Enterprise-12 | R\$ 71,99 | 12 GB | 5 | 480 | 324.000 | 13 | 6 |
+    | Enterprise-14 | R\$ 83,99 | 14 GB | 5,5 | 480 | 378.000 | 14 | 6 |
+    | Enterprise-16 | R\$ 95,99 | 16 GB | 6 | 480 | 432.000 | 15 | 6 |
+    | Enterprise-18 | R\$ 107,99 | 18 GB | 6,5 | 480 | 486.000 | 16 | 8 |
+    | Enterprise-20 | R\$ 119,99 | 20 GB | 7,5 | 480 | 540.000 | 17 | 8 |
+    | Enterprise-22 | R\$ 131,99 | 22 GB | 8,5 | 480 | 594.000 | 18 | 8 |
+    | Enterprise-24 | R\$ 143,99 | 24 GB | 9 | 480 | 648.000 | 19 | 8 |
+    | Enterprise-26 | R\$ 155,99 | 26 GB | 9,5 | 480 | 702.000 | 20 | 10 |
+    | Enterprise-28 | R\$ 167,99 | 28 GB | 10,5 | 480 | 756.000 | 21 | 10 |
+    | Enterprise-30 | R\$ 179,99 | 30 GB | 11,5 | 480 | 810.000 | 22 | 10 |
+    | Enterprise-32 | R\$ 191,99 | 32 GB | 12 | 480 | 864.000 | 24 | 12 |
+
+    O vCPU é o teto por aplicação; aplicações com menos de 2 GB de RAM recebem 1 vCPU. Os papéis incluem os 4 integrados.
+  </Tab>
+</Tabs>

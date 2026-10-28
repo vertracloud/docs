@@ -1,0 +1,58 @@
+---
+title: Eliminar conexión del stack
+sidebarTitle: Eliminar conexión
+api: DELETE https://api.vertracloud.app/v1/stacks/{stack_id}/bindings/{binding_id}
+authMethod: bearer
+description: Elimina una conexión de un stack, conservando o borrando las variables que creó.
+---
+
+{/* @see RESTDeleteAPIStackBindingQuery, RESTDeleteAPIStackBindingResponse — @vertracloud/api-types */}
+Elimina una conexión. Los miembros permanecen en el stack. Requiere el scope `stacks:write` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField path="binding_id" type="string" required>
+  El ID de la conexión.
+</ParamField>
+
+<ParamField query="variables" type="string" default="keep_connection">
+  Qué ocurre con las variables que creó la conexión:
+
+  - `keep_connection`: se convierten en variables normales y los certificados se conservan, así que la aplicación sigue conectándose.
+  - `remove_variables`: se eliminan las variables y los certificados copiados a la aplicación.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack, cuando actúas sobre él como propietario del workspace.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="restart_required" type="boolean">`true` cuando se eliminaron variables de una aplicación (`variables=remove_variables`): debe reiniciarse para dejar de leerlas.</ResponseField>
+  <ResponseField name="apps_to_restart" type="string[]">Las aplicaciones que necesitan un reinicio.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": { "restart_required": true, "apps_to_restart": ["app-abc123def456"] }
+}
+```
+
+</ResponseExample>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 404 | `STACK_BINDING_NOT_FOUND` | El stack no tiene ninguna conexión con ese ID. |

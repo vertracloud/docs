@@ -1,0 +1,128 @@
+---
+title: Revisar el borrador de una plantilla desde una aplicación o stack
+sidebarTitle: Revisar borrador
+api: GET https://api.vertracloud.app/v1/templates/from-app/{app_id}/draft
+authMethod: bearer
+description: Lista las variables y los archivos que la plataforma propone al guardar una aplicación o un stack como plantilla, sin incluir nunca valores.
+---
+
+{/* @see APITemplateDraft, RESTGetAPITemplateDraftResponse — @vertracloud/api-types */}
+Esta llamada devuelve lo que la plataforma propone incluir en una plantilla hecha a partir de una aplicación o de un stack: para cada miembro, sus variables con un tratamiento sugerido, y los archivos de su `/app` con lo que viene seleccionado por defecto. Nunca devuelve un valor y no crea nada. Úsala para armar la revisión que va antes de [Crear plantilla desde una aplicación](/es-es/api-reference/endpoint/templates/create-from-app) o [Crear plantilla desde un stack](/es-es/api-reference/endpoint/templates/create-from-stack).
+
+Hay dos rutas con la misma respuesta: `GET /v1/templates/from-app/{app_id}/draft` para una aplicación y `GET /v1/templates/from-stack/{stack_id}/draft` para un stack. Necesita el ámbito `templates:write` cuando se llama con una clave de API. La aplicación de una [plantilla cerrada](/es-es/templates/use/closed-templates) y la que vino de un enlace para compartir no pueden guardarse, así que el borrador se rechaza para ellas igual que el guardado. El borrador de un stack no ofrece las variables de conexión: se reescriben solas como marcadores de posición.
+
+<ParamField path="app_id" type="string" required>
+  El ID de la aplicación, en la ruta `from-app`.
+</ParamField>
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack, en la ruta `from-stack`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación o el stack pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/from-app/app-abc123def456/draft \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El borrador.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="members" type="object[]">
+    Una entrada por aplicación o base de datos. Un borrador de aplicación tiene un miembro.
+
+    <Expandable title="miembro">
+
+    <ResponseField name="resource_id" type="string">
+      El ID de la aplicación o de la base de datos.
+    </ResponseField>
+
+    <ResponseField name="resource_type" type="string">
+      `application` o `database`.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      El nombre del miembro.
+    </ResponseField>
+
+    <ResponseField name="ram" type="object">
+      La memoria del miembro, un buen punto de partida para la plantilla: `min`, `recommended` y `max` opcional, en MB.
+    </ResponseField>
+
+    <ResponseField name="env" type="object[]">
+      Las variables de una aplicación, sin valores. Cada una tiene `key`, `looks_secret` (`true` cuando el nombre parece un secreto, como `*_KEY`, `*_TOKEN`, `*_SECRET` o `PASSWORD`, o el valor tiene forma de credencial) y `suggested_mode`. La sugerencia es `question` para una variable que parece secreta, `omit` para una variable que controla la plataforma (como `PORT`) y `keep` para las demás. Las variables ocultas por una plantilla nunca aparecen. Los modos se listan en [Crear plantilla desde una aplicación](/es-es/api-reference/endpoint/templates/create-from-app).
+    </ResponseField>
+
+    <ResponseField name="paths" type="object[]">
+      Los archivos y carpetas del `/app` de una aplicación con código, hasta 3 niveles de profundidad. Vacío para una imagen y para una base de datos. Cada uno tiene `path`, `type` (`file` o `directory`), `selected` (si entra en la plantilla por defecto) y `reason`. El motivo por el que una ruta no está seleccionada es `env_file` (archivos `.env*`), `platform_folder` (la carpeta `.vertra`), `dependencies` (`node_modules`, `.venv`, `vendor`), `database_file` (archivos SQLite) o `uploads` (carpetas de subidas); es `null` cuando la ruta está seleccionada. Una carpeta excluida ocupa una sola línea. Los archivos `.env*`, la carpeta de la plataforma y las dependencias nunca pueden incluirse, aunque las listes.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "members": [
+      {
+        "resource_id": "app-abc123def456",
+        "resource_type": "application",
+        "name": "support-bot",
+        "ram": { "min": 256, "recommended": 512 },
+        "env": [
+          { "key": "DISCORD_TOKEN", "looks_secret": true, "suggested_mode": "question" },
+          { "key": "LOG_LEVEL", "looks_secret": false, "suggested_mode": "keep" },
+          { "key": "PORT", "looks_secret": false, "suggested_mode": "omit" }
+        ],
+        "paths": [
+          { "path": "src", "type": "directory", "selected": true, "reason": null },
+          { "path": "package.json", "type": "file", "selected": true, "reason": null },
+          { "path": ".env", "type": "file", "selected": false, "reason": "env_file" },
+          { "path": "node_modules", "type": "directory", "selected": false, "reason": "dependencies" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:write` (`403`).
+  - `APP_NOT_FOUND`: La aplicación no existe o no es tuya.
+  - `STACK_NOT_FOUND`: El stack no existe o no es tuyo.
+  - `TEMPLATE_SAVE_NOT_ALLOWED`: La aplicación vino de un enlace para compartir, o ejecuta una imagen de la plataforma (`403`).
+  - `TEMPLATE_CLOSED`: La aplicación viene de una plantilla cerrada (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: El plan no permite crear plantillas.
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace trabaja con plantillas en él.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_CLOSED"
+}
+```
+
+</ResponseExample>

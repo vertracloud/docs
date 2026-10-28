@@ -1,0 +1,89 @@
+---
+title: 'Como atualizar um template e fazer rollback na Vertra Cloud'
+sidebarTitle: 'Atualizações e rollback'
+description: 'Atualizações de template nunca rodam sozinhas: você clica em Atualizar, um snapshot de segurança é feito antes e uma falha restaura tudo. Veja o rollback com dados.'
+icon: 'rotate-left'
+---
+
+Um app ou uma stack criada a partir de um template nunca é atualizado automaticamente. Ele fica na versão em que nasceu até você clicar em **Atualizar**. A atualização faz antes um snapshot de segurança, faz o deploy da nova versão e verifica a saúde; se qualquer etapa falhar, devolve todos os serviços ao estado do snapshot.
+
+## Atualizar para uma nova versão
+
+Quando uma nova versão é publicada, o app ou a stack mostra **Nova versão disponível** com um changelog curto e o botão **Atualizar**. Uma versão de segurança fica destacada no dashboard e também é enviada por e-mail às contas que rodam uma versão mais antiga; o clique continua sendo seu.
+
+Antes de você confirmar, a atualização mostra o que mudaria: a nova versão, se é uma versão de segurança, novas perguntas, serviços adicionados ou removidos, memória que aumentou e se ela abre permissões.
+
+<Steps>
+  <Step title="Snapshot de segurança">
+    É feito, sem parar nada, um snapshot do `/app` de cada app e dos bancos de dados da stack.
+  </Step>
+  <Step title="Deploy">
+    Os serviços são atualizados um após o outro, com as mesmas etapas de um deploy: imagens, apps, variáveis, certificados, início e health check.
+  </Step>
+  <Step title="Rollback em caso de falha">
+    Se uma etapa falhar, **todos** os serviços voltam: as variáveis, as conexões e as configurações do app retornam ao que eram, e o snapshot é restaurado.
+  </Step>
+</Steps>
+
+Somente o dono da conta ou do workspace pode atualizar; um membro do workspace pode ler as informações da atualização.
+
+### Quando uma nova versão muda a receita
+
+| A nova versão | O que acontece |
+|---|---|
+| Adiciona um serviço | Ele é criado durante a atualização, na mesma operação. Sem memória livre suficiente, a atualização é bloqueada, com o motivo. |
+| Remove um serviço | O serviço **não é apagado**. Ele sai do vínculo com o template e o dashboard avisa que você pode apagá-lo. |
+| Adiciona uma pergunta obrigatória | **Atualizar** abre um assistente curto só com as novas perguntas. As perguntas que você já respondeu não são feitas de novo. |
+| Aumenta a memória mínima | O assistente propõe aumentar a memória quando há memória livre; caso contrário, a atualização é bloqueada com o motivo. |
+| Exige um plano maior ou mais vagas de imagem | A atualização é bloqueada até o seu plano atender. |
+| Adiciona uma variável que o autor oculta | Ela é aplicada (pertence ao autor). |
+
+Uma atualização bloqueada retorna `TEMPLATE_UPDATE_BLOCKED` com um `reason`: `no_new_version`, `detached`, `template_removed`, `link_revoked`, `ram`, `plan`, `image_slots`, `app_building` ou `deploy_in_progress`. Veja a [referência de erros](/pt-br/templates/reference/errors#erros-de-deploy-e-de-atualização).
+
+### As permissões nunca ficam mais restritas
+
+Um app existente mantém a política com que foi criado. Se a nova versão abre algo (um template fechado passa a ser aberto), isso abre na atualização. Se uma nova versão fecha algo, isso vale só para os apps criados depois: quem já viu o código não pode desver. Veja [Templates fechados](/pt-br/templates/use/closed-templates).
+
+### Apps desvinculados e templates removidos
+
+- Se o autor do template **remover o template**, seu app continua rodando normalmente, com um aviso de que não receberá mais atualizações.
+- Se você editar o código do app de um template **aberto**, o app **se desvincula** e vira um app comum, sem atualizações. O dashboard avisa antes da primeira edição, e você também pode desvincular por conta própria. O app de um template fechado não pode ser desvinculado.
+- Versões de um template que algum app usa nunca são apagadas do armazenamento.
+
+## Rollback e snapshots
+
+O rollback de um app de template depende de o software migrar ou não seus dados quando é atualizado.
+
+| O template declara | O que o rollback faz |
+|---|---|
+| Rollback com dados **obrigatório** | O rollback só do código é bloqueado (`TEMPLATE_ROLLBACK_REQUIRES_DATA`). Restaure o **snapshot de segurança** feito antes da atualização, que traz de volta a imagem ou o código, o `/app` e os bancos de dados juntos. |
+| Rollback com dados **opcional** | O rollback normal funciona. |
+
+Softwares como n8n, Open WebUI e Evolution API migram o banco de dados na inicialização, então o código antigo não consegue rodar sobre os dados como estão agora. Por isso esses templates exigem rollback com dados. Apps que não são de template, e apps que foram desvinculados, mantêm o rollback usual descrito em [Rollback e deploys sem downtime](/pt-br/guides/rollback-and-zero-downtime-deploys). Para snapshots, veja [Backups e snapshots](/pt-br/guides/backups-snapshots).
+
+## Por que os deploys sem downtime ficam desligados
+
+Deploys sem downtime mantêm duas cópias do app rodando ao mesmo tempo enquanto uma substitui a outra. A maioria dos templates deixa isso **desligado e bloqueado**, porque duas cópias quebrariam o software:
+
+| Software | O que quebra com duas cópias |
+|---|---|
+| OpenClaw, Hermes Agent | Ambas se conectam ao mesmo canal (Telegram, WhatsApp, Discord) e cada mensagem é respondida duas vezes. |
+| Evolution API | Duas sessões do mesmo número de WhatsApp; uma derruba a outra. |
+| n8n | Gatilhos agendados disparam duas vezes; com SQLite, risco de corromper os dados. |
+| Uptime Kuma, Open WebUI | SQLite com dois processos gravando. |
+| Bots de Discord | Duas cópias com o mesmo token respondem duas vezes. |
+
+Um autor só pode restringir o que o plano permite; o plano continua decidindo o que existe. O rollback automático, onde o seu plano o tem, continua ligado por padrão.
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Stacks" icon="layer-group" href="/pt-br/templates/use/stacks">
+    A atualização da stack roda todos os serviços juntos.
+  </Card>
+  <Card title="Erros" icon="triangle-exclamation" href="/pt-br/templates/reference/errors">
+    Bloqueios de atualização e seus motivos.
+  </Card>
+</CardGroup>
+
+Para a API, veja [Update info](/pt-br/api-reference/endpoint/templates/update-info), [Update](/pt-br/api-reference/endpoint/templates/update) e [Detach](/pt-br/api-reference/endpoint/templates/detach).

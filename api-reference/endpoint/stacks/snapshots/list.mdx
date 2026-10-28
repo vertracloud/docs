@@ -1,0 +1,40 @@
+---
+title: List Stack Snapshots
+sidebarTitle: List Snapshots
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots
+authMethod: bearer
+description: Lists the snapshots of a stack, newest first. Each one groups the snapshots of every member that has data.
+---
+
+{/* @see RESTGetAPIStackSnapshotsResponse, APIStackSnapshot — @vertracloud/api-types */}
+Returns the stack snapshots, newest first. Needs the `stacks:read` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to. Required for a workspace member acting on a stack they do not own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">The stack snapshot ID.</ResponseField>
+  <ResponseField name="stack_id" type="string">The stack ID.</ResponseField>
+  <ResponseField name="reason" type="string">Why it was taken: `manual`, `update` (a safety snapshot before updating to a newer template version) or `delete` (taken when the stack and its members were deleted).</ResponseField>
+  <ResponseField name="date" type="string" format="date-time">When it was taken.</ResponseField>
+  <ResponseField name="size" type="string">Total size, human readable.</ResponseField>
+  <ResponseField name="members" type="object[]">The snapshot of each member that has data: `resource_type` (`application` or `database`), `resource_id` and `snapshot_id`.</ResponseField>
+  <ResponseField name="closed" type="boolean">`true` when the stack runs a [closed template](/templates/use/closed-templates): the snapshot cannot be downloaded, only restored.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |

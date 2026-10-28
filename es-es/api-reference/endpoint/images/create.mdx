@@ -1,0 +1,161 @@
+---
+title: Crear una imagen
+sidebarTitle: Crear imagen
+api: POST https://api.vertracloud.app/v1/images
+authMethod: bearer
+description: Crea una imagen Docker personalizada a partir de un contexto de build (ZIP) o de un repositorio de GitHub, y empieza a construirla.
+---
+
+{/* @see APICustomImage, RESTPostAPICustomImageBody, RESTPostAPICustomImageResult — @vertracloud/api-types */}
+Disponible en **Enterprise 28, Enterprise 30 y Enterprise 32**. La petición es `multipart/form-data`. El contexto de build tiene **dos fuentes mutuamente excluyentes**: `file` o `github_repository` (la rama es opcional). Debe tener un archivo llamado exactamente `Dockerfile` en su raíz; se acepta una única carpeta contenedora. Los archivos `.env*` se eliminan del contexto y se respeta `.dockerignore`. El `Dockerfile` nunca se reescribe. Consulta [Imágenes Docker personalizadas](/es-es/guides/custom-docker-images) para ver las reglas.
+
+Necesita el ámbito `images:write` cuando se llama con una clave de API. Comprueba antes un `Dockerfile` con [Comprobar Dockerfile](/es-es/api-reference/endpoint/images/check).
+
+<ParamField body="name" type="string" required>
+  El nombre de la imagen: de 1 a 50 caracteres, único entre tus imágenes.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Descripción opcional en texto libre, de hasta 128 caracteres. Un valor vacío significa sin descripción. Puedes cambiarla después con [Actualizar imagen](/es-es/api-reference/endpoint/images/update).
+</ParamField>
+
+<ParamField body="file" type="file">
+  El contexto de build: un archivo ZIP de hasta 100 MB. No aparece cuando la fuente es GitHub.
+</ParamField>
+
+<ParamField body="github_repository" type="string">
+  Alternativa a `file`: el repositorio de GitHub desde el que construir, como `owner/name`.
+
+  - Un repositorio de una de tus instalaciones de la GitHub App queda **vinculado** a la imagen: un push a la rama la reconstruye.
+  - Un repositorio **público** fuera de tus instalaciones se construye **una sola vez**, sin vínculo (`github` es `null` en la respuesta). Para obtener reconstrucciones automáticas, instala la GitHub App en el repositorio y llama a [Vincular imagen a GitHub](/es-es/api-reference/endpoint/images/github-link).
+  - Un repositorio privado o inexistente fuera de tus instalaciones falla con `INSTALLATION_NOT_FOUND`.
+</ParamField>
+
+<ParamField body="github_branch" type="string">
+  La rama de `github_repository` desde la que construir. Es opcional: si no se indica, se usa la rama por defecto del repositorio (`main`, `master` o la que establezca el repositorio). Cuando el repositorio está vinculado, esta es también la rama cuyos pushes reconstruyen la imagen. Una rama que no existe falla con `INSTALLATION_NOT_FOUND`.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  El workspace que será propietario de la imagen.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La imagen. La creación es asíncrona: la respuesta es `202 Accepted` con `status: "building"`. Haz seguimiento con [Obtener imagen](/es-es/api-reference/endpoint/images/get) o con los [logs del build](/es-es/api-reference/endpoint/images/logs) hasta que `status` sea `success` o `failed`.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la imagen.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    El nombre de la imagen.
+  </ResponseField>
+
+  <ResponseField name="description" type="string | null">
+    La descripción de la imagen (texto libre, de hasta 128 caracteres), o `null` cuando no tiene.
+  </ResponseField>
+
+  <ResponseField name="owner" type="string">
+    `account` para tus propias imágenes, `system` para las imágenes que proporciona la plataforma (estas no se pueden modificar ni eliminar).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Estado del último build: `building`, `success` o `failed`. Un rebuild fallido no cambia la versión actual: las aplicaciones siguen ejecutando la última versión correcta.
+  </ResponseField>
+
+  <ResponseField name="error" type="string | null">
+    Motivo legible del último build fallido, o `null`.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string | null">
+    Digest (`sha256:...`) de la versión actual, o `null` mientras ningún build haya tenido éxito.
+  </ResponseField>
+
+  <ResponseField name="uncompressed_bytes" type="integer | null">
+    Tamaño de la versión actual, sin comprimir, en bytes.
+  </ResponseField>
+
+  <ResponseField name="layer_count" type="integer | null">
+    Número de capas de la versión actual.
+  </ResponseField>
+
+  <ResponseField name="apps" type="object[]">
+    Las aplicaciones creadas a partir de esta imagen. Cada una tiene `id`, `name`, `version_id` (la versión de la imagen que ejecuta, o `null`) y `outdated` (`true` cuando la imagen tiene una versión más reciente; la aplicación pasa a ella en el siguiente reinicio o despliegue que pidas).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    El repositorio y la rama de GitHub vinculados (`repository` como `owner/name`, `branch`), o `null` cuando la imagen no está vinculada, como cuando se construyó una sola vez desde un repositorio público.
+  </ResponseField>
+
+  <ResponseField name="current_version_id" type="string | null">
+    La versión actual de la imagen, o `null` mientras ningún build haya tenido éxito.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó la imagen.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Cuándo se actualizó por última vez la imagen.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "img-abc123def456",
+    "name": "my-api",
+    "description": null,
+    "owner": "account",
+    "status": "building",
+    "error": null,
+    "digest": null,
+    "uncompressed_bytes": null,
+    "layer_count": null,
+    "apps": [],
+    "github": null,
+    "current_version_id": null,
+    "created_at": "2026-10-23T14:02:00Z",
+    "updated_at": "2026-10-23T14:02:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito requerido (`403`).
+  - `VALIDATION_ERROR`: El cuerpo multipart no superó la validación, por ejemplo un `github_repository` que no es `owner/name` (`400`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: El plan no incluye imágenes Docker personalizadas (`403`).
+  - `MAX_IMAGES_REACHED`: Se alcanzó el límite de 20 imágenes del plan; cuentan las imágenes en cualquier estado (`403`).
+  - `DOCKERFILE_NOT_FOUND`: No hay ningún archivo llamado exactamente `Dockerfile` en la raíz del contexto (`400`).
+  - `DOCKERFILE_REFUSED`: El `Dockerfile` tiene una instrucción rechazada; `details` enumera los hallazgos (`400`). Consulta [Comprobar Dockerfile](/es-es/api-reference/endpoint/images/check).
+  - `IMAGE_CONTEXT_TOO_LARGE`: El contexto de build supera un límite: más de 100 MB comprimido, más de 512 MB sin comprimir, más de 50.000 entradas, o un `Dockerfile` mayor de 1 MB (`413`).
+  - `IMAGE_BUILDER_UNAVAILABLE`: Ningún host puede construir imágenes en este momento; vuelve a intentarlo más tarde (`503`).
+  - `INSTALLATION_NOT_FOUND`: El repositorio es privado o no existe, y no está entre tus instalaciones de la GitHub App; o la rama no existe (`404`).
+  - `REPO_ALREADY_LINKED`: El repositorio ya está vinculado a otra imagen o aplicación (`409`).
+  - `FETCH_ZIP_ERROR`: No se pudo contactar con GitHub, o GitHub limitaba las peticiones mientras se descargaba el repositorio (`502`). Vuelve a intentarlo en unos minutos.
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "DOCKERFILE_REFUSED",
+  "details": [{ "code": "run_network_host", "line": 7 }]
+}
+```
+
+</ResponseExample>

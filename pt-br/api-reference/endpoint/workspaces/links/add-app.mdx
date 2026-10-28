@@ -1,0 +1,37 @@
+---
+title: Vincular aplicação
+sidebarTitle: Vincular app
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/apps/{app_id}
+authMethod: bearer
+description: Vincula uma das suas aplicações ao workspace. Somente o dono.
+---
+
+{/* @see RESTPostAPIWorkspaceResourceLinkResponse — @vertracloud/api-types */}
+Só o **dono** do workspace pode chamar isto — não é uma permissão, nenhum papel concede. Uma chave de
+API precisa do escopo `workspaces:write`.
+
+<Warning>
+  A aplicação precisa pertencer ao mesmo usuário que faz a chamada (`owner_id` é verificado contra
+  quem chama). Sem essa verificação, qualquer pessoa poderia vincular a aplicação de outra ao próprio
+  workspace e ganhar acesso a ela pela participação no workspace.
+</Warning>
+
+Um recurso pertence a no máximo um workspace por vez; vinculá-lo a um novo o remove implicitamente do antigo.
+
+### Caminho
+
+<ParamField path="id" type="string" required>ID do workspace.</ParamField>
+<ParamField path="app_id" type="string" required>ID da aplicação. Precisa pertencer a quem chama.</ParamField>
+
+### Resposta
+
+Resposta vazia em caso de sucesso.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `WORKSPACE_OWNER_ONLY` | Quem chama não é o dono do workspace. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | O plano do dono está congelado. |
+| 404 | `WORKSPACE_NOT_FOUND` | O workspace não existe ou você não é membro. |
+| 404 | `APP_NOT_FOUND` | A aplicação não existe ou não pertence a quem chama. |

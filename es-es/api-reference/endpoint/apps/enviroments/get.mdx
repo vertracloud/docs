@@ -1,0 +1,112 @@
+---
+title: Obtener variables de entorno de la aplicación
+sidebarTitle: Obtener variables de entorno
+api: GET https://api.vertracloud.app/v1/apps/{id}/envs
+authMethod: bearer
+description: Devuelve todas las variables de entorno de una aplicación a partir de su ID.
+---
+
+{/* @see APIApplicationEnvironment[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación de la que se quieren obtener las variables de entorno.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Obligatorio para los miembros del workspace que actúan sobre una aplicación que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="array">
+  Un array de objetos de variable de entorno.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la variable de entorno.
+  </ResponseField>
+
+  <ResponseField name="key" type="string">
+    La clave de la variable de entorno.
+  </ResponseField>
+
+  <ResponseField name="value" type="string">
+    El valor de la variable de entorno (descifrado).
+  </ResponseField>
+
+  <ResponseField name="note" type="string | null">
+    La nota o descripción opcional de la variable de entorno.
+  </ResponseField>
+
+  <ResponseField name="managed_by" type="object | null">
+    Se establece cuando una conexión de un [stack](/es-es/api-reference/endpoint/stacks/get) gestiona la variable: la plataforma la mantiene actualizada. Si la editas a mano, pasa a ser una variable normal. `null` para una variable que te pertenece.
+
+    <Expandable title="Propiedades de managed_by">
+      <ResponseField name="type" type="string">Siempre `stack_binding`.</ResponseField>
+      <ResponseField name="binding_id" type="string">El ID de la conexión.</ResponseField>
+      <ResponseField name="stack_id" type="string | null">El stack de la conexión, o `null` para la variable de dirección de una aplicación que no está en un stack.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    La fecha y hora en que se creó la variable de entorno.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "env-abc123",
+      "key": "API_KEY",
+      "value": "secret123",
+      "note": "API key for external service",
+      "created_at": "2026-03-20T19:58:00Z"
+    },
+    {
+      "id": "env-xyz789",
+      "key": "DATABASE_URL",
+      "value": "mysql://user:pass@database-host/db",
+      "note": null,
+      "created_at": "2026-03-20T19:58:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+  - `FORBIDDEN`: El usuario no tiene permiso para acceder a la aplicación.
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Una descripción detallada con información adicional sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>

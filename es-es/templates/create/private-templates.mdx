@@ -1,0 +1,97 @@
+---
+title: 'Crear una plantilla privada: guardar una app, enlazar GitHub o usar el editor'
+sidebarTitle: 'Plantillas privadas'
+description: 'Crea una plantilla privada para tu cuenta o workspace de tres maneras, publica versiones y revisa variables y archivos antes de guardar; límite de 5.'
+icon: 'lock'
+---
+
+Una plantilla privada es una plantilla que te pertenece, para ti o para tu workspace, que puedes usar tantas veces como quieras y compartir por enlace. Lo creas de tres maneras: **Guardar como plantilla** desde una app o un stack, un **repositorio de GitHub** que tenga el manifiesto, o el **editor** del panel. Las tres producen el mismo manifiesto y una nueva versión.
+
+## Quién puede crear uno
+
+- Las cuentas con un plan que puede crear [imágenes Docker personalizadas](/es-es/guides/custom-docker-images) pueden crear plantillas privadas, tanto de código como de imagen. Crear requiere el plan; usar, editar y eliminar lo que ya tienes no.
+- Cada usuario puede ser propietario de **hasta 5 plantillas privadas**, contando las personales y las de los workspaces que posee. Pasado ese límite, la creación falla con `TEMPLATE_PRIVATE_LIMIT_REACHED`.
+- En un workspace, **solo el propietario** crea y gestiona plantillas y las usa para desplegar. Los miembros ven las plantillas del workspace pero no pueden crearlas ni usarlas para desplegar (`WORKSPACE_OWNER_ONLY`). Una plantilla de workspace solo se despliega **dentro de su propio workspace**: dirigirla a tu cuenta personal o a otro workspace responde `TEMPLATE_NOT_FOUND`.
+- Una plantilla personal se puede mover a un workspace que poseas.
+
+## Vía 1: Guardar como plantilla
+
+Es el camino principal. Abre una app o un stack, elige **Guardar como plantilla** y revisa lo que entra. La revisión es obligatoria.
+
+**Variables.** Cada variable de la app se convierte en una decisión:
+
+| Opción | Resultado |
+|---|---|
+| **Pregunta** | Se le pedirá al usuario; el valor no se copia. |
+| **Mantener** | El valor se copia en la plantilla. Solo para variables que no son secretos. |
+| **Generar** | Un secreto que la plataforma genera para cada usuario (`random:<n>` o `uuid`). |
+| **Oculto** | El valor se copia pero se oculta a los usuarios, para una plantilla cerrada. |
+| **Omitir** | No entra en la plantilla. |
+
+Las variables que parecen secretos (`*_KEY`, `*_TOKEN`, `*_SECRET`, `PASSWORD`, o un valor con forma de credencial) vienen **sin marcar y señaladas**, y la plataforma rechaza conservar un valor que parezca una credencial. Las variables que controla la plataforma, como `PORT`, se dejan fuera. La revisión muestra solo los nombres; los valores nunca se muestran.
+
+**Archivos.** Para una app con código, ves el árbol de `/app` (hasta tres niveles) y eliges qué entra. Por defecto estos **no** están seleccionados, y los archivos `.env*`, la carpeta `.vertra/` y las carpetas de dependencias (`node_modules`, `.venv`, `vendor`) nunca pueden incluirse aunque los marques:
+
+| No seleccionado | Motivo |
+|---|---|
+| `.env*` | Secretos. |
+| `.vertra/` | Reservada por la plataforma. |
+| `node_modules`, `.venv`, `vendor` | Dependencias, que el build reinstala. |
+| Archivos de base de datos SQLite | Datos del usuario. |
+| Carpetas de subidas | Datos del usuario. |
+
+Una app que ejecuta una imagen propia guarda esa imagen como fuente. Una app que vino de un enlace para compartir o de una plantilla con una imagen del sistema no se puede guardar (`TEMPLATE_SAVE_NOT_ALLOWED`), y una app de una plantilla cerrada tampoco (`TEMPLATE_CLOSED`). Un stack se convierte en una plantilla con un servicio por miembro; las variables creadas por sus conexiones pasan a ser placeholders del servicio correspondiente, y cada carpeta Blob del stack se convierte en un servicio `blob`.
+
+## Vía 2: Un repositorio de GitHub
+
+Pon `vertracloud.template.yaml` en la raíz de un repositorio que esté en una de tus instalaciones de la GitHub App y luego enlázalo a la plantilla:
+
+1. Haz que se cree la plantilla (por ejemplo con Guardar como plantilla o con la CLI).
+2. Enlaza el repositorio con una rama opcional (por defecto, la rama predeterminada del repositorio).
+3. Cada push a esa rama crea una **nueva versión**. El número de versión sale del manifiesto, así que **sube `version`** cuando quieras una nueva versión; un push con el mismo número o uno menor se omite con `VERSION_NOT_NEWER`.
+
+Para un servicio de código, el código es la carpeta de `source.path`; el mensaje del commit pasa a ser el changelog y el `README.md` de la raíz pasa a ser la documentación. Si no se encuentra el manifiesto obtienes `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND`, y un repositorio ya enlazado a una plantilla de otro propietario da `REPO_ALREADY_LINKED`. Los push que no crean una versión devuelven un motivo (`MANIFEST_INVALID`, `TEMPLATE_ID_MISMATCH`, `SOURCE_REJECTED`, `BRANCH_IGNORED`) en lugar de fallar en silencio.
+
+## Vía 3: El editor
+
+El editor del panel edita preguntas, requisitos y permisos con validación en vivo contra el [esquema del manifiesto](/es-es/templates/reference/manifest-schema), y sube una nueva versión con un zip por servicio de código. La CLI hace lo mismo desde una carpeta:
+
+```bash
+vertra template validate .
+vertra template create . --changelog "First version"
+vertra template create . --template my-template --changelog "Add a question"
+```
+
+La segunda forma crea una nueva versión de una plantilla existente. Los servicios de código se empaquetan desde `source.path`: se respeta `.vertraignore` (o `.dockerignore` si no existe), y `.env*`, `.git`, `.vertra` y los enlaces simbólicos nunca se envían. Cada servicio es un zip de hasta 100 MB. Consulta [Validar y probar](/es-es/templates/create/validate-and-test).
+
+## Fuentes de imagen
+
+En una plantilla privada, `source.image` es el **id de una de tus propias imágenes** con una versión buena, no una dirección de registry. La plataforma fija esa versión cuando se crea la versión de la plantilla. No se acepta una imagen del sistema, una copia recibida por un enlace ni una imagen de otra cuenta (`IMAGE_NOT_FOUND`). No puedes eliminar una imagen que es la fuente de la versión actual de una plantilla: responde `IMAGE_IN_USE` con las plantillas que la usan.
+
+## Versiones
+
+Una versión es **inmutable**: su manifiesto y sus fuentes nunca cambian. Para cambiar cualquier cosa, publica una nueva versión con un número mayor; el `id` del manifiesto debe seguir igual, y un número que usaste y eliminaste queda reservado. La versión actual de la plantilla es la más reciente. A quienes ejecutan una versión anterior se les ofrece **Actualizar** y deciden cuándo aplicarla. Cambiar solo el nombre, la descripción, la categoría o las etiquetas de una plantilla no crea una versión.
+
+Eliminar una plantilla es un borrado lógico: revoca sus enlaces para compartir, conserva las versiones y mantiene en ejecución las apps creadas a partir de ella (ven que el autor eliminó la plantilla) y libera el slug.
+
+## Errores comunes
+
+| Código | Significado |
+|---|---|
+| `TEMPLATE_MANIFEST_INVALID` | El manifiesto tiene hallazgos; `details.issues` los lista como en [Validar y probar](/es-es/templates/create/validate-and-test). |
+| `TEMPLATE_SOURCE_REQUIRED` | Un servicio de código no tiene zip. |
+| `TEMPLATE_SECRET_IN_SOURCE` | El código contiene `.env*`, una clave privada o un token conocido; `details.files` lista las rutas, nunca el contenido. |
+| `TEMPLATE_SLUG_TAKEN` | El `id` ya está en uso (o está reservado). |
+| `TEMPLATE_PRIVATE_LIMIT_REACHED` | Ya tienes 5 plantillas privadas. |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | El plan no puede crear plantillas. |
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Compartir por enlace" icon="link" href="/es-es/templates/create/share-links">
+    Deja que otra cuenta use tu plantilla privada.
+  </Card>
+  <Card title="Plantilla cerrada para un cliente" icon="eye-slash" href="/es-es/templates/tutorials/closed-template-for-client">
+    Un tutorial paso a paso.
+  </Card>
+</CardGroup>

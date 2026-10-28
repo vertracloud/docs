@@ -1,0 +1,103 @@
+---
+title: Listar sesiones
+sidebarTitle: Sesiones
+api: GET https://api.vertracloud.app/v1/users/me/sessions
+authMethod: bearer
+description: Lista las sesiones de inicio de sesión activas del usuario autenticado.
+---
+### Respuesta
+
+<ResponseField name="response" type="array">
+  Un array de sesiones activas.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la sesión.
+  </ResponseField>
+
+  <ResponseField name="user_id" type="string">
+    El ID del usuario propietario.
+  </ResponseField>
+
+  <ResponseField name="provider" type="string">
+    Cómo se creó la sesión (por ejemplo, `email`, `google`, `github`).
+  </ResponseField>
+
+  <ResponseField name="ip_address" type="string | null">
+    La dirección IP desde la que se creó la sesión, si se conoce.
+  </ResponseField>
+
+  <ResponseField name="location" type="string | null">
+    Una ubicación aproximada derivada de la IP, si se conoce.
+  </ResponseField>
+
+  <ResponseField name="device" type="string | null">
+    Una descripción del dispositivo o navegador, si se conoce.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string" format="date-time">
+    Cuándo expira la sesión.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó la sesión.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Cuándo se usó la sesión por última vez.
+  </ResponseField>
+
+  <ResponseField name="is_current" type="boolean">
+    Si es la sesión vinculada a la credencial que hace la petición actual.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "session-abc123",
+      "user_id": "user-123456789012345678",
+      "provider": "email",
+      "ip_address": "203.0.113.10",
+      "location": "Fortaleza, BR",
+      "device": "Chrome on macOS",
+      "expires_at": "2026-10-20T15:00:00.000Z",
+      "created_at": "2026-09-20T15:00:00.000Z",
+      "updated_at": "2026-09-21T09:00:00.000Z",
+      "is_current": true
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP que no está en su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
+  - `INTERNAL_SERVER_ERROR`: Ocurrió un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Revocar una sesión es una acción exclusiva del panel: no es accesible con una clave de API.
+</Note>

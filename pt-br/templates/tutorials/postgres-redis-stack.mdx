@@ -1,0 +1,260 @@
+---
+title: 'Tutorial: crie um template com Postgres e Redis (stack)'
+sidebarTitle: 'Stack com Postgres e Redis'
+description: 'Escreva um template que cria um app mais Postgres e Redis gerenciados, com perguntas, sets, condições when, placeholders e certificados de cliente.'
+icon: 'layer-group'
+---
+
+Um template com mais de um serviço cria uma **stack**: uma aplicação e os bancos de dados gerenciados de que ela precisa, criados juntos, conectados e gerenciados como um grupo. Neste tutorial você escreve um template que deixa o usuário escolher Postgres ou SQLite, ativar opcionalmente um cache Redis e conecta o app a cada banco com placeholders e certificados de cliente TLS, sem que ninguém digite uma string de conexão.
+
+Cada banco tem endereço e porta públicos próprios, e o app se conecta com uma senha mais um certificado de cliente que a plataforma prepara antes do primeiro boot.
+
+## Antes de começar
+
+<Check>Você concluiu o [tutorial do primeiro template de código](/pt-br/templates/tutorials/discord-bot-code) ou conhece o básico do manifesto e da CLI.</Check>
+<Check>Um plano com espaço para o app e os bancos de dados. Este template precisa de no mínimo 512 MB para o app, 1.024 MB para o Postgres e 512 MB para o Redis, ou seja, 2.048 MB no maior caso. A memória de cada serviço sai do total do plano, veja [Planos e limites](/pt-br/plans-and-limits).</Check>
+<Check>Só o dono de um workspace pode fazer deploy de um template nele. Um membro vê os templates e usa as stacks que já existem.</Check>
+
+## Passo a passo
+
+<Steps>
+  <Step title="Decida o que cada resposta altera">
+    Anote primeiro as perguntas e o que cada resposta liga. Esta tabela é o desenho do manifesto:
+
+    | Pergunta | Resposta | Efeito |
+    |---|---|---|
+    | `storage` (escolha) | `postgres` | O serviço `db` é criado e o app recebe `STORAGE=postgres`. |
+    | | `sqlite` | O serviço `db` não é criado e o app recebe `STORAGE=sqlite`. |
+    | `cache` (sim ou não) | sim | O serviço `cache` (Redis) é criado. |
+    | `cache_ttl` (número) | só perguntada quando `cache` é sim | Quantos segundos um valor em cache vive. |
+
+    Não há linguagem de expressões no manifesto. Você tem duas ferramentas: `sets` em uma opção, que altera várias coisas de uma vez, e `when`, que é uma igualdade sobre uma pergunta anterior. Use `sets` quando uma escolha muda mais de um serviço ou variável, como o `storage` faz, e `when` para um simples sim/não.
+  </Step>
+  <Step title="Escreva o código que lê o ambiente">
+    O app nunca monta um endereço: ele lê variáveis e os arquivos de certificado para os quais o manifesto aponta. Crie o `src/storage.js` (o resto do app é seu):
+
+    ```javascript title="src/storage.js"
+    "use strict";
+
+    const fs = require("node:fs");
+
+    // Lê os três arquivos de certificado de cliente que a plataforma gravou para um banco.
+    const tls = (prefix) => ({
+      ca: fs.readFileSync(process.env[`${prefix}_CA_FILE`]),
+      cert: fs.readFileSync(process.env[`${prefix}_CERT_FILE`]),
+      key: fs.readFileSync(process.env[`${prefix}_KEY_FILE`]),
+    });
+
+    const UPSERT = "insert into counter (id, n) values (1, 1) on conflict (id) do update set n = counter.n + 1 returning n";
+
+    async function openStorage() {
+      if (process.env.STORAGE === "sqlite") {
+        const Database = require("better-sqlite3");
+        const db = new Database(process.env.SQLITE_PATH);
+        db.exec("create table if not exists counter (id integer primary key, n integer)");
+        return { increment: async () => db.prepare(UPSERT).get().n };
+      }
+      const { Pool } = require("pg");
+      const pool = new Pool({
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT),
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+        ssl: { ...tls("DB"), rejectUnauthorized: true },
+      });
+      await pool.query("create table if not exists counter (id integer primary key, n integer)");
+      return { increment: async () => (await pool.query(UPSERT)).rows[0].n };
+    }
+
+    // O Redis só existe quando o usuário ligou o cache: sem REDIS_HOST, sem cache.
+    function openCache() {
+      if (!process.env.REDIS_HOST) return null;
+      const Redis = require("ioredis");
+      return new Redis({
+        host: process.env.REDIS_HOST,
+        port: Number(process.env.REDIS_PORT),
+        username: process.env.REDIS_USER,
+        password: process.env.REDIS_PASSWORD,
+        tls: { servername: process.env.REDIS_HOST, ...tls("REDIS") },
+      });
+    }
+
+    module.exports = { openStorage, openCache, ttl: Number(process.env.CACHE_TTL || 30) };
+    ```
+
+    Adicione `pg`, `ioredis` e `better-sqlite3` ao `src/package.json`, e um pequeno `src/server.js` que escute em `PORT` e responda `/healthz`. Como um banco desligado deixa suas variáveis vazias (a plataforma não as grava), o código consegue saber quais serviços existem checando a variável.
+  </Step>
+  <Step title="Escreva o manifesto">
+    ```yaml title="vertracloud.template.yaml"
+    id: visit-stack
+    version: 1.0.0
+    name:
+      pt-br: Contador com banco
+      en: Counter with a database
+    description:
+      pt-br: App com Postgres ou SQLite e cache Redis opcional. Exemplo de stack.
+      en: An app with Postgres or SQLite and an optional Redis cache. A stack example.
+    category: starters
+    tags: [starter, postgres, redis]
+
+    inputs:
+      - id: storage
+        type: select
+        label:
+          pt-br: Onde guardar os dados?
+          en: Where should the data live?
+        help:
+          pt-br: "Postgres gerenciado usa mais memória do plano. SQLite grava no disco do app."
+          en: "Managed Postgres uses more of the plan's memory. SQLite writes to the app disk."
+        default: postgres
+        options:
+          - value: postgres
+            label:
+              pt-br: Postgres gerenciado (recomendado)
+              en: Managed Postgres (recommended)
+            sets:
+              services: { db: "on" }
+              env: { app: { STORAGE: postgres } }
+          - value: sqlite
+            label:
+              pt-br: SQLite no disco do app
+              en: SQLite on the app disk
+            sets:
+              services: { db: "off" }
+              env: { app: { STORAGE: sqlite } }
+      - id: cache
+        type: boolean
+        label:
+          pt-br: Usar cache Redis?
+          en: Use a Redis cache?
+        default: false
+      - id: cache_ttl
+        type: number
+        label:
+          pt-br: Validade do cache (segundos)
+          en: Cache lifetime (seconds)
+        default: 30
+        validation: { min: 1, max: 3600 }
+        when: { input: cache, equals: true }
+
+    services:
+      app:
+        source: { type: code, path: src }
+        language: javascript
+        runtime_version: recommended
+        main: server.js
+        start: node server.js
+        ram: { min: 512, recommended: 512 }
+        web: required
+        env:
+          SQLITE_PATH: /app/data/app.db
+          CACHE_TTL: "{{inputs.cache_ttl}}"
+          DB_HOST: "{{services.db.host}}"
+          DB_PORT: "{{services.db.port}}"
+          DB_NAME: "{{services.db.database}}"
+          DB_USER: "{{services.db.user}}"
+          DB_PASSWORD: "{{services.db.password}}"
+          DB_CA_FILE: "{{services.db.ssl.ca_path}}"
+          DB_CERT_FILE: "{{services.db.ssl.cert_path}}"
+          DB_KEY_FILE: "{{services.db.ssl.key_path}}"
+          REDIS_HOST: "{{services.cache.host}}"
+          REDIS_PORT: "{{services.cache.port}}"
+          REDIS_USER: "{{services.cache.user}}"
+          REDIS_PASSWORD: "{{services.cache.password}}"
+          REDIS_CA_FILE: "{{services.cache.ssl.ca_path}}"
+          REDIS_CERT_FILE: "{{services.cache.ssl.cert_path}}"
+          REDIS_KEY_FILE: "{{services.cache.ssl.key_path}}"
+        healthcheck: { path: /healthz, timeout: 120 }
+        deploy:
+          auto_rollback: { default: true }
+          rollback: { with_data: optional }
+      db:
+        database: postgres
+        ram: { min: 1024, recommended: 1024 }
+      cache:
+        database: redis
+        ram: { min: 512, recommended: 512 }
+        when: { input: cache, equals: true }
+
+    permissions:
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Endereço
+          en: Address
+        value: "{{app.url}}"
+      - label:
+          pt-br: Armazenamento
+          en: Storage
+        value: "{{inputs.storage}}"
+    ```
+
+    Leia de cima para baixo:
+
+    - **`sets` nas opções.** `services: { db: "off" }` remove o banco na escolha do SQLite; `env: { app: ... }` adiciona variáveis ao serviço cujo id é `app`. A última opção escolhida vence quando várias definem a mesma coisa, e `sets` também pode adicionar memória com `ram_extra`.
+    - **`when` em uma pergunta.** `cache_ttl` só é perguntada, e só é validada, quando `cache` é `true`. Um `when` só pode apontar para uma pergunta que vem **antes** dele, e `equals` precisa corresponder ao tipo dessa pergunta (`true` para booleano, um dos valores das opções para uma escolha).
+    - **`when` em um serviço.** O serviço `cache` só é criado quando `cache` é `true`. O `db` não tem `when` porque o `sets` de `storage` já o controla: um serviço aceita apenas uma condição, então escolha um mecanismo por serviço.
+    - **Placeholders.** `{{services.db.host}}` e os demais leem do serviço cujo id é `db`. Um placeholder que aponta para um serviço desligado resolve para vazio e a variável não é gravada, então o app nunca vê uma configuração pela metade.
+  </Step>
+  <Step title="Saiba o que a plataforma preenche">
+    Para um serviço de banco de dados, estes placeholders estão disponíveis:
+
+    | Placeholder | Valor |
+    |---|---|
+    | `{{services.db.host}}`, `{{services.db.port}}` | O endereço público e a porta desse banco. A porta é única por banco, nunca o padrão do engine. |
+    | `{{services.db.user}}`, `{{services.db.password}}`, `{{services.db.database}}` | O usuário `vertracloud`, a senha dele e o banco padrão. |
+    | `{{services.db.url}}` | A URL de conexão completa. Ela carrega a senha, então é sensível. |
+    | `{{services.db.ssl.ca_path}}`, `.cert_path`, `.key_path` | Caminhos da CA e do certificado e da chave de cliente. |
+    | `{{services.db.ssl.pem_path}}` | O PEM de cliente combinado que o driver do MongoDB espera. |
+    | `{{services.db.ssl.p12_path}}` | O certificado de cliente em PKCS#12, com senha vazia, para clientes como o Prisma 6. |
+
+    Os arquivos de certificado ficam em `/app/.vertra/certs/<database_id>/`, gravados pela plataforma **antes do primeiro boot do app** e mantidos em sincronia quando você redefine uma senha ou um certificado. Os bancos de dados na plataforma sempre exigem TLS e certificado de cliente; só a senha nunca conecta, e por isso o manifesto passa os três caminhos. Os placeholders de um serviço de app são `{{services.<id>.url}}` e `.domain`, e `{{app.url}}` e `{{app.domain}}` dão o endereço do serviço que os está lendo. Veja [Conecte o app aos bancos de dados da stack](/pt-br/templates/use/connect-databases) para a mesma informação do lado do usuário, com código para outras linguagens e drivers.
+
+    <Note>Uma saída também pode usar placeholders, mas `{{secret:<n>}}` não é permitido ali. Para mostrar um segredo gerado uma única vez, declare-o em `secrets` e imprima `{{secrets.<name>}}` com `secret: true` e `once: true`.</Note>
+  </Step>
+  <Step title="Valide">
+    ```bash
+    vertra template validate
+    ```
+
+    Tente quebrá-lo de propósito para aprender as mensagens. Renomeie o id do serviço `db` em um só lugar e você recebe `unknown_service`; aponte `cache_ttl` para uma pergunta declarada depois dela e você recebe `invalid_when`; coloque `equals: "yes"` em um booleano e você recebe `invalid_when` ("must be true or false"). Desfaça as alterações e execute de novo.
+  </Step>
+  <Step title="Crie o template e faça o deploy das duas variantes">
+    ```bash
+    vertra template create
+    vertra template deploy visit-stack --name counter-sqlite --set storage=sqlite
+    vertra template deploy visit-stack --name counter-pg --set storage=postgres --set cache=true --set cache_ttl=60
+    ```
+
+    A primeira chamada cria só a aplicação, com SQLite no próprio disco. A segunda cria uma stack com o app, um Postgres e um Redis: o deploy cria os bancos de dados, cria o app com os certificados já no lugar, preenche as variáveis, inicia o app e espera o `/healthz`. Cada deploy é um job com chave de idempotência, e uma falha desfaz tudo o que ele criou.
+
+    Abra o endereço de cada app e recarregue: o contador sobe nos dois. Depois execute `vertra stack list` e `vertra stack get <id>` para ver os membros, as conexões entre eles e o template de onde a stack veio.
+  </Step>
+  <Step title="Conviva com a stack">
+    A página da stack lista como cada variável do app está conectada a cada banco de dados, e o painel **How to connect** mostra o código para a linguagem do usuário. Quando a senha ou o certificado de um banco é redefinido, as variáveis e os arquivos de certificado do app são recalculados e o app precisa de um reinício, o que o painel e a API avisam. Quando você publica uma nova versão do template, `vertra stack update <id> --check` mostra o que mudaria antes de você confirmar. Veja [Stacks](/pt-br/templates/use/stacks) e [Atualizações e rollback](/pt-br/templates/use/updates-and-rollback).
+  </Step>
+</Steps>
+
+## Solução de problemas
+
+| Sintoma | Causa e correção |
+|---|---|
+| O `validate` reporta `unknown_service` | Um placeholder, `sets` ou `connections` cita um id de serviço que não existe. Os ids são as chaves em `services`. |
+| O `validate` reporta `invalid_when` | O `when` aponta para uma pergunta que vem depois, para ela mesma, ou `equals` não corresponde ao tipo ou às opções dessa pergunta. |
+| O app registra `self signed certificate` ou `certificate required` | A conexão não está enviando a CA e o certificado de cliente. Passe os três arquivos, como no `storage.js`, e mantenha `rejectUnauthorized: true`. |
+| `ENOENT` quando o app lê um certificado | O serviço está desligado, então suas variáveis estão vazias. Só abra o arquivo quando a variável estiver definida. |
+| Uma variável que você esperava está faltando no app | O placeholder dela aponta para um serviço desligado, ou para uma pergunta ignorada por `when`. Valores vazios não são gravados. |
+| O deploy falha com `TEMPLATE_RAM_INSUFFICIENT` ou `TEMPLATE_PLAN_REQUIRED` | Os serviços juntos precisam de mais memória ou de um plano maior do que a conta tem. O assistente mostra o total antes de você confirmar. |
+| O deploy falha com `WORKSPACE_OWNER_ONLY` | Só o dono do workspace pode fazer deploy de um template nele. |
+| O deploy falha com `STACK_NETWORK_MODE_UNAVAILABLE` | O pedido usou um modo de rede diferente de `public`. |
+
+## Próximos passos
+
+- [Stacks para autores de templates](/pt-br/templates/create/stacks): serviços, conexões e os dois modos de rede.
+- [Placeholders e perguntas](/pt-br/templates/create/placeholders-and-inputs): todos os placeholders e todos os tipos de pergunta.
+- [Requisitos e plano](/pt-br/templates/create/requirements): como a soma dos serviços define o plano.
+- [Referência do manifesto](/pt-br/templates/create/manifest-reference): `sets`, `when`, `ram_extra` e os campos de banco de dados.
+- [Configurações de deploy](/pt-br/templates/create/deploy-settings): por que softwares que migram o banco de dados precisam de rollback com dados.
+- Próximo tutorial: [um template fechado para um cliente](/pt-br/templates/tutorials/closed-template-for-client).

@@ -1,0 +1,271 @@
+---
+title: Criar um template privado
+sidebarTitle: Criar template
+api: POST https://api.vertracloud.app/v1/templates
+authMethod: bearer
+description: Cria um template privado e a primeira versão dele a partir de um manifesto e do código de cada serviço, enviados como multipart form data.
+---
+
+{/* @see RESTPostAPITemplateBody, RESTPostAPITemplateResponse — @vertracloud/api-types */}
+Esta chamada cria um template privado com a primeira versão e responde `201` com o template. A requisição é `multipart/form-data`: o manifesto vai em um campo de texto, e cada serviço que executa o seu código vai em uma parte ZIP. Para começar a partir de um app ou de uma stack que você já tem, use [Criar template a partir de app](/pt-br/api-reference/endpoint/templates/create-from-app) ou [Criar template a partir de stack](/pt-br/api-reference/endpoint/templates/create-from-stack).
+
+Precisa do escopo `templates:write` quando chamado com uma chave de API. Só planos que podem criar imagens Docker personalizadas podem criar templates, e cada conta tem no máximo 5 templates privados, pessoais e de workspace somados. Em um workspace, só o dono do workspace cria templates. Um template privado não é revisado pela Vertra Cloud: quem o recebe vê o aviso "Não verificado pela Vertra". Confira o manifesto antes com [Validar manifesto](/pt-br/api-reference/endpoint/templates/validate). O formato está na [referência do manifesto](/pt-br/templates/create/manifest-reference).
+
+O ZIP de um serviço é verificado antes de ser armazenado. O envio inteiro é recusado com `TEMPLATE_SECRET_IN_SOURCE` quando tem um arquivo `.env` que não é um exemplo, uma chave privada ou um token conhecido; `details.files` lista apenas os caminhos. Pastas `.vertra/` são descartadas, e arquivos `.env*` nunca entram em um template.
+
+<ParamField body="manifest" type="string" required>
+  O manifesto como string JSON serializada, seguindo o [schema do manifesto](/pt-br/templates/reference/manifest-schema). Um serviço cujo `source.type` é `image` se refere a uma imagem da sua conta pelo ID em `source.image`.
+</ParamField>
+
+<ParamField body="sources[service_id]" type="file">
+  Uma parte ZIP por serviço do manifesto cuja origem é `code`, nomeada pelo id do serviço, por exemplo `sources[bot]`. Obrigatória para cada um desses serviços.
+</ParamField>
+
+<ParamField body="changelog" type="string">
+  A mensagem da primeira versão, como objeto JSON serializado com `pt-br` (obrigatório), `en` e `es`.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O workspace que será dono do template. Sem ele, o template é seu.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -F 'manifest=<manifest.json' \
+  -F 'sources[bot]=@bot.zip'
+```
+
+</RequestExample>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O template, com a primeira versão.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do template.
+  </ResponseField>
+
+  <ResponseField name="slug" type="string">
+    O slug do template, tirado do `id` do manifesto.
+  </ResponseField>
+
+  <ResponseField name="origin" type="string">
+    `private` para os templates que você cria. Os templates do catálogo são `vertra` ou `community`.
+  </ResponseField>
+
+  <ResponseField name="visibility" type="string">
+    `public`, `beta`, `hidden` ou `deprecated`.
+  </ResponseField>
+
+  <ResponseField name="name" type="object">
+    O nome por idioma: `pt-br`, `en` e `es`. Um `en` ou `es` ausente cai para `pt-br`.
+  </ResponseField>
+
+  <ResponseField name="description" type="object">
+    A descrição por idioma, no mesmo formato de `name`.
+  </ResponseField>
+
+  <ResponseField name="category" type="string">
+    `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases` ou `other`.
+  </ResponseField>
+
+  <ResponseField name="tags" type="string[]">
+    As tags.
+  </ResponseField>
+
+  <ResponseField name="icon_url" type="string | null">
+    URL do ícone, ou `null` quando o template não tem um.
+  </ResponseField>
+
+  <ResponseField name="author_display" type="string | null">
+    O nome exibido como autor. `null` para os templates feitos pela plataforma.
+  </ResponseField>
+
+  <ResponseField name="links" type="object">
+    Links do software que o template empacota: `website`, `docs`, `source` e `license`, todos opcionais.
+  </ResponseField>
+
+  <ResponseField name="landing" type="string | null">
+    Slug de uma página pública dedicada, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="featured" type="boolean">
+    Destacado na galeria.
+  </ResponseField>
+
+  <ResponseField name="current_version" type="object">
+    A versão mais recente: `id`, `version` (versão semântica), `security` (`true` para uma versão de segurança) e `created_at`.
+  </ResponseField>
+
+  <ResponseField name="services" type="object[]">
+    O que o template cria. Cada serviço tem `id`, `kind` (`app`, `database` ou `blob`), `source_type` (`code`, `image` ou `null`), `database` (o engine, ou `null`), `blob_visibility`, `ram` (`min`, `recommended` e `max` opcional, em MB), `web` (`required`, `optional`, `none` ou `null`) e `conditional` (`true` quando o serviço só é criado para algumas respostas).
+  </ResponseField>
+
+  <ResponseField name="creates_stack" type="boolean">
+    `true` quando usar o template cria uma stack (dois ou mais serviços).
+  </ResponseField>
+
+  <ResponseField name="ram_min_total" type="integer">
+    A soma da memória mínima de todos os serviços, em MB.
+  </ResponseField>
+
+  <ResponseField name="byok" type="boolean">
+    `true` quando quem usa o template traz a própria chave para um modelo de IA.
+  </ResponseField>
+
+  <ResponseField name="required_plan" type="string">
+    O plano mais baixo que pode usar o template.
+  </ResponseField>
+
+  <ResponseField name="code_view" type="boolean">
+    `false` para um [template fechado](/pt-br/templates/use/closed-templates): quem o usa não pode ver o código dele.
+  </ResponseField>
+
+  <ResponseField name="uses_count" type="integer | null">
+    Sempre `null` para um template privado.
+  </ResponseField>
+
+  <ResponseField name="owner" type="object | null">
+    `user_id` e `workspace_id` (`null` quando o template pertence ao usuário).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    O repositório vinculado (`repository` no formato `owner/name`, e `branch`), ou `null` quando o template não está vinculado.
+  </ResponseField>
+
+  <ResponseField name="inputs" type="object[]">
+    As perguntas que o usuário responde ao usar o template. Veja [Placeholders e inputs](/pt-br/templates/create/placeholders-and-inputs).
+  </ResponseField>
+
+  <ResponseField name="permissions" type="object">
+    As permissões efetivas dos apps criados a partir do template, depois dos padrões e das restrições de um template fechado: `code_view`, `code_edit`, `ram_change`, `ram_below_min`, `ram_above_max`, `env_add`, `commands_edit`, `terminal`, `save_as_template` e `detach`, todos booleanos.
+  </ResponseField>
+
+  <ResponseField name="outputs" type="object[]">
+    O que o assistente mostra no fim de um deploy: `label`, `value` e as flags opcionais `secret` e `once`.
+  </ResponseField>
+
+  <ResponseField name="readme" type="object | null">
+    A documentação do template (Markdown) por idioma, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    O changelog da versão mais recente por idioma, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="account" type="object">
+    O que usar o template faria na sua conta (`fits`, `reasons`, `required_ram`, `free_ram`, `needs_image_slot`, `image_slots_free`, `in_use` e `in_use_count`). Presente apenas nas chamadas autenticadas que leem o template.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando o template foi criado.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Quando o template foi atualizado pela última vez.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "support-bot",
+    "origin": "private",
+    "visibility": "public",
+    "name": { "pt-br": "Bot de suporte", "en": "Support bot" },
+    "description": { "pt-br": "Bot que responde o suporte.", "en": "A bot that answers support." },
+    "category": "bots",
+    "tags": ["discord", "support"],
+    "icon_url": null,
+    "author_display": "Ana",
+    "links": {},
+    "landing": null,
+    "featured": false,
+    "current_version": {
+      "id": "tplv-111222333444",
+      "version": "1.0.0",
+      "security": false,
+      "created_at": "2026-10-27T14:02:00Z"
+    },
+    "services": [
+      {
+        "id": "bot",
+        "kind": "app",
+        "source_type": "code",
+        "database": null,
+        "blob_visibility": null,
+        "ram": { "min": 256, "recommended": 512 },
+        "web": "none",
+        "conditional": false
+      }
+    ],
+    "creates_stack": false,
+    "ram_min_total": 256,
+    "byok": false,
+    "required_plan": "economy",
+    "code_view": true,
+    "uses_count": null,
+    "owner": { "user_id": "1234567890123456789", "workspace_id": null },
+    "github": null,
+    "inputs": [],
+    "permissions": {
+      "code_view": true,
+      "code_edit": true,
+      "ram_change": true,
+      "ram_below_min": false,
+      "ram_above_max": true,
+      "env_add": true,
+      "commands_edit": true,
+      "terminal": false,
+      "save_as_template": true,
+      "detach": true
+    },
+    "outputs": [],
+    "readme": null,
+    "changelog": null,
+    "created_at": "2026-10-27T14:02:00Z",
+    "updated_at": "2026-10-27T14:02:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `TEMPLATE_MANIFEST_INVALID`: O manifesto não é válido; `details.issues` lista cada achado com o `path` e o `code`. Nada é criado.
+  - `TEMPLATE_SOURCE_REQUIRED`: Um serviço `code` não tem uma parte ZIP.
+  - `TEMPLATE_SECRET_IN_SOURCE`: Um ZIP tem um segredo (um arquivo `.env`, uma chave privada ou um token); `details.files` lista os caminhos (`400`).
+  - `TEMPLATE_SLUG_TAKEN`: O `id` do manifesto já está em uso entre os seus templates ou é uma palavra reservada.
+  - `TEMPLATE_PRIVATE_LIMIT_REACHED`: A conta já tem 5 templates privados.
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: O plano não pode criar imagens Docker personalizadas, então não pode criar templates.
+  - `IMAGE_NOT_FOUND`: Um serviço `image` se refere a uma imagem que não é sua ou não tem um build bem-sucedido.
+  - `WORKSPACE_OWNER_ONLY`: `workspace_id` foi enviado e quem chama não é o dono desse workspace.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_MANIFEST_INVALID",
+  "details": {
+    "issues": [{ "path": "services.bot.ram.min", "code": "invalid_ram", "message": "ram.min must be a positive number of MB" }]
+  }
+}
+```
+
+</ResponseExample>

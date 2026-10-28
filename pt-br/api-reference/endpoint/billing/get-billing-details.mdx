@@ -1,0 +1,97 @@
+---
+title: Obter dados de cobrança
+sidebarTitle: Obter dados de cobrança
+api: GET https://api.vertracloud.app/v1/users/me/billing
+authMethod: bearer
+description: Retorna os dados de cobrança da conta. Exige o escopo billing:read.
+---
+Um pedido precisa de dados de cobrança completos. Verifique `complete` antes de criar um.
+
+### Resposta
+
+`response` é `null` até que os dados de cobrança sejam salvos. A resposta nunca é armazenada em cache.
+
+<ResponseField name="response" type="object | null">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="name" type="string | null">
+    O nome que aparece nos recibos e nas faturas.
+  </ResponseField>
+
+  <ResponseField name="address" type="object | null">
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="line1" type="string">Nome da rua.</ResponseField>
+    <ResponseField name="number" type="string | null">Número do endereço, ou `S/N`.</ResponseField>
+    <ResponseField name="line2" type="string | null">Complemento, por exemplo `Apt 2`.</ResponseField>
+    <ResponseField name="district" type="string | null">Bairro.</ResponseField>
+    <ResponseField name="city" type="string">Cidade.</ResponseField>
+    <ResponseField name="city_code" type="string | null">Código IBGE de sete dígitos da cidade.</ResponseField>
+    <ResponseField name="state" type="string | null">Sigla do estado com duas letras, no Brasil.</ResponseField>
+    <ResponseField name="postal_code" type="string | null">CEP, no Brasil.</ResponseField>
+    <ResponseField name="country" type="string">Código ISO do país com duas letras.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="phone" type="string | null">
+    Número de telefone opcional, no formato E.164.
+  </ResponseField>
+
+  <ResponseField name="tax_id" type="object | null">
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="type" type="string">`cpf` ou `cnpj`.</ResponseField>
+    <ResponseField name="masked" type="string">O documento, mascarado. O número completo nunca é retornado.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="complete" type="boolean">
+    `true` quando os dados são suficientes para criar um pedido (no Brasil, incluindo o CPF/CNPJ).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "name": "Ana Souza",
+    "address": {
+      "line1": "Rua das Flores",
+      "number": "120",
+      "line2": null,
+      "district": "Centro",
+      "city": "Fortaleza",
+      "city_code": "2304400",
+      "state": "CE",
+      "postal_code": "60000000",
+      "country": "BR"
+    },
+    "phone": "+5585999990000",
+    "tax_id": { "type": "cpf", "masked": "CPF ••• 47" },
+    "complete": true
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
+  - `USER_NOT_FOUND`: o usuário autenticado não foi encontrado.
+  - `INTERNAL_SERVER_ERROR`: ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+</ResponseExample>

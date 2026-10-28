@@ -1,0 +1,41 @@
+---
+title: Actualizar miembro
+sidebarTitle: Actualizar
+api: PUT https://api.vertracloud.app/v1/workspaces/{id}/members/{user_id}
+authMethod: bearer
+description: Cambia el rol o el vencimiento del acceso de un miembro. Requiere `members:manage`.
+---
+
+{/* @see RESTPutAPIWorkspaceMemberBody, RESTPutAPIWorkspaceMemberResponse — @vertracloud/api-types */}
+Requiere el permiso `members:manage`. Una clave de API necesita el scope `workspaces:write`.
+
+<Note>
+  Nadie puede editar su propia fila de pertenencia a través de este endpoint, ni siquiera para cambiar su propio
+  `expires_at`. Sin esa regla, `members:manage` podría quitarse su propio vencimiento y volverse permanente por decisión
+  unilateral.
+</Note>
+
+### Ruta
+
+<ParamField path="id" type="string" required>ID del workspace.</ParamField>
+<ParamField path="user_id" type="string" required>ID de usuario del miembro.</ParamField>
+
+### Body
+
+Se requiere al menos un campo.
+
+<ParamField body="role_id" type="string">Nuevo ID de rol; debe pertenecer a este workspace.</ParamField>
+<ParamField body="expires_at" type="string | null" format="date-time">Fecha y hora ISO, o `null` para quitar el vencimiento.</ParamField>
+
+### Respuesta
+
+Misma forma que una fila de [Listar miembros](/es-es/api-reference/endpoint/workspaces/members/list).
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | No se envió ningún campo. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Quien llama no tiene `members:manage`, o está editando su propia fila. |
+| 404 | `WORKSPACE_NOT_FOUND` | El workspace no existe o no eres miembro. |
+| 404 | `WORKSPACE_ROLE_NOT_FOUND` | `role_id` no pertenece a este workspace. |

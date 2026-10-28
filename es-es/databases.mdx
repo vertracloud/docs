@@ -52,22 +52,22 @@ plataforma.
 
 Las bases de datos creadas antes conservan el usuario por defecto del motor: `postgres` (base de datos
 `postgres`) en PostgreSQL, `default` en MongoDB y Redis, y `root` (base de datos `default`) en MySQL. El campo
-`username` de [Obtener base de datos](/api-reference/endpoint/databases/get) siempre indica cuál usar.
+`username` de [Obtener base de datos](/es-es/api-reference/endpoint/databases/get) siempre indica cuál usar.
 
 ## ¿Qué necesito para conectarme?
 
 Cuatro datos, todos en la página de la base de datos del panel (o a través de la API):
 
 - **Host** — `<id-de-la-base-de-datos-sin-guiones>.db.usa1.vertraweb.app`, visible en la página de la base de
-  datos y en [Obtener base de datos](/api-reference/endpoint/databases/get).
+  datos y en [Obtener base de datos](/es-es/api-reference/endpoint/databases/get).
 - **Puerto** — **único por base de datos**, no el puerto por defecto del motor (5432, 27017, 6379, 3306).
   Cópialo siempre desde la página de la base de datos o desde la respuesta de la API.
 - **Usuario** — `vertracloud` (o el usuario del motor en bases de datos antiguas), visible en la página de la
-  base de datos y como `username` en [Obtener base de datos](/api-reference/endpoint/databases/get).
-- **Contraseña** — visible en la página de la base de datos; [restablécela](/api-reference/endpoint/databases/credentials/resetpassword)
+  base de datos y como `username` en [Obtener base de datos](/es-es/api-reference/endpoint/databases/get).
+- **Contraseña** — visible en la página de la base de datos; [restablécela](/es-es/api-reference/endpoint/databases/credentials/resetpassword)
   si es necesario.
 - **Certificados** — descárgalos en la pestaña **Certificados** de la base de datos o mediante
-  [Obtener certificado de base de datos](/api-reference/endpoint/databases/credentials/get):
+  [Obtener certificado de base de datos](/es-es/api-reference/endpoint/databases/credentials/get):
 
 | Archivo | Qué es | Úsalo como |
 |---|---|---|
@@ -77,7 +77,7 @@ Cuatro datos, todos en la página de la base de datos del panel (o a través de 
 
 El certificado del servidor coincide con el host de la base de datos, así que funciona la verificación completa
 (`verify-full`, `VERIFY_IDENTITY`, `rejectUnauthorized: true`). Mantén los archivos `.key` y `.pem` en privado:
-se autentican como tú. [Restablecer los certificados](/api-reference/endpoint/databases/credentials/reset)
+se autentican como tú. [Restablecer los certificados](/es-es/api-reference/endpoint/databases/credentials/reset)
 emite otros nuevos e invalida los archivos antiguos.
 
 ## ¿Cómo me conecto a cada motor?
@@ -191,6 +191,28 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
   motores. La mayoría de los errores de "connection refused" o "handshake failed" se deben a un `.crt`/`.key`
   que falta, o a usar el puerto por defecto del motor en lugar del puerto propio de la base de datos.
 </Warning>
+
+### Certificados en aplicaciones ligadas a una stack
+
+Cuando una aplicación y una base de datos se despliegan juntas desde una [plantilla](/es-es/templates/use/stacks), la plataforma escribe los certificados de la base de datos en la aplicación por ti, en `/app/.vertra/certs/<database_id>/`: `ca.pem`, `client.crt`, `client.key`, `client.pem` (MongoDB) y `client.p12` (Prisma). Variables como la URL de conexión apuntan a esas rutas, así que no subes nada. Consulta [Conectar bases de datos](/es-es/templates/use/connect-databases).
+
+### ¿Cómo me conecto con Prisma 6?
+
+Prisma 6 solo acepta un certificado de cliente como identidad PKCS#12, así que usa el archivo `client.p12` (cifrado con AES, contraseña vacía, por lo que no hace falta `sslpassword`) en `sslidentity` y la CA en `sslcert`:
+
+```ini
+DATABASE_URL=postgresql://vertracloud:<password>@<host>:<port>/vertracloud?sslmode=require&sslaccept=strict&sslcert=/app/.vertra/certs/<database_id>/ca.pem&sslidentity=/app/.vertra/certs/<database_id>/client.p12
+```
+
+Una plantilla puede pedir esta URL ya preparada, pero nunca se añade a una conexión por defecto, porque lleva la contraseña. Prisma 7 lee los archivos PEM desde la URL estándar de PostgreSQL y no necesita el `.p12`.
+
+### ¿Se conecta Python 3.13 a la base de datos?
+
+Sí, pero Python 3.13 y posteriores activan comprobaciones X.509 estrictas en el contexto TLS por defecto (`ssl.create_default_context()`), y las bases de datos creadas antes de la corrección de los certificados pueden fallar con `Missing Authority Key Identifier`. Se ven afectadas las librerías que usan el contexto por defecto, como redis-py y pg8000; psycopg, asyncpg, PyMySQL y pymongo no. Las bases de datos nuevas y aquellas cuyos certificados has restablecido ya emiten certificados compatibles. Si no puedes restablecer ahora, redis-py 6 o superior acepta `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`.
+
+### ¿Qué ocurre al restablecer los certificados?
+
+El restablecimiento emite una CA, un certificado de servidor y uno de cliente nuevos, e invalida los archivos antiguos. En las aplicaciones ligadas a una stack, los archivos de `/app/.vertra/certs/` se reescriben automáticamente, pero el proceso en ejecución aún conserva los antiguos: la respuesta indica `restart_required` y lista las aplicaciones que hay que reiniciar. Los archivos que descargaste y colocaste tú en un proyecto deben descargarse y desplegarse de nuevo.
 
 ## Ciclo de vida
 

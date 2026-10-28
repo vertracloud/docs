@@ -1,0 +1,106 @@
+---
+title: Stream Template Deploy Events
+sidebarTitle: Deploy Events
+api: GET https://api.vertracloud.app/v1/template-deploys/{deploy_id}/events
+authMethod: bearer
+description: Streams the progress of a template deploy or update job as Server-Sent Events, one event per change of step, until the job ends.
+---
+
+{/* @see APITemplateDeployEvent, RESTGetAPITemplateDeployEventsResponse — @vertracloud/api-types */}
+Streams the progress of a deploy or update job so you do not have to poll. With an API key the scope is `templates:deploy`. Only the account that started the job can follow it; any other job ID is `TEMPLATE_DEPLOY_NOT_FOUND`.
+
+The response is a **Server-Sent Events** stream (`text/event-stream`), not JSON. It starts with the current state of the job and then sends a `progress` event every time the job changes. A `heartbeat` event arrives every 15 seconds while nothing changes, to keep the connection open. When the job reaches `succeeded` or `failed`, an `end` event closes the stream. Because the state comes from stored data, you can reconnect at any time and get the current state again.
+
+<ParamField path="deploy_id" type="string" required>
+  The ID of the job.
+</ParamField>
+
+### Events
+
+<ResponseField name="progress" type="event">
+  The `data` is one JSON object with the state of the job.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="deploy_id" type="string">
+    The job ID.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `queued`, `running`, `undoing`, `succeeded` or `failed`.
+  </ResponseField>
+
+  <ResponseField name="current_step" type="string | null">
+    The step running now, or `null`.
+  </ResponseField>
+
+  <ResponseField name="steps" type="object[]">
+    The steps of the job with `step`, `status`, `started_at` and `finished_at`, as in [Get Deploy Job](/api-reference/endpoint/templates/deploy-status).
+  </ResponseField>
+
+  <ResponseField name="error" type="object | null">
+    The readable error (`code`, `message`, `step`) of a failed job, or `null`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="heartbeat" type="event">
+  A keep-alive. The `data` is an empty object (`{}`).
+</ResponseField>
+
+<ResponseField name="end" type="event">
+  The job is over and the stream closes. The `data` is `{ "deploy_id": "..." }`.
+</ResponseField>
+
+Events never carry outputs, resources or variable values. When you receive `end`, read the job with [Get Deploy Job](/api-reference/endpoint/templates/deploy-status) to get the outputs. A secret output marked `once` is returned on that first read of the finished job.
+
+<RequestExample>
+
+```bash cURL
+curl -N https://api.vertracloud.app/v1/template-deploys/3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63/events \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Accept: text/event-stream"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```text Response
+event: progress
+data: {"deploy_id":"3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63","status":"running","current_step":"apps","steps":[{"step":"validate","status":"done","started_at":"2026-10-28T14:00:01Z","finished_at":"2026-10-28T14:00:02Z"},{"step":"apps","status":"running","started_at":"2026-10-28T14:00:02Z","finished_at":null},{"step":"start","status":"pending","started_at":null,"finished_at":null}],"error":null}
+
+event: heartbeat
+data: {}
+
+event: progress
+data: {"deploy_id":"3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63","status":"succeeded","current_step":null,"steps":[{"step":"validate","status":"done","started_at":"2026-10-28T14:00:01Z","finished_at":"2026-10-28T14:00:02Z"},{"step":"apps","status":"done","started_at":"2026-10-28T14:00:02Z","finished_at":"2026-10-28T14:00:20Z"},{"step":"start","status":"done","started_at":"2026-10-28T14:00:21Z","finished_at":"2026-10-28T14:00:30Z"}],"error":null}
+
+event: end
+data: {"deploy_id":"3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63"}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+Errors are returned before the stream opens, as JSON.
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: `deploy_id` is not a valid ID (`400`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:deploy` scope (`403`).
+  - `TEMPLATE_DEPLOY_NOT_FOUND`: The job does not exist or belongs to another account (`404`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_DEPLOY_NOT_FOUND"
+}
+```
+
+</ResponseExample>

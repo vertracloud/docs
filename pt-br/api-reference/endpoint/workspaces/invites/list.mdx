@@ -1,0 +1,50 @@
+---
+title: Listar convites
+sidebarTitle: Listar
+api: GET https://api.vertracloud.app/v1/workspaces/{id}/invites
+authMethod: bearer
+description: Lista os convites pendentes e os passados. Exige `members:manage`; uma chave de API precisa do escopo `workspaces:invites`.
+---
+
+{/* @see APIWorkspaceInvite, RESTGetAPIWorkspaceInvitesResponse — @vertracloud/api-types */}
+<Note>
+  Uma chave de API precisa do escopo `workspaces:invites` (só no preset `full` ou em uma seleção
+  personalizada). Criar convites continua exclusivo do painel.
+</Note>
+
+Exige a permissão `members:manage`.
+
+### Caminho
+
+<ParamField path="id" type="string" required>ID do workspace.</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="APIWorkspaceInvite[]">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string" />
+  <ResponseField name="workspace_id" type="string" />
+  <ResponseField name="kind" type="'email' | 'link'" />
+  <ResponseField name="email" type="string | null">Preenchido apenas para `kind: \"email\"`.</ResponseField>
+  <ResponseField name="role_id" type="string" />
+  <ResponseField name="role_name" type="string" />
+  <ResponseField name="invited_by" type="object">`{ id, display_name }`.</ResponseField>
+  <ResponseField name="expires_at" type="string" format="date-time">7 dias após a criação para convites por e-mail, 24h fixas para convites por link.</ResponseField>
+  <ResponseField name="accepted_at" type="string | null" format="date-time" />
+  <ResponseField name="revoked_at" type="string | null" format="date-time" />
+  <ResponseField name="uses" type="number" />
+  <ResponseField name="max_uses" type="number | null">Apenas para `kind: \"link\"`; `null` = ilimitado.</ResponseField>
+  <ResponseField name="expires_in_days" type="number | null">Expiração de acesso aplicada ao membro assim que ele entra por este convite. `null` = sem expiração.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time" />
+
+  </Expandable>
+</ResponseField>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Chamada com uma chave de API que não tem o escopo `workspaces:invites`. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Quem chama não tem `members:manage`. |
+| 404 | `WORKSPACE_NOT_FOUND` | O workspace não existe ou você não é membro. |

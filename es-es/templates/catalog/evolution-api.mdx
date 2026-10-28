@@ -1,0 +1,76 @@
+---
+title: 'Plantilla de Evolution API en Vertra Cloud: API de WhatsApp con Postgres'
+sidebarTitle: 'Evolution API'
+description: 'Crea Evolution API en Vertra Cloud: una API REST de WhatsApp con instancias, webhooks y un manager, con Postgres gestionado. Pasos, variables y licencia.'
+icon: 'message'
+---
+
+Una API de WhatsApp con instancias, webhooks e integraciones. La plantilla ejecuta Evolution API v2.3.7 (la versión estable) con Postgres gestionado incluido.
+
+## Qué crea
+
+Un [stack](/es-es/templates/use/stacks) con la aplicación Evolution API y una base de datos Postgres gestionada, conectados con un certificado de cliente. Si eliges Redis gestionado para la caché, también crea Redis.
+
+| | |
+|---|---|
+| Memoria | Aplicación 512 MB (1024 MB recomendados) más Postgres 1024 MB: **1,5 GB como mínimo**. Con Redis, 2 GB. |
+| Plan | Un plan con imágenes Docker y un [cupo de imagen](/es-es/templates/overview#cupos-de-imagen) libre. Consulta [Planes y límites](/es-es/plans-and-limits). |
+
+## Qué pregunta el asistente
+
+| Pregunta | Qué hace |
+|---|---|
+| Evolution API cache | **Local cache** (predeterminado, sin Redis) o **managed Redis**, que mantiene la caché fuera del proceso y usa 512 MB más. |
+
+## Qué obtienes
+
+La dirección del manager (`<address>/manager`) y la **clave de API global, mostrada una sola vez**. Guárdala: da acceso a todas las instancias. Si la pierdes, cambia el secreto `AUTHENTICATION_API_KEY` en las variables de la aplicación y reinicia.
+
+## Primeros pasos
+
+<Steps>
+  <Step title="Abre el manager">
+    Abre `<address>/manager` e inicia sesión con la clave de API global.
+  </Step>
+  <Step title="Crea una instancia">
+    Elige cualquier nombre y la integración `WHATSAPP-BAILEYS`. El manager muestra un código QR: en el teléfono, abre **WhatsApp > Linked devices > Link a device** y escanéalo.
+  </Step>
+  <Step title="Envía un mensaje de prueba">
+    ```bash
+    curl -X POST "<address>/message/sendText/<instance>" \
+      -H "apikey: <key>" -H "Content-Type: application/json" \
+      -d '{"number":"5511999999999","text":"Hello from Evolution API"}'
+    ```
+  </Step>
+  <Step title="Recibe eventos">
+    En el **Webhook** de la instancia, introduce la URL de tu servicio y marca los eventos (`MESSAGES_UPSERT`, `CONNECTION_UPDATE` y otros).
+  </Step>
+</Steps>
+
+## Variables
+
+| Variable | Qué hace |
+|---|---|
+| `SERVER_URL` | La dirección pública de la aplicación (enlaces y webhooks). |
+| `AUTHENTICATION_API_KEY` | La clave de API global, generada por ti. |
+| `DATABASE_CONNECTION_URI` | El Postgres del stack, con un certificado de cliente. |
+| `CACHE_REDIS_ENABLED`, `CACHE_LOCAL_ENABLED` | Qué caché está activa. |
+| `LOG_LEVEL` | Reduce el ruido del log, por ejemplo `ERROR,WARN`. |
+
+## Límites y buenas prácticas
+
+- El despliegue sin caída está desactivado: dos copias podrían abrir dos sesiones del mismo WhatsApp y la conexión se caería.
+- Un rollback vuelve **con los datos**, porque Evolution aplica migraciones de la base de datos en cada arranque.
+- Los datos viven en Postgres y en `/app/instances` y `/app/store`, y forman parte de los snapshots.
+- La conexión de Baileys es WhatsApp Web no oficial: WhatsApp puede bloquearla si se usa para spam. Úsala solo con personas que aceptaron recibir tus mensajes.
+
+## Problemas comunes
+
+- **No aparece el código QR.** Comprueba que la instancia usa `WHATSAPP-BAILEYS` y lee el log de la aplicación.
+- **401 en las llamadas.** El encabezado `apikey` debe ser la clave global o la de la instancia.
+
+## Licencia
+
+Evolution API se distribuye bajo Apache 2.0 **con condiciones adicionales** ([licencia](https://github.com/evolution-foundation/evolution-api/blob/main/LICENSE)): no quites el logo ni el copyright del manager y, si Evolution forma parte de un proyecto tuyo, muestra un aviso claro de que se usa. Léela antes de ofrecer Evolution a terceros. Esta plantilla es un empaquetado de Vertra Cloud y no está afiliada al proyecto.
+
+Consulta también las [demás plantillas oficiales](/es-es/templates/catalog) y [Conecta aplicaciones a bases de datos en un stack](/es-es/templates/use/connect-databases).

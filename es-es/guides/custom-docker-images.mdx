@@ -24,6 +24,8 @@ Los archivos `.env*` siempre se eliminan del contexto de build, y se respeta `.d
 exactamente como lo escribiste: no se reescribe nada. Las variables de entorno no están disponibles durante el build;
 configúralas en la aplicación.
 
+Las imágenes que vienen de una [plantilla](/es-es/templates/overview) también ocupan plazas de imagen: una por imagen distinta, nunca por aplicación. `POST /v1/apps/image` rechaza la imagen de una plantilla con `IMAGE_TEMPLATE_ONLY`; las apps de esa imagen se crean desplegando la plantilla. Quien lo crea también puede mantener una plantilla de imagen [privada](/es-es/templates/create/private-templates).
+
 ## Límites del build
 
 Cada build se ejecuta en su propio entorno de build aislado, con los mismos límites que el build de una aplicación normal:
@@ -58,7 +60,7 @@ Antes de construir, el `Dockerfile` se revisa, en el panel y de nuevo en el serv
 | `COPY` o `ADD` de un archivo `.env` | El archivo no está en el contexto de build, así que el build falla en esa línea. |
 | `VOLUME` fuera de `/app` | Esa ruta se convierte en una carpeta temporal de 64 MB que se borra en cada reinicio. Solo `/app` conserva los datos. |
 
-Puedes ejecutar la misma revisión por la API con [Comprobar Dockerfile](/api-reference/endpoint/images/check).
+Puedes ejecutar la misma revisión por la API con [Comprobar Dockerfile](/es-es/api-reference/endpoint/images/check).
 
 ## Cómo se ejecuta la aplicación
 
@@ -73,7 +75,7 @@ La aplicación se ejecuta con el mismo aislamiento que cualquier otra aplicació
 
 Solo las aplicaciones web tienen puerto. Al crear la aplicación, el valor predeterminado es el **primer `EXPOSE`** del
 `Dockerfile`, o **80** si no hay ninguno. La imagen devuelve ese valor como `suggested_port` en
-[Obtener imagen](/api-reference/endpoint/images/get). La plataforma lo inyecta como la variable de entorno `PORT` y dirige el tráfico a él, así que tu servidor debe escuchar en `PORT`. Una aplicación creada con la web desactivada (un bot o un worker) no tiene puerto ni subdominio. Puedes publicarla en la web más adelante con [Publicar aplicación](/api-reference/endpoint/apps/network/publish), indicando en `port` el puerto en el que escucha la imagen; sin él, la llamada falla con `IMAGE_APP_PORT_REQUIRED`.
+[Obtener imagen](/es-es/api-reference/endpoint/images/get). La plataforma lo inyecta como la variable de entorno `PORT` y dirige el tráfico a él, así que tu servidor debe escuchar en `PORT`. Una aplicación creada con la web desactivada (un bot o un worker) no tiene puerto ni subdominio. Puedes publicarla en la web más adelante con [Publicar aplicación](/es-es/api-reference/endpoint/apps/network/publish), indicando en `port` el puerto en el que escucha la imagen; sin él, la llamada falla con `IMAGE_APP_PORT_REQUIRED`.
 
 ### Variables de entorno
 
@@ -83,7 +85,7 @@ Las variables se configuran por aplicación, nunca en la imagen, para que varias
 
 <Steps>
   <Step title="Crear la imagen">
-    En el panel, abre **Imágenes Docker** y elige **Crear imagen**, o llama a [Crear imagen](/api-reference/endpoint/images/create).
+    En el panel, abre **Imágenes Docker** y elige **Crear imagen**, o llama a [Crear imagen](/es-es/api-reference/endpoint/images/create).
     Elige un ZIP o un repositorio de GitHub; la rama es opcional y por defecto es la rama predeterminada del repositorio. El panel
     muestra el `Dockerfile` con sus hallazgos antes de que empiece el build. Un repositorio de tus instalaciones de la GitHub App
     se vincula, así que cada push a su rama reconstruye la imagen. Un repositorio público fuera de tus instalaciones se construye **una sola vez**,
@@ -92,12 +94,12 @@ Las variables se configuran por aplicación, nunca en la imagen, para que varias
   </Step>
   <Step title="Seguir el build">
     El build se ejecuta en segundo plano. Sigue el log en directo desde el panel o a través de
-    [Logs de build de la imagen](/api-reference/endpoint/images/logs). La imagen pasa a `success` o `failed`; si falla,
+    [Logs de build de la imagen](/es-es/api-reference/endpoint/images/logs). La imagen pasa a `success` o `failed`; si falla,
     el campo `error` y el log explican el motivo.
   </Step>
   <Step title="Crear la aplicación">
     Elige **Crear app desde imagen**, que abre **Nuevo proyecto** con la imagen ya seleccionada, o llama a
-    [Crear aplicación desde imagen](/api-reference/endpoint/apps/create-from-image). Indica el nombre, la RAM, si es una aplicación web, el subdominio, el puerto y las variables. Puedes crear todas las aplicaciones que necesites a partir de una misma imagen. **Nuevo proyecto** también tiene la opción **Usar imagen Docker** para elegir cualquier imagen que ya tengas en tu cuenta.
+    [Crear aplicación desde imagen](/es-es/api-reference/endpoint/apps/create-from-image). Indica el nombre, la RAM, si es una aplicación web, el subdominio, el puerto y las variables. Puedes crear todas las aplicaciones que necesites a partir de una misma imagen. **Nuevo proyecto** también tiene la opción **Usar imagen Docker** para elegir cualquier imagen que ya tengas en tu cuenta.
   </Step>
 </Steps>
 
@@ -105,16 +107,16 @@ Si subes un proyecto que tiene un `Dockerfile` en el flujo normal de crear aplic
 
 ## Actualizar una imagen
 
-Puedes cambiar el nombre de una imagen y darle una descripción (de hasta 128 caracteres) en el panel o con [Actualizar imagen](/api-reference/endpoint/images/update); no se construye nada ni se reinicia nada.
+Puedes cambiar el nombre de una imagen y darle una descripción (de hasta 128 caracteres) en el panel o con [Actualizar imagen](/es-es/api-reference/endpoint/images/update); no se construye nada ni se reinicia nada.
 
 Cada build correcto se convierte en una nueva **versión** de la misma imagen, con el mismo ID. Solo se ejecuta un build a la vez por imagen: una segunda petición responde `IMAGE_BUILD_IN_PROGRESS`.
 
-- **Reconstruir con una subida.** Envía un contexto completo nuevo con **Actualizar imagen** o con [Reconstruir imagen](/api-reference/endpoint/images/rebuild). Reemplaza todo el contexto.
+- **Reconstruir con una subida.** Envía un contexto completo nuevo con **Actualizar imagen** o con [Reconstruir imagen](/es-es/api-reference/endpoint/images/rebuild). Reemplaza todo el contexto.
 - <a id="commit-on-top-of-the-current-context"></a>**Commit.** Un commit en una aplicación que se ejecuta desde una imagen (panel, `vertra app commit` o la GitHub Action) coloca tus archivos **encima del contexto actual** y reconstruye la imagen. Como la imagen se comparte, el panel avisa de cuántas aplicaciones la usan antes de que confirmes. Solo se reinicia la aplicación que recibió el commit, y únicamente si pediste un reinicio.
-- **GitHub.** [Vincula la imagen](/api-reference/endpoint/images/github-link) a un repositorio de tus instalaciones de la GitHub App. La rama es opcional (por defecto: la rama predeterminada del repositorio). Solo el propietario de la imagen puede vincularla o desvincularla (en un workspace, los miembros reciben `403`). Cada push a esa rama reconstruye la imagen, igual que una reconstrucción manual. Una imagen construida una vez desde un repositorio público no queda vinculada hasta que hagas esto. [Desvincúlala](/api-reference/endpoint/images/github-unlink) en cualquier momento.
+- **GitHub.** [Vincula la imagen](/es-es/api-reference/endpoint/images/github-link) a un repositorio de tus instalaciones de la GitHub App. La rama es opcional (por defecto: la rama predeterminada del repositorio). Solo el propietario de la imagen puede vincularla o desvincularla (en un workspace, los miembros reciben `403`). Cada push a esa rama reconstruye la imagen, igual que una reconstrucción manual. Una imagen construida una vez desde un repositorio público no queda vinculada hasta que hagas esto. [Desvincúlala](/es-es/api-reference/endpoint/images/github-unlink) en cualquier momento.
 - **GitHub Action.** Usa la entrada `image-id` en lugar de `app-id` para reconstruir una imagen desde tu workflow. Con el `app-id` de una aplicación que se ejecuta desde una imagen, el despliegue es un commit como el descrito arriba. Consulta [GitHub Actions](/es-es/github-actions).
 
-Una reconstrucción **nunca reinicia tus aplicaciones**. Un build fallido no cambia la versión actual: las aplicaciones siguen ejecutando la última que funcionó. Puedes leer el contexto actual con [Descargar contexto de imagen](/api-reference/endpoint/images/context).
+Una reconstrucción **nunca reinicia tus aplicaciones**. Un build fallido no cambia la versión actual: las aplicaciones siguen ejecutando la última que funcionó. Puedes leer el contexto actual con [Descargar contexto de imagen](/es-es/api-reference/endpoint/images/context).
 
 ### Cuándo pasa una aplicación a una nueva versión
 
@@ -122,7 +124,7 @@ Una aplicación cambia de versión solo cuando tú lo pides: un reinicio o despl
 
 ## Versiones y rollback
 
-Lista las versiones con [Listar versiones de la imagen](/api-reference/endpoint/images/versions). Cada una registra su digest, su origen (`upload`, `commit` o `github`), el mensaje y si alguna aplicación la está usando.
+Lista las versiones con [Listar versiones de la imagen](/es-es/api-reference/endpoint/images/versions). Cada una registra su digest, su origen (`upload`, `commit` o `github`), el mensaje y si alguna aplicación la está usando.
 
 Cada release de una aplicación apunta a una versión de la imagen y a las variables con las que arrancó. Las aplicaciones conservan hasta **30 releases durante 30 días** en los planes Enterprise. Hacer rollback de una aplicación inicia una versión que ya estaba construida, así que es instantáneo y no necesita reconstrucción. Consulta [Rollback y despliegues sin interrupción](/es-es/guides/rollback-and-zero-downtime-deploys). Una versión solo se elimina cuando ningún release de ninguna aplicación la usa y no es la actual.
 
@@ -137,7 +139,7 @@ Un snapshot de una aplicación que se ejecuta desde una imagen contiene los **da
 
 ## Eliminar una imagen
 
-Eliminar una imagen borra sus versiones, su contexto y **cada aplicación creada a partir de ella**. Confirmas escribiendo el nombre de la imagen (`confirm_name` en [Eliminar imagen](/api-reference/endpoint/images/delete)). No se puede eliminar mientras hay un build en curso. Cada aplicación eliminada sigue las reglas habituales para eliminar una aplicación, incluido el snapshot de seguridad en los planes que lo tienen. Con una clave de API, eliminar una imagen que tiene aplicaciones también necesita el ámbito `apps:delete`.
+Eliminar una imagen borra sus versiones, su contexto y **cada aplicación creada a partir de ella**. Confirmas escribiendo el nombre de la imagen (`confirm_name` en [Eliminar imagen](/es-es/api-reference/endpoint/images/delete)). No se puede eliminar mientras hay un build en curso. Cada aplicación eliminada sigue las reglas habituales para eliminar una aplicación, incluido el snapshot de seguridad en los planes que lo tienen. Con una clave de API, eliminar una imagen que tiene aplicaciones también necesita el ámbito `apps:delete`.
 
 ## Imágenes en workspaces
 
@@ -167,4 +169,4 @@ Las imágenes tienen sus propios ámbitos: `images:read` para listar, leer, ver 
 | `IMAGE_NAME_MISMATCH` | `confirm_name` no es el nombre de la imagen. |
 | `IMAGE_NOT_FOUND` / `IMAGE_VERSION_NOT_FOUND` | La imagen o la versión no existe, o no es tuya. |
 
-Consulta [Errores](/api-reference/errors#custom-docker-images) para ver los códigos de estado HTTP.
+Consulta [Errores](/es-es/api-reference/errors#imágenes-de-docker-personalizadas) para ver los códigos de estado HTTP.

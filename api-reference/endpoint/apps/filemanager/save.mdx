@@ -27,6 +27,10 @@ description: Creates or updates a file or folder for an application by its ID.
   Optional ISO timestamp of the file's last known mtime, as returned by [`GET /files/content`](/api-reference/endpoint/apps/filemanager/content). When provided and it doesn't match the file's current mtime on disk, the save is rejected with `FILE_MODIFIED` instead of silently overwriting a newer version — use this to detect edit conflicts. Omit it to save unconditionally.
 </ParamField>
 
+<ParamField body="confirm_detach" type="boolean">
+  Set to `true` to confirm that the change detaches an application that came from an open template (it stops receiving versions). Without it the request changes nothing and answers `409` `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`. Ignored for other applications. See [Detach from a template](/api-reference/endpoint/templates/detach).
+</ParamField>
+
 ### Response
 
 A success returns `200` with `{ "response": null }`.
@@ -58,6 +62,7 @@ A success returns `200` with `{ "response": null }`.
   - `FILE_MODIFIED`: The file's current mtime doesn't match the `last_modified` sent — someone else changed it since it was last read. Reload the file before saving again.
   - `PUT_FILE_FAILED`: Failed to create or update the file or folder.
   - `OWNER_APP_WITHOUT_LIMITS`: The owner's plan limits could not be found.
+  - `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`: The change would detach the application from its template and `confirm_detach` was not sent (`409`). Nothing was changed.
 </ResponseField>
 
 <ResponseField name="message" type="string">

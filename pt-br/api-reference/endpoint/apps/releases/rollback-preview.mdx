@@ -1,0 +1,109 @@
+---
+title: Pré-visualizar rollback da aplicação
+sidebarTitle: Pré-visualizar rollback
+api: GET https://api.vertracloud.app/v1/apps/{id}/releases/{release_id}/rollback
+authMethod: bearer
+description: Pré-visualiza as variáveis de ambiente que um rollback para esta release adicionaria, alteraria ou removeria, só com nomes e tipos de mudança.
+---
+
+{/* @see APIApplicationRollbackPreview — @vertracloud/api-types */}
+Retorna quais variáveis de ambiente mudariam se você fizesse o rollback da aplicação para esta release e restaurasse as variáveis dela. Só voltam os nomes das variáveis e o tipo de mudança, nunca os valores. Nada é alterado.
+
+O rollback não restaura variáveis a menos que você peça. Confira esta pré-visualização primeiro e então envie a requisição de [rollback](/pt-br/api-reference/endpoint/apps/releases/rollback) com `restore_environment: true` se as mudanças forem as que você quer.
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação. Se a aplicação pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField path="release_id" type="string" required>
+  O ID da release para a qual você faria o rollback, como retornado pela [lista de releases](/pt-br/api-reference/endpoint/apps/releases/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+Cada mudança é comparada com as variáveis atuais da aplicação, incluindo as salvas mas ainda não aplicadas por um restart. Essas são as variáveis que um rollback sobrescreve:
+
+- `added`: a release tem a variável, e as variáveis atuais não têm.
+- `removed`: as variáveis atuais têm a variável, e a release não tem. Uma variável criada depois da release e ainda não aplicada por um restart aparece como `removed`.
+- `modified`: ambas têm a variável, com valores diferentes.
+
+A lista é ordenada pela chave. Ela fica vazia quando a release não tem variáveis salvas, ou quando restaurá-las não mudaria nada.
+
+Exige o escopo `apps:envs` quando chamado com uma chave de API. Para um membro do workspace, exige a permissão `apps:envs`.
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  As mudanças de variáveis que um rollback faria.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="environment_changes" type="object[]">
+    As variáveis que mudariam. Cada item tem:
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="key" type="string">
+    O nome da variável. O valor nunca é retornado.
+    </ResponseField>
+
+    <ResponseField name="change" type="string">
+    `added`, `modified` ou `removed`.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+{
+  "response": {
+    "environment_changes": [
+      { "key": "DISCORD_TOKEN", "change": "modified" },
+      { "key": "NEW_FEATURE", "change": "removed" }
+    ]
+  }
+}
+```
+
+```json Response (nothing to change)
+{
+  "response": {
+    "environment_changes": []
+  }
+}
+```
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+Códigos de erro possíveis:
+- `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+- `API_KEY_IP_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist (`403`).
+- `APP_NOT_FOUND`: a aplicação não existe, ou não pertence a esta conta ou workspace (`404`).
+- `RELEASE_NOT_FOUND`: a release não existe, ou pertence a outra aplicação (`404`).
+- `PLAN_DOES_NOT_SUPPORT_ROLLBACK`: o seu plano não inclui fazer rollback para releases anteriores (`403`). O rollback começa no Pro.
+- `API_KEY_SCOPE_DENIED`: a chave de API não tem o escopo `apps:envs` (`403`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "code": "RELEASE_NOT_FOUND"
+}
+```
+</ResponseExample>
+
+<Note>
+  Uma release guarda as variáveis com as quais a aplicação foi iniciada. Releases criadas antes do lançamento deste recurso não têm nenhuma salva, então a pré-visualização delas é sempre vazia.
+</Note>

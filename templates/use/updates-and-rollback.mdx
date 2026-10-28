@@ -1,0 +1,89 @@
+---
+title: 'How to Update a Template and Roll Back on Vertra Cloud'
+sidebarTitle: 'Updates and rollback'
+description: 'Template updates never run on their own: you click Update, a safety snapshot is taken first and a failure restores everything. Learn rollback with data.'
+icon: 'rotate-left'
+---
+
+An app or stack created from a template is never updated automatically. It stays on the version it was born with until you click **Update**. The update takes a safety snapshot first, deploys the new version and checks health, and if any step fails it brings every service back to the snapshot.
+
+## Update to a new version
+
+When a new version is published, the app or stack shows **New version available** with a short changelog and the **Update** button. A security version is highlighted in the dashboard and also sent by email to the accounts running an older version; the click stays yours.
+
+Before you confirm, the update shows what would change: the new version, whether it is a security release, new questions, services added or removed, memory that rose and whether it opens permissions.
+
+<Steps>
+  <Step title="Safety snapshot">
+    A snapshot of the `/app` of each app and of the stack's databases is taken without stopping anything.
+  </Step>
+  <Step title="Deploy">
+    The services are updated one after the other, with the same steps as a deploy: images, apps, variables, certificates, start and health check.
+  </Step>
+  <Step title="Rollback on failure">
+    If a step fails, **every** service goes back: the variables, connections and the app's settings return to what they were, and the snapshot is restored.
+  </Step>
+</Steps>
+
+Only the owner of the account or workspace can update; a workspace member can read the update information.
+
+### When a new version changes the recipe
+
+| The new version | What happens |
+|---|---|
+| Adds a service | It is created during the update, in the same operation. Without enough free memory the update is blocked, with the reason. |
+| Removes a service | The service is **not deleted**. It leaves the template link and the dashboard tells you that you can delete it. |
+| Adds a required question | **Update** opens a short wizard with only the new questions. Questions you already answered are not asked again. |
+| Raises the minimum memory | The wizard proposes raising the memory when there is free memory; otherwise the update is blocked with the reason. |
+| Requires a higher plan or more image slots | The update is blocked until your plan serves it. |
+| Adds a variable the author hides | It is applied (it belongs to the author). |
+
+A blocked update returns `TEMPLATE_UPDATE_BLOCKED` with a `reason`: `no_new_version`, `detached`, `template_removed`, `link_revoked`, `ram`, `plan`, `image_slots`, `app_building` or `deploy_in_progress`. See the [error reference](/templates/reference/errors#deploy-and-update-errors).
+
+### Permissions never get stricter
+
+An existing app keeps the policy it was created with. If the new version opens something (a closed template becomes open), it opens on the update. If a new version closes something, it applies only to apps created afterwards: whoever has already seen the code cannot unsee it. See [Closed templates](/templates/use/closed-templates).
+
+### Detached apps and removed templates
+
+- If the template's author **removes the template**, your app keeps running normally, with a notice that it will not receive more updates.
+- If you edit the code of an **open** template's app, the app **detaches** and becomes an ordinary app with no updates. The dashboard warns you before the first edit, and you can also detach it yourself. The app of a closed template cannot be detached.
+- Versions of a template that some app uses are never deleted from storage.
+
+## Rollback and snapshots
+
+Rollback of a template app depends on whether the software migrates its data when it updates.
+
+| Template declares | What rollback does |
+|---|---|
+| Rollback with data **required** | Only-code rollback is blocked (`TEMPLATE_ROLLBACK_REQUIRES_DATA`). Restore the **safety snapshot** taken before the update, which brings back the image or code, `/app` and the databases together. |
+| Rollback with data **optional** | The normal rollback works. |
+
+Software such as n8n, Open WebUI and Evolution API migrates its database on startup, so older code cannot run on the data as it is now. That is why these templates require rollback with data. Apps that are not from a template, and apps that were detached, keep the usual rollback described in [Rollback and zero-downtime deploys](/guides/rollback-and-zero-downtime-deploys). For snapshots, see [Backups and snapshots](/guides/backups-snapshots).
+
+## Why deploys without downtime come off
+
+Deploys without downtime keep two copies of the app running at the same time while one replaces the other. Most templates keep this **off and locked**, because two copies would break the software:
+
+| Software | What breaks with two copies |
+|---|---|
+| OpenClaw, Hermes Agent | Both connect to the same channel (Telegram, WhatsApp, Discord) and every message is answered twice. |
+| Evolution API | Two sessions of the same WhatsApp number; one knocks the other out. |
+| n8n | Scheduled triggers fire twice; with SQLite, risk of corrupting the data. |
+| Uptime Kuma, Open WebUI | SQLite with two processes writing. |
+| Discord bots | Two copies with the same token answer twice. |
+
+An author can only restrict what the plan allows; the plan still decides what exists. Automatic rollback, where your plan has it, stays on by default.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Stacks" icon="layer-group" href="/templates/use/stacks">
+    The stack update runs every service together.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/templates/reference/errors">
+    Update blocks and their reasons.
+  </Card>
+</CardGroup>
+
+For the API, see [Update info](/api-reference/endpoint/templates/update-info), [Update](/api-reference/endpoint/templates/update) and [Detach](/api-reference/endpoint/templates/detach).

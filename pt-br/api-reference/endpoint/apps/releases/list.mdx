@@ -1,0 +1,192 @@
+---
+title: Listar releases da aplicação
+sidebarTitle: Listar releases
+api: GET https://api.vertracloud.app/v1/apps/{id}/releases
+authMethod: bearer
+description: Lista as versões de código de uma aplicação, da mais recente para a mais antiga, com origem, status, mensagem, autor e disponibilidade de rollback.
+---
+
+{/* @see APIApplicationRelease, RESTGetAPIApplicationReleasesQuery — @vertracloud/api-types */}
+Retorna o histórico de releases de uma aplicação: uma entrada para cada versão do seu código, da mais recente para a mais antiga. Cada entrada informa como a versão foi criada, se é a que está rodando agora e se ela pode ser restaurada.
+
+<Note>
+  O histórico começa na primeira submissão de código feita depois do lançamento deste recurso. Releases criadas a partir de um snapshot não aparecem nele.
+</Note>
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação. Se a aplicação pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página, começando em `1`.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="20">
+  Releases por página. Máximo `50`; valores maiores retornam `400 VALIDATION_ERROR`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+Exige o escopo `apps:read` quando chamado com uma chave de API.
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  Lista paginada, da mais recente para a mais antiga.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="data" type="APIApplicationRelease[]">
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="id" type="string">
+    O ID da release. Passe-o para o endpoint de [log da release](/pt-br/api-reference/endpoint/apps/releases/log).
+    </ResponseField>
+
+    <ResponseField name="app_id" type="string">
+    O ID da aplicação.
+    </ResponseField>
+
+    <ResponseField name="source" type="string">
+    Como a release foi criada: `github` (push para o repositório conectado), `cli` (a CLI da Vertra), `upload` (upload pelo painel, por um SDK ou por uma extensão), `editor` (edição feita no gerenciador de arquivos), `rollback` (restaura uma release anterior) ou `env_change` (variáveis de ambiente alteradas, sem mudança de código).
+    </ResponseField>
+
+    <ResponseField name="status" type="string">
+    Em que ponto do ciclo de vida a release está: `deploying` (sendo buildada e iniciada), `active` (a versão que a aplicação roda agora; há apenas uma), `superseded` (substituída por uma release mais nova), `failed` (o deploy não iniciou), `rolled_back` (substituída por um rollback) ou `expired` (o código dela não é mais mantido).
+    </ResponseField>
+
+    <ResponseField name="message" type="string | null">
+    A mensagem do commit ou do upload. `null` quando nenhuma foi informada, e sempre `null` para edições do gerenciador de arquivos.
+    </ResponseField>
+
+    <ResponseField name="author" type="string">
+    O usuário do GitHub que fez o push, ou o nome do usuário que enviou ou editou os arquivos.
+    </ResponseField>
+
+    <ResponseField name="github" type="object | null">
+    O push do GitHub que originou esta release, com `app_id`, `commit_id`, `message`, `pusher`, `branch` e `created_at`. `null` para qualquer outra origem.
+    </ResponseField>
+
+    <ResponseField name="files_changed" type="integer">
+    Número de arquivos alterados pela operação que gerou esta release.
+    </ResponseField>
+
+    <ResponseField name="rollback" type="object">
+    Informações de restauração desta release.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="available" type="boolean">
+    `true` quando você pode fazer rollback da aplicação para esta release. É `false` para a release ativa, para uma release expirada e quando o seu plano não permite fazer rollback para ela.
+    </ResponseField>
+
+    <ResponseField name="expires_at" type="string | null">
+    Quando o código desta release deixa de ser mantido, contado a partir do momento em que ela deixou de ser a release ativa. `null` para a release ativa e quando nenhum código foi mantido.
+    </ResponseField>
+
+    <ResponseField name="from" type="string | null">
+    A release que esta restaura, quando `source` é `rollback`. `null` nos demais casos.
+    </ResponseField>
+
+    </Expandable>
+    </ResponseField>
+
+    <ResponseField name="has_log" type="boolean">
+    `true` quando um log de crash foi registrado para esta release. O log ainda pode expirar; veja o endpoint de log da release.
+    </ResponseField>
+
+    <ResponseField name="build_duration_ms" type="integer | null">
+    Tempo, em milissegundos, gasto na instalação das dependências, no build e na inicialização desta release. `null` quando ela não foi deployada com build, por exemplo arquivos commitados sem um restart.
+    </ResponseField>
+
+    <ResponseField name="first_started_at" type="string | null">
+    Quando a aplicação iniciou pela primeira vez com o código desta release. `null` enquanto o código está na pasta da aplicação, mas ela ainda não foi reiniciada com ele: as mudanças só valem após um restart.
+    </ResponseField>
+
+    <ResponseField name="created_at" type="string" format="date-time">
+    Timestamp ISO de quando a release foi criada.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="total_count" type="integer">Total de releases no histórico.</ResponseField>
+  <ResponseField name="page" type="integer">Página atual.</ResponseField>
+  <ResponseField name="limit" type="integer">Releases por página.</ResponseField>
+  <ResponseField name="total_pages" type="integer">Total de páginas.</ResponseField>
+  <ResponseField name="has_next_page" type="boolean" />
+  <ResponseField name="has_previous_page" type="boolean" />
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+{
+  "response": {
+    "data": [
+      {
+        "id": "3f1c2a9e-8b7d-4c21-9e0a-5d6f7a8b9c01",
+        "app_id": "7a52e0d4-19b3-4f8e-b6c2-0d9e4a1f5c73",
+        "source": "github",
+        "status": "active",
+        "message": "Fix checkout total",
+        "author": "octocat",
+        "github": {
+          "app_id": "7a52e0d4-19b3-4f8e-b6c2-0d9e4a1f5c73",
+          "commit_id": "a3f9c1e7b2d4568f0e1c9a7b3d5f2e8c4a6b1d90",
+          "message": "Fix checkout total",
+          "pusher": "octocat",
+          "branch": "main",
+          "created_at": "2026-10-10T14:22:05.000Z"
+        },
+        "files_changed": 3,
+        "rollback": {
+          "available": false,
+          "expires_at": null,
+          "from": null
+        },
+        "has_log": false,
+        "build_duration_ms": 48210,
+        "first_started_at": "2026-10-10T14:22:53.000Z",
+        "created_at": "2026-10-10T14:22:05.000Z"
+      }
+    ],
+    "total_count": 1,
+    "page": 1,
+    "limit": 20,
+    "total_pages": 1,
+    "has_next_page": false,
+    "has_previous_page": false
+  }
+}
+```
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+Códigos de erro possíveis:
+- `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+- `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
+- `APP_NOT_FOUND`: a aplicação não existe, ou não pertence a esta conta ou workspace (`404`).
+- `VALIDATION_ERROR`: o `page` ou o `limit` é inválido, por exemplo um `limit` acima de `50` (`400`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+</ResponseExample>
+
+<Note>
+  As entradas desta lista são mantidas permanentemente. O código das releases mais antigas, porém, é mantido apenas por um período que depende do seu plano, e esse período começa quando a release deixa de ser a ativa, não quando foi criada. Depois que o código expira, a entrada mostra `status: "expired"` e `rollback.available: false`.
+</Note>

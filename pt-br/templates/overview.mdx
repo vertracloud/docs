@@ -1,0 +1,84 @@
+---
+title: 'O que são templates na Vertra Cloud e qual plano você precisa'
+sidebarTitle: 'Visão geral'
+description: 'Templates criam um app ou uma stack de apps e bancos de dados em um passo. Veja as três origens, como o plano exigido é calculado e as vagas de imagem.'
+icon: 'cubes'
+---
+
+Um template é uma receita pronta que cria um app, ou um grupo de apps e bancos de dados conectados, em um passo. Você escolhe o template, responde a algumas perguntas e a Vertra Cloud constrói tudo, configura as conexões e entrega o endereço e as credenciais. Se algum passo falhar, tudo o que o template criou é removido.
+
+Qualquer plano pode usar templates, desde que a conta atenda aos requisitos do template: memória livre, publicação web e, para templates que executam uma imagem Docker, um plano com imagens e uma vaga de imagem livre. Veja [Planos e limites](/pt-br/plans-and-limits) para saber o que cada plano inclui.
+
+## O que um template cria
+
+| O template tem | O que você recebe |
+|---|---|
+| Um app e nenhum banco de dados | Apenas o app. |
+| Dois ou mais serviços (apps, bancos de dados, uma pasta do Blob) | Uma [stack](/pt-br/templates/use/stacks): os serviços criados juntos e já conectados. |
+
+Tudo o que um template cria é um recurso comum da sua conta. A pasta `/app` do app é o disco persistente dele, e o resto do sistema de arquivos é somente leitura, igual a qualquer outro app da plataforma.
+
+## Templates de código e templates de imagem
+
+Cada app de um template vem de uma de duas origens, e a origem define o que o template exige do seu plano.
+
+| Origem | Como executa | Requisito de plano | Vaga de imagem |
+|---|---|---|---|
+| `code` | Um ZIP com o código do template, extraído em `/app` e executado por um dos runtimes de linguagem da plataforma. | Apenas memória e, para apps web, publicação web. | Não usa. |
+| `image` | Uma imagem Docker fixada em uma versão exata. | Um plano que inclua imagens Docker. | Uma vaga por imagem distinta. |
+
+Os templates de bot do Discord são templates de código. n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI e Uptime Kuma executam uma imagem. Veja o [catálogo](/pt-br/templates/catalog).
+
+## As três origens
+
+Todo template exibe um selo que indica de onde ele vem.
+
+| Origem | Quem publica | O que saber |
+|---|---|---|
+| **Vertra** | A Vertra Cloud. | Testado antes de cada versão ser lançada. O código é aberto. |
+| **Community** | Autores que contribuíram o template ao catálogo público por pull request. | Revisado antes de entrar no catálogo. O código é aberto. |
+| **Private** | Você, seu workspace ou alguém que enviou a você um [link de compartilhamento](/pt-br/templates/use/receive-a-link). | Não aparece publicamente. Um template de link mostra **Not verified by Vertra**. O autor pode [fechar o código](/pt-br/templates/use/closed-templates). |
+
+Templates públicos (Vertra e Community) nunca contêm segredos: tudo o que é sensível é pedido a você ou gerado para você quando você usa o template. Para publicar o seu, veja [Criar templates](/pt-br/templates/create/overview).
+
+## Como o plano exigido é calculado
+
+A plataforma calcula o plano de que um template precisa a partir do que ele vai criar, incluindo suas respostas no assistente, e compara com a sua conta. O plano exigido é o maior entre dois valores:
+
+- **Requisitos calculados:** a soma da memória mínima de todos os serviços precisa caber na sua memória **livre**; um serviço com web exige publicação web; um serviço de imagem exige um plano com imagens e uma vaga de imagem livre; uma pasta do Blob exige um plano com Blob Storage; os limites do plano de apps e de bancos de dados e o limite por hora de deploys precisam deixar espaço.
+- **Plano mínimo declarado:** o autor também pode exigir um plano mínimo por motivos comerciais.
+
+Um template pode restringir o que o seu plano permite (por exemplo, desativar deploys sem downtime), mas nunca libera nada que o seu plano não inclua.
+
+Quando a conta não atende, o card da galeria e a página do template explicam o motivo ("precisa de 2 GB de memória livre", "precisa de um plano com imagens") e o botão leva ao upgrade. O assistente mostra "precisa de X, você tem Y livre" para a memória. Os números dos planos estão em [Planos e limites](/pt-br/plans-and-limits).
+
+## Vagas de imagem
+
+Um template que executa uma imagem usa **uma vaga de imagem por imagem distinta**, nunca uma por app.
+
+| De onde vem a imagem | De quem é a vaga usada |
+|---|---|
+| Sua própria imagem | Sua, como antes. |
+| Seu próprio template privado | Sua. A imagem já a ocupa. |
+| Um template público (Vertra ou Community) | Sua: uma vaga por template de imagem em uso. |
+| Um link de compartilhamento | Sua: uma vaga para a cópia da imagem. O autor mantém a dele. |
+| Um template de código | Nenhuma. |
+
+Três apps criados a partir do mesmo template usam uma vaga, e uma nova versão desse template usa a mesma vaga. A vaga é liberada quando o último app que usa a imagem é removido. Na sua lista de imagens, a vaga aparece como "n8n (template)", sem ações de rebuild ou edição. As vagas contam para o mesmo limite das [imagens Docker personalizadas](/pt-br/guides/custom-docker-images).
+
+## Para onde ir em seguida
+
+<CardGroup cols={2}>
+  <Card title="Usar um template" icon="rocket" href="/pt-br/templates/use/using-a-template">
+    A galeria, o assistente, o que é criado e as saídas.
+  </Card>
+  <Card title="Stacks" icon="layer-group" href="/pt-br/templates/use/stacks">
+    Como apps, bancos de dados e pastas do Blob vivem juntos.
+  </Card>
+  <Card title="Atualizar e fazer rollback" icon="rotate-left" href="/pt-br/templates/use/updates-and-rollback">
+    Novas versões, o snapshot de segurança e o rollback com dados.
+  </Card>
+  <Card title="Catálogo" icon="store" href="/pt-br/templates/catalog">
+    Os templates oficiais.
+  </Card>
+</CardGroup>

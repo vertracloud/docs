@@ -1,0 +1,82 @@
+---
+title: Crear webhook de despliegue
+sidebarTitle: Crear webhook
+api: POST https://api.vertracloud.app/v1/apps/{app_id}/deploys/webhook
+authMethod: bearer
+description: Crea un webhook de despliegue para un repositorio de GitHub, de forma que un push a la rama elegida despliegue la aplicación.
+---
+
+{/* @see webhook — @vertracloud/api-types */}
+<ParamField path="app_id" type="string" required>
+El ID de la aplicación en la que se creará el webhook.
+</ParamField>
+
+<ParamField body="owner" type="string" required>
+El propietario del repositorio de GitHub.
+</ParamField>
+
+<ParamField body="repo_name" type="string" required>
+El nombre del repositorio de GitHub.
+</ParamField>
+
+<ParamField body="repo_id" type="string" required>
+El ID del repositorio de GitHub. Se comprueba contra el propio repositorio: si no coincide con `owner` y `repo_name`, la petición falla con `VALIDATION_ERROR` (`400`) y `details.path` apunta a `repo_id`.
+</ParamField>
+
+<ParamField body="account_id" type="string" required>
+El ID de la cuenta de GitHub.
+</ParamField>
+
+<ParamField body="branch" type="string">
+La rama de Git que dispara el despliegue (por ejemplo `develop` o `release/1.2`). Es opcional: sin ella, un push a `main` o `master` despliega. Con ella, solo un push a esa rama despliega, y un push a cualquier otra rama se ignora. La entrega sigue respondiendo con `200`.
+
+Si vuelves a llamar a esta ruta para una aplicación que ya tiene un webhook, se reemplaza la rama: envía otra `branch` para cambiarla, o omítela para volver a `main` o `master`. Un nombre de rama no válido falla con `VALIDATION_ERROR` (`400`) y `details.path` apunta a `branch`.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+Contiene el webhook creado.
+
+<Expandable title="Mostrar objeto">
+  <ResponseField name="url" type="string">
+  La URL del webhook creado.
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "response": {
+    "url": "https://api.vertracloud.app/v1/apps/123/deploys/receiver/webhook"
+  }
+}
+```
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+Códigos de error posibles:
+- `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+- `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+- `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+- `PLAN_RESTRICTED_FEATURE`: El plan del usuario no admite el despliegue automático.
+- `INSTALLATION_NOT_FOUND`: No se encontró la instalación de GitHub del usuario, o el repositorio no es uno de los repositorios a los que esa instalación tiene acceso (`404`).
+- `IMAGE_APP_CODE_NOT_APPLICABLE`: La aplicación ejecuta una imagen Docker personalizada, que no tiene despliegue automático desde GitHub (`409`). Vincula la imagen a GitHub en su lugar.
+- `FETCH_ZIP_ERROR`: No se pudo contactar con GitHub, o estaba limitando las peticiones mientras se comprobaba el repositorio (`502`). Inténtalo de nuevo en unos minutos.
+- `VALIDATION_ERROR`: El cuerpo no superó la validación, por ejemplo un `owner`, `repo_name`, `repo_id` o `branch` no válidos (`400`). `details.path` indica el campo.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Una descripción detallada con información adicional sobre el error.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "code": "INSTALLATION_NOT_FOUND"
+}
+```
+</ResponseExample>

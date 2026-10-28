@@ -1,0 +1,196 @@
+---
+title: Get Template
+sidebarTitle: Get Template
+api: GET https://api.vertracloud.app/v1/templates/{template_id}
+authMethod: bearer
+description: Returns one template by ID or slug with its questions, permissions, outputs, documentation and changelog, which is what a deploy wizard needs.
+---
+
+{/* @see APITemplateDetail, RESTGetAPITemplateQuery, RESTGetAPITemplateResponse — @vertracloud/api-types */}
+Returns one template, with everything needed to ask the user for the answers and show what happens next. Public templates need **no authentication**. A private template is visible only to its owner or, when it belongs to a workspace, to members who can read the workspace applications; for anyone else it is the same `404` as a template that does not exist. With a session or an API key (scope `templates:read`) the response also carries the `account` block. A closed template never carries code. Reads are limited to 60 requests per minute per client.
+
+<ParamField path="template_id" type="string" required>
+  The template ID or its slug. Hidden and deprecated templates are served here even though the gallery does not list them (see `visibility`).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace of a private template. Needed to resolve a workspace template by **slug**; by ID it is optional.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The template. It has **every field of the items returned by [List Templates](/api-reference/endpoint/templates/list)** (`id`, `slug`, `origin`, `visibility`, `name`, `description`, `category`, `tags`, `icon_url`, `author_display`, `links`, `landing`, `featured`, `current_version`, `services`, `creates_stack`, `ram_min_total`, `byok`, `required_plan`, `code_view`, `uses_count`, `owner`, `github`, `created_at`, `updated_at` and, when authenticated, `account`), plus the ones below.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="inputs" type="object[]">
+    The questions the user answers when using the template. Send the answers in `inputs` of [Deploy Template](/api-reference/endpoint/templates/deploy), by question `id`.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="id" type="string">
+      The question ID, unique in the template.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      `text`, `secret`, `select`, `boolean`, `number`, `url` or `email`.
+    </ResponseField>
+
+    <ResponseField name="label" type="object">
+      The question in the three languages.
+    </ResponseField>
+
+    <ResponseField name="help" type="object">
+      Optional explanation, in the three languages.
+    </ResponseField>
+
+    <ResponseField name="required" type="boolean">
+      Optional, `false` when absent.
+    </ResponseField>
+
+    <ResponseField name="default" type="string | number | boolean">
+      Optional default answer.
+    </ResponseField>
+
+    <ResponseField name="validation" type="object">
+      Optional limits on the answer: `regex`, `min`, `max`, `min_length` and `max_length`.
+    </ResponseField>
+
+    <ResponseField name="generate" type="string">
+      For `secret` questions: `random:<n>` or `uuid`. The platform generates the value when the answer is left empty.
+    </ResponseField>
+
+    <ResponseField name="editable" type="boolean">
+      `false` together with `generate` means the generated value cannot be replaced.
+    </ResponseField>
+
+    <ResponseField name="when" type="object">
+      The question only applies when the answer to another one matches: `input` (the other question ID) and `equals`.
+    </ResponseField>
+
+    <ResponseField name="options" type="object[]">
+      For `select` questions. Each option has `value`, an optional `label` and optional `sets`, what choosing it changes: `services` (a service ID to `on` or `off`), `env` (variables per service) and `ram_extra` (extra memory in MB per service).
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="permissions" type="object">
+    What you can do with an application created from the template. All values are booleans: `code_view`, `code_edit`, `ram_change`, `ram_below_min`, `ram_above_max`, `env_add`, `commands_edit`, `terminal`, `save_as_template` and `detach` (`true` when editing the code detaches the application from the template, open templates only). See [Closed templates](/templates/use/closed-templates).
+  </ResponseField>
+
+  <ResponseField name="outputs" type="object[]">
+    What is shown at the end of a deploy. Each has `label`, `value` (a text or a text per language, which may be a placeholder), `secret` and `once` (the value is shown once and never again).
+  </ResponseField>
+
+  <ResponseField name="readme" type="object | null">
+    The documentation of the template in Markdown, by language, or `null`.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    The changelog of the latest version, by language, or `null`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/discord-bot-js \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "slug": "discord-bot-js",
+    "origin": "vertra",
+    "visibility": "public",
+    "name": { "pt-br": "Bot de Discord (JavaScript)", "en": "Discord bot (JavaScript)", "es": "Bot de Discord (JavaScript)" },
+    "description": { "pt-br": "Bot de Discord com discord.js e o comando /ping. Ponto de partida para o seu bot.", "en": "Discord bot with discord.js and a /ping command. A starting point for your bot." },
+    "category": "bots",
+    "tags": ["discord", "bot", "javascript", "discordjs"],
+    "icon_url": null,
+    "author_display": null,
+    "links": { "website": "https://discord.js.org", "docs": "https://discordjs.guide" },
+    "landing": null,
+    "featured": true,
+    "current_version": { "id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10", "version": "1.0.0", "security": false, "created_at": "2026-10-26T13:05:00Z" },
+    "services": [
+      { "id": "app", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null, "ram": { "min": 256, "recommended": 256 }, "web": "none", "conditional": false }
+    ],
+    "creates_stack": false,
+    "ram_min_total": 256,
+    "byok": false,
+    "required_plan": "economy",
+    "code_view": true,
+    "uses_count": 87,
+    "owner": null,
+    "github": null,
+    "created_at": "2026-10-26T09:00:00Z",
+    "updated_at": "2026-10-26T13:05:00Z",
+    "inputs": [
+      {
+        "id": "discord_token",
+        "type": "secret",
+        "label": { "pt-br": "Token do bot", "en": "Bot token" },
+        "required": true,
+        "validation": { "min_length": 50, "max_length": 100 }
+      }
+    ],
+    "permissions": {
+      "code_view": true,
+      "code_edit": true,
+      "ram_change": true,
+      "ram_below_min": false,
+      "ram_above_max": true,
+      "env_add": true,
+      "commands_edit": true,
+      "terminal": false,
+      "save_as_template": true,
+      "detach": true
+    },
+    "outputs": [
+      {
+        "label": { "pt-br": "Próximo passo", "en": "Next step" },
+        "value": { "en": "Invite the bot to your server and type /ping." },
+        "secret": false,
+        "once": false
+      }
+    ],
+    "readme": null,
+    "changelog": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: A parameter is not valid (`400`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:read` scope (`403`).
+  - `TEMPLATE_NOT_FOUND`: The template does not exist, was removed or is not visible to you (`404`).
+  - `WORKSPACE_NOT_FOUND`: The workspace in `workspace_id` does not exist or you are not part of it (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Too many requests (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

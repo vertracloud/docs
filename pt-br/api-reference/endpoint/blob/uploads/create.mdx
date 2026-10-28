@@ -1,0 +1,195 @@
+---
+title: "Iniciar um upload direto para o Blob"
+sidebarTitle: "Iniciar upload direto"
+api: "POST https://blob.vertracloud.app/v1/uploads"
+authMethod: bearer
+description: "Inicia um upload de até 10 GB que vai direto para o armazenamento. Retorna as URLs para enviar os bytes. Aceita um token de upload."
+---
+
+{/* @see RESTPostAPIBlobUploadBody, RESTPostAPIBlobUploadResponse, APIBlobUpload — @vertracloud/api-types */}
+
+Inicia um upload direto: os bytes saem do seu cliente direto para o armazenamento, sem passar pela API. Arquivos até o limite de parte única do plano voltam no modo `single`, com uma `url`. Arquivos maiores voltam no modo `multipart`, com tamanho e quantidade de partes. Depois envie os bytes e chame [Concluir um upload direto](/pt-br/api-reference/endpoint/blob/uploads/complete). O armazenamento reservado conta na cota até o upload ser concluído, abortado ou expirar.
+
+**Escopo:** `blob:write`. Aceita um token de upload.
+
+**Token de upload:** esta rota também aceita um token de upload (`Authorization: Bearer vcup_...`) em vez de uma chave de API.
+
+<ParamField body="path" type="string" required>
+  Caminho de destino, com as mesmas regras de [Upload em uma única requisição](/pt-br/api-reference/endpoint/blob/objects/upload).
+</ParamField>
+
+<ParamField body="size" type="number" required>
+  Tamanho exato do arquivo em bytes, de 0 até 10 GB. Os bytes armazenados precisam bater com ele.
+</ParamField>
+
+<ParamField body="visibility" type="string">
+  `public` ou `private`. Padrão `private`.
+</ParamField>
+
+<ParamField body="overwrite" type="boolean">
+  Substitui um objeto que já esteja em `path`. Padrão `false`.
+</ParamField>
+
+<ParamField body="rename_on_conflict" type="boolean">
+  Quando `path` já está ocupado, salva o arquivo como `name-1.ext`, `name-2.ext` e assim por diante (o primeiro nome livre), em vez de retornar `BLOB_OBJECT_ALREADY_EXISTS`. O upload carrega o `path` final. Padrão `false`. Não pode ser combinado com `overwrite` e não tem efeito com um token de upload que fixa o `path`.
+</ParamField>
+
+<ParamField body="random_suffix" type="boolean">
+  Insere um sufixo aleatório antes da extensão. Padrão `false`; é forçado para `true` em um token de upload sem `path` fixo.
+</ParamField>
+
+<ParamField body="cache_control" type="string">
+  `immutable`, `max-age=<segundos>` ou `no-cache` (Enterprise-26 ou superior).
+</ParamField>
+
+<ParamField body="content_disposition" type="string">
+  `inline` ou `attachment`. HTML, SVG, XML, XHTML e HTM são sempre `attachment`.
+</ParamField>
+
+<ParamField body="filename" type="string">
+  Nome sugerido no download.
+</ParamField>
+
+<ParamField body="expires_at" type="string">
+  Timestamp ISO 8601 para a exclusão, no mínimo o prazo mínimo do plano a partir de agora.
+</ParamField>
+
+<ParamField body="checksum_sha256" type="string">
+  SHA-256 em hexadecimal do arquivo inteiro. Verificado quando o upload é concluído. Só vale para um upload direto enviado em uma única parte; um upload multipart recusa com `VALIDATION_ERROR`.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Até 5 chaves, cada uma `[a-z0-9-]{1,64}`, 512 bytes no total. Enterprise-12 ou superior.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do dono do workspace e precisa da permissão de workspace `blob:read` (`blob:manage` nas rotas que alteram dados). Omita para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/uploads" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"path":"videos/demo.mp4","size":2147483648,"visibility":"private"}'
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O upload, com as URLs para enviar os bytes.
+  <Expandable title="propriedades">
+  <ResponseField name="id" type="string">ID do upload. Use-o para status, partes, conclusão e aborto.</ResponseField>
+  <ResponseField name="path" type="string">Caminho final, incluindo o sufixo aleatório quando ele foi pedido.</ResponseField>
+  <ResponseField name="mode" type="string">`single` (um `PUT` do arquivo inteiro para `url`) ou `multipart` (várias partes, cada uma com sua própria URL).</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `completed`, `aborted` ou `expired`.</ResponseField>
+  <ResponseField name="size" type="number">Tamanho declarado em bytes. Os bytes armazenados precisam bater com ele em `complete`.</ResponseField>
+  <ResponseField name="expires_at" type="string">Quando as URLs e o armazenamento reservado expiram, como timestamp ISO 8601.</ResponseField>
+  <ResponseField name="url" type="string">Somente no modo `single`: a URL para fazer `PUT` do arquivo inteiro.</ResponseField>
+  <ResponseField name="headers" type="object">Headers que o `PUT` deve enviar exatamente como informados, porque fazem parte da assinatura.</ResponseField>
+  <ResponseField name="part_size" type="number">Somente no modo `multipart`: o tamanho fixo de cada parte em bytes. A última parte pode ser menor.</ResponseField>
+  <ResponseField name="part_count" type="number">Somente no modo `multipart`: quantas partes o arquivo tem.</ResponseField>
+  <ResponseField name="uploaded_parts" type="number[]">Números das partes já armazenadas. Use-os para retomar um upload interrompido.</ResponseField>
+  <ResponseField name="created_at" type="string">Data e hora de criação em ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f",
+    "path": "videos/demo.mp4",
+    "mode": "multipart",
+    "status": "pending",
+    "size": 2147483648,
+    "expires_at": "2026-10-14T13:00:00.000Z",
+    "headers": {
+      "content-type": "video/mp4"
+    },
+    "part_size": 67108864,
+    "part_count": 32,
+    "uploaded_parts": [],
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): Nenhum header `Authorization` foi enviado.
+  - `API_KEY_INVALID` (`401`): A chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): A chave não tem o escopo que a rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Somente com `workspace_id`: você não é membro, ou seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): O token de upload não existe, expirou ou foi revogado (somente com token de upload).
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): O armazenamento de blob da conta está suspenso, ou o plano expirou. Uploads e outras gravações são recusados desde o início do período de carência de 72 horas.
+  - `VALIDATION_ERROR` (`400`): Um parâmetro ou campo do body falhou na validação. `details.path` informa o campo.
+  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Somente com token de upload: o caminho, a pasta ou outra opção que o token fixa não confere com a requisição.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` (abaixo do Enterprise-12) ou `cache_control: no-cache` (abaixo do Enterprise-26) não estão incluídos no plano.
+  - `BLOB_UPLOAD_LIMIT` (`409`): A conta já tem tantos uploads em andamento quanto o plano permite (`max_open_uploads`).
+  - `BLOB_OBJECT_ALREADY_EXISTS` (`409`): `path` já está ocupado e `overwrite` não é `true`.
+  - `BLOB_FILE_TOO_LARGE` (`413`): `size` está acima de 10 GB, acima do `max_size` da regra da pasta, ou acima do `max_size` do token.
+  - `STORAGE_QUOTA_EXCEEDED` (`403`): O tamanho reservado somado ao que já está em uso ultrapassaria a cota de blob do plano.
+  - `BLOCKED_FILE_TYPE` (`422`): A extensão está bloqueada ou não é permitida pela regra da pasta ou pelo token.
+  - `BLOB_UPLOAD_TOKEN_EXHAUSTED` (`401`): Somente com token de upload: ele já usou todos os seus usos.
+  - `RATE_LIMIT_EXCEEDED` (`429`): Abaixo do Enterprise-12, os uploads são limitados a 1 por segundo. `details.retry_after` informa a espera.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_UPLOAD_LIMIT"
+}
+```
+
+```json Error Response (413)
+{
+  "code": "BLOB_FILE_TOO_LARGE"
+}
+```
+
+```json Error Response (422)
+{
+  "code": "BLOCKED_FILE_TYPE"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RATE_LIMIT_EXCEEDED"
+}
+```
+
+</ResponseExample>

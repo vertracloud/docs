@@ -1,0 +1,182 @@
+---
+title: Fazer deploy de template
+sidebarTitle: Fazer deploy de template
+api: POST https://api.vertracloud.app/v1/templates/{template_id}/deploy
+authMethod: bearer
+description: Inicia um job de deploy que cria, em uma só operação, as aplicações, bancos e a stack do template, e desfaz tudo se uma etapa falhar.
+---
+
+{/* @see RESTPostAPITemplateDeployBody, RESTPostAPITemplateDeployHeaders, RESTPostAPITemplateDeployResponse — @vertracloud/api-types */}
+Cria tudo o que o template descreve, como uma única operação assíncrona, e responde `202 Accepted` com o job. O escopo necessário é `templates:deploy` (incluído no preset `write`). Se qualquer etapa falhar, o job remove tudo o que criou, fazendo um snapshot de segurança antes de excluir cada aplicação ou banco, e termina como `failed`. Acompanhe o job com [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status) ou com o [stream de eventos](/pt-br/api-reference/endpoint/templates/deploy-events). Para usar o template pelo painel, veja [Usar um template](/pt-br/templates/use/using-a-template).
+
+Só o **dono** da conta ou do workspace pode fazer deploy de um template: um membro do workspace recebe `WORKSPACE_OWNER_ONLY`, e o que é criado pertence ao dono do workspace. Uma conta pode executar **um deploy por vez**; uma segunda chamada enquanto um está em execução falha com `TEMPLATE_DEPLOY_IN_PROGRESS`. Antes de responder `202`, a chamada já verifica suas respostas, o destino, a memória, o plano exigido pelo template, seus limites de aplicações e bancos, o limite horário de deploys e as vagas de imagem.
+
+<ParamField path="template_id" type="string" required>
+  O ID do template ou o slug dele.
+</ParamField>
+
+<ParamField header="Idempotency-Key" type="string">
+  Torna a chamada segura para repetir, e é recomendado em todas as chamadas. De 1 a 255 caracteres visíveis, único por conta. Repetir a mesma chave com a mesma requisição retorna o **mesmo job** com `200`, em vez de criar um segundo conjunto de recursos. A mesma chave com uma requisição diferente falha com `IDEMPOTENCY_KEY_CONFLICT`.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  O nome da aplicação, ou da stack quando o template tem mais de um serviço. De 1 a 50 caracteres.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Uma descrição opcional, de até 128 caracteres.
+</ParamField>
+
+<ParamField body="version" type="string">
+  Um número de versão, como `1.1.0`. Só é válido quando o template permite escolher a versão (caso contrário, `TEMPLATE_VERSION_NOT_SELECTABLE`). Padrão: a mais recente. Veja [Listar versões do template](/pt-br/api-reference/endpoint/templates/versions).
+</ParamField>
+
+<ParamField body="inputs" type="object">
+  Suas respostas às perguntas do template, por ID da pergunta, como texto, número ou booleano. As perguntas vêm de `inputs` em [Obter template](/pt-br/api-reference/endpoint/templates/get). Uma pergunta obrigatória sem resposta, uma resposta fora dos limites dela ou uma pergunta que não se aplica falha com `TEMPLATE_INPUT_INVALID`. Perguntas secretas com gerador são preenchidas pela plataforma quando ficam vazias. Até 50 respostas.
+</ParamField>
+
+<ParamField body="services" type="object">
+  Suas escolhas por serviço, por ID do serviço (até 20 serviços). Cada valor é um objeto com:
+
+  - `name` (string, de 1 a 50 caracteres): o nome da aplicação ou do banco de dados. Padrão: o nome do deploy seguido do ID do serviço.
+  - `ram` (inteiro, MB): a memória, dentro do que o template permite. Não pode ficar abaixo do mínimo do serviço, a menos que o template permita.
+  - `subdomain` (string, até 63 caracteres): para uma aplicação com web, `"random"` ou o subdomínio que você quiser. Um subdomínio já em uso falha com `SUBDOMAIN_TAKEN`.
+</ParamField>
+
+<ParamField body="network_mode" type="string">
+  O modo de rede da stack. Só `public` é aceito: as aplicações da stack alcançam os bancos pelo endereço público, com certificados de cliente. Qualquer outro valor falha com `STACK_NETWORK_MODE_UNAVAILABLE`. Veja [Stacks](/pt-br/templates/use/stacks).
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O workspace que será dono do que for criado. Você precisa ser o dono dele.
+</ParamField>
+
+<ParamField body="folder_id" type="string">
+  Uma pasta de recursos para colocar a aplicação ou a stack, na conta ou no workspace de `workspace_id`.
+</ParamField>
+
+### O que o job faz
+
+O job lista apenas as etapas que se aplicam ao template, nesta ordem:
+
+| Etapa | O que acontece |
+|---|---|
+| `validate` | O plano, a memória, os limites e as respostas são verificados de novo. |
+| `network` | Com dois ou mais serviços, a stack é criada. |
+| `databases` | Os bancos de dados são criados e aguardados. |
+| `blob` | A pasta Blob da stack e a chave restrita dela são criadas. |
+| `images` | As imagens são disponibilizadas para a sua conta. |
+| `apps` | As aplicações são criadas. |
+| `variables` | As variáveis são resolvidas e salvas. |
+| `certificates` | Os certificados de cliente dos bancos são entregues às aplicações. |
+| `start` | Tudo é iniciado. |
+| `healthcheck` | A plataforma aguarda cada serviço responder ao seu health check. |
+| `outputs` | Os outputs exibidos no fim são salvos. |
+
+Se uma etapa falhar, o job passa para `undoing`, remove na ordem inversa apenas o que ele criou (os arquivos do Blob são mantidos) e termina como `failed`, com o `error` legível. Uma vaga de imagem que o job ocupou é liberada, e um uso de link de compartilhamento que ela consumiu é devolvido. Um job sem progresso por um tempo é assumido pela plataforma e desfeito.
+
+### Outputs
+
+Quando o job tem sucesso, seus `outputs` trazem o que o template quer que você veja, como o endereço da aplicação ou credenciais geradas. Um output marcado com `once` **é mostrado uma única vez**: a primeira leitura do job finalizado retorna o valor, e todas as leituras seguintes retornam `null`. Copie-o nesse momento. Os outputs nunca são enviados pelo stream de eventos. As aplicações de um [template fechado](/pt-br/templates/use/closed-templates) mantêm o código oculto.
+
+### Resposta
+
+Status `202` com o novo job. Status `200` com o mesmo job quando o `Idempotency-Key` já foi usado com a mesma requisição.
+
+<ResponseField name="response" type="object">
+  O job, no status `queued`. Os campos dele são descritos em [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status): `id`, `kind` (`deploy`), `template_id`, `version_id`, `version`, `status`, `current_step`, `steps`, `error`, `resources`, `stack_id`, `application_id`, `outputs`, `created_at`, `updated_at` e `finished_at`.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/discord-bot-js/deploy \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 5b0e2f6a-8d1c-4a47-9e53-3c7f1a2b6d90" \
+  -d '{
+    "name": "my-discord-bot",
+    "inputs": { "discord_token": "YOUR_BOT_TOKEN" },
+    "services": { "app": { "ram": 256 } }
+  }'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63",
+    "kind": "deploy",
+    "template_id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "version_id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+    "version": "1.0.0",
+    "status": "queued",
+    "current_step": null,
+    "steps": [
+      { "step": "validate", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "apps", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "variables", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "start", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "healthcheck", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "outputs", "status": "pending", "started_at": null, "finished_at": null }
+    ],
+    "error": null,
+    "resources": [],
+    "stack_id": null,
+    "application_id": null,
+    "outputs": [],
+    "created_at": "2026-10-28T14:00:00Z",
+    "updated_at": "2026-10-28T14:00:00Z",
+    "finished_at": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: O corpo ou o `Idempotency-Key` não é válido (`400`).
+  - `TEMPLATE_INPUT_INVALID`: Uma resposta está faltando ou é inválida, ou uma escolha de serviço está fora do que o template permite; `details.issues` lista as perguntas (`400`). Um subdomínio malformado é informado como `INVALID_SUBDOMAIN_FORMAT` ou `SUBDOMAIN_FORBIDDEN` (`400`).
+  - `STACK_NETWORK_MODE_UNAVAILABLE`: `network_mode` não é `public` (`400`).
+  - `TEMPLATE_RAM_INSUFFICIENT`: Memória livre insuficiente para o template; `details` traz os motivos (`400`).
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:deploy` (`403`).
+  - `PLAN_REQUIRED`: A conta não tem plano (`403`).
+  - `TEMPLATE_PLAN_REQUIRED`: Seu plano está abaixo do que o template exige; `details.reasons` e `details.required_plan` informam o motivo (`403`).
+  - `TEMPLATE_IMAGE_SLOTS_EXHAUSTED`: O template executa uma imagem e todas as vagas de imagem do seu plano estão em uso (`403`).
+  - `MAX_APPS_REACHED`, `MAX_DATABASES_REACHED`: O deploy ultrapassaria o limite de aplicações ou de bancos do seu plano (`403`).
+  - `TEMPLATE_DEPRECATED`: O template está descontinuado e não pode ser usado para novas aplicações (`409`).
+  - `TEMPLATE_VERSION_NOT_SELECTABLE`: O template não permite escolher a versão (`400`).
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace pode usar templates nele (`403`). Um template de workspace faz deploy somente dentro do próprio workspace: com `workspace_id` de outro workspace, ou sem nenhum, responde `TEMPLATE_NOT_FOUND` (`404`).
+  - `TEMPLATE_NOT_FOUND`: O template não existe ou não está visível para você (`404`).
+  - `TEMPLATE_VERSION_NOT_FOUND`: O template não tem uma versão pronta com esse número (`404`).
+  - `WORKSPACE_NOT_FOUND`: O workspace não existe ou você não faz parte dele (`404`).
+  - `WORKSPACE_RESOURCE_FOLDER_NOT_FOUND`: A pasta não existe (`404`).
+  - `TEMPLATE_DEPLOY_IN_PROGRESS`: Outro deploy da sua conta está em execução (`409`).
+  - `IDEMPOTENCY_KEY_CONFLICT`: O `Idempotency-Key` já foi usado com outra requisição (`409`).
+  - `SUBDOMAIN_TAKEN`: Um subdomínio escolhido já está em uso (`409`).
+  - `DEPLOY_RATE_LIMITED`: O limite horário de deploys foi atingido (`429`).
+  - `RATE_LIMIT_EXCEEDED`: Requisições demais (`429`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+
+  Uma falha depois do `202` não é retornada aqui: ela termina o job como `failed`, com o código em `error.code`. Veja [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_PLAN_REQUIRED",
+  "details": {
+    "reasons": [{ "reason": "min_plan", "required": "intermediary", "available": "economy" }],
+    "required_plan": "intermediary"
+  }
+}
+```
+
+</ResponseExample>

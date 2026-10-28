@@ -1,0 +1,202 @@
+---
+title: 'Tutorial: empaqueta una aplicación como plantilla de imagen'
+sidebarTitle: 'Primera plantilla de imagen'
+description: 'Compila una imagen desde tu Dockerfile y envuélvela en una plantilla privada con puerto, healthcheck, una pregunta y ajustes de despliegue seguros.'
+icon: 'docker'
+---
+
+Una **plantilla de imagen** ejecuta una aplicación a partir de una imagen Docker en lugar de código fuente. Compilas la imagen desde tu propio `Dockerfile` y después escribes un manifiesto que apunta a esa imagen y declara su puerto, memoria, healthcheck y preguntas. En este tutorial empaquetas una pequeña aplicación web que guarda un contador de visitas en el disco persistente y terminas con una plantilla privada que cualquiera de tu cuenta puede desplegar en unos pocos clics.
+
+Usa una plantilla de imagen cuando la aplicación necesite otro lenguaje o versión, paquetes del sistema, su propio proceso de arranque, o cuando empaquetes software ya hecho. Si basta con código fuente simple, una [plantilla de código](/es-es/templates/tutorials/discord-bot-code) es más sencillo y no usa un cupo de imagen.
+
+## Antes de empezar
+
+<Check>La CLI de Vertra con la sesión iniciada con una clave de API que tenga los scopes `templates:read`, `templates:write` y `templates:deploy`, además de los scopes que compilan imágenes.</Check>
+<Check>Un plan que pueda crear imágenes Docker y plantillas privadas (consulta [Planes y límites](/es-es/plans-and-limits)). Cada cuenta mantiene hasta 5 plantillas privadas.</Check>
+<Check>Conoces las reglas de las [imágenes Docker personalizadas](/es-es/guides/custom-docker-images): rutas escribibles, usuario `1000:1000`, la variable `PORT` y lo que rechaza el build.</Check>
+
+<Note>Cada imagen en uso ocupa **un cupo de imagen** en la cuenta que la usa, sin importar cuántas aplicaciones se ejecuten a partir de ella. Cuando despliegas tu propia plantilla, la imagen ya es tuya; quienes la reciben mediante un enlace obtienen su propia copia y usan un cupo cada uno.</Note>
+
+## Paso a paso
+
+<Steps>
+  <Step title="Escribe una aplicación que siga las reglas de la plataforma">
+    Una imagen se ejecuta con el mismo aislamiento que cualquier aplicación: el sistema de archivos raíz es de solo lectura, el usuario es siempre `1000:1000`, `/app` es el único disco persistente y el servidor debe escuchar en la variable `PORT`. Crea esta carpeta:
+
+    ```text
+    hello-counter/
+    ├── Dockerfile
+    ├── server.js
+    └── vertracloud.template.yaml
+    ```
+
+    `server.js` sirve la página, cuenta las visitas en un archivo dentro de `/app/data` y responde a `/healthz` para el healthcheck:
+
+    ```javascript title="server.js"
+    "use strict";
+
+    const http = require("node:http");
+    const fs = require("node:fs");
+    const path = require("node:path");
+
+    const port = Number(process.env.PORT || 3000);
+    const greeting = process.env.GREETING || "Hello";
+    const dataDir = process.env.DATA_DIR || "/app/data";
+    const counterFile = path.join(dataDir, "visits.txt");
+
+    fs.mkdirSync(dataDir, { recursive: true });
+
+    function nextVisit() {
+      let visits = 0;
+      try {
+        visits = Number(fs.readFileSync(counterFile, "utf8")) || 0;
+      } catch {}
+      visits += 1;
+      fs.writeFileSync(counterFile, String(visits));
+      return visits;
+    }
+
+    http
+      .createServer((req, res) => {
+        if (req.url === "/healthz") {
+          res.writeHead(200, { "content-type": "text/plain" });
+          return res.end("ok");
+        }
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        res.end(`${greeting}! Visit number ${nextVisit()}.\n`);
+      })
+      .listen(port, "0.0.0.0", () => console.log(`Listening on ${port}`));
+    ```
+
+    El `Dockerfile` mantiene el programa fuera de `/app` (todo lo que la imagen ponga en `/app` queda oculto por el disco persistente cuando se ejecuta la aplicación) y no usa `USER`, `VOLUME` ni `HEALTHCHECK`, que la plataforma ignora o rechaza:
+
+    ```dockerfile title="Dockerfile"
+    FROM node:22-alpine
+    WORKDIR /srv
+    COPY server.js .
+    EXPOSE 3000
+    CMD ["node", "server.js"]
+    ```
+
+    <Tip>Pruébalo en local de la misma forma en que se ejecutará: `docker run --rm --read-only --user 1000:1000 --tmpfs /tmp -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. Si solo funciona con una raíz escribible o como root, no funcionará en la plataforma.</Tip>
+  </Step>
+  <Step title="Compila la imagen en la plataforma">
+    La plantilla no lleva el `Dockerfile`: hace referencia a una imagen que ya existe en tu cuenta. Compílala desde la carpeta:
+
+    ```bash
+    vertra image build --name hello-counter --context .
+    vertra image logs <image-id> --follow
+    ```
+
+    Encuentra el id de la imagen con `vertra image list`. Espera a que el build esté en `success`; si falla, el motivo aparece en el log. Los archivos `.env*` se eliminan del contexto y se respeta `.dockerignore`. Cada build correcto se convierte en una nueva versión de la misma imagen, con el mismo id.
+  </Step>
+  <Step title="Escribe el manifiesto">
+    Crea `vertracloud.template.yaml`. El valor de `source.image` es el **id de tu imagen**; sustituye el id de ejemplo por el tuyo:
+
+    ```yaml title="vertracloud.template.yaml"
+    id: hello-counter
+    version: 1.0.0
+    name:
+      pt-br: Contador de visitas
+      en: Visit counter
+    description:
+      pt-br: Página simples que conta as visitas em disco. Exemplo de template de imagem.
+      en: A simple page that counts visits on disk. An image template example.
+    category: starters
+    tags: [starter, counter]
+
+    inputs:
+      - id: greeting
+        type: text
+        label:
+          pt-br: Saudação da página
+          en: Page greeting
+        default: Hello
+        validation: { max_length: 40 }
+
+    services:
+      app:
+        source: { type: image, image: 3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b }
+        port: 3000
+        ram: { min: 512, recommended: 512 }
+        web: required
+        env:
+          GREETING: "{{inputs.greeting}}"
+          DATA_DIR: /app/data
+        healthcheck: { path: /healthz, timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+          rollback: { with_data: optional }
+
+    permissions:
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Endereço
+          en: Address
+        value: "{{app.url}}"
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+        value:
+          pt-br: "Abra o endereço e recarregue a página: o contador sobe e sobrevive a reinícios."
+          en: "Open the address and reload the page: the counter goes up and survives restarts."
+    ```
+
+    Los campos que difieren de una plantilla de código:
+
+    | Campo | Qué debes saber |
+    |---|---|
+    | `source.image` | El id de una imagen de tu propia cuenta. Se rechazan las imágenes del catálogo, de otras cuentas o copias de otra plantilla. La plantilla fija la **versión** de la imagen que está vigente cuando la creas, de modo que un build posterior no cambia lo que despliega la plantilla. |
+    | `port` | El puerto en el que escucha el servidor. Si lo omites, la plataforma usa el primer `EXPOSE` de la imagen, o 80 si no hay ninguno. La plataforma también lo inyecta como `PORT`. |
+    | `web: required` | El asistente siempre publica la aplicación en la web. Usa `none` para un bot o worker y `optional` para que el usuario elija. Publicar requiere al menos 512 MB, por eso `ram.min` es 512. |
+    | `healthcheck` | `path` es una ruta HTTP que debe responder correctamente antes de que el asistente informe de que la aplicación está lista, y `timeout` es cuánto esperar, hasta 900 segundos. La instrucción `HEALTHCHECK` del `Dockerfile` se ignora, así que este es el único que cuenta. Da un `timeout` mayor a los arranques lentos (migraciones al iniciar). |
+    | `deploy.zero_downtime` | El blue-green ejecuta dos copias durante un momento. Esta aplicación escribe un archivo, así que dos copias competirían por él: desactivado y bloqueado. |
+    | `deploy.rollback.with_data` | `optional` permite al propietario revertir solo la imagen y el código. Usa `required` para software que migra su base de datos al actualizarse, de modo que un rollback también restaure los datos. |
+
+    <Note>`source.context` y los digests de imagen (`@sha256:...`) pertenecen a las plantillas del catálogo público, donde la imagen se fija por digest y se compila desde la carpeta de la plantilla. En una plantilla privada, la fuente es la imagen de tu cuenta. El [último tutorial](/es-es/templates/tutorials/private-to-public-pr) muestra cómo una plantilla privada pasa a ser una del catálogo.</Note>
+  </Step>
+  <Step title="Valida">
+    ```bash
+    vertra template validate
+    ```
+
+    Corrige cada hallazgo. Una plantilla de imagen también puede rechazarse al crearlo por un motivo que `validate` no puede ver, como una imagen que no es tuya (`IMAGE_NOT_FOUND`) o que aún no se ha compilado (`IMAGE_NOT_READY`).
+  </Step>
+  <Step title="Crea la plantilla y despliégala">
+    ```bash
+    vertra template create
+    vertra template deploy hello-counter --name my-counter --set greeting="Welcome"
+    ```
+
+    No se sube ningún zip: un servicio que ejecuta una imagen de tu cuenta no lo necesita. El job de despliegue crea la aplicación a partir de la imagen, define las variables, publica la dirección, espera a `/healthz` e imprime los outputs. Abre la dirección y recarga: el contador debe subir. Reinicia la aplicación desde el panel y recarga de nuevo: el número se conserva, porque `/app` es persistente.
+  </Step>
+  <Step title="Lanza una versión nueva">
+    Cambia el código, ejecuta `vertra image rebuild <image-id> --context .`, espera a `success`, sube `version` en el manifiesto y ejecuta `vertra template create --template hello-counter --changelog "Describe the change"`. La nueva versión de la plantilla fija la nueva versión de la imagen. Las aplicaciones creadas a partir de la plantilla ven "Nueva versión disponible" y se actualizan cuando su propietario lo decide, con un snapshot de seguridad previo.
+
+    <Warning>No puedes eliminar una imagen que es la fuente de la versión actual de una plantilla privada: la petición falla con `IMAGE_IN_USE`. Publica una versión que use otra imagen, o elimina primero la plantilla.</Warning>
+  </Step>
+</Steps>
+
+## Solución de problemas
+
+| Síntoma | Causa y solución |
+|---|---|
+| El build falla con `IMAGE_VOLUME_REFUSED` o un aviso sobre `WORKDIR /app` | Nada de lo que la imagen ponga en `/app` sobrevive, porque `/app` es el disco persistente. Usa otro directorio como `/srv` y nunca `VOLUME /app`. |
+| La aplicación arranca y el asistente falla en el healthcheck | La ruta responde un error o el servidor escucha en otro puerto. Escucha en `PORT` en `0.0.0.0` y confirma que `healthcheck.path` devuelve 200. Sube `timeout` si el arranque es lento. |
+| La aplicación se cae con un error de permisos | La imagen escribe fuera de `/app`, `/tmp`, `/var/tmp` y `/run`. Todo lo demás es de solo lectura; dirige logs, cachés y datos a `/app`. |
+| `create` falla con `IMAGE_NOT_FOUND` | `source.image` no es el id de una imagen de tu propia cuenta. Compruébalo con `vertra image list`. |
+| `create` falla con `IMAGE_NOT_READY` | La imagen aún no tiene ningún build correcto. Espera a `success`. |
+| `validate` informa `invalid_source` | Un campo de tipo incorrecto: `main`, `start` y `language` son solo para servicios de código; `port` es solo para servicios de imagen. |
+| El despliegue falla con `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | La cuenta que despliega no tiene ningún cupo de imagen libre. Elimina una imagen que ya no use o usa un plan mayor. |
+
+## Próximos pasos
+
+- [Requisitos y plan](/es-es/templates/create/requirements): cómo `ram`, `web` y la imagen determinan el plan y los cupos necesarios.
+- [Ajustes de despliegue](/es-es/templates/create/deploy-settings): cuándo bloquear el blue-green y exigir rollback con datos.
+- [Buenas prácticas](/es-es/templates/create/best-practices): dónde van los datos, la raíz de solo lectura, el usuario 1000 y el puerto.
+- [Referencia del manifiesto](/es-es/templates/create/manifest-reference): todos los campos de un servicio de aplicación.
+- [Imágenes Docker personalizadas](/es-es/guides/custom-docker-images): las reglas de build, las versiones y el rollback de la propia imagen.
+- Siguiente tutorial: [un stack con Postgres y Redis](/es-es/templates/tutorials/postgres-redis-stack).

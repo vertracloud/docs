@@ -1,0 +1,101 @@
+---
+title: 'What Is a Stack on Vertra Cloud: Apps, Databases and Blob Together'
+sidebarTitle: 'Stacks'
+description: 'A stack groups apps, databases and a Blob folder that work together. How stacks are created, how to add a database and how to delete one.'
+icon: 'layer-group'
+---
+
+A stack is a resource of your account (or workspace) that groups apps, managed databases and, optionally, a Blob folder that work together, with the connections between them already set up. It appears as its own card in your list of apps and as its own box in the Flow, with the lines of the connections drawn between its members.
+
+A stack does not depend on a template. A template with two or more services creates one for you, but you can also build one by hand.
+
+## Folder or stack
+
+Folders organize and stacks connect.
+
+| | Folder | Stack |
+|---|---|---|
+| Purpose | Tidy your list. | Connect resources that work together. |
+| In the list | A row that opens and closes. | A card with the summed status ("2 of 3 online"), total memory, network mode and template of origin. |
+| In the Flow | A plain box with a name and a color. | A box with its own header and the lines of the connections. |
+| Actions | Rename, color, move items. | Add a database, update the template version, snapshot of everything, network mode. |
+| Deleting | Only the folder; the resources stay. | Asks what to do with the members (below). |
+| Belongs to | Each person, even in a workspace. | The account or workspace, the same for everyone. |
+
+A folder can contain a stack, for example a folder per client with one stack each.
+
+## How the stack connects
+
+Apps reach each database through that database's public address. The platform creates the client certificates and the connection variables. See [Connect apps to databases in a stack](/templates/use/connect-databases).
+
+From one app to another, the connection is HTTP, through the public address. The platform does not protect that address: to accept only the other app, check a shared secret in both.
+
+## Four ways to get a stack
+
+<Steps>
+  <Step title="From a template">
+    A template with two or more services creates the stack with its members. See [Use a template](/templates/use/using-a-template).
+  </Step>
+  <Step title="Add a database to an app">
+    On an app page, **Add database** creates a database and connects it to the app. If the app is not in a stack yet, the stack is created right there (it takes the name you give it).
+  </Step>
+  <Step title="Turn a folder into a stack">
+    In a folder with an app and a database that already exist, **Turn into a stack** creates the stack with those members. The folder stays. A folder without at least one app and one database cannot be transformed (`STACK_TRANSFORM_EMPTY`).
+  </Step>
+  <Step title="From resources you already have">
+    Create a stack from apps and databases of the same account or workspace that are not in another stack.
+  </Step>
+</Steps>
+
+Anything in a stack that was built by hand can later be saved as a template. See [Create templates](/templates/create/overview).
+
+## Add and remove members
+
+On a stack's page, **Add database** creates a new database already inside the stack (engine, version, memory, which apps to connect and the variable names). You can also move a loose database or app that you already have into the stack:
+
+- It must belong to the same owner and scope (both personal, or both in the same workspace) and not be in another stack, otherwise the call returns `STACK_MEMBER_CONFLICT`.
+- You choose which apps to connect it to and with which variable names. You may connect none.
+- From then on it is part of the stack's snapshot and restore.
+
+When you take a member out of the stack, if apps use it through a connection, you choose:
+
+| Option | What happens |
+|---|---|
+| **Keep the connection** (default) | The variables become ordinary variables and keep working, and the certificates stay. They stop updating by themselves, so a later password or certificate reset needs a manual update. |
+| **Remove the variables** | The variables and the copied certificates are deleted. |
+
+A stack that came from a template can receive extra resources, which the template's updates ignore. Taking out a resource that the template created is allowed, with a warning: the stack is **detached from the template** and stops receiving new versions. The app of a [closed template](/templates/use/closed-templates) cannot leave the stack (`STACK_SERVICE_LOCKED`); its databases can.
+
+## Blob in a stack
+
+A stack can include a folder of your [Blob Storage](/blob/folder-rules). The platform creates an API key restricted to that folder, keeps it in the stack and injects the S3 connection variables into the apps you choose. The folder is `stacks/<stack-slug>/`, fixed when the stack is created. The plan must include Blob Storage.
+
+Undoing the stack revokes that key and **keeps the files**. When you delete everything, you choose whether to keep or delete the files, and the default is to keep them. See [Blob authentication](/blob/authentication) for restricted keys.
+
+## Delete a stack
+
+Deleting a stack asks you to type its name and gives two options:
+
+| Option | Result |
+|---|---|
+| **Undo the stack** | Only the stack goes. Apps and databases stay as loose resources, without a network and without template updates; their managed variables become ordinary ones. |
+| **Delete everything** | Also deletes every member, each by the deletion rule it already had, including the safety snapshot where there is one. |
+
+A wrong name returns `STACK_NAME_MISMATCH`. API keys used for **Delete everything** need permission to delete apps and databases (and Blob write access to delete files).
+
+## Snapshots
+
+A stack snapshot takes a snapshot of every member that has data, together, and a restore brings them back together. See [Backups and snapshots](/guides/backups-snapshots).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Connect databases" icon="database" href="/templates/use/connect-databases">
+    Injected variables, certificates and code per language.
+  </Card>
+  <Card title="Update and roll back" icon="rotate-left" href="/templates/use/updates-and-rollback">
+    Update every service of the stack together.
+  </Card>
+</CardGroup>
+
+For the API, see [List stacks](/api-reference/endpoint/stacks/list), [Create stack](/api-reference/endpoint/stacks/create), [Delete stack](/api-reference/endpoint/stacks/delete) and [Add database](/api-reference/endpoint/stacks/databases/create).

@@ -1,0 +1,44 @@
+---
+title: Add Stack Member
+sidebarTitle: Add Member
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/members
+authMethod: bearer
+description: Puts an application or database you already have into a stack, with optional connections.
+---
+
+{/* @see RESTPostAPIStackMemberBody, RESTPostAPIStackMemberResponse — @vertracloud/api-types */}
+Adds an application or a database to the stack. It must belong to the same account or workspace as the stack and not be in another stack. Needs the `stacks:write` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to, when you act on it as the workspace owner.
+</ParamField>
+
+<ParamField body="resource_type" type="string" required>
+  `application` or `database`.
+</ParamField>
+
+<ParamField body="resource_id" type="string" required>
+  The application or database ID.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Connections to create between the new member and the applications of the stack. May be empty. Each item has `app_id`, exactly one of `database_id` or `target_app_id`, and an optional `env_map` (see [Create Connection](/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+### Response
+
+The updated stack with `restart_required` and `apps_to_restart`, as in [Create Stack](/api-reference/endpoint/stacks/create). Restart the listed applications to make them read the new variables.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `STACK_MEMBER_CONFLICT` | The resource is already in another stack, or is not in the same account or workspace. |
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 404 | `APP_NOT_FOUND` | The application does not exist or is not yours. |
+| 404 | `DATABASE_NOT_FOUND` | The database does not exist or is not yours. |

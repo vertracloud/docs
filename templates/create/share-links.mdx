@@ -1,0 +1,71 @@
+---
+title: 'Share a Private Template by Link: Use Link, Full Copy and Revocation'
+sidebarTitle: 'Share by link'
+description: 'Create a share link for a private template, choose between a use link and a full-copy link, set limits, revoke it, and know what the receiver sees.'
+icon: 'link'
+---
+
+A share link lets another account use your private template without you adding them anywhere. The link is unlisted: whoever has the token can open the preview and use the template. You create it from the template's page or with the CLI, and you can revoke it at any time.
+
+```bash
+vertra template share my-template --mode use --max-uses 20 --expires-days 30
+vertra template share list my-template
+vertra template share revoke my-template <link-id>
+```
+
+The token starts with `vtpl_` and is shown **once**, when the link is created. Only a hash is stored, so it cannot be read again; if you lose it, revoke the link and create another. Keep it out of logs and public posts.
+
+## Use link or full copy
+
+You choose the mode when you create the link.
+
+| | **Use link** (default) | **Full-copy link** |
+|---|---|---|
+| What the receiver gets | Apps or a stack created from your template, running from **their own copy** of the image | A private template of their own: manifest, code, Dockerfile and image |
+| Code | Open or closed, as you set it | Always open |
+| Your updates | Yes: they click **Update** and the new version is copied to them | No: the copy is independent |
+| Image slot of the receiver | 1 | 1 |
+| Needs in your manifest | Nothing | `permissions.share.full_copy: true` |
+| Counts for the receiver | The usual limits of the plan | Their limit of 5 private templates |
+
+A full-copy link is refused for a closed template and for a template whose version uses `env_hidden`: your hidden values never reach a copy, and a copy always removes them. The permission is checked when the receiver copies, so turning `full_copy` off later stops links that were already created.
+
+### What happens to the image
+
+When the receiver uses your template, the platform creates an image **in their account**, marked as a copy of yours, so for them it is an image they own: no rebuild and no Dockerfile. If you delete the image, the template or your account, nothing changes for them. The link stops working, but their apps keep running.
+
+## Limits and expiry
+
+| Option | Effect |
+|---|---|
+| `max_uses` | The link stops after that many uses. A use that fails gives the use back. |
+| `expires_in_days` | The link expires after that many days. |
+
+Without them, the link has no limit and does not expire. A request on a link answers `SHARE_LINK_NOT_FOUND` when the token is unknown, then `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED` or `SHARE_LINK_EXHAUSTED`.
+
+## What the receiver sees
+
+Before creating anything, the receiver sees a preview: the name and description, the author's display name, what will be created (services and total memory), the plan it needs, the image slots it takes, and the label **Not verified by Vertra**. If the template is closed, the preview also warns that the values they fill in go to code they cannot read, and that they are trusting you.
+
+The preview never shows the manifest, the source, your account id or your e-mail.
+
+## Revoking
+
+Revoking a link blocks new uses and stops offering updates through it. What was already created belongs to the receiver and keeps running. Revoking is idempotent. Deleting the template revokes all of its links.
+
+You can never stop, delete or read anything in another account through a link.
+
+## Abuse
+
+A link distributes code that no one at Vertra Cloud has reviewed, so the receiver sees a **Report** button in the preview and in the created app. Reports go to the platform. For serious cases such as malware, platform staff can revoke a link or a template and stop every copy, as an enforcement of the terms of service, not as an author action. Do not use a link to distribute code you do not have the right to share.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Receive a link" icon="link" href="/templates/use/receive-a-link">
+    What the person on the other side does.
+  </Card>
+  <Card title="Permissions" icon="user-lock" href="/templates/create/permissions">
+    `share.full_copy` and closed templates.
+  </Card>
+</CardGroup>

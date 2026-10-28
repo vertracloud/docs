@@ -1,0 +1,97 @@
+---
+title: 'Criar um template privado: salvar um app, vincular o GitHub ou usar o editor'
+sidebarTitle: 'Templates privados'
+description: 'Crie um template privado para sua conta ou workspace de três formas, publique versões, revise variáveis e arquivos antes de salvar; limite de 5.'
+icon: 'lock'
+---
+
+Um template privado é um template seu, para você ou seu workspace, que você pode usar quantas vezes quiser e compartilhar por link. Você cria um de três formas: **Salvar como template** a partir de um app ou stack, um **repositório do GitHub** que tenha o manifesto, ou o **editor** no dashboard. As três produzem o mesmo manifesto e uma nova versão.
+
+## Quem pode criar
+
+- Contas em um plano que pode criar [imagens Docker personalizadas](/pt-br/guides/custom-docker-images) podem criar templates privados, tanto de código quanto de imagem. Criar exige o plano; usar, editar e excluir o que você já tem, não.
+- Cada usuário pode ter **até 5 templates privados**, contando os pessoais e os de workspaces dos quais é dono. Além disso, a criação falha com `TEMPLATE_PRIVATE_LIMIT_REACHED`.
+- Em um workspace, **apenas o dono** cria e gerencia templates e os usa para fazer deploy. Os membros veem os templates do workspace, mas não podem criá-los nem usá-los para fazer deploy (`WORKSPACE_OWNER_ONLY`). Um template de workspace só faz deploy **dentro do próprio workspace**: apontá-lo para a sua conta pessoal ou para outro workspace resulta em `TEMPLATE_NOT_FOUND`.
+- Um template pessoal pode ser movido para um workspace do qual você é dono.
+
+## Forma 1: Salvar como template
+
+Este é o caminho principal. Abra um app ou uma stack, escolha **Salvar como template** e revise o que entra. A revisão é obrigatória.
+
+**Variáveis.** Cada variável do app vira uma decisão:
+
+| Escolha | Resultado |
+|---|---|
+| **Pergunta** | O usuário será questionado; o valor não é copiado. |
+| **Manter** | O valor é copiado para o template. Apenas para variáveis que não são segredos. |
+| **Gerar** | Um segredo que a plataforma gera para cada usuário (`random:<n>` ou `uuid`). |
+| **Oculta** | O valor é copiado, mas escondido dos usuários, para um template fechado. |
+| **Deixar de fora** | Não entra no template. |
+
+Variáveis que parecem segredos (`*_KEY`, `*_TOKEN`, `*_SECRET`, `PASSWORD`, ou um valor com formato de credencial) vêm **desmarcadas e sinalizadas**, e a plataforma se recusa a manter um valor que pareça uma credencial. Variáveis que a plataforma controla, como `PORT`, ficam de fora. A revisão mostra apenas nomes; os valores nunca são exibidos.
+
+**Arquivos.** Para um app com código, você vê a árvore de `/app` (até três níveis) e escolhe o que entra. Por padrão, estes **não** vêm selecionados, e arquivos `.env*`, a pasta `.vertra/` e pastas de dependências (`node_modules`, `.venv`, `vendor`) nunca podem ser incluídos, mesmo que você os marque:
+
+| Não selecionado | Por quê |
+|---|---|
+| `.env*` | Segredos. |
+| `.vertra/` | Reservada pela plataforma. |
+| `node_modules`, `.venv`, `vendor` | Dependências, reinstaladas pelo build. |
+| Arquivos de banco de dados SQLite | Dados do usuário. |
+| Pastas de upload | Dados do usuário. |
+
+Um app que roda uma imagem sua salva essa imagem como origem. Um app que veio de um link de compartilhamento ou de um template com imagem do sistema não pode ser salvo (`TEMPLATE_SAVE_NOT_ALLOWED`), e um app de um template fechado também não (`TEMPLATE_CLOSED`). Uma stack vira um template com um serviço por membro; as variáveis criadas por suas conexões viram placeholders do serviço correspondente, e cada pasta Blob da stack vira um serviço `blob`.
+
+## Forma 2: Um repositório do GitHub
+
+Coloque `vertracloud.template.yaml` na raiz de um repositório que esteja em uma das suas instalações do GitHub App e vincule-o ao template:
+
+1. Faça o template ser criado (por exemplo, com Salvar como template ou pela CLI).
+2. Vincule o repositório a ele, com uma branch opcional (padrão: a branch padrão do repositório).
+3. Cada push nessa branch cria uma **nova versão**. O número da versão vem do manifesto, então **aumente `version`** quando quiser uma nova versão; um push com o mesmo número ou um menor é ignorado com `VERSION_NOT_NEWER`.
+
+Para um serviço de código, o código é a pasta em `source.path`; a mensagem do commit vira o changelog e o `README.md` da raiz vira a documentação. Se o manifesto não for encontrado, você recebe `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND`, e um repositório já vinculado a um template de outro dono resulta em `REPO_ALREADY_LINKED`. Pushes que não criam versão retornam um motivo (`MANIFEST_INVALID`, `TEMPLATE_ID_MISMATCH`, `SOURCE_REJECTED`, `BRANCH_IGNORED`) em vez de falhar em silêncio.
+
+## Forma 3: O editor
+
+O editor no dashboard edita perguntas, requisitos e permissões com validação ao vivo contra o [schema do manifesto](/pt-br/templates/reference/manifest-schema), e envia uma nova versão com um zip por serviço de código. A CLI faz o mesmo a partir de uma pasta:
+
+```bash
+vertra template validate .
+vertra template create . --changelog "First version"
+vertra template create . --template my-template --changelog "Add a question"
+```
+
+A segunda forma cria uma nova versão de um template existente. Os serviços de código são empacotados a partir de `source.path`: o `.vertraignore` é respeitado (ou o `.dockerignore`, na ausência dele), e `.env*`, `.git`, `.vertra` e links simbólicos nunca são enviados. Cada serviço é um zip de até 100 MB. Veja [Validar e testar](/pt-br/templates/create/validate-and-test).
+
+## Origens de imagem
+
+Em um template privado, `source.image` é o **id de uma das suas próprias imagens** com uma boa versão, não um endereço de registry. A plataforma fixa essa versão quando a versão do template é criada. Uma imagem do sistema, uma cópia recebida por um link ou uma imagem de outra conta não é aceita (`IMAGE_NOT_FOUND`). Você não pode excluir uma imagem que é a origem da versão atual de um template: ela responde `IMAGE_IN_USE` com os templates que a usam.
+
+## Versões
+
+Uma versão é **imutável**: seu manifesto e suas origens nunca mudam. Para mudar qualquer coisa, publique uma nova versão com um número maior; o `id` do manifesto deve continuar o mesmo, e um número que você usou e excluiu continua reservado. A versão atual do template é a mais recente. Quem roda uma versão anterior recebe a opção **Atualizar** e decide quando adotá-la. Mudar apenas o nome, a descrição, a categoria ou as tags de um template não cria uma versão.
+
+Excluir um template é uma exclusão lógica: revoga seus links de compartilhamento, mantém as versões e os apps criados a partir dele em execução (eles veem que o autor removeu o template) e libera o slug.
+
+## Erros comuns
+
+| Código | Significado |
+|---|---|
+| `TEMPLATE_MANIFEST_INVALID` | O manifesto tem problemas; `details.issues` os lista, como em [Validar e testar](/pt-br/templates/create/validate-and-test). |
+| `TEMPLATE_SOURCE_REQUIRED` | Um serviço de código não tem zip. |
+| `TEMPLATE_SECRET_IN_SOURCE` | O código contém `.env*`, uma chave privada ou um token conhecido; `details.files` lista os caminhos, nunca o conteúdo. |
+| `TEMPLATE_SLUG_TAKEN` | O `id` já está em uso (ou é reservado). |
+| `TEMPLATE_PRIVATE_LIMIT_REACHED` | Você já tem 5 templates privados. |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | O plano não pode criar templates. |
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Compartilhar por link" icon="link" href="/pt-br/templates/create/share-links">
+    Deixe outra conta usar o seu template privado.
+  </Card>
+  <Card title="Template fechado para um cliente" icon="eye-slash" href="/pt-br/templates/tutorials/closed-template-for-client">
+    Um tutorial passo a passo.
+  </Card>
+</CardGroup>

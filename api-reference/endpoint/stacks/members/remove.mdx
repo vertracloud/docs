@@ -1,0 +1,50 @@
+---
+title: Remove Stack Member
+sidebarTitle: Remove Member
+api: DELETE https://api.vertracloud.app/v1/stacks/{stack_id}/members/{resource_type}/{resource_id}
+authMethod: bearer
+description: Takes an application, database or Blob folder out of a stack without deleting it, choosing what happens to its variables.
+---
+
+{/* @see RESTDeleteAPIStackMemberQuery, RESTDeleteAPIStackMemberResponse — @vertracloud/api-types */}
+Takes a member out of the stack. The resource is **not deleted**. Taking out a member that came from a template detaches the stack from the template: it stops receiving versions. An application of a [closed template](/templates/use/closed-templates) cannot leave. Needs the `stacks:write` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField path="resource_type" type="string" required>
+  `application`, `database` or `blob`.
+</ParamField>
+
+<ParamField path="resource_id" type="string" required>
+  The ID of the application or database. For a Blob folder, the ID of the member, as in `members` of [Get Stack](/api-reference/endpoint/stacks/get).
+</ParamField>
+
+<ParamField query="bindings" type="string" default="keep_connection">
+  What happens to the variables the member's connections created:
+
+  - `keep_connection`: they become ordinary variables, rewritten to the public address with certificates, so the application keeps connecting.
+  - `remove_variables`: the variables are deleted, and so are the certificates copied to the application.
+</ParamField>
+
+<ParamField query="blob" type="string" default="keep">
+  For a Blob member: `keep` leaves the files, `delete` removes them. In both cases the key the platform created for the stack is revoked.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to, when you act on it as the workspace owner.
+</ParamField>
+
+### Response
+
+The updated stack with `restart_required` and `apps_to_restart`, as in [Create Stack](/api-reference/endpoint/stacks/create). Applications read variables only when they start: restart the listed ones.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `STACK_SERVICE_LOCKED` | The member comes from a closed template and cannot leave the stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | The resource is not a member of the stack. |

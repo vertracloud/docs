@@ -1,0 +1,63 @@
+---
+title: Descargar el contexto de una imagen
+sidebarTitle: Descargar contexto
+api: GET https://api.vertracloud.app/v1/images/{image_id}/context
+authMethod: bearer
+description: Devuelve una URL de descarga temporal del contexto de build actual de una imagen.
+---
+
+{/* @see RESTGetAPICustomImageContextResult — @vertracloud/api-types */}
+El contexto actual es el contexto de build completo del último build correcto, sin los archivos `.env*`. También es la base para los [commits](/es-es/guides/custom-docker-images#commit-on-top-of-the-current-context).
+
+Necesita el ámbito `images:read` cuando se llama con una clave de API.
+
+<ParamField path="image_id" type="string" required>
+  El ID de la imagen.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la imagen pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúan sobre una imagen que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="url" type="string">
+    Una URL temporal para descargar el contexto de build actual como archivo ZIP.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "url": "https://api.vertracloud.app/..."
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito requerido (`403`).
+  - `IMAGE_NOT_FOUND`: La imagen no existe o no puedes acceder a ella (`404`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

@@ -273,6 +273,8 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 | Safety snapshot when deleting an application | — | Yes | Yes | Yes | Yes |
 | Database data manager | — | — | — | Yes | Yes |
 | Custom Docker images (from your own `Dockerfile`) | — | — | — | — | Enterprise 28, 30 and 32 only: up to 20 images |
+| Templates (use the public catalog, receive share links) | Yes | Yes | Yes | Yes | Yes |
+| Create private templates and share links | — | — | — | — | Enterprise 28, 30 and 32 only: up to 5 templates (follows custom Docker images) |
 | Auto-deploy (GitHub) | — | — | — | Yes | Yes |
 | Deploy history (Rollbacks tab) | Read-only | Yes | Yes | Yes | Yes |
 | Manual rollback (code + optional environment variables) | — | Yes | Yes | Yes | Yes |
@@ -384,6 +386,8 @@ less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_
 - Updates: rebuild by upload, commit (on top of the current context) or push to a linked GitHub branch. A rebuild never restarts apps. Each app keeps 30 releases for 30 days, and rollback uses an already built version.
 - Snapshots hold the data of `/app` and the image version; restore can optionally go back to that version.
 - Deleting an image deletes every application created from it. Plans below Enterprise 28 cannot create or rebuild images; downgraded accounts keep running and can delete.
+
+**Images and templates.** An image template takes **one image slot per distinct image in use**, never one per application: three applications from the same template use one slot, and a new version of the template keeps the same slot. A code template uses none. The slot is released when the last application that uses the image is gone. `POST /v1/apps/image` refuses an image that belongs to a template (`IMAGE_TEMPLATE_ONLY`): the only way to run it is the template. An image that is the source of one of your private templates cannot be deleted before you remove it from the template (`IMAGE_IN_USE`). See [Templates and stacks](#23-templates-and-stacks).
 
 Guide: [Custom Docker images](/guides/custom-docker-images).
 
@@ -957,6 +961,12 @@ common sets; scopes can also be chosen individually.
 | `databases:write` | Create, update, start, stop and reset databases |
 | `databases:delete` | Delete a database |
 | `databases:credentials` | View or reset certificate and credentials |
+| `templates:read` | List and read templates, versions and share-link previews; validate a manifest; check for an update |
+| `templates:write` | Create, change and delete private templates, versions and share links; copy and report a shared template |
+| `templates:deploy` | Use a template (deploy), follow a deploy job and update an application or stack to a newer version |
+| `stacks:read` | List and read stacks, connections, snapshots and the connection code |
+| `stacks:write` | Create and change stacks, members, connections and snapshots; add a database or Blob folder |
+| `stacks:delete` | Delete a stack |
 | `snapshots:read` | List and download snapshots |
 | `snapshots:write` | Create and restore snapshots |
 | `blob:read` | Read Blob Storage files, links, shares, rules, domains and usage |
@@ -1429,7 +1439,7 @@ distinct transformation counts once per month. Above the monthly limit the origi
 
 ### Access
 
-- **API key scopes:** `blob:read` and `blob:write`. Workspace permissions: `blob:read` and `blob:manage`.
+- **API key scopes:** `blob:read` and `blob:write`. Workspace permissions: `blob:read` and `blob:manage`. A key with only `blob:*` scopes can be **restricted to one folder** (`blob_prefix`, a path ending in `/`): it reaches only objects, uploads and shares inside that folder, and the S3 credentials derived from it inherit the limit. Everything else (rules, domains, statistics) answers `403 BLOB_PREFIX_DENIED`. A stack creates its own restricted key for its Blob folder.
 - **Upload token:** a short-lived `vcup_` token for browsers. It fixes the path or folder, size, extensions and visibility, and it is accepted only on the upload routes.
 - **S3-compatible access:** `GET /v1/s3/credentials`, limited to 10 calls per hour. Revoking the API key that created it cuts S3 access at once. S3 requests per 10 seconds per account: Economy/Pro 100, Scale/Intermediary 200, Enterprise-4 to 8: 400, Enterprise-12+: 600; CopyObject/UploadPartCopy 20. Above it: `503 SlowDown`.
 - Every route is documented on its own page under **API Reference > Blob Storage**.
@@ -1464,7 +1474,109 @@ distinct transformation counts once per month. Above the monthly limit the origi
 
 ---
 
-## 23. Glossary
+## 23. Templates and stacks
+
+A **template** is a recipe that creates ready-made software (or a starter project) in one operation, after a few questions. A **stack** is the group of applications, databases and Blob folders that belong together; a template with more than one service creates one. Guides: [Templates](/templates/overview).
+
+### Origins
+
+| Origin | Who makes it | Who can use it |
+|---|---|---|
+| Vertra | Vertra | Any account |
+| Community | Contributors, by pull request to the public repository; reviewed and maintained by Vertra | Any account |
+| Private | You (a user or a workspace) | You, and whoever receives a share link |
+
+Users do not publish to the public catalog from the dashboard. Private templates are created on plans that can create Docker images, up to **5 per account**; in a workspace only the owner creates and manages them. A member of a workspace does not deploy templates in it: only the owner does (`WORKSPACE_OWNER_ONLY`).
+
+### Code and image templates
+
+| Source | Runs as | Image slot |
+|---|---|---|
+| `code` | A code ZIP on the runtime of your choice, like a normal application | None |
+| `image` | An image built or pinned by the template | 1 per distinct image in use |
+
+In both, `/app` is the persistent disk and the rest of the filesystem is read-only; the user is `1000:1000`.
+
+### Required plan
+
+The plan needed is **calculated** from the template and your answers, and can be raised by a `min_plan` the author declares: free memory for the sum of the minimum memory of every service, web publishing when a service needs it, a plan with Docker images and a free slot for an image template, a plan with Blob when the template has a Blob folder, and the account limits of applications, databases and deploys per hour. When it does not fit, the API answers `TEMPLATE_PLAN_REQUIRED`, `TEMPLATE_RAM_INSUFFICIENT` or `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` and the dashboard explains the reason.
+
+### Using a template
+
+- `POST /v1/templates/{id}/deploy` starts a job (`202`) that validates the plan and memory, creates databases and waits for them, creates the applications, writes the variables, starts everything and waits for the health check. Any failure undoes everything the job created (`TEMPLATE_DEPLOY_FAILED`, `details.step`); before deleting an application or a database the undo takes a safety snapshot. A template of a workspace deploys only inside that workspace, and only by its owner. Send an `Idempotency-Key` to make it safe to repeat. Only one deploy of the same template runs at a time (`TEMPLATE_DEPLOY_IN_PROGRESS`).
+- Questions have types (`text`, `secret`, `select`, `boolean`, `number`, `url`, `email`); secrets can be generated for you. Outputs, such as the address or a generated token, are shown at the end; a secret output is shown once.
+- Updates are never automatic: a new version shows **New version available**; updating takes a safety snapshot first, updates the services one by one and, if any fails, restores all of them. Permissions never become stricter in an existing application. Some templates lock the blue-green deploy (two copies running at once would break them) and require rollback to restore the data too (`TEMPLATE_ROLLBACK_REQUIRES_DATA`).
+- Changing the code of an application from an open template detaches it from the template; the API asks for `confirm_detach` first (`TEMPLATE_DETACH_CONFIRMATION_REQUIRED`).
+
+### Stacks
+
+- Applications in a stack reach databases through the public address, with client certificates managed by the platform and left out of downloads, snapshots and "save as template". A network mode other than `public` returns `STACK_NETWORK_MODE_UNAVAILABLE`.
+- A **connection** links an application to a database, a Blob folder or another application. Its variables are **managed**: updated when the database password, certificate or host changes, and marked in the dashboard. Editing one by hand turns it into a normal variable. The API returns `restart_required` and `apps_to_restart` when applications must restart.
+- A resource belongs to at most one stack, in the same account or workspace as the stack. A stack can be created from a template, from the `/new` flow, by adding a database to an application, or by transforming a folder that holds an application and a database.
+- Leaving a stack: keep the connection (variables become normal ones with the public address) or remove them. Deleting a stack asks whether to only undo it (the resources stay) or delete everything; for the Blob folder the choice is `keep` (default) or `delete`.
+- Folders organize, stacks connect: a stack has its own card in the list and its own box with the connections in the Flow, and it can live inside a folder.
+
+### Share links
+
+| | Use link | Copy link |
+|---|---|---|
+| Receiver gets | Applications or a stack created from the template, with their own copy of the image | A private template of their own |
+| Updates from the author | Yes, when the receiver clicks Update | No |
+| Code | Open or closed, as the template says | Always open |
+| Image slot of the receiver | 1 | 1 |
+
+Revoking a link stops new uses and offers no more updates; what was created keeps running, and deleting the original image, template or account does not affect the copies. The preview shows the author, what will be created and **Not verified by Vertra**. Links can have `max_uses` and an expiry (`SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED`). Use **Report** on a preview or on a created application; for serious cases with evidence, write to abuse@vertracloud.app. An application that came from a use link cannot be saved as a template or shared (`TEMPLATE_SAVE_NOT_ALLOWED`).
+
+### Closed templates
+
+A private template can be closed: whoever uses it can start, stop, restart, read logs and metrics, create snapshots and restore them (only into an application of the same template), roll back, answer the questions, change memory when allowed and update. They cannot use the file manager, download the application or its snapshots, create free variables, edit commands, open a terminal, deploy code, save it as a template or detach it. The API enforces this on every route (`TEMPLATE_CLOSED`); a snapshot of a closed application can never be downloaded. Databases are never closed. Variables the author hides (`env_hidden`, only allowed in a closed template) are injected and never returned (`MANAGED_ENV_READONLY`); unlinking the application or stack from the template deletes the hidden values.
+
+### Manifest limits
+
+`vertracloud.template.yaml`: up to 40 questions, 16 outputs, 8 services and 10 tags. Name up to 50 characters, description up to 128. The public JSON Schema is `/templates/schema/v1.json`. Placeholders are resolved on the server; an unknown placeholder or service makes the manifest invalid (`TEMPLATE_MANIFEST_INVALID`).
+
+### Template and stack error codes
+
+| Status | Code | Meaning and fix |
+|---|---|---|
+| 404 | `TEMPLATE_NOT_FOUND` | The template does not exist, was removed or is not visible to you. |
+| 404 | `TEMPLATE_VERSION_NOT_FOUND` | No version with that number or id. |
+| 409 | `TEMPLATE_SLUG_TAKEN` | Another template of yours uses that slug. |
+| 400 | `TEMPLATE_MANIFEST_INVALID` | The manifest is invalid; `details.issues` lists each problem. |
+| 400 | `TEMPLATE_INPUT_INVALID` | An answer is missing or invalid; `details.issues` lists the questions. |
+| 400 | `TEMPLATE_SOURCE_REQUIRED` | A code service was sent without its source file. |
+| 400 | `TEMPLATE_SECRET_IN_SOURCE` | The code holds a secret (a `.env` file, a key or a token); `details.files` lists the paths. Remove it and send again. |
+| 400 | `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND` | The linked repository has no manifest at its root. |
+| 403 | `TEMPLATE_PLAN_REQUIRED` | Your plan is below what the template needs; `details` says which and the plan required. |
+| 400 | `TEMPLATE_RAM_INSUFFICIENT` | Not enough free memory; `details` shows needed and free. |
+| 403 | `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | Every image slot is in use. Delete an image or use a plan with more. |
+| 403 | `TEMPLATE_CLOSED` | The route reads or changes the code, files, commands or variables of an application from a closed template. |
+| 403 | `TEMPLATE_PRIVATE_LIMIT_REACHED` | The limit of private templates was reached. |
+| 409 | `TEMPLATE_DEPRECATED` | The template is deprecated and cannot create new applications. |
+| 400 | `TEMPLATE_VERSION_NOT_SELECTABLE` | The template does not let you pick an earlier version. |
+| 403 | `TEMPLATE_SAVE_NOT_ALLOWED` | An application from a share link cannot be saved as a template or shared. |
+| 403 | `MANAGED_ENV_READONLY` | The variable is injected by the template and cannot be read or changed. |
+| 403 | `IMAGE_TEMPLATE_ONLY` | The image belongs to a template and can only be used through it. |
+| 409 | `IMAGE_IN_USE` | The image is the source of a private template; remove it there first. |
+| 409 | `TEMPLATE_DEPLOY_IN_PROGRESS` | Another template deploy or update of the account is running. |
+| 409 | `IDEMPOTENCY_KEY_CONFLICT` | The `Idempotency-Key` was used with a different request. |
+| 409 | `TEMPLATE_UPDATE_BLOCKED` | The update cannot go ahead; `details` has the reason (memory, plan or a new question). |
+| 409 | `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | The change detaches the application from its template; repeat with `confirm_detach`. |
+| 409 | `TEMPLATE_ROLLBACK_REQUIRES_DATA` | Rolling back only the code is blocked; restore the snapshot the update took. |
+| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | The deploy job does not exist or is not yours. |
+| 404/410 | `SHARE_LINK_NOT_FOUND`, `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED` | The link does not exist, was revoked, expired or has no uses left. |
+| 404 | `STACK_NOT_FOUND`, `STACK_MEMBER_NOT_FOUND`, `STACK_BINDING_NOT_FOUND` | The stack, the member or the connection does not exist or is not yours. |
+| 409 | `STACK_MEMBER_CONFLICT` | The resource is in another stack, or in a different account or workspace. |
+| 409 | `STACK_BLOB_PREFIX_TAKEN` | The stack already has a Blob folder with that prefix. |
+| 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | Only `public` is available. |
+| 400 | `STACK_NAME_MISMATCH` | `confirm_name` is not the stack name. |
+| 400 | `STACK_TRANSFORM_EMPTY` | The folder has no application, or no database, to put in a stack. |
+| 403 | `STACK_SERVICE_LOCKED` | The member comes from a closed template and cannot leave the stack. |
+| 403 | `BLOB_PREFIX_DENIED` | The key is restricted to a Blob folder and the operation is outside it. |
+
+---
+
+## 24. Glossary
 
 | Term | Definition |
 |-------|-----------|

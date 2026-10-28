@@ -1,0 +1,50 @@
+---
+title: 'O que é um template fechado na Vertra Cloud e o que você pode fazer com ele'
+sidebarTitle: 'Templates fechados'
+description: 'Um template fechado esconde o código de quem o usa. Veja o que você pode e não pode fazer com o app, como os snapshots se comportam e em quem confiar.'
+icon: 'lock'
+---
+
+Um template fechado é um template privado cujo autor escolheu não mostrar o código. O código fica dentro do app, mas quem usa o template não pode lê-lo, baixá-lo nem alterá-lo. Você ainda pode executar o app, ler seus logs e métricas, criar e restaurar snapshots, fazer rollback, atualizá-lo e usar seus bancos de dados sem nenhuma restrição.
+
+Somente templates privados podem ser fechados. Templates públicos (Vertra e Community) sempre mostram o código.
+
+## O que você pode e não pode fazer
+
+| Você pode | Você não pode |
+|---|---|
+| Iniciar, parar e reiniciar o app, ler logs e métricas | Usar o gerenciador de arquivos (ver, enviar, mover, apagar) |
+| Criar um snapshot e **restaurá-lo** | **Baixar** um snapshot |
+| Fazer **rollback** | Baixar o app |
+| Responder às perguntas do template e alterar a memória, se o template permitir | Criar variáveis livres (como `NODE_OPTIONS`) |
+| Atualizar para uma nova versão | Editar os comandos de início e de build |
+| Mover o app para outra pasta ou workspace | Usar um terminal |
+| Usar os **bancos de dados** da stack sem restrição | Fazer deploy por GitHub ou por upload de código |
+| | Salvar como template, desvincular do template ou criar um link de cópia completa |
+
+O bloqueio é aplicado pela API em toda rota de arquivos e de código, não só no dashboard, então um script ou uma chave de API esbarra no mesmo muro. A recusa é `TEMPLATE_CLOSED`. As variáveis que o autor marcou como ocultas são injetadas no app e nunca são retornadas pela API nem exibidas no dashboard. Valores ocultos existem apenas em templates fechados e, se o app ou a stack for desvinculado do template, eles são apagados.
+
+## Bancos de dados nunca são fechados
+
+Os bancos de dados de uma stack são sempre abertos para você: você pode conectar, fazer backup e inspecioná-los. Recomenda-se que os autores guardem os dados dos seus usuários nesses bancos, porque tudo o que ficar no `/app` de um template fechado é responsabilidade do autor.
+
+## Snapshots de um app fechado
+
+Um snapshot de um app fechado lembra que ele é fechado, mesmo que o app seja apagado depois.
+
+- Ele **nunca pode ser baixado**.
+- Só pode ser restaurado em um app **do mesmo template**, que continua fechado.
+- Criar um app a partir dele cria um app com a mesma política de fechamento.
+- Restaurá-lo em um app comum é recusado.
+
+## Em quem você está confiando
+
+A plataforma não dá nenhum caminho até o código e não garante o código do próprio autor. Se o código do autor expõe arquivos ou envia seus dados para algum lugar, isso é responsabilidade do autor, e a Vertra Cloud pode agir a partir de denúncias. Os valores que você preenche no assistente (por exemplo, uma chave de API de um provedor de modelos) vão para um código que você não pode ler, então você está confiando no autor. A página do template e a prévia do link de compartilhamento avisam isso antes de você criar qualquer coisa.
+
+Se algo parecer errado, [denuncie](/pt-br/templates/use/receive-a-link#denunciar-um-template).
+
+## Atualizações e política de fechamento
+
+Um app mantém a política com que foi criado. Se uma nova versão abre o template, o app abre na atualização; se uma nova versão o fecha, só os apps criados depois ficam fechados. Veja [Atualizar e fazer rollback](/pt-br/templates/use/updates-and-rollback).
+
+Para criar seu próprio template fechado, veja [Permissões](/pt-br/templates/create/permissions) e o [tutorial para um cliente](/pt-br/templates/tutorials/closed-template-for-client).

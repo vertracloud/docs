@@ -1,0 +1,232 @@
+---
+title: Obtener trabajo de despliegue de plantilla
+sidebarTitle: Obtener trabajo de despliegue
+api: GET https://api.vertracloud.app/v1/template-deploys/{deploy_id}
+authMethod: bearer
+description: "Devuelve el estado de un trabajo de despliegue o actualización de plantilla: pasos, recursos creados, error si falló y salidas al terminar."
+---
+
+{/* @see APITemplateDeploy, RESTGetAPITemplateDeployResponse — @vertracloud/api-types */}
+Devuelve un trabajo de despliegue o de actualización iniciado por [Desplegar plantilla](/es-es/api-reference/endpoint/templates/deploy) o [Actualizar desde plantilla](/es-es/api-reference/endpoint/templates/update). Con una clave de API, el ámbito es `templates:deploy`. Solo la cuenta que inició el trabajo puede leerlo; cualquier otro ID de trabajo responde `TEMPLATE_DEPLOY_NOT_FOUND`. La respuesta nunca se guarda en caché. Para ver el progreso en vivo sin hacer polling, usa el [flujo de eventos](/es-es/api-reference/endpoint/templates/deploy-events).
+
+<ParamField path="deploy_id" type="string" required>
+  El ID del trabajo, devuelto cuando el despliegue o la actualización fue aceptado.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El trabajo.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID del trabajo.
+  </ResponseField>
+
+  <ResponseField name="kind" type="string">
+    `deploy` cuando el trabajo creó recursos a partir de una plantilla; `update` cuando movió recursos existentes a una versión más nueva.
+  </ResponseField>
+
+  <ResponseField name="template_id" type="string">
+    El ID de la plantilla.
+  </ResponseField>
+
+  <ResponseField name="version_id" type="string">
+    El ID de la versión que se despliega.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    El número de la versión que se despliega.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `queued`, `running`, `undoing` (un paso falló y se está eliminando lo que creó el trabajo), `succeeded` o `failed`. Un trabajo `failed` ya deshizo todo lo que creó. `succeeded` y `failed` son estados finales.
+  </ResponseField>
+
+  <ResponseField name="current_step" type="string | null">
+    El paso que se ejecuta ahora, o `null` cuando el trabajo está en cola o ya terminó.
+  </ResponseField>
+
+  <ResponseField name="steps" type="object[]">
+    Los pasos que aplican al trabajo, en orden de ejecución. Cada uno tiene `step`, `status`, `started_at` y `finished_at` (`null` hasta que ocurren). Un paso es `pending`, `running`, `done`, `skipped` (no aplica, por ejemplo cuando no hay base de datos) o `failed`. Pasos: `validate`, `snapshot` (solo en actualizaciones: un snapshot de seguridad antes de cambiar nada), `network`, `databases`, `blob`, `images`, `apps`, `variables`, `certificates`, `start`, `healthcheck`, `outputs` y `rollback` (solo en actualizaciones, cuando una actualización fallida vuelve al snapshot).
+  </ResponseField>
+
+  <ResponseField name="error" type="object | null">
+    Se define cuando `status` es `failed`.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="code" type="string">
+      Un código de error, como `TEMPLATE_DEPLOY_FAILED`, `BUILD_FAILED`, `MAX_APPS_REACHED` o `TEMPLATE_PLAN_REQUIRED`.
+    </ResponseField>
+
+    <ResponseField name="message" type="string">
+      Una frase fija y legible, en inglés. Nunca incluye valores de tus variables.
+    </ResponseField>
+
+    <ResponseField name="step" type="string | null">
+      El paso que falló.
+    </ResponseField>
+
+    <ResponseField name="details" type="object">
+      Contexto opcional. En una actualización que no pudo volver al snapshot contiene `rollback_failed`.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="resources" type="object[]">
+    Lo que creó el trabajo, en orden. Cada uno tiene `resource_type`, `resource_id`, `service_id` (el servicio del manifiesto; `null` para el stack y las imágenes) y `name`. Queda vacío tras un fallo, porque el trabajo deshace lo que creó.
+  </ResponseField>
+
+  <ResponseField name="stack_id" type="string | null">
+    El stack, cuando la plantilla tiene dos o más servicios.
+  </ResponseField>
+
+  <ResponseField name="application_id" type="string | null">
+    La aplicación, cuando la plantilla tiene una sola aplicación.
+  </ResponseField>
+
+  <ResponseField name="outputs" type="object[]">
+    Las salidas de un trabajo terminado con éxito; vacío antes de eso.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="label" type="object">
+      La etiqueta en los tres idiomas.
+    </ResponseField>
+
+    <ResponseField name="value" type="string | object | null">
+      El valor: un texto, o un texto por idioma. En una salida con `once`, el valor se devuelve **solo en la primera lectura** del trabajo terminado y después es `null`.
+    </ResponseField>
+
+    <ResponseField name="secret" type="boolean">
+      `true` cuando el valor es un secreto.
+    </ResponseField>
+
+    <ResponseField name="once" type="boolean">
+      `true` cuando el valor se muestra una sola vez.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se aceptó el trabajo.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Cuándo cambió el trabajo por última vez.
+  </ResponseField>
+
+  <ResponseField name="finished_at" type="string | null" format="date-time">
+    Cuándo terminó el trabajo, o `null`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/template-deploys/3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63 \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response (succeeded)
+{
+  "response": {
+    "id": "3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63",
+    "kind": "deploy",
+    "template_id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "version_id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+    "version": "1.0.0",
+    "status": "succeeded",
+    "current_step": null,
+    "steps": [
+      { "step": "validate", "status": "done", "started_at": "2026-10-28T14:00:01Z", "finished_at": "2026-10-28T14:00:02Z" },
+      { "step": "apps", "status": "done", "started_at": "2026-10-28T14:00:02Z", "finished_at": "2026-10-28T14:00:20Z" },
+      { "step": "variables", "status": "done", "started_at": "2026-10-28T14:00:20Z", "finished_at": "2026-10-28T14:00:21Z" },
+      { "step": "start", "status": "done", "started_at": "2026-10-28T14:00:21Z", "finished_at": "2026-10-28T14:00:30Z" },
+      { "step": "healthcheck", "status": "done", "started_at": "2026-10-28T14:00:30Z", "finished_at": "2026-10-28T14:00:41Z" },
+      { "step": "outputs", "status": "done", "started_at": "2026-10-28T14:00:41Z", "finished_at": "2026-10-28T14:00:41Z" }
+    ],
+    "error": null,
+    "resources": [
+      { "resource_type": "application", "resource_id": "9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26", "service_id": "app", "name": "my-discord-bot" }
+    ],
+    "stack_id": null,
+    "application_id": "9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26",
+    "outputs": [
+      {
+        "label": { "pt-br": "Próximo passo", "en": "Next step" },
+        "value": { "en": "Invite the bot to your server and type /ping." },
+        "secret": false,
+        "once": false
+      }
+    ],
+    "created_at": "2026-10-28T14:00:00Z",
+    "updated_at": "2026-10-28T14:00:41Z",
+    "finished_at": "2026-10-28T14:00:41Z"
+  }
+}
+```
+
+```json Response (failed)
+{
+  "response": {
+    "id": "3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63",
+    "kind": "deploy",
+    "template_id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "version_id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+    "version": "1.0.0",
+    "status": "failed",
+    "current_step": null,
+    "steps": [
+      { "step": "validate", "status": "done", "started_at": "2026-10-28T14:00:01Z", "finished_at": "2026-10-28T14:00:02Z" },
+      { "step": "apps", "status": "failed", "started_at": "2026-10-28T14:00:02Z", "finished_at": "2026-10-28T14:00:50Z" },
+      { "step": "variables", "status": "pending", "started_at": null, "finished_at": null }
+    ],
+    "error": {
+      "code": "BUILD_FAILED",
+      "message": "An application of the template failed to build.",
+      "step": "apps"
+    },
+    "resources": [],
+    "stack_id": null,
+    "application_id": null,
+    "outputs": [],
+    "created_at": "2026-10-28T14:00:00Z",
+    "updated_at": "2026-10-28T14:01:05Z",
+    "finished_at": "2026-10-28T14:01:05Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: `deploy_id` no es un ID válido (`400`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:deploy` (`403`).
+  - `TEMPLATE_DEPLOY_NOT_FOUND`: El trabajo no existe o pertenece a otra cuenta (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Demasiadas peticiones (`429`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_DEPLOY_NOT_FOUND"
+}
+```
+
+</ResponseExample>

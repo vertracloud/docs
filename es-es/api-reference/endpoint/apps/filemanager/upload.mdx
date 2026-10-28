@@ -1,0 +1,130 @@
+---
+title: Subir archivos a la aplicación
+sidebarTitle: Subir archivos
+api: POST https://api.vertracloud.app/v1/apps/{id}/files/upload
+authMethod: bearer
+description: Sube un archivo o un archivo ZIP a una carpeta de una aplicación. Opcionalmente reinicia la aplicación tras la subida.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+Cuando la aplicación ejecuta una imagen Docker personalizada, la subida es un commit que reconstruye la imagen, así que una clave de API necesita también el scope `images:write`, además de `apps:files`.
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación en la que se subirán los archivos. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="restart" type="string">
+  Si se establece en `"true"`, la aplicación se reiniciará automáticamente al terminar la subida.
+</ParamField>
+
+<ParamField query="path" type="string">
+  La carpeta de destino, relativa a la raíz de la aplicación. Déjalo vacío u omítelo para subir a la raíz. Un ZIP se extrae dentro de esta carpeta, y un archivo suelto se escribe en `path/<filename>`. Las carpetas de la ruta se crean si no existen. Los segmentos de ruta como `..` se rechazan.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Los miembros con el rol Propietario, Administrador o Desarrollador pueden usar el gestor de archivos en una aplicación del workspace que no les pertenece; sin este parámetro, solo puede hacerlo el propietario de la aplicación.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  El archivo que se sube: un archivo suelto (que se escribe tal cual en su ruta de destino) o un archivo ZIP.
+
+  Un ZIP se **extrae encima de** la carpeta de destino (`path`, o la raíz de la aplicación): los archivos que contiene sobrescriben las rutas coincidentes, pero los archivos que ya están en disco y no están en el ZIP se dejan intactos; es una fusión, no un reemplazo. Los directorios prohibidos (`node_modules`, `.git`, `.local` y similares) se eliminan del ZIP en el servidor antes de extraerlo, sea cual sea el contenido del archivo.
+
+  La subida multipart está limitada a 100 MB; un ZIP también tiene un límite de 512 MB una vez descomprimido.
+</ParamField>
+
+<ParamField body="message" type="string">
+  Un mensaje opcional para esta subida, que se muestra en el historial de despliegues de la aplicación. Hasta 500 caracteres. Los espacios al principio y al final se eliminan, y un valor vacío significa que no hay mensaje.
+</ParamField>
+
+<ParamField query="confirm_detach" type="string">
+  Envía `true` para confirmar que el cambio desvincula una aplicación que viene de una plantilla abierta (deja de recibir versiones). Sin este parámetro, la petición no cambia nada y responde `409` `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`. Se ignora en las demás aplicaciones. Consulta [Desvincular de una plantilla](/es-es/api-reference/endpoint/templates/detach).
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El resultado de la subida.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="image_build" type="object | null">
+    Solo para una aplicación que ejecuta una imagen Docker personalizada: la subida es un commit que reconstruye la imagen, con los archivos colocados encima del contexto de build actual de la imagen. Tiene `image_id` y `build_id`. `null` o ausente en una aplicación normal. Consulta [Imágenes Docker personalizadas](/es-es/guides/custom-docker-images#commit-on-top-of-the-current-context).
+  </ResponseField>
+
+  <ResponseField name="message" type="string">
+    Un resumen legible, por ejemplo que la imagen se está reconstruyendo y que la aplicación se reinicia cuando el build termina con éxito.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {}
+}
+```
+
+```json Response (application on a custom image)
+{
+  "response": {
+    "image_build": {
+      "image_id": "img-abc123def456",
+      "build_id": "bld-abc123def456"
+    },
+    "message": "The image is rebuilding. The application restarts when the build succeeds."
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas (`403`).
+  - `ACCESS_DENIED`: El usuario no tiene acceso a la aplicación.
+  - `API_KEY_SCOPE_DENIED`: La aplicación ejecuta una imagen Docker personalizada y la clave de API no tiene el scope `images:write`. `details.required` es `images:write` (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+  - `NO_FILE_UPLOADED`: No se envió ningún archivo en la petición (`400`).
+  - `INVALID_ZIP_STRUCTURE`: No se pudo leer el ZIP (`400`).
+  - `INVALID_PATH`: El parámetro de query `path` está mal formado o intenta salir de la raíz de la aplicación, por ejemplo con `..` (`400`).
+  - `FORBIDDEN_PATH`: El destino es una carpeta reservada por la plataforma (`403`).
+  - `PATH_IS_FILE`: El destino existe y es un archivo, no una carpeta (`409`).
+  - `VALIDATION_ERROR`: El `message` tiene más de 500 caracteres. `details.path` es `message` (`400`).
+  - `OPERATION_IN_PROGRESS`: Otra subida de código para la misma aplicación sigue en curso. Vuelve a intentarlo dentro de unos segundos (`409`).
+  - `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`: El cambio desvincularía la aplicación de su plantilla y no se envió `confirm_detach` (`409`). No se cambió nada.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "NO_FILE_UPLOADED"
+}
+```
+
+</ResponseExample>

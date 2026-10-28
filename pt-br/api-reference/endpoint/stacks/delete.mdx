@@ -1,0 +1,82 @@
+---
+title: Excluir stack
+sidebarTitle: Excluir stack
+api: DELETE https://api.vertracloud.app/v1/stacks/{stack_id}
+authMethod: bearer
+description: Desfaz uma stack e mantém os membros, ou exclui a stack junto com todos os membros e, opcionalmente, os arquivos do Blob.
+---
+
+{/* @see RESTDeleteAPIStackBody, RESTDeleteAPIStackResponse — @vertracloud/api-types */}
+Escolha entre dois modos. **`dissolve`** remove só a stack: os apps e bancos de dados ficam como recursos avulsos, sem as variáveis e os certificados gerenciados, e os arquivos do Blob são mantidos. **`delete_all`** apaga também todos os membros, cada um pela sua regra de exclusão (com o snapshot de segurança onde houver um). Em ambos os casos, a chave de API que a plataforma criou para a pasta do Blob da stack é revogada.
+
+<Warning>
+  `delete_all` não pode ser desfeito e apaga apps e bancos de dados. Confirme o nome e confira os membros antes, com [Obter stack](/pt-br/api-reference/endpoint/stacks/get).
+</Warning>
+
+Precisa do escopo `stacks:delete` quando chamado com uma chave de API. Com `delete_all`, a chave também precisa de `apps:delete` e `databases:delete`, e de `blob:write` quando você apaga os arquivos do Blob (`blob: "delete"`). Sem eles, a chamada falha com `API_KEY_SCOPE_DENIED`.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence, quando você age sobre ela como dono do workspace.
+</ParamField>
+
+<ParamField body="mode" type="string" required>
+  `dissolve` ou `delete_all`.
+</ParamField>
+
+<ParamField body="confirm_name" type="string" required>
+  Deve ser igual ao nome da stack.
+</ParamField>
+
+<ParamField body="blob" type="string" default="keep">
+  O que fazer com os arquivos da pasta do Blob da stack quando `mode` é `delete_all`: `keep` os deixa onde estão, `delete` os remove. `dissolve` sempre os mantém.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="deleted_apps" type="string[]">IDs dos apps apagados. Vazio com `dissolve`.</ResponseField>
+  <ResponseField name="deleted_databases" type="string[]">IDs dos bancos de dados apagados. Vazio com `dissolve`.</ResponseField>
+  <ResponseField name="deleted_blob" type="boolean">`true` quando os arquivos da pasta do Blob foram apagados.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "deleted_apps": ["app-abc123def456"],
+    "deleted_databases": ["db-abc123def456"],
+    "deleted_blob": false
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.vertracloud.app/v1/stacks/stk-abc123def456 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "mode": "delete_all", "confirm_name": "shop", "blob": "keep" }'
+```
+
+</RequestExample>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `STACK_NAME_MISMATCH` | `confirm_name` não é o nome da stack. |
+| 403 | `API_KEY_SCOPE_DENIED` | A chave não tem `stacks:delete`, ou, com `delete_all`, não tem `apps:delete`, `databases:delete` ou `blob:write`; `details.required` indica o escopo. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |

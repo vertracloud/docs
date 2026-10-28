@@ -1,0 +1,79 @@
+---
+title: "Eliminar un objeto blob por ID"
+sidebarTitle: "Eliminar objeto"
+api: "DELETE https://blob.vertracloud.app/v1/objects/{object_id}"
+authMethod: bearer
+description: "Elimina de forma permanente un objeto blob por su ID. La respuesta no tiene cuerpo."
+---
+
+{/* @see RESTDeleteAPIBlobObjectResponse — @vertracloud/api-types */}
+
+Elimina de forma permanente un objeto blob y libera su almacenamiento. La eliminación no se puede deshacer y no hay copia
+de seguridad. La respuesta es `null` en el campo `response`.
+
+**Ámbito:** `blob:write`.
+
+<ParamField path="object_id" type="string" required>
+  El ID del objeto.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X DELETE "https://blob.vertracloud.app/v1/objects/0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Respuesta
+
+Vacía si todo sale bien.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `BLOB_OBJECT_NOT_FOUND` (`404`): No existe ningún objeto con ese ID en esta cuenta (o en el blob del workspace).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

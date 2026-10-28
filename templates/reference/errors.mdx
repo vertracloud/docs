@@ -1,0 +1,127 @@
+---
+title: 'Template Errors on Vertra Cloud: Manifest Validation and Deploy Codes'
+sidebarTitle: 'Errors'
+description: 'Cause and fix for every template error: manifest validation codes, deploy and update failures, closed templates, share links and stacks.'
+icon: 'triangle-exclamation'
+---
+
+Template errors come in two groups: **validation findings**, which point to a path inside the manifest and tell you what to fix before you create or validate a template, and **API error codes**, returned when you deploy, update, share or manage a template or stack. Every deploy failure also carries the step that failed. This page lists each code with its cause and its fix. The general catalog of codes is in [API errors](/api-reference/errors).
+
+## Manifest validation findings
+
+`POST /v1/templates/validate` (and `vertra template validate`) never creates anything and always answers with a list of findings. Each finding has a `path` (for example `services.app.ram.recommended`), a `code` and a message. When you create a template with an invalid manifest, the call fails with `TEMPLATE_MANIFEST_INVALID` and the same list in `details.issues`. The field list is in the [manifest schema](/templates/reference/manifest-schema); this page covers the findings.
+
+| Code | Cause | Fix |
+|---|---|---|
+| `invalid_type` | A value has the wrong type, a service defines none or more than one of `source`, `database` and `blob`, a key is not valid, or a limit was exceeded: 40 questions, 16 outputs, 10 tags. | Use the type the schema asks for. A service is exactly one of an app (`source`), a database or a Blob folder. |
+| `required` | A required field is missing, or a code service has no `language`, or the template has no app service. | Add the field. A template needs at least one app service. |
+| `unknown_field` | A field the schema does not know, `landing` in a private template, or a name in `env_hidden` that is not in `env`. | Remove or rename it. Check for typos against the schema. |
+| `invalid_slug` | An id (template or service) is not lowercase letters, digits, `_` or `-`. | Rewrite the id. |
+| `invalid_version` | The `version` is not a valid semantic version. | Use `MAJOR.MINOR.PATCH`. A new version must be higher than the current one. |
+| `invalid_category` | The category is not one of the allowed ones. | Pick a category from the list in the schema. |
+| `invalid_text` | A name, description, label or help text is missing a language, empty or too long (the template name is up to 50 characters, the description up to 128). | Fill in every language and respect the limits. |
+| `invalid_ram` | `ram.recommended` is below `ram.min`, `ram.max` is below `recommended`, or a Blob service has memory. | Order the values `min`, `recommended`, `max`. |
+| `invalid_plan` | `min_plan` is not the id of an existing plan. | Use the plan id (for example `enterprise-28`), not its display name. |
+| `unknown_placeholder` | A `{{...}}` placeholder is malformed, names a field that does not exist, uses a secret that is not declared in `secrets`, or sits outside `env` and `outputs`. | Fix the placeholder; declare the secret; use placeholders only in `env` and `outputs`. |
+| `unknown_service` | A placeholder, connection, option or condition names a service that does not exist, or an app-only setting points to a database. | Use the id of a service of the manifest. |
+| `unknown_input` | A placeholder or a condition names a question that does not exist. | Use the id of a question of the manifest. |
+| `invalid_when` | A condition refers to a question that comes after it (or to itself), or its `equals` does not fit the question's type. | Reorder the questions: a condition can only look at earlier ones. |
+| `invalid_option` | A `select` question has no options, its default is not an option, `options` is on a question that is not a `select`, or a database version is not available for the engine. | Give the question valid options and a default that is one of them. |
+| `invalid_source` | An image service has no `source.image`, or a public image is not pinned by digest (`@sha256:...`), or code-only fields are on an image service (or the reverse), or `source.path` is absolute or leaves the folder. | Pin the image by digest, and keep each field on the right kind of service. |
+| `invalid_permissions` | A combination of permissions that is not allowed, for example a closed template that lets users edit the code or the commands, or add variables, a `below_min` without `change`, or `env_hidden` in a template that is not closed. | Remove the conflicting permission. See [Permissions](/templates/create/permissions). |
+| `forbidden_env` | `env` sets a variable that the platform controls (such as `NODE_OPTIONS`, `LD_PRELOAD`, `LD_LIBRARY_PATH` or `LD_AUDIT`). | Remove it from the manifest. |
+| `forbidden_in_public` | A field that is only for private templates (`env_hidden`, closed code, full-copy share) in a public template. | Remove it, or keep the template private. |
+| `secret_in_manifest` | A variable that looks like a secret carries a literal value. | Use a secret question, a generated secret (`{{secrets.<name>}}`) or, in a closed template, `env_hidden`. |
+| `invalid_deploy` | A locked deploy setting has the default `auto`, or placeholders in a place that does not take them (such as the health check path). | Lock a setting to `on` or `off`. |
+| `invalid_connection` | A service is connected to itself. | Remove the connection. |
+| `duplicate_id` | Two questions, services or outputs share an id. | Make ids unique. |
+| `too_many_services` | The template has more than 8 services. | Split it into two templates. |
+
+A finding with the `private_network_unavailable` code is a warning, not an error: a link marked `private: required` stays out of the public gallery.
+
+## Deploy and update errors
+
+These are returned by `POST /v1/templates/{template_id}/deploy`, by the share link deploy and by the update routes. Most are checked before the `202`, so no job exists; failures during the job arrive in the job's `error` field with the `step` that failed and the changes are undone.
+
+| Code | Status | Cause | Fix |
+|---|---|---|---|
+| `TEMPLATE_NOT_FOUND` | 404 | The template does not exist, was removed or is not visible to you. | Check the slug or id, and the workspace. |
+| `TEMPLATE_DEPRECATED` | 409 | The author deprecated the template; it cannot be used for new apps. | Pick another template. What already runs keeps running. |
+| `TEMPLATE_INPUT_INVALID` | 400 | An answer is missing or invalid, or the memory is outside what the template allows. `details.issues` lists each question. | Fix the listed answers and send again. |
+| `TEMPLATE_VERSION_NOT_SELECTABLE` | 400 | You sent `version` for a template that does not allow earlier versions. | Leave `version` out to get the latest. |
+| `TEMPLATE_PLAN_REQUIRED` | 403 | Your plan does not meet a requirement. `details.reason` is one of `no_plan`, `web_publish`, `image_plan`, `private_network`, `blob_plan` or `min_plan`. | Upgrade, or pick a template that fits. See [Plans and limits](/plans-and-limits). |
+| `TEMPLATE_RAM_INSUFFICIENT` | 400 | The sum of the minimum memory of the services does not fit your free memory. `details` has the memory needed and free. | Free memory (stop or resize an app) or upgrade. |
+| `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | 403 | The template runs an image and every image slot is in use. | Delete an image you no longer use, or upgrade. See [Image slots](/templates/overview#image-slots). |
+| `MAX_APPS_REACHED` | 403 | The plan's limit of applications would be exceeded. | Delete an app or upgrade. |
+| `MAX_DATABASES_REACHED` | 403 | The plan's limit of databases would be exceeded. | Delete a database or upgrade. |
+| `DEPLOY_RATE_LIMITED` | 429 | The hourly limit of deploys was reached. | Wait and try again. |
+| `TEMPLATE_DEPLOY_IN_PROGRESS` | 409 | A deploy or update of your account is already running. | Wait for it to end. Only one runs at a time. |
+| `IDEMPOTENCY_KEY_CONFLICT` | 409 | The `Idempotency-Key` was used before with a different request. | Use a new key, or repeat the same request. |
+| `WORKSPACE_OWNER_ONLY` | 403 | Only the owner of a workspace uses templates in it. | Use your personal account or ask the owner. |
+| `SUBDOMAIN_TAKEN` | in the job | The subdomain you chose is already taken. | Choose another or leave it random. |
+| `TEMPLATE_UPDATE_BLOCKED` | 409 | The update cannot go ahead. `details.reason` is one of: `no_new_version`, `detached`, `template_removed`, `link_revoked`, `ram`, `plan`, `image_slots`, `app_building`, `deploy_in_progress`. | See the table below. |
+| `TEMPLATE_DEPLOY_NOT_FOUND` | 404 | The job does not exist or belongs to another account. | Check the id. |
+| `TEMPLATE_DEPLOY_FAILED` | in the job | A step failed without a more specific code. | Read `error.step` and try again; contact support if it repeats. |
+
+Other codes can appear inside a job's `error` when a step fails, such as `BUILD_FAILED`, `BUILD_TIMEOUT`, `IMAGE_NOT_READY`, `IMAGE_BUILDER_UNAVAILABLE`, `BLOB_NAMESPACE_SUSPENDED`, `PLAN_RESTRICTED_FEATURE` and `STACK_BLOB_PREFIX_TAKEN`. The message is always a fixed sentence and never carries the output of your app or values of your variables.
+
+### Steps of a job
+
+A job lists only the steps that apply to it, in this order: `validate`, `snapshot` (updates), `network`, `databases`, `blob`, `images`, `apps`, `variables`, `certificates`, `start`, `healthcheck`, `outputs`. A failed job adds `rollback`. The `step` in the error tells you where to look: a `healthcheck` failure means the app started but never became healthy, so check the app's logs; an `images` failure is about the image or your slots; a `databases` failure is about the limit or the memory of the databases.
+
+### Update block reasons
+
+| `details.reason` | Meaning | What to do |
+|---|---|---|
+| `no_new_version` | The app already runs the latest version. | Nothing. |
+| `detached` | The app was detached and no longer receives versions. | Create a new app from the template if you want one that updates. |
+| `template_removed` | The author removed the template. | The app keeps running; it will not receive more updates. |
+| `link_revoked` | The author revoked the share link the app came from. | Ask the author for a new link. |
+| `ram` | The new version needs more memory than you have free. | Free memory or upgrade, then update. |
+| `plan` | The new version needs a higher plan. | Upgrade. |
+| `image_slots` | The new version needs an image slot you do not have. | Free a slot or upgrade. |
+| `app_building` | The app is still building. | Wait for the build. |
+| `deploy_in_progress` | Another deploy or update of the account is running. | Wait for it. |
+
+## Closed templates and rollback
+
+| Code | Status | Cause | Fix |
+|---|---|---|---|
+| `TEMPLATE_CLOSED` | 403 | The route reads or changes code, files, commands or variables of an app from a [closed template](/templates/use/closed-templates), or tries to detach or save it. | Use the allowed actions: logs, snapshots, restore, rollback, update. |
+| `TEMPLATE_ROLLBACK_REQUIRES_DATA` | 409 | The software migrates its data on update, so rolling back only the code is blocked. | Restore the safety snapshot taken before the update. See [Update and roll back](/templates/use/updates-and-rollback). |
+| `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | 409 | The change (editing files, uploading code, linking a repository, committing the container) detaches the app from its template. | Repeat with `confirm_detach` to confirm, or leave the app on the template. |
+| `MANAGED_ENV_READONLY` | 403 | The variable is injected by the template and cannot be read or changed. | Use the app's own variables instead. |
+| `IMAGE_TEMPLATE_ONLY` | 403 or 409 | The image belongs to a template and can only be used through it. | Create the app with the template. |
+
+## Private templates and share links
+
+| Code | Status | Cause | Fix |
+|---|---|---|---|
+| `TEMPLATE_PRIVATE_LIMIT_REACHED` | 403 | You have 5 private templates, the limit of an account. | Delete one. |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | 403 | Your plan cannot create images, so it cannot create templates. | Use a plan that includes images. |
+| `TEMPLATE_SLUG_TAKEN` | 409 | The slug is in use by another template of yours. | Choose another. |
+| `TEMPLATE_SOURCE_REQUIRED` | 400 | A code service was sent without its ZIP. | Send a ZIP for each code service. |
+| `TEMPLATE_SECRET_IN_SOURCE` | 400 | The code has a `.env` file, a private key or a token. `details.files` lists them. | Remove the secret and send again. |
+| `TEMPLATE_SAVE_NOT_ALLOWED` | 403 | An app that came from a share link cannot be saved as a template or shared. | Create your own app and save that one. |
+| `SHARE_LINK_NOT_FOUND` | 404 | The link does not exist or its template was removed. | Ask for a new link. |
+| `SHARE_LINK_REVOKED` | 410 | The author revoked the link. | Ask for a new link. |
+| `SHARE_LINK_EXPIRED` | 410 | The link passed its validity. | Ask for a new link. |
+| `SHARE_LINK_EXHAUSTED` | 410 | The link reached its maximum number of uses. | Ask for a new link. |
+
+See [Receive a link](/templates/use/receive-a-link) and [Create templates](/templates/create/overview).
+
+## Stacks
+
+| Code | Status | Cause | Fix |
+|---|---|---|---|
+| `STACK_NOT_FOUND` | 404 | The stack does not exist or belongs to another account. | Check the id and the workspace. |
+| `STACK_MEMBER_CONFLICT` | 409 | The resource is in another stack, or is not in the same account or workspace as the stack. | Take it out of the other stack first. |
+| `STACK_MEMBER_NOT_FOUND` | 404 | The resource is not a member of the stack. | Check the id. |
+| `STACK_BINDING_NOT_FOUND` | 404 | The stack has no connection with that id. | List the connections. |
+| `STACK_NETWORK_MODE_UNAVAILABLE` | 400 | You asked for a network mode other than `public`. | Use `public`. |
+| `STACK_SERVICE_LOCKED` | 403 | The app comes from a closed template and cannot leave the stack. | Keep it in the stack. |
+| `STACK_NAME_MISMATCH` | 400 | `confirm_name` is not the stack's name. | Type the exact name. |
+| `STACK_TRANSFORM_EMPTY` | 400 | The folder has no app, or no database. | Put an app and a database in the folder. |
+| `STACK_BLOB_PREFIX_TAKEN` | 409 | The Blob folder is used by another stack or already has files. | Choose another folder. |
+
+See [Stacks](/templates/use/stacks).

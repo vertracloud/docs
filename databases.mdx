@@ -188,6 +188,28 @@ In the examples, `<host>`, `<port>` and `<password>` come from the database page
   or the engine's default port used instead of the database's own port.
 </Warning>
 
+### Certificates in applications linked to a stack
+
+When an application and a database are deployed together from a [template](/templates/use/stacks), the platform writes the database certificates into the application for you, in `/app/.vertra/certs/<database_id>/`: `ca.pem`, `client.crt`, `client.key`, `client.pem` (MongoDB) and `client.p12` (Prisma). Variables such as the connection URL point to those paths, so you do not upload anything. See [Connect databases](/templates/use/connect-databases).
+
+### How do I connect with Prisma 6?
+
+Prisma 6 only accepts a client certificate as a PKCS#12 identity, so use the `client.p12` file (AES-encrypted, empty password, so no `sslpassword`) in `sslidentity` and the CA in `sslcert`:
+
+```ini
+DATABASE_URL=postgresql://vertracloud:<password>@<host>:<port>/vertracloud?sslmode=require&sslaccept=strict&sslcert=/app/.vertra/certs/<database_id>/ca.pem&sslidentity=/app/.vertra/certs/<database_id>/client.p12
+```
+
+A template can ask for this URL ready-made, but it is never added to a connection by default because it carries the password. Prisma 7 reads the PEM files from the standard PostgreSQL URL and does not need the `.p12`.
+
+### Does Python 3.13 connect to the database?
+
+Yes, but Python 3.13 and later turn on strict X.509 checks in the default TLS context (`ssl.create_default_context()`), and databases created before the certificate fix can fail with `Missing Authority Key Identifier`. Libraries that use the default context are the ones affected, such as redis-py and pg8000; psycopg, asyncpg, PyMySQL and pymongo are not. New databases and databases whose certificates you reset already issue compliant certificates. If you cannot reset right now, redis-py 6 or later accepts `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`.
+
+### What happens when I reset the certificates?
+
+Resetting issues a new CA, server and client certificate and invalidates the old files. Applications linked to a stack have the files in `/app/.vertra/certs/` rewritten automatically, but the running process still holds the old ones: the response flags `restart_required` and lists the applications to restart. Files you downloaded and placed in a project yourself must be downloaded and deployed again.
+
 ## Lifecycle
 
 ```mermaid

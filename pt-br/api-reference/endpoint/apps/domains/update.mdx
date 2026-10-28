@@ -1,0 +1,122 @@
+---
+title: Atualizar domínio da aplicação
+sidebarTitle: Atualizar domínio
+api: PATCH https://api.vertracloud.app/v1/apps/{id}/domains/{domain_id}
+authMethod: bearer
+description: Altera a porta, o prefixo de caminho ou o redirecionamento de um domínio personalizado, ou o torna o domínio principal, sem reiniciar a aplicação.
+---
+
+{/* @see RESTPatchAPIApplicationDomainBody, RESTPatchAPIApplicationDomainResponse — @vertracloud/api-types */}
+Altera como um domínio é servido. Envie somente os campos que quer alterar; a aplicação não é reiniciada nem recebe
+um novo deploy. Exige o escopo `apps:write` quando chamado com uma chave de API.
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação.
+</ParamField>
+
+<ParamField path="domain_id" type="string" required>
+  O ID do domínio, obtido em [Listar domínios da aplicação](/pt-br/api-reference/endpoint/apps/domains/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que atuam em uma aplicação que não é deles.
+</ParamField>
+
+<ParamField body="port" type="integer">
+  A porta da aplicação que atende este domínio, um inteiro de `1` a `65535`. Uma aplicação pode atender os seus domínios
+  em até 5 portas diferentes além da `80`.
+</ParamField>
+
+<ParamField body="path_prefix" type="string | null">
+  Um caminho literal adicionado antes de cada requisição, no mesmo formato de
+  [Adicionar domínio à aplicação](/pt-br/api-reference/endpoint/apps/domains/create) (`/api`). Envie `null` para removê-lo.
+</ParamField>
+
+<ParamField body="redirect_to" type="string | null">
+  O ID de outro domínio da mesma aplicação para redirecionar. Envie `null` para parar de redirecionar: o domínio volta
+  a servir a aplicação e `redirect_status` volta para `308`. O destino não pode redirecionar para si mesmo.
+</ParamField>
+
+<ParamField body="redirect_status" type="integer">
+  O status HTTP do redirecionamento: `301`, `302`, `307` ou `308`. Vale apenas enquanto o domínio redireciona. Quando você
+  define `redirect_to` sem ele, o status é `308` para um domínio que estava servindo, e permanece o mesmo para um que
+  já redirecionava.
+</ParamField>
+
+<ParamField body="primary" type="boolean">
+  Envie `true` em um complementar automático para torná-lo o domínio principal: ele passa a servir a aplicação,
+  assumindo a porta e o prefixo de caminho, e o antigo domínio principal passa a redirecionar para ele. Não tem efeito
+  no domínio que já é o principal, e qualquer outro domínio responde `VALIDATION_ERROR`.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="APIApplicationDomain[]">
+  O domínio que você alterou e todos os outros cujo papel mudou junto com ele (por exemplo, o antigo domínio principal
+  após `primary`). Cada item tem os campos descritos em
+  [Listar domínios da aplicação](/pt-br/api-reference/endpoint/apps/domains/list#resposta).
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "hostname": "api.example.com",
+      "apex": false,
+      "companion_of": null,
+      "redirect_to": null,
+      "redirect_status": 308,
+      "path_prefix": "/api",
+      "port": 3000,
+      "status": "active",
+      "ssl_status": "active",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: os parâmetros de caminho ou o corpo falharam na validação, por exemplo um campo desconhecido, ou `primary` em um domínio que não pode ser trocado (`400`). A resposta também traz `message` e `path`.
+  - `INVALID_DOMAIN_PORT`: `port` não é um inteiro de 1 a 65535 (`400`).
+  - `INVALID_PATH_PREFIX`: `path_prefix` não segue o formato de [Adicionar domínio à aplicação](/pt-br/api-reference/endpoint/apps/domains/create) (`400`).
+  - `INVALID_REDIRECT_TARGET`: `redirect_to` não é outro domínio desta aplicação, não está `active`, é o próprio domínio, ou criaria dois redirecionamentos encadeados (`400`).
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões (`403`).
+  - `USER_NOT_FOUND`: não foi possível identificar o usuário autenticado (`401`).
+  - `ACCESS_DENIED`: o usuário não tem permissão para atuar na aplicação (`403`).
+  - `API_KEY_SCOPE_DENIED`: a chave de API não tem o escopo `apps:write` (`403`).
+  - `DOMAIN_PORT_LIMIT_REACHED`: a alteração faria a aplicação servir domínios em mais de 5 portas além da `80` (`403`). `details.limit` traz o limite.
+  - `APP_NOT_FOUND`: a aplicação especificada não existe (`404`).
+  - `DOMAIN_NOT_FOUND`: a aplicação não tem nenhum domínio com esse ID (`404`).
+  - `RATE_LIMIT_EXCEEDED`: foi atingido o orçamento de requisições da rota (`429`).
+  - `INTERNAL_SERVER_ERROR`: falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "INVALID_REDIRECT_TARGET"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "DOMAIN_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta rota tem um orçamento próprio de 20 requisições por minuto. Veja [Limite de requisições](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa).
+</Note>

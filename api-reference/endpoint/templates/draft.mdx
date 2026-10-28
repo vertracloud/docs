@@ -1,0 +1,128 @@
+---
+title: Review the Draft of a Template from an App or Stack
+sidebarTitle: Review Draft
+api: GET https://api.vertracloud.app/v1/templates/from-app/{app_id}/draft
+authMethod: bearer
+description: Lists the variables and files the platform proposes when you save an application or a stack as a template, never including values.
+---
+
+{/* @see APITemplateDraft, RESTGetAPITemplateDraftResponse — @vertracloud/api-types */}
+This call returns what the platform proposes to put in a template made from an application or a stack: for each member, its variables with a suggested treatment and the files of its `/app` with what is selected by default. It never returns a value, and it creates nothing. Use it to build the review that comes before [Create Template from App](/api-reference/endpoint/templates/create-from-app) or [Create Template from Stack](/api-reference/endpoint/templates/create-from-stack).
+
+There are two routes with the same response: `GET /v1/templates/from-app/{app_id}/draft` for one application and `GET /v1/templates/from-stack/{stack_id}/draft` for a stack. Needs the `templates:write` scope when called with an API key. The application of a [closed template](/templates/use/closed-templates) and the one that came from a share link cannot be saved, so the draft is refused for them like the save is. The draft of a stack does not offer the connection variables: they are rewritten as placeholders on their own.
+
+<ParamField path="app_id" type="string" required>
+  The application ID, on the `from-app` route.
+</ParamField>
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID, on the `from-stack` route.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application or stack belongs to a workspace, the workspace's ID.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/from-app/app-abc123def456/draft \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The draft.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="members" type="object[]">
+    One entry per application or database. A draft of an application has one member.
+
+    <Expandable title="member">
+
+    <ResponseField name="resource_id" type="string">
+      The application or database ID.
+    </ResponseField>
+
+    <ResponseField name="resource_type" type="string">
+      `application` or `database`.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      The name of the member.
+    </ResponseField>
+
+    <ResponseField name="ram" type="object">
+      The memory of the member, a good starting point for the template: `min`, `recommended` and optional `max`, in MB.
+    </ResponseField>
+
+    <ResponseField name="env" type="object[]">
+      The variables of an application, without values. Each has `key`, `looks_secret` (`true` when the name looks like a secret, such as `*_KEY`, `*_TOKEN`, `*_SECRET` or `PASSWORD`, or the value has the shape of a credential) and `suggested_mode`. The suggestion is `question` for a variable that looks like a secret, `omit` for a variable the platform controls (such as `PORT`) and `keep` for the others. Variables hidden by a template never appear. The modes are listed in [Create Template from App](/api-reference/endpoint/templates/create-from-app).
+    </ResponseField>
+
+    <ResponseField name="paths" type="object[]">
+      The files and folders of the `/app` of an application with code, up to 3 levels deep. Empty for an image and for a database. Each has `path`, `type` (`file` or `directory`), `selected` (whether it goes into the template by default) and `reason`. The reason a path is not selected is `env_file` (`.env*` files), `platform_folder` (the `.vertra` folder), `dependencies` (`node_modules`, `.venv`, `vendor`), `database_file` (SQLite files) or `uploads` (upload folders); it is `null` when the path is selected. An excluded folder is a single line. `.env*` files, the platform folder and dependencies can never be included, even when you list them.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "members": [
+      {
+        "resource_id": "app-abc123def456",
+        "resource_type": "application",
+        "name": "support-bot",
+        "ram": { "min": 256, "recommended": 512 },
+        "env": [
+          { "key": "DISCORD_TOKEN", "looks_secret": true, "suggested_mode": "question" },
+          { "key": "LOG_LEVEL", "looks_secret": false, "suggested_mode": "keep" },
+          { "key": "PORT", "looks_secret": false, "suggested_mode": "omit" }
+        ],
+        "paths": [
+          { "path": "src", "type": "directory", "selected": true, "reason": null },
+          { "path": "package.json", "type": "file", "selected": true, "reason": null },
+          { "path": ".env", "type": "file", "selected": false, "reason": "env_file" },
+          { "path": "node_modules", "type": "directory", "selected": false, "reason": "dependencies" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:write` scope (`403`).
+  - `APP_NOT_FOUND`: The application does not exist or is not yours.
+  - `STACK_NOT_FOUND`: The stack does not exist or is not yours.
+  - `TEMPLATE_SAVE_NOT_ALLOWED`: The application came from a share link, or runs a platform image (`403`).
+  - `TEMPLATE_CLOSED`: The application comes from a closed template (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: The plan cannot create templates.
+  - `WORKSPACE_OWNER_ONLY`: Only the workspace owner works with templates in it.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_CLOSED"
+}
+```
+
+</ResponseExample>

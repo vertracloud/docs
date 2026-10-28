@@ -1,0 +1,46 @@
+---
+title: Crear solicitud de acción
+sidebarTitle: Crear
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/action-requests
+authMethod: bearer
+description: Solicita una acción sensible que no tienes permiso para ejecutar por ti mismo. Cualquier miembro; una clave de API necesita el scope `workspaces:write`.
+---
+
+{/* @see RESTPostAPIWorkspaceActionRequestBody, RESTPostAPIWorkspaceActionRequestResponse — @vertracloud/api-types */}
+<Note>
+  Una clave de API necesita el scope `workspaces:write`. La solicitud solo se decide en el panel:
+  aprobar y rechazar no están disponibles para las claves de API.
+</Note>
+
+Cualquier miembro puede llamar a esto. La verificación real es que quien llama **no** tenga ya el permiso al que se
+asocia la acción; si lo tiene, ejecuta la acción directamente.
+
+| `action` | requiere permiso |
+|---|---|
+| `app_delete` | `apps:delete` |
+| `database_delete` | `databases:delete` |
+| `snapshot_create` | `snapshots:manage` |
+| `snapshot_restore` | `snapshots:manage` |
+
+### Ruta
+
+<ParamField path="id" type="string" required>ID del workspace.</ParamField>
+
+### Body
+
+<ParamField body="action" type="string" required>Una de `app_delete`, `database_delete`, `snapshot_create`, `snapshot_restore`.</ParamField>
+<ParamField body="resource_id" type="string" required>La aplicación o base de datos sobre la que actúa esta acción. Debe pertenecer a este workspace.</ParamField>
+<ParamField body="params" type="object">Parámetros específicos de la acción, guardados tal cual: son exactamente lo que se ejecuta si se aprueba; lo que se envía al aprobar no se usa. `snapshot_restore` requiere `{ "snapshot_id": "<uuid>" }` (un snapshot de este recurso); las demás acciones no reciben ninguno (`{}` o se omite). Cualquier otra clave devuelve `WORKSPACE_ACTION_INVALID_PARAMS`.</ParamField>
+
+### Respuesta
+
+Igual que una fila de [Listar solicitudes de acción](/es-es/api-reference/endpoint/workspaces/action-requests/list), con `status: "pending"`.
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 400 | `WORKSPACE_ACTION_NOT_NEEDED` | Quien llama ya tiene el permiso al que se asocia la acción; ejecútala directamente en lugar de pedirla. |
+| 403 | `API_KEY_SCOPE_DENIED` | Se llamó con una clave de API que no tiene el scope `workspaces:write`. |
+| 404 | `WORKSPACE_NOT_FOUND` | El workspace no existe o no eres miembro. |
+| 404 | `APP_NOT_FOUND` / `DATABASE_NOT_FOUND` | `resource_id` no pertenece a este workspace. |

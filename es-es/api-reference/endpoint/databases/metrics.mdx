@@ -1,0 +1,108 @@
+---
+title: Obtener las métricas de una base de datos por ID
+sidebarTitle: Obtener métricas de base de datos
+api: GET https://api.vertracloud.app/v1/databases/{id}/metrics
+authMethod: bearer
+description: Obtiene las métricas de una base de datos concreta a partir de su ID durante las últimas 24 horas.
+---
+
+{/* @see APIDatabaseMetrics[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la base de datos cuyas métricas se van a obtener. Si la base de datos pertenece a un workspace, pasa su ID en el parámetro de consulta `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la base de datos pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúan sobre una base de datos que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="array">
+  Un array de objetos de métricas de la base de datos durante las últimas 24 horas.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="cpu" type="string">
+    El uso de CPU del contenedor de la base de datos (por ejemplo, "0.00%").
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    El uso de RAM del contenedor de la base de datos en MB (por ejemplo, "0.00 MB").
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    El uso de almacenamiento del contenedor de la base de datos en MB (por ejemplo, "0.00 MB").
+  </ResponseField>
+
+  <ResponseField name="network" type="array">
+    Un array con el tráfico de red de entrada y de salida en bytes [entrada, salida].
+  </ResponseField>
+
+  <ResponseField name="date" type="string" format="date-time">
+    La marca de tiempo en que se registró la métrica.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "cpu": "0.50%",
+      "ram": "128.00 MB",
+      "storage": "256.00 MB",
+      "network": [1024, 2048],
+      "date": "2026-03-14T19:58:00Z"
+    },
+    {
+      "cpu": "0.75%",
+      "ram": "130.00 MB",
+      "storage": "256.00 MB",
+      "network": [2048, 4096],
+      "date": "2026-03-14T20:00:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP que no está en su lista de permitidas, o no tiene el ámbito que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+  - `FORBIDDEN`: El usuario no tiene permiso para acceder a la base de datos.
+  - `DATABASE_NOT_FOUND`: La base de datos indicada no existe.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Un mensaje descriptivo con más detalles sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

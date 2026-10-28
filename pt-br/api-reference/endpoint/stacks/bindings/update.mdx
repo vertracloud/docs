@@ -1,0 +1,39 @@
+---
+title: Atualizar conexão da stack
+sidebarTitle: Atualizar conexão
+api: PATCH https://api.vertracloud.app/v1/stacks/{stack_id}/bindings/{binding_id}
+authMethod: bearer
+description: Substitui os nomes das variáveis de uma conexão da stack.
+---
+
+{/* @see RESTPatchAPIStackBindingBody, RESTPatchAPIStackBindingResponse — @vertracloud/api-types */}
+Substitui todo o `env_map` de uma conexão. Precisa do escopo `stacks:write` quando chamado com uma chave de API.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField path="binding_id" type="string" required>
+  O ID da conexão.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence, quando você age sobre ela como dono do workspace.
+</ParamField>
+
+<ParamField body="env_map" type="object" required>
+  Nome da variável para o que ela recebe. Os valores permitidos estão listados em [Criar conexão da stack](/pt-br/api-reference/endpoint/stacks/bindings/create).
+</ParamField>
+
+### Resposta
+
+A conexão com `restart_required` e `apps_to_restart`. Reinicie os apps listados para que eles passem a ler os novos nomes.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Um valor não é válido para o alvo da conexão. |
+| 409 | `ENV_DUPLICATE_KEY` | Um nome de variável já é gerenciado por outra conexão. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
+| 404 | `STACK_BINDING_NOT_FOUND` | A stack não tem uma conexão com esse ID. |

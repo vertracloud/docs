@@ -1,0 +1,170 @@
+---
+title: 'Tutorial: Deliver a Closed Template to a Client by Link'
+sidebarTitle: 'Closed template for a client'
+description: 'Build a private template with closed code and a hidden variable, create a single-use link and see what your client can and cannot do with it.'
+icon: 'lock'
+---
+
+A **closed template** lets a client run your software on their own account without being able to open its code. You set `code.view: false` in the manifest, hide the variables that belong to you with `env_hidden`, and send a **use link**: the client previews it, fills in their own answers and gets an app that starts, stops, logs and snapshots like any other, with the code sealed. In this tutorial you deliver a bot to a client this way.
+
+The platform enforces the seal on its own API, in every route that reads or changes files and code, not only in the dashboard. It does not make your code secret from someone who controls the machine it runs on or from the Vertra team, and it cannot protect you from a flaw in your own code that serves files. Read [Permissions](/templates/create/permissions) for the full list of guarantees.
+
+## Before you start
+
+<Check>A working private code template, such as the one from the [first tutorial](/templates/tutorials/discord-bot-code). Open and closed templates share the same structure, so you only change the permissions.</Check>
+<Check>A plan that can create private templates (see [Plans and limits](/plans-and-limits)).</Check>
+<Check>A second account you can sign in to. It is the only way to see the preview and the closed app exactly as the client does.</Check>
+
+## What the client can and cannot do
+
+| The client can | The client cannot |
+|---|---|
+| Start, stop and restart the app, read logs and metrics | Open the file manager (view, upload, move or delete files) |
+| Take snapshots and restore them | Download a snapshot, or download the app |
+| Roll back and update to a new version you publish | Create free variables (such as `NODE_OPTIONS`) or edit the start and build commands |
+| Answer the questions of the template and change the RAM, if you allow it | Use a terminal, deploy from GitHub or upload code |
+| Use the **databases** of the stack without any restriction | Save the app as a template, detach it from the template or create links from it |
+
+Databases are never closed: the client has full access to their data, as they would on any database they own. Keep anything that must stay out of the client's reach in your own code and variables, not in the database.
+
+## Step by step
+
+<Steps>
+  <Step title="Decide what is yours and what is the client's">
+    Split the configuration in two. What the **client** provides (their Discord token) becomes a question. What **you** provide (a key for a service you pay for, or a license) becomes a hidden variable: injected into the app, never returned by the API and never shown in the panel. In this tutorial the bot reads `VENDOR_API_KEY`, which is yours.
+  </Step>
+  <Step title="Write the closed manifest">
+    Start from the manifest of the first tutorial and change three things: set `code.view` to `false`, add the hidden variable and leave out everything a closed template cannot allow.
+
+    ```yaml title="vertracloud.template.yaml"
+    id: support-bot
+    version: 1.0.0
+    name:
+      pt-br: Bot de suporte
+      en: Support bot
+    description:
+      pt-br: Bot de suporte entregue ao cliente, com código fechado.
+      en: A support bot delivered to a client, with closed code.
+    category: bots
+    tags: [discord, bot, support]
+
+    inputs:
+      - id: discord_token
+        type: secret
+        required: true
+        label:
+          pt-br: Token do seu bot
+          en: Your bot token
+        help:
+          pt-br: "No Discord Developer Portal, abra Bot e use Reset Token."
+          en: "In the Discord Developer Portal, open Bot and use Reset Token."
+        validation: { min_length: 50, max_length: 100 }
+
+    services:
+      app:
+        source: { type: code, path: src }
+        language: javascript
+        runtime_version: recommended
+        main: index.js
+        start: node index.js
+        ram: { min: 256, recommended: 256 }
+        web: none
+        env:
+          DISCORD_TOKEN: "{{inputs.discord_token}}"
+          VENDOR_API_KEY: "paste-your-real-key-here-before-create"
+        env_hidden: [VENDOR_API_KEY]
+        healthcheck: { timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+
+    permissions:
+      code: { view: false }
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+        value:
+          pt-br: "Convide o bot ao seu servidor. Em caso de dúvida, fale com o suporte de quem lhe entregou o bot."
+          en: "Invite the bot to your server. If in doubt, contact whoever delivered the bot to you."
+    ```
+
+    - **`permissions.code.view: false`** is what closes the template. The platform derives the rest: no free variables, no command editing, no terminal, no save as template, no detach, no code deploy.
+    - **`env_hidden`** lists keys of `env`. The value is written in the manifest only so the platform can store it; after the template is created, the stored manifest no longer carries it.
+    - **What you must leave out.** `code.edit: true`, `env.add: true`, `commands.edit: true` and `share.full_copy: true` are refused on a closed template with `invalid_permissions`, because each one would hand the code or its secrets back. Do not list them at all.
+    - **Placeholders still work.** The client's answers and the generated secrets go into the app as usual; the code you hide is the only thing the client cannot read.
+
+    <Warning>The real value of `VENDOR_API_KEY` is in this file, so keep this manifest out of any public repository. Set the value only on the machine that runs `vertra template create`, and do not commit it. When you publish a new version, a hidden key that you leave out of `env` keeps its previous value, and a value you send again replaces it. `vertra template validate` does not know the previous version, so it still wants the key in `env`.</Warning>
+
+    <Note>Closed code and `env_hidden` only exist in **private** templates, and `env_hidden` only in a **closed** one (a validator error `invalid_permissions` otherwise). A template in the public catalog always shows its code, and the catalog refuses `code.view: false` and `env_hidden` with `forbidden_in_public`.</Note>
+  </Step>
+  <Step title="Validate">
+    ```bash
+    vertra template validate
+    ```
+
+    Try one forbidden combination to see the rule at work: add `code: { view: false, edit: true }` and the finding is `permissions.code.edit` with code `invalid_permissions` ("A closed template cannot let users edit its code"). Remove the `edit` line again.
+  </Step>
+  <Step title="Create the template">
+    ```bash
+    vertra template create
+    ```
+
+    The template is private and starts as a new entry under **Templates**, **My templates**, tagged **Closed code**. A closed template is never readable by other accounts: asking for the manifest of one that is not yours returns `null`.
+  </Step>
+  <Step title="Create the use link">
+    A use link gives the client the right to create apps from the template, with their own copy of the image when the template uses one. For a client, make it single-use and short-lived:
+
+    ```bash
+    vertra template share <template-id> --mode use --max-uses 1 --expires-days 14
+    ```
+
+    The CLI prints the token **once**. Copy it and send it to the client right away; afterwards you can only see the end of it and revoke it. In the panel the same thing is **Templates**, **My templates**, the template, **Share links**, **Create link**.
+
+    There is also a **full-copy** link, which gives the receiver a template of their own with code and image. It is not available here: a full-copy link shows the code, so on a closed template the panel says "Unavailable: closed template" and the API refuses the manifest combination with `invalid_permissions`.
+
+    <Tip>Do the first run yourself with the second account: open the link while signed out, check the preview, sign in and create the app. Then try the file manager and the terminal, and confirm they are closed.</Tip>
+  </Step>
+  <Step title="Know what the client sees">
+    The link opens a preview page before anything is created. The client sees the author, the version, what will be created (services, minimum memory, required plan, image slots), a **Not verified by Vertra** badge and this notice:
+
+    > Closed code. The values you fill in (for example, your OpenAI key) go to code you cannot see. You are trusting the author.
+
+    The client then signs in, chooses where to create the app and answers the questions. The preview has a **Report** button for anyone who finds the template abusive. On the app, the client sees the **Closed template** tag and the explanation that the code belongs to the author and which actions remain open.
+
+    Be honest with your client about the trust involved: the notice above is shown to them by design.
+  </Step>
+  <Step title="Update and revoke">
+    To fix something, raise `version` and run `vertra template create --template support-bot --changelog "Describe the change"`. The client sees **New version available** and updates when they choose, with a safety snapshot taken first; an update is never automatic. When the contract with the client ends, revoke the link:
+
+    ```bash
+    vertra template share list <template-id>
+    vertra template share revoke <template-id> <link-id>
+    ```
+
+    Revoking stops new creations and stops offering updates. What the client already created keeps running: it belongs to them, and you can never stop, delete or read anything in their account.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `validate` reports `invalid_permissions` | A permission that would reopen the code (`code.edit`, `env.add`, `commands.edit`, `share.full_copy`) is set to `true` on a closed template. Remove it. |
+| A catalog pipeline reports `forbidden_in_public` | You tried to publish the template to the public catalog. Closed code and `env_hidden` are for private templates only. |
+| `validate` reports `unknown_field` on `env_hidden` | A key listed in `env_hidden` is not in `env`. Add it to `env` with its value. |
+| `validate` reports `secret_in_manifest` | A variable named like a secret has a literal value and is not in `env_hidden`. Hide it or turn it into a question. |
+| The client gets `TEMPLATE_CLOSED` on a file, terminal or code action | That is the seal working. Answer the need through a question or a new version. |
+| The client's link says revoked, expired or used up | A link has its own state: revoked by you, past its validity, or used the maximum number of times. Create another one. |
+| You cannot save a client's app as a template | Apps created from a use link, and apps of a closed template, cannot become a template or generate a link. This is by design. |
+
+## Next steps
+
+- [Closed templates for those who use them](/templates/use/closed-templates): the client's side of the same page.
+- [Receive a template by link](/templates/use/receive-a-link): the preview, the image copy and the report flow.
+- [Share links](/templates/create/share-links): use links versus full-copy links, limits and revocation.
+- [Permissions](/templates/create/permissions): every combination and what each one locks.
+- [Best practices](/templates/create/best-practices): where to keep data in a closed template.
+- Next tutorial: [from a private template to the public catalog](/templates/tutorials/private-to-public-pr).

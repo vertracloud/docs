@@ -1,0 +1,352 @@
+---
+title: Información del usuario
+sidebarTitle: Info del usuario
+api: GET https://api.vertracloud.app/v1/users/me
+authMethod: bearer
+description: Devuelve la información completa del usuario, incluidas aplicaciones, bases de datos, plan y conexiones OAuth.
+---
+
+{/* @see APIUserInfoResponse — @vertracloud/api-types */}
+### Respuesta
+
+<ResponseField name="response" type="APIUserInfoResponse">
+  Datos completos del usuario autenticado.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    ID único del usuario (Snowflake).
+  </ResponseField>
+
+  <ResponseField name="email" type="string">
+    Correo electrónico del usuario.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    Nombre visible del usuario.
+  </ResponseField>
+
+  <ResponseField name="language" type="string">
+    Idioma preferido del usuario (`pt-br`, `en-us`, `es-es`).
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Fecha de creación de la cuenta (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Fecha de la última actualización de la cuenta (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="plan" type="APIUserPlan | null">
+    Información del plan actual, o `null` cuando la cuenta no tiene un plan activo. Una cuenta sin plan no puede
+    crear aplicaciones ni bases de datos (`PLAN_REQUIRED`).
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="name" type="string">
+      El nombre del plan: `economy`, `pro`, `scale`, `intermediary` o `enterprise-<GB>`, donde `<GB>` es 4, 6, 8, 12, 14, 16,
+      18, 20, 22, 24, 26, 28, 30 o 32 (por ejemplo, `enterprise-8`). El nombre es el único identificador del plan.
+    </ResponseField>
+
+    <ResponseField name="expires_at" type="string" format="date-time">
+      Fecha de vencimiento del plan.
+    </ResponseField>
+
+    <ResponseField name="duration" type="integer">
+      Duración del plan en días.
+    </ResponseField>
+
+    <ResponseField name="memory" type="APIUserPlanMemory">
+      Uso de memoria del plan.
+
+      <Expandable title="Mostrar objeto">
+
+      <ResponseField name="limit" type="integer">
+        Límite de memoria en MB.
+      </ResponseField>
+
+      <ResponseField name="used" type="integer">
+        Memoria que se está usando actualmente, en MB.
+      </ResponseField>
+
+      </Expandable>
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="applications" type="APIApplication[]">
+    Lista de aplicaciones del usuario.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="id" type="string">
+      ID único de la aplicación (Snowflake).
+    </ResponseField>
+
+    <ResponseField name="cluster" type="integer">
+      ID del clúster que aloja la aplicación.
+    </ResponseField>
+
+    <ResponseField name="type" type="integer">
+      Tipo de aplicación. `1` = Bot, `2` = Sitio web.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Nombre de la aplicación.
+    </ResponseField>
+
+    <ResponseField name="description" type="string | undefined">
+      Descripción de la aplicación.
+    </ResponseField>
+
+    <ResponseField name="language" type="string">
+      Lenguaje de programación (`javascript`, `typescript`, `python`, `go`, `php`, `ruby`, `java`, `rust`, `bun`, `deno`, `dotnet`, `elixir`, `static`).
+    </ResponseField>
+
+    <ResponseField name="ram" type="integer">
+      Memoria asignada en MB.
+    </ResponseField>
+
+    <ResponseField name="status" type="string">
+      Estado actual: `up`, `down` o `building`.
+    </ResponseField>
+
+    <ResponseField name="subdomain" type="string | null">
+      Subdominio de la aplicación.
+    </ResponseField>
+
+    <ResponseField name="domains" type="APIApplicationDomain[]">
+      Los dominios personalizados de la aplicación, con estado, puerto, prefijo de ruta y redirección. Vacío cuando no tiene
+      ninguno. Los campos se describen en [Listar dominios de la aplicación](/es-es/api-reference/endpoint/apps/domains/list#respuesta).
+    </ResponseField>
+
+    <ResponseField name="owner_plan" type="string | null">
+      El nombre del plan del propietario, o `null` cuando el propietario no tiene plan.
+    </ResponseField>
+
+    <ResponseField name="main_file" type="string">
+      Archivo principal de la aplicación.
+    </ResponseField>
+
+    <ResponseField name="version" type="string">
+      Versión del runtime (`recommended`, `latest` o una versión específica).
+    </ResponseField>
+
+    <ResponseField name="last_snapshot" type="string | null" format="date-time">
+      Fecha del último snapshot.
+    </ResponseField>
+
+    <ResponseField name="offline_since" type="string | null" format="date-time">
+      Fecha desde la que la aplicación está fuera de línea. `null` si está en línea.
+    </ResponseField>
+
+    <ResponseField name="created_at" type="string" format="date-time">
+      Fecha de creación.
+    </ResponseField>
+
+    <ResponseField name="updated_at" type="string" format="date-time">
+      Fecha de la última actualización.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="databases" type="APIDatabase[]">
+    Lista de bases de datos del usuario.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="id" type="string">
+      ID único de la base de datos (Snowflake).
+    </ResponseField>
+
+    <ResponseField name="cluster" type="integer">
+      ID del clúster.
+    </ResponseField>
+
+    <ResponseField name="type" type="integer">
+      Tipo: `1` = PostgreSQL, `2` = MongoDB, `3` = Redis, `4` = MySQL.
+    </ResponseField>
+
+    <ResponseField name="owner_plan" type="string | null">
+      El nombre del plan del propietario (por ejemplo, `pro`), o `null` cuando el propietario no tiene plan.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Nombre de la base de datos.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      Descripción de la base de datos.
+    </ResponseField>
+
+    <ResponseField name="status" type="string">
+      Estado actual: `up`, `down` o `building`.
+    </ResponseField>
+
+    <ResponseField name="ram" type="integer">
+      Memoria asignada en MB.
+    </ResponseField>
+
+    <ResponseField name="host" type="string">
+      Dirección del host para la conexión.
+    </ResponseField>
+
+    <ResponseField name="port" type="integer">
+      Puerto de conexión.
+    </ResponseField>
+
+    <ResponseField name="last_snapshot" type="string | null" format="date-time">
+      Fecha del último snapshot.
+    </ResponseField>
+
+    <ResponseField name="offline_since" type="string | null" format="date-time">
+      Fecha desde la que está fuera de línea.
+    </ResponseField>
+
+    <ResponseField name="created_at" type="string" format="date-time">
+      Fecha de creación.
+    </ResponseField>
+
+    <ResponseField name="updated_at" type="string" format="date-time">
+      Fecha de la última actualización.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="resource_organization" type="APIWorkspaceResourceOrganization">
+    La organización personal del usuario. Es privada para este usuario e incluye las carpetas y los favoritos usados
+    para organizar aplicaciones y bases de datos. Los detalles de las modificaciones están en
+    [Organización personal de recursos](/es-es/api-reference/endpoint/users/resource-organization).
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="scope" type="string">
+      Siempre `personal` en esta respuesta.
+    </ResponseField>
+
+    <ResponseField name="user_id" type="string">
+      ID del usuario propietario de esta organización.
+    </ResponseField>
+
+    <ResponseField name="workspace_id" type="string | null">
+      Siempre `null` en esta respuesta personal.
+    </ResponseField>
+
+    <ResponseField name="folders" type="APIWorkspaceResourceFolder[]">
+      Carpetas personales. Cada carpeta contiene `id`, `name`, `color`, `position`, `resources`,
+      `created_at` y `updated_at`. `color` es `neutral`, `red`, `orange`, `yellow`, `green`,
+      `blue` o `purple`.
+    </ResponseField>
+
+    <ResponseField name="favorites" type="APIWorkspaceFavorite[]">
+      Favoritos personales. Cada elemento contiene `resource_type` (`application` o `database`),
+      `resource_id`, `position` y `created_at`.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="connections" type="APIUserConnection[]">
+    Cuentas OAuth vinculadas.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="provider" type="string">
+      Proveedor OAuth (`discord`, `github`, `google`).
+    </ResponseField>
+
+    <ResponseField name="username" type="string">
+      Nombre de usuario en el proveedor.
+    </ResponseField>
+
+    <ResponseField name="created_at" type="string" format="date-time">
+      Fecha de vinculación.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "123456789012345678",
+    "email": "user@example.com",
+    "name": "user",
+    "language": "pt-br",
+    "plan": {
+      "name": "pro",
+      "expires_at": "2026-04-20T00:00:00.000Z",
+      "duration": 30,
+      "memory": {
+        "limit": 1024,
+        "used": 1024
+      }
+    },
+    "applications": [
+      {
+        "id": "v111d4af8cd74272a284831fbae14a8v",
+        "type": 2,
+        "name": "My API",
+        "description": "REST API with Express",
+        "language": "javascript",
+        "ram": 512,
+        "status": "up",
+        "subdomain": "my-api",
+        "domains": [],
+        "owner_plan": "pro",
+        "owner_id": "123456789012345678",
+        "main_file": "src/index.js",
+        "version": "recommended",
+        "start_command": "npm start",
+        "last_snapshot": "2026-03-15T10:00:00.000Z",
+        "offline_since": null,
+        "created_at": "2026-01-15T15:51:47.234Z",
+        "updated_at": "2026-03-19T15:06:41.449Z"
+      }
+    ],
+    "databases": [
+      {
+        "id": "v41806687fe6488884a464d1dc06692v",
+        "type": 1,
+        "owner_plan": "pro",
+        "name": "my-postgres",
+        "description": "PostgreSQL Database",
+        "status": "up",
+        "ram": 1024,
+        "host": "database.example.com",
+        "port": 5432,
+        "owner_id": "123456789012345678",
+        "last_snapshot": "2026-03-18T00:00:00.000Z",
+        "offline_since": null,
+        "created_at": "2026-02-01T22:00:54.785Z",
+        "updated_at": "2026-03-19T22:13:38.489Z"
+      }
+    ],
+    "connections": [
+      {
+        "provider": "github",
+        "username": "myuser",
+        "created_at": "2026-01-15T15:51:47.234Z"
+      },
+      {
+        "provider": "discord",
+        "username": "myuser#1234",
+        "created_at": "2026-01-15T15:51:47.234Z"
+      }
+    ],
+    "created_at": "2026-01-15T01:26:04.784Z",
+    "updated_at": "2026-03-19T22:10:31.220Z"
+  }
+}
+```
+
+</ResponseExample>

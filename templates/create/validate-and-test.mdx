@@ -1,0 +1,115 @@
+---
+title: 'Validate and Test a Template: CLI, API and Common Validation Errors'
+sidebarTitle: 'Validate and test'
+description: 'Check a manifest with vertra template validate or POST /v1/templates/validate, test it as a private template, and fix every validation code.'
+icon: 'circle-check'
+---
+
+Validate a manifest with `vertra template validate`, which sends it to the API and creates nothing, then test it for real by creating it as a private template in your own account. Validation catches mistakes in the file; only a real deploy proves that the software boots in the sandbox.
+
+## Validate from the CLI
+
+```bash
+vertra template validate            # the current folder
+vertra template validate ./my-template
+vertra template validate ./my-template/vertracloud.template.yaml --json
+```
+
+The command reads `vertracloud.template.yaml` from the folder (or the file you pass) and checks it with the API. Every finding is printed with its file, line, manifest path and code, and the command exits with a failure status when there is at least one. With `--json` it prints:
+
+```json
+{
+  "valid": false,
+  "file": "vertracloud.template.yaml",
+  "issues": [
+    { "path": "services.app.env.API_TOKEN", "code": "secret_in_manifest", "message": "...", "line": 24 }
+  ]
+}
+```
+
+You need to be signed in (`vertra auth login`) or have `VERTRA_API_KEY` set. See [CLI](/cli) for installation.
+
+## Validate from the API
+
+`POST /v1/templates/validate` takes a manifest as JSON and creates nothing. It always answers `200`, with `valid` and the list of findings, and it needs the `templates:read` scope.
+
+```bash
+curl -X POST https://api.vertracloud.app/v1/templates/validate \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "manifest": { "id": "demo", "version": "1.0.0" } }'
+```
+
+```json
+{
+  "response": {
+    "valid": false,
+    "issues": [
+      { "path": "name", "code": "required", "message": "Required" },
+      { "path": "services", "code": "required", "message": "Required" }
+    ],
+    "required_plan": null,
+    "ram_min_total": null,
+    "services": []
+  }
+}
+```
+
+A valid manifest returns an empty `issues`, the calculated `required_plan`, the sum of minimum memory in `ram_min_total` and a summary of each service. The body can be up to 1 MiB. See [the endpoint reference](/api-reference/endpoint/templates/validate).
+
+## Validate in your editor
+
+Add this line to the first line of the manifest and a YAML-aware editor validates and autocompletes as you type:
+
+```yaml
+# yaml-language-server: $schema=https://docs.vertracloud.app/templates/schema/v1.json
+```
+
+Details are in [Manifest JSON Schema](/templates/reference/manifest-schema). The schema covers the shape; the CLI also runs the rules that cross fields, such as placeholders pointing to services that exist.
+
+## Test it as a private template
+
+Validation does not run your software. Before you publish or open a pull request:
+
+1. Create the template as private in your own account: `vertra template create .` (or **Save as template** in the dashboard).
+2. Use it: `vertra template deploy my-template --name test-1 --set discord_token=...`, or use the dashboard wizard. Answer the questions exactly as a new user would, and try every option that turns a service on or off.
+3. Check the healthcheck, the logs, the outputs, and that a restart keeps the data in `/app` and the databases.
+4. Try an update: raise `version`, publish it, and update the app, then roll back.
+5. Delete the test app or stack. If the deploy fails, everything the job created is removed on its own.
+
+<Note>
+  A template that works on your computer may still fail in the sandbox because the root is read-only, the process runs as uid 1000 and only `/app` is writable. See [Best practices](/templates/create/best-practices).
+</Note>
+
+## Validation codes
+
+Every finding has a `path` (for example `services.app.ram.recommended`) and one of these codes. The same list appears in the `details.issues` of `TEMPLATE_MANIFEST_INVALID` when you create a template.
+
+| Code | What it means | How to fix it |
+|---|---|---|
+| `invalid_type` | A value has the wrong type or is out of range (a regex that is unsafe, `min` above `max`, `generate` on a non-secret, too many variables). | Read the message; fix the value. |
+| `required` | A required field is missing: `name`, `services`, `language` for code, or no app at all. | Add it. |
+| `unknown_field` | A field the schema does not know, or `landing` in a private template. | Remove or rename it. |
+| `invalid_slug` | An id with characters outside the allowed ones. | Use lowercase letters, digits and hyphens. |
+| `invalid_version` | `version` is not a semantic version. | Use `MAJOR.MINOR.PATCH`. |
+| `invalid_category` | `category` is not on the list. | Use one from the [manifest reference](/templates/create/manifest-reference#identity). |
+| `invalid_text` | A text is missing `pt-br`, or is too long. | Add `pt-br` and respect the limits. |
+| `invalid_ram` | `recommended` below `min`, `max` below `recommended`, or `ram_extra` on a Blob. | Order the values `min`, `recommended`, `max`. |
+| `invalid_plan` | `min_plan` is not an existing plan id. | Use an id such as `enterprise-28`. |
+| `unknown_placeholder` | A malformed or unknown `{{ }}`, an undeclared secret, or a placeholder in `main`, `build`, `start` or `healthcheck.path`. | See [Placeholders](/templates/create/placeholders-and-inputs#placeholders). |
+| `unknown_service` | A placeholder, `sets` or `connections` points to a service that does not exist. | Fix the service id. |
+| `unknown_input` | A `{{inputs.x}}` or `when` points to a question that does not exist. | Fix the question id. |
+| `invalid_when` | A condition on a later question, on itself, or with an `equals` of the wrong type. | Move the question after the one it depends on. |
+| `invalid_option` | A `select` without options, a `default` that is not an option, a duplicated option, or a database version not available. | Fix the options or use an available version. |
+| `invalid_source` | Image and code fields mixed, an image without digest in a public template, a missing `source.path`, or a path outside the template. | Match the fields to `source.type`; pin the digest. |
+| `invalid_permissions` | A combination of permissions that cannot coexist. | See [Permissions](/templates/create/permissions#combinations-that-are-refused). |
+| `forbidden_env` | A variable the platform controls (`PORT`, `HOME`, `LD_PRELOAD`, `NODE_OPTIONS`, `DYLD_*`...). | Remove it. |
+| `forbidden_in_public` | `env_hidden`, `code.view: false` or `share.full_copy` in a public template. | Use a private template. |
+| `invalid_permissions` | `env_hidden` in a template that is not closed (`code.view` is not `false`). | Close the template, or turn the value into a question. |
+| `secret_in_manifest` | A variable whose name looks like a secret has a literal value, or a value is shaped like a credential. | Use `{{secret:<n>}}`, a secret question, or `env_hidden` in a closed template. |
+| `invalid_deploy` | `zero_downtime` locked with `auto`, or a placeholder in `healthcheck.path`. | Set `on` or `off` when locked. |
+| `invalid_connection` | A service connected to itself. | Remove the connection. |
+| `duplicate_id` | Two questions, secrets, tags, options or keys share an id. | Make them unique. |
+| `too_many_services` | More than 8 services. | Split the template. |
+
+Errors can also come back when you create or publish the template: see [Private templates](/templates/create/private-templates#common-errors) and the [template errors reference](/templates/reference/errors).

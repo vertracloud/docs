@@ -1,0 +1,136 @@
+---
+title: 'Organização pessoal de recursos'
+sidebarTitle: 'Pastas e favoritos'
+description: 'Crie pastas e favoritos individuais para organizar suas aplicações e bancos de dados.'
+---
+Esta API organiza a sua visão pessoal de aplicações e bancos de dados. Ela não altera o recurso nem
+cria uma configuração compartilhada com outras pessoas.
+
+## Escopo e leitura
+
+Use um token Bearer. A organização pessoal é retornada em
+[`GET /v1/users/me`](/pt-br/api-reference/endpoint/users/me), no campo
+`response.resource_organization`.
+
+Uma chave de API precisa de `account:read` para ler o perfil e de `account:write` para alterar a
+organização pessoal.
+
+Pastas e favoritos aceitam apenas estes tipos de recurso:
+
+| `resource_type` | Recurso |
+|---|---|
+| `application` | Aplicação |
+| `database` | Banco de dados |
+| `image` | Imagem Docker |
+| `stack` | Stack |
+
+As cores das pastas são `neutral`, `red`, `orange`, `yellow`, `green`, `blue` e `purple`.
+
+## Criar uma pasta
+
+```http
+POST /v1/users/me/folders
+```
+
+```json
+{
+  "name": "Active projects",
+  "color": "blue",
+  "position": 0
+}
+```
+
+`name` é obrigatório. `color` e `position` são opcionais. A resposta contém a pasta criada em
+`response`.
+
+## Renomear, mudar a cor ou reordenar uma pasta
+
+```http
+PATCH /v1/users/me/folders/{folder_id}
+```
+
+Envie um ou mais campos:
+
+```json
+{
+  "name": "Published projects",
+  "color": "green",
+  "position": 1
+}
+```
+
+Uma pasta também aceita `notes` (texto livre; `null` remove) e `flow_layout` (`{ "x": 0, "y": 0, "collapsed": false }`, a posição dela no canvas do Flow; `null` remove). Os dois voltam na pasta.
+
+`folder_id` é o ID da pasta pessoal. A resposta contém a pasta atualizada em `response`.
+
+## Apagar uma pasta
+
+```http
+DELETE /v1/users/me/folders/{folder_id}
+```
+
+Apagar remove a pasta e os vínculos de organização dela; não apaga as aplicações nem os bancos de
+dados.
+
+## Colocar um recurso em uma pasta
+
+```http
+PUT /v1/users/me/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Parâmetros:
+
+| Parâmetro | Valores |
+|---|---|
+| `folder_id` | ID da pasta pessoal |
+| `resource_type` | `application`, `database`, `image` ou `stack` |
+| `resource_id` | ID da aplicação ou do banco de dados |
+
+O corpo pode conter a posição do recurso dentro da pasta:
+
+```json
+{
+  "position": 0
+}
+```
+
+Se o recurso já estiver em outra pasta pessoal, esta operação o move para a pasta indicada. A
+resposta retorna a organização atualizada em `response`.
+
+Para remover apenas o vínculo com a pasta:
+
+```http
+DELETE /v1/users/me/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+## Favoritar e desfavoritar um recurso
+
+Para favoritar:
+
+```http
+PUT /v1/users/me/favorites/{resource_type}/{resource_id}
+```
+
+O corpo pode conter a posição do favorito:
+
+```json
+{
+  "position": 0
+}
+```
+
+Para desfavoritar:
+
+```http
+DELETE /v1/users/me/favorites/{resource_type}/{resource_id}
+```
+
+Favorito e pasta são preferências independentes: um recurso pode estar nas duas. As duas operações
+retornam a organização atualizada em `response` e podem ser repetidas com segurança.
+
+## Atividade
+
+Criar, editar ou apagar uma pasta, mover um recurso, e favoritar ou desfavoritar geram uma
+atividade. O painel e os workflows usam a mesma API; chamadas com chave de API feitas pela CLI, pelo
+MCP ou pela extensão também entram no histórico. O cliente não envia `origin` nem `author_id`: esses
+campos são definidos pela API.

@@ -1,0 +1,40 @@
+---
+title: Listar snapshots da stack
+sidebarTitle: Listar snapshots
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots
+authMethod: bearer
+description: Lista os snapshots de uma stack, do mais novo para o mais antigo. Cada um agrupa os snapshots de todos os membros que têm dados.
+---
+
+{/* @see RESTGetAPIStackSnapshotsResponse, APIStackSnapshot — @vertracloud/api-types */}
+Retorna os snapshots da stack, do mais novo para o mais antigo. Precisa do escopo `stacks:read` quando chamado com uma chave de API.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence. Obrigatório para um membro do workspace que age sobre uma stack que não é dele.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object[]">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">O ID do snapshot da stack.</ResponseField>
+  <ResponseField name="stack_id" type="string">O ID da stack.</ResponseField>
+  <ResponseField name="reason" type="string">Por que foi feito: `manual`, `update` (um snapshot de segurança antes de atualizar para uma versão mais nova do template) ou `delete` (feito quando a stack e os membros foram apagados).</ResponseField>
+  <ResponseField name="date" type="string" format="date-time">Quando foi feito.</ResponseField>
+  <ResponseField name="size" type="string">Tamanho total, legível por humanos.</ResponseField>
+  <ResponseField name="members" type="object[]">O snapshot de cada membro que tem dados: `resource_type` (`application` ou `database`), `resource_id` e `snapshot_id`.</ResponseField>
+  <ResponseField name="closed" type="boolean">`true` quando a stack roda um [template fechado](/pt-br/templates/use/closed-templates): o snapshot não pode ser baixado, só restaurado.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |

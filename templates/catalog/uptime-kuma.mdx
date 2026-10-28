@@ -1,0 +1,61 @@
+---
+title: 'Uptime Kuma Template on Vertra Cloud: Monitor Sites with Alerts'
+sidebarTitle: 'Uptime Kuma'
+description: 'Create Uptime Kuma on Vertra Cloud: monitors, alerts and a public status page. First steps, push monitors, limits, backups and the MIT license.'
+icon: 'heart-pulse'
+---
+
+Monitor sites and services with alerts and a public status page. The template runs Uptime Kuma 2.5.8 (`slim` variant, SQLite). Your data stays on your own app.
+
+## What it creates
+
+One app (image) that comes up ready, with **no questions**. It uses little memory (about 120 MiB idle); 512 MB is the minimum of a web app. It needs a plan with Docker images and one free [image slot](/templates/overview#image-slots); see [Plans and limits](/plans-and-limits).
+
+## First steps
+
+<Steps>
+  <Step title="Create the administrator">
+    Open the address **right after the deploy**. Uptime Kuma asks for a user and a password on the first visit, and whoever opens it first creates the account.
+  </Step>
+  <Step title="Create the first monitor">
+    **Add New Monitor**: type (HTTP(S), TCP, Ping, DNS, keyword, JSON and others), name, target and interval. The minimum is 20 seconds; 60 seconds is enough for most sites.
+  </Step>
+  <Step title="Connect an alert">
+    **Settings > Notifications > Setup Notification**. For Telegram, create a bot with @BotFather and enter the token and the chat id. Tick **Default enabled** so every new monitor uses the channel. Discord, Slack, email (SMTP), webhook and many others work the same way.
+  </Step>
+  <Step title="Publish a status page">
+    **Status Pages > New Status Page**, choose the short address (`/status/<name>`), add the monitors and save. The page is public and asks for no login. To use your own domain, add it in the app's **Domains** and enter it in the status page under **Domain Names**.
+  </Step>
+</Steps>
+
+### Push monitor for scheduled jobs
+
+For cron jobs and backups, create a **Push** monitor. Kuma generates a URL: make the job call it on every run. If the job stops calling within the interval, the monitor goes down and the alert fires.
+
+## Variables
+
+| Variable | What it does |
+|---|---|
+| `UPTIME_KUMA_DB_TYPE` | `sqlite`. Without it Kuma 2.x opens its database wizard. |
+| `DATA_DIR` | `/app/data/`: the data folder on the app's disk. |
+
+## Limits and good practice
+
+- The **Real Browser** monitor is not available: the image has no browser.
+- SQLite only. For thousands of monitors, prefer another setup.
+- There is no Docker container monitor.
+- Checks start from one place, your app's server, so a "down" alert reflects that server's route to the target.
+- Zero-downtime deploy is off: two copies on the same database would run every monitor twice and send duplicate alerts.
+- The data (`/app/data/kuma.db`) is part of the app's snapshots. Kuma migrates its database on update, so a rollback returns **with the data**. Old history is deleted after 180 days by default (**Settings > Monitor History**).
+
+## Common problems
+
+- **Someone created the administrator before me.** Delete the data in `/app/data` with the file manager and restart to start over, or restore an earlier snapshot.
+- **The Ping monitor does not answer.** `ping` runs without privileges and some targets filter ICMP. Use a TCP or HTTP monitor.
+- **Duplicate alerts.** Keep a single copy of the app.
+
+## License
+
+Uptime Kuma is distributed under the [MIT license](https://github.com/louislam/uptime-kuma/blob/master/LICENSE). The listing does not imply endorsement by the project.
+
+See also the [other official templates](/templates/catalog).

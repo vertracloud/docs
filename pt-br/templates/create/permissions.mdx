@@ -1,0 +1,98 @@
+---
+title: 'Permissões do template e templates fechados: o que os usuários podem alterar'
+sidebarTitle: 'Permissões'
+description: 'Defina o que os usuários podem fazer com os apps de um template: ver e editar código, alterar memória, adicionar variáveis e criar um template fechado.'
+icon: 'user-lock'
+---
+
+`permissions` controla o que quem usa o seu template pode fazer com os apps que ele cria. As permissões são guardadas com cada versão e acompanham o app, então uma versão posterior do template não as retira silenciosamente de apps que já existem.
+
+## As permissões
+
+| Campo | Padrão | O que controla |
+|---|---|---|
+| `code.view` | `true` | `false` torna o template **fechado**: o usuário não pode ver o código. Somente templates privados. |
+| `code.edit` | `true` para código, `false` para imagem | Permite que o usuário edite o código. Editar o código de um template aberto **desvincula** o app: ele passa a ser um app comum e deixa de receber atualizações. |
+| `ram.change` | `true` | Permite que o usuário altere a memória após a criação. |
+| `ram.below_min` | `false` | Permite que a memória fique abaixo de `ram.min`. Exige `ram.change`. |
+| `ram.above_max` | `true` | Permite que a memória fique acima de `ram.max`, quando você declarou um. Exige `ram.change`. |
+| `env.add` | `true` | Permite que o usuário crie variáveis que você não declarou. |
+| `commands.edit` | `true` para código | Permite que o usuário edite os comandos de início e de build. |
+| `version.selectable` | `false` | Permite que o usuário escolha uma versão anterior do template no assistente. |
+| `share.full_copy` | `false` | Permite [links de compartilhamento com cópia completa](/pt-br/templates/create/share-links#link-de-uso-ou-cópia-completa). Somente templates privados. |
+
+```yaml
+permissions:
+  code: { view: true, edit: true }
+  ram: { change: true, below_min: false, above_max: true }
+```
+
+## Combinações recusadas
+
+| Combinação | Código |
+|---|---|
+| `code.view: false` em um template público | `forbidden_in_public` |
+| `share.full_copy: true` em um template público | `forbidden_in_public` |
+| `code.view: false` com `code.edit: true` | `invalid_permissions` |
+| `code.view: false` com `env.add: true` | `invalid_permissions` |
+| `code.view: false` com `commands.edit: true` | `invalid_permissions` |
+| `code.view: false` com `share.full_copy: true` | `invalid_permissions` |
+| `ram.change: false` com `ram.below_min: true` ou `ram.above_max: true` | `invalid_permissions` |
+
+Omitir o campo é sempre permitido: um template fechado que não menciona `env.add` simplesmente recebe `false`.
+
+## Templates fechados
+
+Um template fechado mantém o código em `/app` do app, mas quem o usa não tem como lê-lo. Defina `code.view: false` em um template privado para criar um.
+
+```yaml
+# origin: private
+permissions:
+  code: { view: false }
+  ram: { change: true }
+```
+
+O validador deriva o restante e você não pode alterá-lo. Em um template fechado, o usuário:
+
+| Pode | Não pode |
+|---|---|
+| Iniciar, parar, reiniciar, ler logs e métricas | Abrir o gerenciador de arquivos (listar, ler, fazer upload, mover, apagar) |
+| Criar um snapshot e **restaurá-lo** | **Baixar** um snapshot ou o app |
+| Fazer rollback | Criar variáveis livres (por exemplo `NODE_OPTIONS` ou `LD_PRELOAD`) |
+| Responder às perguntas do template e alterar a memória, se você permitir | Editar os comandos de início e de build |
+| Atualizar para uma versão mais nova | Usar um terminal |
+| Mover o app para outra pasta ou workspace | Fazer deploy pelo GitHub ou enviar código |
+| Usar os **bancos de dados** da stack sem restrição | Salvar o app como template, desvinculá-lo ou criar um link de cópia completa |
+
+O bloqueio é aplicado pela API em toda rota de arquivos e de código, não apenas no dashboard, então vale igualmente para a CLI, o servidor MCP e os SDKs. Um snapshot tirado de um app fechado só pode ser restaurado no mesmo template fechado.
+
+As variáveis que você lista em `env_hidden` são injetadas no app e nunca são retornadas pela API da Vertra Cloud nem exibidas no dashboard. São o lugar certo para uma chave que pertence a você, como uma licença. Elas existem apenas em um template **fechado** (`code.view: false`): onde o usuário pode ler o código ou as variáveis, ocultar um valor não adiantaria nada, então o validador recusa `env_hidden` em um template aberto. Uma versão que usa `env_hidden` não pode habilitar `share.full_copy`, para que o valor nunca chegue a uma cópia. Se o app for desvinculado do template, os valores ocultos são apagados.
+
+<Warning>
+  Bancos de dados nunca são fechados. Um template fechado não esconde os dados do seu Postgres, MongoDB, Redis ou MySQL: o usuário pode se conectar a eles diretamente. Mantenha sua propriedade intelectual no código e os dados do usuário nos bancos de dados.
+</Warning>
+
+### O que a Vertra Cloud garante e o que não garante
+
+| Garantido | Não garantido |
+|---|---|
+| A plataforma não dá ao usuário nenhum caminho até o código: sem gerenciador de arquivos, download, terminal, deploy pelo GitHub ou download de snapshot. | Uma falha no **seu próprio código** que exponha os arquivos dele (uma rota que serve as próprias fontes, um endpoint de debug, um path traversal). |
+| Os valores de `env_hidden` nunca são retornados pela API da Vertra Cloud nem exibidos no dashboard. | Qualquer coisa que seu app imprima nos logs ou retorne nas respostas. |
+| Apps fechados não podem ser transformados em template nem desvinculados. | O acesso administrativo dos operadores da plataforma, coberto pelos termos de serviço. |
+
+Quem recebe o seu template vê um aviso de que o código é fechado e de que o que digitar vai para um código que não pode ler. Tenha cuidado com o que você pede em `inputs`.
+
+## Atualizações e permissões
+
+Quando você publica uma versão, as permissões nunca ficam mais restritivas para apps que já existem: cada flag continua ligada se a política atual do app ou a nova versão a conceder. Um template fechado que você abre depois também é aberto para os apps existentes; o contrário não fecha um app que já está rodando. Novos serviços em uma nova versão são criados com a política da nova versão.
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Usando um template fechado" icon="eye-slash" href="/pt-br/templates/use/closed-templates">
+    As mesmas regras, do lado do usuário.
+  </Card>
+  <Card title="Templates privados" icon="lock" href="/pt-br/templates/create/private-templates">
+    Onde os templates fechados são criados.
+  </Card>
+</CardGroup>

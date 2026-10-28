@@ -1,0 +1,51 @@
+---
+title: Actualizar stack
+sidebarTitle: Actualizar stack
+api: PATCH https://api.vertracloud.app/v1/stacks/{stack_id}
+authMethod: bearer
+description: Renombra un stack o cambia su descripción.
+---
+
+{/* @see RESTPatchAPIStackBody, RESTPatchAPIStackResponse — @vertracloud/api-types */}
+Cambia el nombre o la descripción de un stack. Se requiere al menos un campo. Requiere el scope `stacks:write` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack, cuando actúas sobre él como propietario del workspace.
+</ParamField>
+
+<ParamField body="name" type="string">
+  El nuevo nombre.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  La nueva descripción. `null` la elimina.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  El stack actualizado, con los mismos campos que [Obtener stack](/es-es/api-reference/endpoint/stacks/get).
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X PATCH https://api.vertracloud.app/v1/stacks/stk-abc123def456 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "shop-prod" }'
+```
+
+</RequestExample>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | No se envió ningún campo, o un valor no es válido. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |

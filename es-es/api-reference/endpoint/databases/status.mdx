@@ -1,0 +1,141 @@
+---
+title: Obtener el estado de una base de datos por ID
+sidebarTitle: Obtener estado de base de datos
+api: GET https://api.vertracloud.app/v1/databases/{id}/status
+authMethod: bearer
+description: Obtiene el estado actual y el uso de recursos de una base de datos a partir de su ID.
+---
+
+{/* @see APIDatabaseStatus — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la base de datos cuyo estado se va a obtener. Si la base de datos pertenece a un workspace, pasa su ID en el parámetro de consulta `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la base de datos pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúan sobre una base de datos que no les pertenece.
+</ParamField>
+
+<Note>
+  **Una base de datos detenida responde `200`, no un error.** El contenedor de una base de datos detenida no existe (se elimina al detenerla), y eso es un estado normal, no un fallo. La API devuelve `200` con `status: "stopped"`, `running: false` y todas las métricas a cero. Solo una lectura del estado que realmente falla devuelve `500`.
+</Note>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Los detalles del estado y del uso de recursos de la base de datos.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la base de datos.
+  </ResponseField>
+
+  <ResponseField name="cpu" type="string">
+    Porcentaje de uso de CPU, ya formateado (por ejemplo, `12.30%`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    Uso de RAM, ya formateado (por ejemplo, `256.00 MB`).
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    Uso de almacenamiento, ya formateado (por ejemplo, `512.00 MB`).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    El estado de la base de datos: `running` o `stopped`.
+  </ResponseField>
+
+  <ResponseField name="running" type="boolean">
+    Indica si la base de datos está en ejecución en este momento.
+  </ResponseField>
+
+  <ResponseField name="network" type="object">
+    Detalles del uso de red.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="total" type="string">
+      Tráfico de red total desde que se inició el contenedor, de entrada y de salida en una sola cadena.
+    </ResponseField>
+
+    <ResponseField name="now" type="string">
+      Tráfico de red actual, de entrada y de salida en una sola cadena.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="uptime" type="number">
+    El tiempo de actividad de la base de datos en segundos.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    La marca de tiempo en que se creó la base de datos.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    La marca de tiempo de la última actualización de la base de datos.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "db-abc123def456",
+    "cpu": "12.30%",
+    "ram": "256.00 MB",
+    "storage": "512.00 MB",
+    "status": "running",
+    "running": true,
+    "network": {
+      "total": "320.15KB ↓ 20.10KB ↑",
+      "now": "5.00KB ↑ 1.00KB ↓"
+    },
+    "uptime": 7200,
+    "created_at": "2026-03-09T15:51:47.234Z",
+    "updated_at": "2026-03-11T15:06:41.449Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `DATABASE_NOT_FOUND`: La base de datos indicada no existe.
+  - `FORBIDDEN`: El usuario no tiene permiso para acceder a la base de datos.
+  - `INTERNAL_SERVER_ERROR`: No se pudo leer el estado. Una base de datos detenida **no** es este caso; consulta la nota de arriba.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Un mensaje descriptivo con más detalles sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

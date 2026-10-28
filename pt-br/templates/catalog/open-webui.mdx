@@ -1,0 +1,73 @@
+---
+title: 'Template Open WebUI na Vertra Cloud: chat de IA para a sua equipe'
+sidebarTitle: 'Open WebUI'
+description: 'Crie o Open WebUI na Vertra Cloud: um chat de IA para a sua equipe com a sua chave de modelo. Assistente, primeiros passos, variáveis, limites e licença.'
+icon: 'comments'
+---
+
+Uma interface de chat com IA para a sua equipe. O template executa o Open WebUI v0.12.4 (variante `slim`). **Você traz a chave do modelo**: a Vertra Cloud não hospeda modelo.
+
+## O que ele cria
+
+Um app (imagem), mais um banco de dados Postgres gerenciado se você o escolher para armazenamento.
+
+| | |
+|---|---|
+| Memória | App 512 MB (1024 MB recomendado); Postgres 1024 MB quando escolhido. |
+| Plano | Um plano com imagens Docker e uma [vaga de imagem](/pt-br/templates/overview#vagas-de-imagem) livre. Veja [Planos e limites](/pt-br/plans-and-limits). |
+
+## O que o assistente pergunta
+
+| Pergunta | O que faz |
+|---|---|
+| Model provider | OpenAI, OpenRouter, Anthropic, Google Gemini (todos pela API compatível com a OpenAI) ou outro endereço. |
+| API address | Somente com "Other"; termina em `/v1`. |
+| Provider API key | Guardada apenas nas variáveis criptografadas do app. |
+| Administrator email and password | O administrador é criado para você. O cadastro aberto está desligado. |
+| Where does Open WebUI store its data? | **SQLite** no disco do app (padrão; uso pessoal ou equipe pequena) ou **managed Postgres** (1 GB a mais de memória). |
+
+## Primeiros passos
+
+<Steps>
+  <Step title="Entre">
+    Abra o endereço e entre com o e-mail e a senha de administrador que você digitou. A senha só cria a conta enquanto não existir nenhum usuário; depois, altere-a em **Profile > Password**.
+  </Step>
+  <Step title="Converse">
+    Os modelos do provedor aparecem no seletor no topo do chat.
+  </Step>
+  <Step title="Convide a equipe">
+    O cadastro aberto está desligado. Crie as contas em **Admin panel > Users > Add**.
+  </Step>
+  <Step title="Adicione ou troque provedores">
+    Em **Admin settings > Connections**, adicione qualquer API compatível com a OpenAI (OpenRouter, Anthropic e Gemini pelas rotas compatíveis deles, ou o seu próprio servidor).
+  </Step>
+</Steps>
+
+## Variáveis
+
+| Variável | O que faz |
+|---|---|
+| `WEBUI_SECRET_KEY` | Assina os logins; alterá-la desconecta todo mundo. |
+| `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD` | Criam o administrador se não existir nenhum usuário. |
+| `ENABLE_SIGNUP` | `false`: cadastro aberto desligado. |
+| `OPENAI_API_BASE_URL`, `OPENAI_API_KEY` | O endereço e a chave do provedor. |
+| `DATABASE_URL` | Somente com Postgres. |
+| `DATA_DIR` | `/app/data`: dados no disco do app. |
+
+## Limites e boas práticas
+
+- A variante `slim` não tem modelo de embeddings local: a recuperação por busca semântica não está disponível e os arquivos anexados vão inteiros para o contexto do modelo. Use arquivos pequenos ou modelos de contexto longo.
+- Com SQLite, os dados ficam em `/app/data/webui.db`, parte dos snapshots do app. Com Postgres, ficam no banco de dados da stack.
+- O deploy sem downtime está desligado; um rollback volta **com os dados**.
+- Memória: 512 MB é o mínimo (cerca de 300 MiB em uso); 1 GB dá folga para anexos e várias pessoas.
+
+## Problemas comuns
+
+- **Nenhum modelo aparece.** A chave ou o endereço está errado: confira **Connections** e as variáveis `OPENAI_API_*`.
+- **Não consigo criar uma conta.** O cadastro aberto está desligado de propósito; peça ao administrador.
+
+## Licença
+
+O Open WebUI é distribuído sob a licença BSD-3 **com uma cláusula de marca** ([licença](https://github.com/open-webui/open-webui/blob/main/LICENSE)). A marca do Open WebUI não pode ser alterada, removida ou ocultada, exceto em implantações com até 50 usuários finais em 30 dias, com permissão escrita do titular ou uma licença enterprise. Este template não altera a marca e é um empacotamento da Vertra Cloud, não afiliado ao projeto.
+
+Veja também os [outros templates oficiais](/pt-br/templates/catalog).

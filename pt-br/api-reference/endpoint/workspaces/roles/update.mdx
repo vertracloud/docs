@@ -1,0 +1,44 @@
+---
+title: Atualizar papel
+sidebarTitle: Atualizar
+api: PUT https://api.vertracloud.app/v1/workspaces/{id}/roles/{role_id}
+authMethod: bearer
+description: Atualiza o nome ou as permissões de um papel. Exige `roles:manage`.
+---
+
+{/* @see RESTPutAPIWorkspaceRoleBody, RESTPutAPIWorkspaceRoleResponse — @vertracloud/api-types */}
+Exige `roles:manage`. Uma chave de API precisa do escopo `workspaces:write`.
+
+<Note>
+  Mesma guarda de escalonamento de [Criar papel](/pt-br/api-reference/endpoint/workspaces/roles/create), mas verificada
+  contra a **união dos conjuntos de permissões antigo e novo do papel**: remover uma permissão que você
+  não tem de um papel de outra pessoa também é editar algo que não é seu. Ninguém — o dono incluído no
+  espírito da regra, embora o dono esteja isento da verificação — pode editar o papel atualmente
+  atribuído a si mesmo, e ninguém pode alterar a própria atribuição de papel por este endpoint.
+</Note>
+
+### Caminho
+
+<ParamField path="id" type="string" required>ID do workspace.</ParamField>
+<ParamField path="role_id" type="string" required>ID do papel.</ParamField>
+
+### Corpo
+
+Substituição completa — mesmos campos de [Criar papel](/pt-br/api-reference/endpoint/workspaces/roles/create), todos obrigatórios exceto os opcionais.
+
+<ParamField body="name" type="string" required />
+<ParamField body="permissions" type="WorkspacePermission[]" required />
+<ParamField body="position" type="number" />
+
+### Resposta
+
+Mesmo formato de [Criar papel](/pt-br/api-reference/endpoint/workspaces/roles/create).
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Quem chama não tem `roles:manage`. |
+| 403 | `WORKSPACE_PERMISSION_ESCALATION` | O conjunto de permissões antigo ou o novo inclui algo que quem chama não tem (quem não é dono). |
+| 404 | `WORKSPACE_NOT_FOUND` | O workspace não existe ou você não é membro. |
+| 404 | `WORKSPACE_ROLE_NOT_FOUND` | O `role_id` não pertence a este workspace. |

@@ -1,0 +1,142 @@
+---
+title: "Criar um token de upload para uploads no navegador"
+sidebarTitle: "Criar token de upload"
+api: "POST https://blob.vertracloud.app/v1/upload-tokens"
+authMethod: bearer
+description: "Cria um token de upload de curta duração que fixa o caminho ou a pasta, o tamanho, as extensões e a visibilidade. Use-o no navegador no lugar da sua chave de API."
+---
+
+{/* @see RESTPostAPIBlobUploadTokenBody, RESTPostAPIBlobUploadTokenResponse, APIBlobUploadToken — @vertracloud/api-types */}
+
+Cria um token de upload que um navegador ou outro cliente não confiável pode usar para enviar arquivos, sem a sua chave de API. O token fixa todas as restrições que você enviar: um `path` para um arquivo ou um `prefix` para qualquer arquivo de uma pasta, o maior tamanho, as extensões permitidas e a visibilidade. Ele funciona somente nas rotas de upload, e deixa de funcionar quando a chave de API que o criou é revogada. O token é mostrado uma única vez.
+
+**Escopo:** `blob:write`.
+
+<ParamField body="path" type="string">
+  Caminho exato para onde o token pode enviar. Use este ou `prefix`, não os dois.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  Pasta para onde o token pode enviar. O sufixo aleatório é forçado. Use este ou `path`, não os dois.
+</ParamField>
+
+<ParamField body="visibility" type="string">
+  `public` ou `private`. Fixado pelo token.
+</ParamField>
+
+<ParamField body="max_size" type="number">
+  Maior arquivo que o token aceita, em bytes.
+</ParamField>
+
+<ParamField body="allowed_extensions" type="string[]">
+  De 1 a 20 extensões, em minúsculas, sem o ponto.
+</ParamField>
+
+<ParamField body="cache_control" type="string">
+  `cache_control` fixo para os objetos enviados.
+</ParamField>
+
+<ParamField body="content_disposition" type="string">
+  `inline` ou `attachment` fixo para os objetos enviados.
+</ParamField>
+
+<ParamField body="expires_at" type="string">
+  Timestamp ISO 8601 para a exclusão dos objetos enviados.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Metadados fixos para os objetos enviados. Enterprise-12 ou superior.
+</ParamField>
+
+<ParamField body="overwrite" type="boolean">
+  Permite que os uploads feitos com este token substituam um arquivo existente. Padrão `false`: sem ele, o token nunca sobrescreve um arquivo que já existe.
+</ParamField>
+
+<ParamField body="expires_in" type="number">
+  Segundos que o token fica válido, de 60 a 3600. Padrão `900`.
+</ParamField>
+
+<ParamField body="max_uses" type="number">
+  Quantos uploads o token permite, de 1 a 100. Padrão `1`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/upload-tokens" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prefix":"avatars/","max_size":5000000,"allowed_extensions":["png","jpg","webp"],"expires_in":900}'
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O token. Mostrado uma única vez.
+  <Expandable title="propriedades">
+  <ResponseField name="token" type="string">Token de upload, começando com `vcup_`. Mostrado uma única vez; guarde-o somente no local onde o upload acontece.</ResponseField>
+  <ResponseField name="expires_at" type="string">Quando o token deixa de funcionar, como timestamp ISO 8601.</ResponseField>
+  <ResponseField name="max_uses" type="number">Quantos uploads o token permite.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "token": "vcup_9f2c7d1e4b8a6035c2f1d9e7a4b3c8d2",
+    "expires_at": "2026-10-14T12:15:00.000Z",
+    "max_uses": 1
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): o armazenamento de blob da conta está suspenso, ou o plano expirou. Uploads e outras gravações são recusados desde o início do período de carência de 72 horas.
+  - `VALIDATION_ERROR` (`400`): um parâmetro ou campo do corpo falhou na validação. `details.path` informa o campo.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` foi enviado em um plano abaixo do Enterprise-12.
+  - `RATE_LIMIT_EXCEEDED` (`429`): mais de 60 tokens criados em um minuto; `details.retry_after` informa quantos segundos esperar.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

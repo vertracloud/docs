@@ -1,0 +1,202 @@
+---
+title: 'Tutorial: empacote um app como template de imagem'
+sidebarTitle: 'Primeiro template de imagem'
+description: 'Gere uma imagem a partir do seu Dockerfile e depois embrulhe-a em um template privado com porta, healthcheck, uma pergunta e deploy seguro.'
+icon: 'docker'
+---
+
+Um **template de imagem** roda um app a partir de uma imagem Docker em vez de código-fonte. Você gera a imagem a partir do seu próprio `Dockerfile` e depois escreve um manifesto que aponta para essa imagem e declara a porta, a memória, o healthcheck e as perguntas. Neste tutorial você empacota um pequeno app web que guarda um contador de visitas no disco persistente e termina com um template privado que qualquer pessoa da sua conta pode fazer deploy em poucos cliques.
+
+Use um template de imagem quando o app precisar de outra linguagem ou versão, de pacotes do sistema, de um processo de inicialização próprio, ou quando você estiver empacotando um software pronto. Se o código-fonte puro basta, um [template de código](/pt-br/templates/tutorials/discord-bot-code) é mais simples e não usa vaga de imagem.
+
+## Antes de começar
+
+<Check>A CLI da Vertra autenticada com uma chave de API que tenha os escopos `templates:read`, `templates:write` e `templates:deploy`, mais os escopos que fazem build de imagens.</Check>
+<Check>Um plano que possa criar imagens Docker e templates privados (veja [Planos e limites](/pt-br/plans-and-limits)). Cada conta mantém até 5 templates privados.</Check>
+<Check>Você conhece as regras das [imagens Docker personalizadas](/pt-br/guides/custom-docker-images): caminhos graváveis, usuário `1000:1000`, a variável `PORT` e o que o build recusa.</Check>
+
+<Note>Toda imagem em uso ocupa **uma vaga de imagem** na conta que a usa, não importa quantos apps rodem a partir dela. Quando você faz deploy do seu próprio template, a imagem já é sua; quem o recebe por um link ganha a própria cópia e usa uma vaga cada.</Note>
+
+## Passo a passo
+
+<Steps>
+  <Step title="Escreva um app que siga as regras da plataforma">
+    Uma imagem roda com o mesmo isolamento de qualquer aplicação: o sistema de arquivos raiz é somente leitura, o usuário é sempre `1000:1000`, `/app` é o único disco persistente e o servidor precisa escutar na variável `PORT`. Crie esta pasta:
+
+    ```text
+    hello-counter/
+    ├── Dockerfile
+    ├── server.js
+    └── vertracloud.template.yaml
+    ```
+
+    O `server.js` serve a página, conta as visitas em um arquivo em `/app/data` e responde `/healthz` para o healthcheck:
+
+    ```javascript title="server.js"
+    "use strict";
+
+    const http = require("node:http");
+    const fs = require("node:fs");
+    const path = require("node:path");
+
+    const port = Number(process.env.PORT || 3000);
+    const greeting = process.env.GREETING || "Hello";
+    const dataDir = process.env.DATA_DIR || "/app/data";
+    const counterFile = path.join(dataDir, "visits.txt");
+
+    fs.mkdirSync(dataDir, { recursive: true });
+
+    function nextVisit() {
+      let visits = 0;
+      try {
+        visits = Number(fs.readFileSync(counterFile, "utf8")) || 0;
+      } catch {}
+      visits += 1;
+      fs.writeFileSync(counterFile, String(visits));
+      return visits;
+    }
+
+    http
+      .createServer((req, res) => {
+        if (req.url === "/healthz") {
+          res.writeHead(200, { "content-type": "text/plain" });
+          return res.end("ok");
+        }
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        res.end(`${greeting}! Visit number ${nextVisit()}.\n`);
+      })
+      .listen(port, "0.0.0.0", () => console.log(`Listening on ${port}`));
+    ```
+
+    O `Dockerfile` mantém o programa fora de `/app` (tudo o que a imagem coloca em `/app` fica escondido pelo disco persistente quando o app roda) e não usa `USER`, `VOLUME` nem `HEALTHCHECK`, que a plataforma ignora ou recusa:
+
+    ```dockerfile title="Dockerfile"
+    FROM node:22-alpine
+    WORKDIR /srv
+    COPY server.js .
+    EXPOSE 3000
+    CMD ["node", "server.js"]
+    ```
+
+    <Tip>Teste localmente do mesmo jeito que vai rodar: `docker run --rm --read-only --user 1000:1000 --tmpfs /tmp -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. Se só funcionar com a raiz gravável ou como root, não vai funcionar na plataforma.</Tip>
+  </Step>
+  <Step title="Faça o build da imagem na plataforma">
+    O template não carrega o `Dockerfile`: ele referencia uma imagem que já existe na sua conta. Faça o build a partir da pasta:
+
+    ```bash
+    vertra image build --name hello-counter --context .
+    vertra image logs <image-id> --follow
+    ```
+
+    Encontre o id da imagem com `vertra image list`. Espere até o build ficar `success`; uma falha mostra o motivo no log. Os arquivos `.env*` são removidos do contexto e o `.dockerignore` é respeitado. Cada build bem-sucedido vira uma nova versão da mesma imagem, com o mesmo id.
+  </Step>
+  <Step title="Escreva o manifesto">
+    Crie o `vertracloud.template.yaml`. O valor de `source.image` é o **id da sua imagem**; troque o id de exemplo pelo seu:
+
+    ```yaml title="vertracloud.template.yaml"
+    id: hello-counter
+    version: 1.0.0
+    name:
+      pt-br: Contador de visitas
+      en: Visit counter
+    description:
+      pt-br: Página simples que conta as visitas em disco. Exemplo de template de imagem.
+      en: A simple page that counts visits on disk. An image template example.
+    category: starters
+    tags: [starter, counter]
+
+    inputs:
+      - id: greeting
+        type: text
+        label:
+          pt-br: Saudação da página
+          en: Page greeting
+        default: Hello
+        validation: { max_length: 40 }
+
+    services:
+      app:
+        source: { type: image, image: 3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b }
+        port: 3000
+        ram: { min: 512, recommended: 512 }
+        web: required
+        env:
+          GREETING: "{{inputs.greeting}}"
+          DATA_DIR: /app/data
+        healthcheck: { path: /healthz, timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+          rollback: { with_data: optional }
+
+    permissions:
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Endereço
+          en: Address
+        value: "{{app.url}}"
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+        value:
+          pt-br: "Abra o endereço e recarregue a página: o contador sobe e sobrevive a reinícios."
+          en: "Open the address and reload the page: the counter goes up and survives restarts."
+    ```
+
+    Os campos que diferem de um template de código:
+
+    | Campo | O que saber |
+    |---|---|
+    | `source.image` | O id de uma imagem da sua própria conta. Imagens do catálogo, de outras contas ou cópias de outro template são recusadas. O template fixa a **versão** da imagem que está atual quando você o cria, então um rebuild posterior não muda o que o template faz deploy. |
+    | `port` | A porta em que o servidor escuta. Se você omitir, a plataforma usa o primeiro `EXPOSE` da imagem, ou 80 quando não há nenhum. A plataforma também a injeta como `PORT`. |
+    | `web: required` | O assistente sempre publica o app na web. Use `none` para um bot ou worker e `optional` para deixar o usuário escolher. Publicar exige no mínimo 512 MB, por isso `ram.min` é 512. |
+    | `healthcheck` | `path` é um caminho HTTP que precisa responder com sucesso antes de o assistente reportar o app como pronto, e `timeout` é quanto tempo esperar, até 900 segundos. A instrução `HEALTHCHECK` do `Dockerfile` é ignorada, então este é o único que conta. Dê um `timeout` maior a apps de inicialização lenta (migrações no boot). |
+    | `deploy.zero_downtime` | O blue-green roda duas cópias por um instante. Este app grava um arquivo, então duas cópias disputariam esse arquivo: desligado e bloqueado. |
+    | `deploy.rollback.with_data` | `optional` deixa o dono reverter só a imagem e o código. Use `required` para softwares que migram o banco de dados ao atualizar, de modo que o rollback também restaure os dados. |
+
+    <Note>`source.context` e digests de imagem (`@sha256:...`) pertencem a templates do catálogo público, onde a imagem é fixada por digest e construída a partir da pasta do template. Em um template privado, a imagem da sua conta é a origem. O [último tutorial](/pt-br/templates/tutorials/private-to-public-pr) mostra como um template privado vira um template do catálogo.</Note>
+  </Step>
+  <Step title="Valide">
+    ```bash
+    vertra template validate
+    ```
+
+    Corrija todos os achados. Um template de imagem também pode ser recusado na criação por um motivo que o `validate` não enxerga, como uma imagem que não é sua (`IMAGE_NOT_FOUND`) ou que ainda não foi construída (`IMAGE_NOT_READY`).
+  </Step>
+  <Step title="Crie o template e faça o deploy">
+    ```bash
+    vertra template create
+    vertra template deploy hello-counter --name my-counter --set greeting="Welcome"
+    ```
+
+    Nenhum zip é enviado: um serviço que roda uma imagem da sua conta não precisa de um. O job de deploy cria o app a partir da imagem, define as variáveis, publica o endereço, espera o `/healthz` e imprime as saídas. Abra o endereço e recarregue: o contador deve subir. Reinicie o app pelo painel e recarregue de novo: o número sobrevive, porque o `/app` é persistente.
+  </Step>
+  <Step title="Publique uma nova versão">
+    Altere o código, execute `vertra image rebuild <image-id> --context .`, espere o `success`, aumente `version` no manifesto e execute `vertra template create --template hello-counter --changelog "Describe the change"`. A nova versão do template fixa a nova versão da imagem. Os apps criados a partir do template veem "New version available" e se atualizam quando o dono escolher, com um snapshot de segurança antes.
+
+    <Warning>Você não pode excluir uma imagem que é a origem da versão atual de um template privado: a requisição falha com `IMAGE_IN_USE`. Publique uma versão que use outra imagem ou exclua o template primeiro.</Warning>
+  </Step>
+</Steps>
+
+## Solução de problemas
+
+| Sintoma | Causa e correção |
+|---|---|
+| O build falha com `IMAGE_VOLUME_REFUSED` ou um aviso sobre `WORKDIR /app` | Nada do que a imagem coloca em `/app` sobrevive, porque `/app` é o disco persistente. Use outro diretório, como `/srv`, e nunca `VOLUME /app`. |
+| O app inicia e o assistente falha no healthcheck | O caminho responde com erro ou o servidor escuta em outra porta. Escute em `PORT` em `0.0.0.0` e confirme que `healthcheck.path` retorna 200. Aumente o `timeout` se o boot for lento. |
+| O app cai com um erro de permissão | A imagem grava fora de `/app`, `/tmp`, `/var/tmp` e `/run`. Todo o resto é somente leitura; aponte logs, caches e dados para `/app`. |
+| O `create` falha com `IMAGE_NOT_FOUND` | `source.image` não é o id de uma imagem da sua própria conta. Confira com `vertra image list`. |
+| O `create` falha com `IMAGE_NOT_READY` | A imagem ainda não tem um build bem-sucedido. Espere o `success`. |
+| O `validate` reporta `invalid_source` | Um campo do tipo errado: `main`, `start` e `language` são só para serviços de código; `port` é só para serviços de imagem. |
+| O deploy falha com `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | A conta que faz o deploy não tem vaga de imagem livre. Exclua uma imagem que ela não usa mais ou use um plano maior. |
+
+## Próximos passos
+
+- [Requisitos e plano](/pt-br/templates/create/requirements): como `ram`, `web` e a imagem definem o plano e as vagas exigidos.
+- [Configurações de deploy](/pt-br/templates/create/deploy-settings): quando bloquear o blue-green e exigir rollback com dados.
+- [Boas práticas](/pt-br/templates/create/best-practices): onde ficam os dados, a raiz somente leitura, o usuário 1000 e a porta.
+- [Referência do manifesto](/pt-br/templates/create/manifest-reference): todos os campos de um serviço de app.
+- [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images): as regras de build, as versões e o rollback da própria imagem.
+- Próximo tutorial: [uma stack com Postgres e Redis](/pt-br/templates/tutorials/postgres-redis-stack).

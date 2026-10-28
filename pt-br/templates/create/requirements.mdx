@@ -1,0 +1,84 @@
+---
+title: 'Requisitos do template: como o plano exigido e o min_plan são calculados'
+sidebarTitle: 'Requisitos'
+description: 'Como a Vertra Cloud calcula o plano exigido por um template a partir de RAM, web, imagem, Blob e bancos, e como o min_plan define um mínimo comercial.'
+icon: 'gauge-high'
+---
+
+O plano de que um template precisa é o maior entre dois planos: o **calculado** a partir do que os serviços exigem e o `min_plan` que você **declarou**. Qualquer plano pode usar um template, desde que atenda aos dois. Você não escreve a parte calculada; a plataforma a deriva do manifesto.
+
+```text
+required plan = max(plan calculated from the services, min_plan)
+```
+
+## O que é calculado
+
+A API calcula sobre o catálogo de planos, nunca a partir de uma lista fixa, então continua correta quando os planos mudam. Para saber mais sobre os planos, veja [Planos e limites](/pt-br/plans-and-limits).
+
+| Requisito | De onde vem | O que o usuário precisa |
+|---|---|---|
+| Memória | A soma de `ram.min` de todo serviço que será criado, depois das respostas do usuário | Que essa soma caiba na memória **livre** do plano. O assistente mostra "precisa de X, você tem Y livre". |
+| Publicação na web | Qualquer app com `web: required` | Um plano que publique na web. |
+| Imagem | Qualquer app com `source.type: image` | Um plano que inclua [imagens Docker personalizadas](/pt-br/guides/custom-docker-images) e uma vaga de imagem livre. |
+| Blob | Um serviço `blob` | Um plano que inclua o Blob Storage. |
+| Número de apps e bancos de dados | Os serviços que serão criados | Espaço dentro dos limites de apps e bancos de dados do plano. |
+| Deploys por hora | Um por app criado | Uma vaga de deploy na última hora. |
+
+Serviços desativados por uma resposta não entram na conta, então um template cujo Postgres é opcional pede menos memória quando o usuário escolhe SQLite. Uma ligação `private: required` fica fora da galeria pública. Veja [Stacks](/pt-br/templates/create/stacks#ligações-que-ficam-fora-da-galeria).
+
+### Vagas de imagem
+
+Um template de imagem usa **uma vaga por imagem distinta** que o usuário executa. Serviços que compartilham o mesmo `source.image` compartilham uma vaga, três apps do mesmo template usam uma, e uma nova versão do template mantém a mesma vaga. A vaga é liberada quando o último app que usa a imagem deixa de existir. Um template `code` não usa nenhuma. No seu próprio template privado, as imagens são suas e já ocupam as suas vagas.
+
+## Por que um template não se encaixa
+
+Quando um template não se encaixa em uma conta, o card e a página dizem o motivo. Os motivos são:
+
+| Motivo | Significado |
+|---|---|
+| `no_plan` | A conta não tem plano ativo. |
+| `min_plan` | O plano está abaixo do seu `min_plan`. |
+| `ram` | Memória livre insuficiente. |
+| `web_publish` | O plano não publica na web. |
+| `image_plan` | O plano não inclui imagens personalizadas. |
+| `image_slots` | Todas as vagas de imagem estão em uso. |
+| `blob_plan` | O plano não inclui o Blob Storage. |
+| `private_network` | O template pede uma ligação que fica fora da galeria. |
+| `max_apps` | O limite de apps do plano seria excedido. |
+| `max_databases` | O limite de bancos de dados do plano seria excedido. |
+| `deploys_per_hour` | O limite horário de deploys foi atingido. |
+
+A mesma lista é retornada pela API para cada template quando você está autenticado, em `account.reasons`.
+
+## `min_plan`
+
+`min_plan` é uma decisão comercial do autor, por exemplo "só a partir do Enterprise-28". É o **id** do plano, não o nome exibido no dashboard:
+
+```yaml
+min_plan: enterprise-28
+```
+
+Os ids são `economy`, `pro`, `scale`, `intermediary` e `enterprise-<size>`. Um valor que não seja o id de um plano existente é recusado com `invalid_plan` pela CLI, pelo editor, pela API e pelo CI do repositório público, para que um template nunca aponte silenciosamente para um plano que foi renomeado. Use com moderação: se os serviços já forçam um plano, o `min_plan` é redundante.
+
+## Veja o resultado antes de publicar
+
+`vertra template validate` e `POST /v1/templates/validate` retornam o plano calculado para o seu manifesto (aqui, para o bot inicial):
+
+```json
+{
+  "valid": true,
+  "issues": [],
+  "required_plan": "economy",
+  "ram_min_total": 256,
+  "services": [
+    { "id": "app", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null,
+      "ram": { "min": 256, "recommended": 256 }, "web": "none", "conditional": false }
+  ]
+}
+```
+
+`required_plan` é o menor plano que atende aos requisitos e ao `min_plan`, e `ram_min_total` é a soma da memória mínima de todos os serviços em MB. Os dois são `null` quando o manifesto é inválido demais para calcular. Veja [Valide e teste](/pt-br/templates/create/validate-and-test).
+
+## As configurações de deploy nunca concedem mais
+
+O bloco `deploy` de um serviço só pode restringir comportamento, nunca liberar algo que o plano não inclui. Um manifesto que pede blue-green em um plano sem ele continua rodando sem ele. Veja [Configurações de deploy](/pt-br/templates/create/deploy-settings).

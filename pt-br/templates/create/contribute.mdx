@@ -1,0 +1,77 @@
+---
+title: 'Contribuir com um template para o catálogo público da Vertra Cloud'
+sidebarTitle: 'Contribuir'
+description: 'Adicione um template da comunidade ao catálogo público por pull request: estrutura de pastas, validação, revisão e selo Community.'
+icon: 'code-pull-request'
+---
+
+Você contribui com um template para o catálogo público por meio de um pull request no repositório público de templates no GitHub. Não existe formulário de envio no dashboard. Uma contribuição pode ser um template de código ou de imagem, e o template permanece aberto: um template público nunca pode ser fechado.
+
+## Passos
+
+<Steps>
+  <Step title="Faça um fork e adicione uma pasta">
+    Faça um fork do repositório e adicione uma pasta com o nome do seu template, por exemplo `discord-bot-tickets/`, contendo:
+
+    ```text
+    discord-bot-tickets/
+      vertracloud.template.yaml   # o manifesto
+      src/                        # o código (template de código), ou um Dockerfile e seu contexto (template de imagem)
+      README.md                   # exibido na página do template
+      docs/                       # páginas extras opcionais
+      icon.svg                    # o ícone
+    ```
+  </Step>
+  <Step title="Valide o manifesto">
+    Rode a verificação a partir da pasta. Ela compara o manifesto com o schema e as regras da plataforma e não cria nada:
+
+    ```bash
+    vertra template validate discord-bot-tickets
+    ```
+
+    Adicione a linha do schema no topo do manifesto para ter ajuda no editor: veja o [schema do manifesto](/pt-br/templates/reference/manifest-schema). Templates públicos têm algumas regras extras, abaixo.
+  </Step>
+  <Step title="Teste como template privado">
+    Crie-o como template privado na sua própria conta e use-o de verdade; é o mesmo motor do catálogo público. Veja [Validar e testar](/pt-br/templates/create/validate-and-test#teste-como-template-privado).
+  </Step>
+  <Step title="Abra o pull request">
+    O CI valida o manifesto, faz o build da imagem se houver um Dockerfile, procura file capabilities nela (um binário com uma delas não roda na plataforma) e verifica a licença declarada.
+  </Step>
+  <Step title="Revisão">
+    A Vertra Cloud roda o template na plataforma e revisa a mudança quanto à segurança (sem minerador, telemetria oculta ou segredo no código), a uma licença que permita distribuição pública e à qualidade do README. Corrija o que for pedido e faça push de novo.
+  </Step>
+  <Step title="Merge e publicação">
+    No merge, a pasta naquele commit é empacotada como uma versão do template e publicada com o selo **Community** e o seu nome como autor. Ninguém depende da sua conta: o código fica com a Vertra Cloud, e um template de imagem vira uma imagem mantida pela plataforma.
+  </Step>
+</Steps>
+
+Novas versões são novos pull requests, revisados novamente.
+
+## Regras extras para templates públicos
+
+| Regra | Por quê | Problema se descumprida |
+|---|---|---|
+| Fixe toda imagem por digest (`name@sha256:...`) | Todos que usam uma versão recebem o mesmo software | `invalid_source` |
+| Serviços de código precisam de `source.path` | O código fica no repositório | `invalid_source` |
+| Sem `env_hidden` | Valores públicos são visíveis por definição | `forbidden_in_public` |
+| Sem `code.view: false` | O código público é sempre aberto | `forbidden_in_public` |
+| Sem `share.full_copy` | Links de compartilhamento são para templates privados | `forbidden_in_public` |
+| `min_plan` deve ser um id de plano real | Um plano renomeado não pode deixar um template errado | `invalid_plan` |
+
+Os ids de template são únicos em todo o catálogo. Escreva o `README.md` do jeito que um usuário precisa: o que o template cria, o que fazer depois do deploy e onde ficam os dados. Declare a licença do software original em `links.license`.
+
+## Depois do merge
+
+- A Vertra Cloud mantém o template. As atualizações do software chegam por novas versões; quem usa o template vê **Versão nova disponível** e decide quando atualizar.
+- Um template que deixa de ser mantido é marcado como **obsoleto** e sai da galeria. Os apps já criados continuam rodando e são avisados. Uma imagem que um template ainda usa só é removida com aviso prévio e um caminho de migração para quem a usa.
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Tutorial: de privado a público" icon="code-pull-request" href="/pt-br/templates/tutorials/private-to-public-pr">
+    O caminho completo, de um template privado a um pull request.
+  </Card>
+  <Card title="Boas práticas" icon="list-check" href="/pt-br/templates/create/best-practices">
+    Leia antes de abrir o PR.
+  </Card>
+</CardGroup>

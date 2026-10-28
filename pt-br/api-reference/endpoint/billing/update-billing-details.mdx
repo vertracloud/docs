@@ -1,0 +1,100 @@
+---
+title: Atualizar dados de cobrança
+sidebarTitle: Atualizar dados de cobrança
+api: PUT https://api.vertracloud.app/v1/users/me/billing
+authMethod: bearer
+description: Substitui os dados de cobrança da conta. Exige o escopo billing:write.
+---
+Os dados de cobrança são usados nos recibos e nas faturas, e um pedido precisa deles completos. A requisição
+substitui os dados salvos. Ela carrega dados pessoais (nome, endereço e CPF/CNPJ), então envie somente
+valores fornecidos pelo titular da conta.
+
+<ParamField body="name" type="string" required>
+  O nome que aparece nos recibos e nas faturas.
+</ParamField>
+
+<ParamField body="address" type="object" required>
+  <Expandable title="Mostrar objeto">
+  <ParamField body="line1" type="string" required>Nome da rua.</ParamField>
+  <ParamField body="number" type="string">Número do endereço, ou `S/N`. Obrigatório no Brasil.</ParamField>
+  <ParamField body="line2" type="string">Complemento, por exemplo `Apto 2`.</ParamField>
+  <ParamField body="district" type="string">Bairro. Obrigatório no Brasil.</ParamField>
+  <ParamField body="city" type="string" required>Cidade.</ParamField>
+  <ParamField body="city_code" type="string">Código IBGE do município, com sete dígitos. Obrigatório no Brasil.</ParamField>
+  <ParamField body="state" type="string">Sigla do estado com duas letras no Brasil, por exemplo `CE`. Obrigatório no Brasil.</ParamField>
+  <ParamField body="postal_code" type="string">CEP. No Brasil, o CEP de 8 dígitos é obrigatório.</ParamField>
+  <ParamField body="country" type="string" required>Código ISO do país com duas letras, por exemplo `BR`.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="phone" type="string | null">
+  Número de telefone opcional, no formato E.164, por exemplo `+5585999990000`. `null` ou omitido remove
+  o telefone salvo.
+</ParamField>
+
+<ParamField body="tax_id" type="object | null">
+  O CPF ou CNPJ. Obrigatório no Brasil para que os dados fiquem completos. `null` remove o documento
+  salvo; omitir o campo mantém o documento.
+  <Expandable title="Mostrar objeto">
+  <ParamField body="type" type="string" required>`cpf` ou `cnpj`.</ParamField>
+  <ParamField body="value" type="string" required>O número do documento.</ParamField>
+  </Expandable>
+</ParamField>
+
+Fora do Brasil, `line1`, `city` e `postal_code` são suficientes.
+
+### Resposta
+
+Os dados salvos, com o documento mascarado, e `complete`. Veja
+[Obter dados de cobrança](/pt-br/api-reference/endpoint/billing/get-billing-details) para os campos. A
+resposta nunca é armazenada em cache.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "name": "Ana Souza",
+    "address": {
+      "line1": "Rua das Flores",
+      "number": "120",
+      "line2": null,
+      "district": "Centro",
+      "city": "Fortaleza",
+      "city_code": "2304400",
+      "state": "CE",
+      "postal_code": "60000000",
+      "country": "BR"
+    },
+    "phone": "+5585999990000",
+    "tax_id": { "type": "cpf", "masked": "CPF ••• 47" },
+    "complete": true
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` não foi enviado, a chave de API é inválida ou a sessão do dashboard foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API foi usada a partir de um IP fora da sua lista de permissões, ou não tem o escopo que a rota exige (`403`).
+  - `USER_NOT_FOUND`: o usuário autenticado não foi encontrado.
+  - `BILLING_DETAILS_INVALID`: um campo falhou na validação; o nome dele está em `details.path` (`400`).
+  - `TAX_ID_INVALID`: o CPF ou CNPJ não é válido (`400`).
+  - `PAYMENT_METHOD_UNAVAILABLE`: o pagamento online está temporariamente indisponível (`400`).
+  - `INTERNAL_SERVER_ERROR`: ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "BILLING_DETAILS_INVALID",
+  "details": { "path": "address.postal_code" }
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,97 @@
+---
+title: 'Create a Private Template: Save an App, Link GitHub or Use the Editor'
+sidebarTitle: 'Private templates'
+description: 'Create a private template for your account or workspace in three ways, publish versions, review variables and files before saving; limit of 5.'
+icon: 'lock'
+---
+
+A private template is a template you own, for yourself or your workspace, that you can use as many times as you like and share by link. You create one in three ways: **Save as template** from an app or stack, a **GitHub repository** that has the manifest, or the **editor** in the dashboard. All three produce the same manifest and a new version.
+
+## Who can create one
+
+- Accounts on a plan that can create [custom Docker images](/guides/custom-docker-images) can create private templates, for code templates and image templates alike. Creating needs the plan; using, editing and deleting what you already have does not.
+- Each user can own **up to 5 private templates**, counting the personal ones and those of workspaces they own. Past that, creation fails with `TEMPLATE_PRIVATE_LIMIT_REACHED`.
+- In a workspace, **only the owner** creates and manages templates and uses them to deploy. Members see the workspace's templates but cannot create them or use them to deploy (`WORKSPACE_OWNER_ONLY`). A workspace template deploys only **inside its own workspace**: pointing it at your personal account or at another workspace answers `TEMPLATE_NOT_FOUND`.
+- A personal template can be moved into a workspace you own.
+
+## Way 1: Save as template
+
+This is the main path. Open an app or a stack, choose **Save as template**, and review what goes in. The review is mandatory.
+
+**Variables.** Every variable of the app becomes a decision:
+
+| Choice | Result |
+|---|---|
+| **Question** | The user will be asked for it; the value is not copied. |
+| **Keep** | The value is copied into the template. Only for variables that are not secrets. |
+| **Generate** | A secret the platform generates for each user (`random:<n>` or `uuid`). |
+| **Hidden** | The value is copied but hidden from users, for a closed template. |
+| **Leave out** | Not in the template. |
+
+Variables that look like secrets (`*_KEY`, `*_TOKEN`, `*_SECRET`, `PASSWORD`, or a value shaped like a credential) come **unchecked and flagged**, and the platform refuses to keep a value that looks like a credential. Variables the platform controls, such as `PORT`, are left out. The review shows names only; values are never displayed.
+
+**Files.** For an app with code, you see the tree of `/app` (up to three levels) and choose what goes in. By default these are **not** selected, and `.env*` files, the `.vertra/` folder and dependency folders (`node_modules`, `.venv`, `vendor`) can never be included even if you tick them:
+
+| Not selected | Why |
+|---|---|
+| `.env*` | Secrets. |
+| `.vertra/` | Reserved by the platform. |
+| `node_modules`, `.venv`, `vendor` | Dependencies, reinstalled by the build. |
+| SQLite database files | User data. |
+| Upload folders | User data. |
+
+An app that runs an image of your own saves that image as the source. An app that came from a share link or from a template with a system image cannot be saved (`TEMPLATE_SAVE_NOT_ALLOWED`), and an app of a closed template cannot either (`TEMPLATE_CLOSED`). A stack becomes a template with one service per member; the variables created by its connections turn into placeholders of the matching service, and each Blob folder of the stack becomes a `blob` service.
+
+## Way 2: A GitHub repository
+
+Put `vertracloud.template.yaml` at the root of a repository that is in one of your GitHub App installations, then link it to the template:
+
+1. Have the template created (for example with Save as template or the CLI).
+2. Link the repository to it, with an optional branch (default: the repository's default branch).
+3. Each push to that branch creates a **new version**. The version number comes from the manifest, so **raise `version`** when you want a new version; a push with the same or a lower number is skipped with `VERSION_NOT_NEWER`.
+
+For a code service, the code is the folder in `source.path`; the commit message becomes the changelog and the `README.md` at the root becomes the docs. If the manifest is not found you get `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND`, and a repository already linked to a template of another owner gives `REPO_ALREADY_LINKED`. Pushes that do not create a version return a reason (`MANIFEST_INVALID`, `TEMPLATE_ID_MISMATCH`, `SOURCE_REJECTED`, `BRANCH_IGNORED`) rather than failing silently.
+
+## Way 3: The editor
+
+The editor in the dashboard edits questions, requirements and permissions with live validation against the [manifest schema](/templates/reference/manifest-schema), and uploads a new version with a zip per code service. The CLI does the same from a folder:
+
+```bash
+vertra template validate .
+vertra template create . --changelog "First version"
+vertra template create . --template my-template --changelog "Add a question"
+```
+
+The second form creates a new version of an existing template. Code services are packed from `source.path`: `.vertraignore` is honored (or `.dockerignore` without it), and `.env*`, `.git`, `.vertra` and symlinks are never sent. Each service is a zip of up to 100 MB. See [Validate and test](/templates/create/validate-and-test).
+
+## Image sources
+
+In a private template, `source.image` is the **id of one of your own images** with a good version, not a registry address. The platform pins that version when the template version is created. An image from the system, a copy received through a link, or an image of another account is not accepted (`IMAGE_NOT_FOUND`). You cannot delete an image that is the source of the current version of a template: it answers `IMAGE_IN_USE` with the templates that use it.
+
+## Versions
+
+A version is **immutable**: its manifest and sources never change. To change anything, publish a new version with a higher number; the manifest `id` must stay the same, and a number you used and deleted stays reserved. The template's current version is the latest one. People who run an earlier version are offered **Update** and decide when to take it. Changing only the name, description, category or tags of a template does not create a version.
+
+Deleting a template is a soft delete: it revokes its share links, keeps the versions and the apps created from it running (they see that the author removed the template), and frees the slug.
+
+## Common errors
+
+| Code | Meaning |
+|---|---|
+| `TEMPLATE_MANIFEST_INVALID` | The manifest has findings; `details.issues` lists them as in [Validate and test](/templates/create/validate-and-test). |
+| `TEMPLATE_SOURCE_REQUIRED` | A code service has no zip. |
+| `TEMPLATE_SECRET_IN_SOURCE` | The code contains `.env*`, a private key or a known token; `details.files` lists the paths, never the content. |
+| `TEMPLATE_SLUG_TAKEN` | The `id` is already in use (or is reserved). |
+| `TEMPLATE_PRIVATE_LIMIT_REACHED` | You already own 5 private templates. |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | The plan cannot create templates. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Share by link" icon="link" href="/templates/create/share-links">
+    Let another account use your private template.
+  </Card>
+  <Card title="Closed template for a client" icon="eye-slash" href="/templates/tutorials/closed-template-for-client">
+    A step-by-step tutorial.
+  </Card>
+</CardGroup>

@@ -25,6 +25,8 @@ Arquivos `.env*` são sempre removidos do contexto de build, e o `.dockerignore`
 exatamente como você escreveu: nada é reescrito. Variáveis de ambiente não ficam disponíveis durante o build; defina-as na
 aplicação.
 
+As imagens que vêm de um [template](/pt-br/templates/overview) também ocupam vagas de imagem: uma por imagem distinta, nunca por aplicação. `POST /v1/apps/image` recusa a imagem de um template com `IMAGE_TEMPLATE_ONLY`; os apps dessa imagem são criados implantando o template. Quem cria também pode manter um template de imagem [privado](/pt-br/templates/create/private-templates).
+
 ## Limites do build
 
 Cada build roda no seu próprio ambiente de build isolado, com os mesmos limites do build de uma aplicação comum:
@@ -59,7 +61,7 @@ Antes do build, o `Dockerfile` é verificado, no painel e de novo no servidor. *
 | `COPY` ou `ADD` de um arquivo `.env` | O arquivo não está no contexto de build, então o build falha nessa linha. |
 | `VOLUME` fora de `/app` | Esse caminho vira uma pasta temporária de 64 MB, apagada a cada reinício. Só `/app` mantém dados. |
 
-Você pode rodar a mesma verificação pela API com [Verificar Dockerfile](/api-reference/endpoint/images/check).
+Você pode rodar a mesma verificação pela API com [Verificar Dockerfile](/pt-br/api-reference/endpoint/images/check).
 
 ## Como a aplicação roda
 
@@ -77,8 +79,8 @@ A aplicação roda com o mesmo isolamento de qualquer outra aplicação da plata
 ### Porta e `PORT`
 
 Só apps web têm porta. Ao criar o app, o padrão é o **primeiro `EXPOSE`** do `Dockerfile`, ou **80**
-quando não há nenhum. A imagem devolve esse valor como `suggested_port` em [Obter imagem](/api-reference/endpoint/images/get). A plataforma injeta-o como a variável de ambiente `PORT` e roteia o tráfego para ele, então o seu servidor
-deve escutar em `PORT`. Um app criado com web desligado (um bot ou um worker) não tem porta nem subdomínio. Você pode publicá-lo na web depois com [Publicar aplicação](/api-reference/endpoint/apps/network/publish), informando em `port` a porta em que a imagem escuta; sem ela, a chamada falha com `IMAGE_APP_PORT_REQUIRED`.
+quando não há nenhum. A imagem devolve esse valor como `suggested_port` em [Obter imagem](/pt-br/api-reference/endpoint/images/get). A plataforma injeta-o como a variável de ambiente `PORT` e roteia o tráfego para ele, então o seu servidor
+deve escutar em `PORT`. Um app criado com web desligado (um bot ou um worker) não tem porta nem subdomínio. Você pode publicá-lo na web depois com [Publicar aplicação](/pt-br/api-reference/endpoint/apps/network/publish), informando em `port` a porta em que a imagem escuta; sem ela, a chamada falha com `IMAGE_APP_PORT_REQUIRED`.
 
 ### Variáveis de ambiente
 
@@ -90,7 +92,7 @@ app. Os valores delas nunca entram na imagem.
 
 <Steps>
   <Step title="Crie a imagem">
-    No painel, abra **Imagens Docker** e escolha **Criar imagem**, ou chame [Criar imagem](/api-reference/endpoint/images/create).
+    No painel, abra **Imagens Docker** e escolha **Criar imagem**, ou chame [Criar imagem](/pt-br/api-reference/endpoint/images/create).
     Escolha um ZIP ou um repositório do GitHub; a branch é opcional e assume a branch padrão do repositório. O painel
     mostra o `Dockerfile` com os achados antes de o build começar. Um repositório das suas instalações do GitHub App fica
     vinculado, então cada push para a branch dele reconstrói a imagem. Um repositório público fora das suas instalações é
@@ -99,12 +101,12 @@ app. Os valores delas nunca entram na imagem.
   </Step>
   <Step title="Acompanhe o build">
     O build roda em segundo plano. Acompanhe o log ao vivo no painel ou pelos
-    [Logs de build da imagem](/api-reference/endpoint/images/logs). A imagem fica `success` ou `failed`; em caso de falha,
+    [Logs de build da imagem](/pt-br/api-reference/endpoint/images/logs). A imagem fica `success` ou `failed`; em caso de falha,
     o campo `error` e o log explicam o motivo.
   </Step>
   <Step title="Crie o app">
     Escolha **Criar app a partir da imagem**, que abre **Novo projeto** com a imagem já selecionada, ou chame
-    [Criar aplicação a partir de imagem](/api-reference/endpoint/apps/create-from-image). Defina o nome, a RAM, se é um app web, o subdomínio, a porta e as
+    [Criar aplicação a partir de imagem](/pt-br/api-reference/endpoint/apps/create-from-image). Defina o nome, a RAM, se é um app web, o subdomínio, a porta e as
     variáveis. Você pode criar quantos apps precisar a partir de uma mesma imagem. **Novo projeto** também tem a opção
     **Usar imagem Docker** para escolher qualquer imagem já existente na sua conta.
   </Step>
@@ -115,26 +117,26 @@ partir do mesmo arquivo, sem novo upload.
 
 ## Atualizar uma imagem
 
-Você pode renomear uma imagem e dar a ela uma descrição (até 128 caracteres) no painel ou com [Atualizar imagem](/api-reference/endpoint/images/update); nada é construído nem reiniciado.
+Você pode renomear uma imagem e dar a ela uma descrição (até 128 caracteres) no painel ou com [Atualizar imagem](/pt-br/api-reference/endpoint/images/update); nada é construído nem reiniciado.
 
 Cada build bem-sucedido vira uma nova **versão** da mesma imagem, com o mesmo ID. Só um build roda por vez em cada imagem:
 um segundo pedido responde `IMAGE_BUILD_IN_PROGRESS`.
 
-- **Rebuild por upload.** Envie um contexto completo novo com **Atualizar imagem** ou [Rebuild da imagem](/api-reference/endpoint/images/rebuild).
+- **Rebuild por upload.** Envie um contexto completo novo com **Atualizar imagem** ou [Rebuild da imagem](/pt-br/api-reference/endpoint/images/rebuild).
   Ele substitui o contexto inteiro.
 - <a id="commit-on-top-of-the-current-context"></a>**Commit.** Um commit em um app que roda a partir de uma imagem (painel, `vertra app commit`
   ou a GitHub Action) coloca os seus arquivos **sobre o contexto atual** e reconstrói a imagem. Como a imagem é compartilhada,
   o painel avisa quantos apps a usam antes de você confirmar. Só o app que recebeu o commit reinicia, e só quando você pediu
   reinício.
-- **GitHub.** [Vincule a imagem](/api-reference/endpoint/images/github-link) a um repositório das suas instalações do GitHub App. A branch é opcional (padrão: a
+- **GitHub.** [Vincule a imagem](/pt-br/api-reference/endpoint/images/github-link) a um repositório das suas instalações do GitHub App. A branch é opcional (padrão: a
   branch padrão do repositório). Só o dono da imagem pode vincular ou desvincular (em um workspace, membros recebem `403`).
   Cada push para essa branch reconstrói a imagem, igual a um rebuild manual. Uma imagem construída uma vez a partir de um
-  repositório público não fica vinculada até você fazer isso. [Desvincule](/api-reference/endpoint/images/github-unlink) a qualquer momento.
+  repositório público não fica vinculada até você fazer isso. [Desvincule](/pt-br/api-reference/endpoint/images/github-unlink) a qualquer momento.
 - **GitHub Action.** Use o input `image-id` em vez de `app-id` para reconstruir uma imagem no seu workflow. Com o `app-id` de
   um app que roda a partir de uma imagem, o deploy é um commit, como descrito acima. Veja [GitHub Actions](/pt-br/github-actions).
 
 Um rebuild **nunca reinicia as suas aplicações**. Um build que falha não muda a versão atual: os apps continuam rodando a
-última que deu certo. Você pode ler o contexto atual com [Baixar contexto da imagem](/api-reference/endpoint/images/context).
+última que deu certo. Você pode ler o contexto atual com [Baixar contexto da imagem](/pt-br/api-reference/endpoint/images/context).
 
 ### Quando um app passa para uma nova versão
 
@@ -145,7 +147,7 @@ disponível, e a API marca isso com `outdated: true`.
 
 ## Versões e rollback
 
-Liste as versões com [Listar versões da imagem](/api-reference/endpoint/images/versions). Cada uma registra o digest, a
+Liste as versões com [Listar versões da imagem](/pt-br/api-reference/endpoint/images/versions). Cada uma registra o digest, a
 origem (`upload`, `commit` ou `github`), a mensagem e se algum app a está usando.
 
 Cada release de um app aponta para uma versão da imagem e para as variáveis com que ela começou. As aplicações mantêm até
@@ -168,7 +170,7 @@ em que ele estava rodando. A imagem em si não fica dentro do snapshot: o códig
 ## Excluir uma imagem
 
 Excluir uma imagem remove as versões dela, o contexto e **todas as aplicações criadas a partir dela**. Você confirma digitando o
-nome da imagem (`confirm_name` em [Excluir imagem](/api-reference/endpoint/images/delete)). A exclusão é bloqueada enquanto um build estiver em execução. Cada app excluído
+nome da imagem (`confirm_name` em [Excluir imagem](/pt-br/api-reference/endpoint/images/delete)). A exclusão é bloqueada enquanto um build estiver em execução. Cada app excluído
 segue as regras usuais de exclusão de aplicação, incluindo o snapshot de segurança nos planos que o têm. Com uma chave de API,
 excluir uma imagem que tem apps também exige o scope `apps:delete`.
 
@@ -206,4 +208,4 @@ reconstrói a imagem) exige `images:write` além de `apps:files`. Criar um app a
 | `IMAGE_NAME_MISMATCH` | `confirm_name` não é o nome da imagem. |
 | `IMAGE_NOT_FOUND` / `IMAGE_VERSION_NOT_FOUND` | A imagem ou a versão não existe, ou não é sua. |
 
-Veja [Erros](/api-reference/errors#custom-docker-images) para os status HTTP.
+Veja [Erros](/pt-br/api-reference/errors#imagens-docker-personalizadas) para os status HTTP.

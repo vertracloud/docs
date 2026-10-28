@@ -1,0 +1,124 @@
+---
+title: "Obter uso do armazenamento de blob e limites do plano"
+sidebarTitle: "Uso e limites"
+api: "GET https://blob.vertracloud.app/v1/stats"
+authMethod: bearer
+description: "Retorna o armazenamento usado, a cota do plano, a média do mês, as transformações de imagem usadas e os limites do plano."
+---
+
+{/* @see RESTGetAPIBlobStatsResponse, APIBlobStats — @vertracloud/api-types */}
+
+Retorna quanto armazenamento de blob a conta usa, a sua cota, o excedente, se houver, e os `limits` do plano atual. Leia os limites aqui em vez de fixá-los no código: eles mudam com o plano. Os valores do exemplo são ilustrativos.
+
+**Escopo:** `blob:read`.
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl "https://blob.vertracloud.app/v1/stats" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  Uso, cota e limites do plano.
+  <Expandable title="propriedades">
+  <ResponseField name="objects" type="number">Número de objetos armazenados.</ResponseField>
+  <ResponseField name="used_bytes" type="number">Bytes armazenados agora.</ResponseField>
+  <ResponseField name="quota_bytes" type="number">Cota de blob do plano, em bytes.</ResponseField>
+  <ResponseField name="over_quota_bytes" type="number">Bytes acima da cota. Maior que 0 somente após um downgrade de plano.</ResponseField>
+  <ResponseField name="estimated_overage_cents" type="number">Cobrança estimada pelos bytes acima da cota, em centavos, cobrada na renovação: R$0,20 por GB iniciado.</ResponseField>
+  <ResponseField name="month_average_bytes" type="number">Média de bytes armazenados no mês atual.</ResponseField>
+  <ResponseField name="image_transformations_used" type="number">Transformações de imagem usadas no mês atual.</ResponseField>
+  <ResponseField name="public_base_url" type="string">URL base dos arquivos públicos da conta.</ResponseField>
+  <ResponseField name="limits.max_simple_upload_bytes" type="number">Maior arquivo aceito por `POST /v1/objects`. 100 MB em todos os planos.</ResponseField>
+  <ResponseField name="limits.max_single_put_bytes" type="number">Maior arquivo que pode ser enviado em uma parte de um upload direto.</ResponseField>
+  <ResponseField name="limits.max_object_bytes" type="number">Maior objeto único, 10 GB.</ResponseField>
+  <ResponseField name="limits.min_part_bytes" type="number">Menor tamanho de parte permitido para uploads multipart.</ResponseField>
+  <ResponseField name="limits.max_part_bytes" type="number">Maior tamanho de parte permitido para uploads multipart.</ResponseField>
+  <ResponseField name="limits.max_parts" type="number">Número máximo de partes que um upload multipart pode ter.</ResponseField>
+  <ResponseField name="limits.max_open_uploads" type="number">Quantos uploads diretos podem estar em andamento ao mesmo tempo no plano.</ResponseField>
+  <ResponseField name="limits.uploads_per_second" type="number | null">Uploads permitidos por segundo. `null` significa sem limite próprio (Enterprise-12 ou superior); abaixo disso, 1 por segundo.</ResponseField>
+  <ResponseField name="limits.max_rules" type="number">Regras de pasta permitidas: 5, 10 ou 20, conforme o plano.</ResponseField>
+  <ResponseField name="limits.max_custom_domains" type="number">Domínios personalizados permitidos: 0, 1, 3 ou 10, conforme o plano.</ResponseField>
+  <ResponseField name="limits.metadata_enabled" type="boolean">Se `metadata` pode ser definido (Enterprise-12 ou superior).</ResponseField>
+  <ResponseField name="limits.share_password_enabled" type="boolean">Se os links de compartilhamento podem ter senha (Enterprise-12 ou superior).</ResponseField>
+  <ResponseField name="limits.no_cache_enabled" type="boolean">Se `cache_control: "no-cache"` é permitido (Enterprise-26 ou superior).</ResponseField>
+  <ResponseField name="limits.min_expiration_seconds" type="number">Menor `expires_at` aceito, contado a partir de agora: 7 dias, ou 1 hora no Enterprise-26 ou superior.</ResponseField>
+  <ResponseField name="limits.image_transformations_per_month" type="number">Transformações de imagem incluídas por mês. `0` no Economy e no Pro.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "objects": 42,
+    "used_bytes": 2147483648,
+    "quota_bytes": 16106127360,
+    "over_quota_bytes": 0,
+    "estimated_overage_cents": 0,
+    "month_average_bytes": 1932735283,
+    "image_transformations_used": 120,
+    "public_base_url": "https://blob.vertracloud.dev/k7p2m9x4qa",
+    "limits": {
+      "max_simple_upload_bytes": 104857600,
+      "max_single_put_bytes": 104857600,
+      "max_object_bytes": 10737418240,
+      "min_part_bytes": 5242880,
+      "max_part_bytes": 5368709120,
+      "max_parts": 10000,
+      "max_open_uploads": 4,
+      "uploads_per_second": null,
+      "max_rules": 10,
+      "max_custom_domains": 3,
+      "metadata_enabled": true,
+      "share_password_enabled": true,
+      "no_cache_enabled": false,
+      "min_expiration_seconds": 604800,
+      "image_transformations_per_month": 4000
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,1694 @@
+---
+title: "Base de conocimiento de Vertra Cloud"
+sidebarTitle: "Base de conocimiento"
+description: "Todos los datos de Vertra Cloud en un solo lugar: planes, precios, límites, lenguajes, bases de datos, MCP, workspaces, códigos de error y soluciones."
+---
+
+Esta página reúne, en un único documento, todo lo que hace Vertra Cloud y con qué límites: planes y
+precios, lenguajes y bases de datos compatibles, MCP, snapshots, workspaces, API, códigos de error
+y soluciones para los problemas más comunes. Es la fuente de la que derivan las demás páginas de
+esta documentación, y se escribió para que la lean tanto personas como asistentes de IA.
+
+> **Espejo:** `plans-and-limits` publica en forma resumida las tablas de planes, runtimes, bases de
+> datos, la pestaña Datos y los límites de despliegue de esta página. ¿Cambiaste un número aquí?
+> Actualiza también `plans-and-limits`, `overview` y `api-reference/limitations` en la misma tarea.
+
+---
+
+## 1. Descripción general
+
+Vertra Cloud es una plataforma brasileña de alojamiento en la nube para desplegar aplicaciones y bases
+de datos gestionadas. Admite 13 lenguajes, 4 tipos de base de datos, monitorización en tiempo real,
+dominios personalizados, un servidor MCP para tu agente de IA, workspaces colaborativos y una
+extensión para VS Code.
+
+**SLA: 99,99 %** de disponibilidad, en todos los planes. Es el **único** SLA que declara la
+plataforma: el marketing, las tarjetas de los planes, la página de Enterprise, las Condiciones de uso
+y la documentación pública dicen 99,99 % y ninguna otra cifra.
+
+- **Sitio**: https://vertracloud.app
+- **Panel**: https://vertracloud.app/dashboard
+- **API**: https://api.vertracloud.app
+- **Documentación**: https://docs.vertracloud.app
+- **CLI** ([guía](/es-es/cli)): `curl -fsSL https://cli.vertracloud.app/install | sh` en macOS/Linux,
+  `irm https://cli.vertracloud.app/install | iex` en Windows (PowerShell)
+- **Servidor MCP** ([guía](/es-es/mcp)): endpoint remoto `https://mcp.vertracloud.app/mcp` (OAuth), o
+  local con `npx -y @vertracloud/mcp` y un `VERTRA_API_KEY`
+- **SDK** ([guía](/es-es/sdks)): `npm install @vertracloud/sdk-api` · `pip install vertracloud-api` ·
+  `go get github.com/vertracloud/sdk-api-go`
+- **Extensión para VS Code** ([guía](/es-es/vscode-extension)): `code --install-extension VertraCloud.vertra-cloud`
+- **GitHub Actions** ([guía](/es-es/github-actions)): `vertracloud/github-action`
+
+---
+
+## 2. Lenguajes compatibles
+
+| Lenguaje | Recomendada | Última | Otras |
+|-----------|:-----------:|:------:|:------:|
+| JavaScript | Node.js 22.23.4 | 24.22.1 | — |
+| TypeScript | Node.js 22.23.4 | 24.22.1 | — |
+| Python | 3.13.17 | 3.13.17 | 3.12.15, 3.11.17 |
+| Go | 1.26.10 | 1.27.3 | — |
+| Rust | 1.99.1 | 1.99.1 | — |
+| Java | Temurin JRE 21 | 21 | 17 |
+| Bun | 1.3.14 | 1.4.4 | — |
+| PHP | 8.3.36 | 8.4.27 | 8.2.35 (hasta el fin del soporte, 31 de diciembre de 2026) |
+| Ruby | 3.3.12 | 3.4.11 | — |
+| Deno | 2.9.8 | 2.9.8 | 2.8.3 |
+| .NET (C#) | 10.0.402 | 10.0.402 | — |
+| Elixir | 1.20.4 (OTP 28) | 1.20.4 | — |
+| Static | — | — | HTML/CSS/JS |
+
+Las versiones se actualizan con regularidad con parches de seguridad. Una versión que llega al fin de
+su soporte se retira de la lista. Si la versión guardada en una aplicación ya no está disponible, la
+plataforma usa la versión más reciente de la misma rama (por ejemplo, 3.11 se ejecuta en 3.11.17); si
+se retiró toda la rama, recurre a la versión `recommended`.
+
+### Detección de lenguaje
+
+La plataforma detecta el lenguaje a partir de los archivos de manifiesto de la **raíz** del proyecto,
+comprobando cada ecosistema antes que `package.json`: un proyecto de Python, PHP (Laravel) o Ruby
+(Rails) que además tenga un `package.json` de front-end sigue siendo Python, PHP o Ruby. `bun.lock` se
+reconoce como Bun, y los proyectos Java también se reconocen por `build.gradle.kts`,
+`settings.gradle(.kts)`, `mvnw` y `gradlew`. `MAIN=./src/index.js` (con el `./` inicial) se acepta.
+
+Para forzar un lenguaje, define `LANGUAGE=<slug>` en `vertracloud.config` (por ejemplo `LANGUAGE=deno`)
+o envía `language` en `POST /v1/apps`. En `vertracloud.config.json` la clave es `"language"`. La
+precedencia es el campo de la API, luego el archivo de configuración y, por último, la detección. Un
+valor desconocido se rechaza con `INVALID_LANGUAGE` (HTTP 400).
+
+### Deno, .NET y Elixir
+
+| Lenguaje | Detectado por | `MAIN` | Cómo se ejecuta |
+|---|---|---|---|
+| Deno (`deno`) | `deno.json`, `deno.jsonc` o `deno.lock` | El archivo de entrada (por ejemplo `main.ts`) | Las dependencias se instalan con `deno install`; la aplicación se ejecuta con todos los permisos dentro de su contenedor |
+| .NET (`dotnet`) | `.csproj`, `.fsproj`, `.sln` o `global.json` | El archivo `.csproj` | Se publica en modo Release con `dotnet publish`; la aplicación debe escuchar en el puerto de `ASPNETCORE_HTTP_PORTS` (la plataforma ya lo define como 80) |
+| Elixir (`elixir`) | `mix.exs` | `mix.exs` | Ejecuta `mix deps.get` y compila con `MIX_ENV=prod`; arranca con `mix run --no-halt`, o con `mix phx.server` cuando el proyecto depende de `:phoenix` |
+
+Phoenix es compatible: define `SECRET_KEY_BASE` y `PHX_HOST` como variables de entorno. Ejecuta
+`mix assets.deploy` antes de comprimir, o usa un proyecto sin assets.
+
+---
+
+## 3. Bases de datos
+
+| Base de datos | Versiones para bases de datos nuevas | Usuario | TLS | Autenticación |
+|---|---|---|---|---|
+| PostgreSQL | **18** (recomendada), 17 | `vertracloud` (base de datos `vertracloud`) | Obligatorio | Contraseña + certificado de cliente |
+| MongoDB | **8.0** (recomendada), 9.0 | `vertracloud` (base de datos `vertracloud`, base de datos de autenticación `admin`) | Obligatorio | Contraseña + certificado de cliente |
+| Redis | **8.2** (recomendada), 7.2 | `vertracloud` | Obligatorio | Usuario + contraseña + certificado de cliente |
+| MySQL | **9.7** (recomendada, LTS), 8.4 (LTS) | `vertracloud` (base de datos `vertracloud`) | Obligatorio | Contraseña + certificado de cliente X509 |
+
+Eliges la versión al crear una base de datos (el selector del panel, o `version` en la API); la
+recomendada es la predeterminada. Las bases de datos existentes conservan su versión mayor, y las
+actualizaciones de seguridad (versiones de parche) se aplican automáticamente cada vez que la base de
+datos se reinicia (detenerla y luego iniciarla, en el panel). Si usas índices `btree_gist` sobre
+columnas float o índices `ltree` en PostgreSQL, ejecuta `REINDEX` sobre ellos tras el reinicio. Las
+bases de datos MySQL 8.0 existentes siguen en 8.0, versión que ya no está disponible para las nuevas.
+Las bases de datos Redis 7.4 existentes siguen en 7.4. Una base de datos creada a partir de un
+snapshot nace con la versión mayor del snapshot (un snapshot de MySQL 8.0 crea una base de datos
+MySQL 8.4, y un snapshot de Redis 7.4 una de Redis 8.2); `version` puede ser igual o más nueva, nunca
+más antigua (`SNAPSHOT_VERSION_NEWER`). Restaurar en una base de datos antigua un snapshot tomado en
+una versión más nueva se rechaza con el mismo código y no se cambia nada.
+
+`vertracloud` es el usuario de las bases de datos creadas desde la v26.4.8 en adelante, y no es
+superusuario. Las bases de datos más antiguas conservan el usuario del motor: `postgres` (base de
+datos `postgres`), `default` en MongoDB (base de datos de autenticación `admin`) y Redis, y `root`
+(base de datos `default`) en MySQL. El campo `username` de la base de datos en la API indica cuál usar.
+
+El puerto es **único por base de datos**, no el predeterminado del motor, y se muestra en la página de
+la base de datos.
+
+Todas las bases de datos generan certificados TLS automáticamente (CA, servidor y cliente). **Todos los
+motores exigen TLS y un certificado de cliente**: una contraseña sola nunca conecta.
+
+### Cómo conectarte a cada base de datos
+
+- **Host**: `<database-id-without-hyphens>.db.usa1.vertraweb.app`. **Puerto**: único por base de datos
+  (no 5432/27017/6379/3306); cópialo desde la página de la base de datos o desde
+  `GET /v1/databases/{id}`.
+- **Archivos** (pestaña Certificados o `GET /v1/databases/{id}/credentials/certificate`):
+  `certificate-<id>.crt` = certificado de cliente, `certificate-<id>.key` = clave privada del cliente,
+  `certificate-<id>.pem` = paquete con la clave del cliente, el certificado del cliente y la CA. Usa el
+  `.pem` como archivo CA en todas partes, y como archivo de clave y certificado para MongoDB.
+- El certificado del servidor coincide con el host, así que la verificación completa funciona.
+
+| Motor | Conexión |
+|---|---|
+| PostgreSQL | `psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.pem sslcert=certificate.crt sslkey=certificate.key"` |
+| MongoDB | `mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.pem --tlsCertificateKeyFile certificate.pem` |
+| Redis | `redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.pem --cert certificate.crt --key certificate.key` |
+| MySQL | `mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.pem --ssl-cert=certificate.crt --ssl-key=certificate.key` |
+
+Los ejemplos de Node.js para cada driver (pg, mongodb, ioredis, mysql2) están en la página
+[Bases de datos](/es-es/databases#cómo-me-conecto-a-cada-motor).
+
+**RAM mínima**: 1.024 MB para PostgreSQL, MongoDB y MySQL; **512 MB para Redis**.
+
+**Almacenamiento**: 6 GB + 1 GB por cada 512 MB de RAM asignada, redondeado al GB, o 3× la RAM cuando
+esa cifra es mayor (desde 6 GB de RAM en adelante). La cuota es siempre un número entero de GB (por
+ejemplo: 512 MB → 7 GB; 1 GB → 8 GB; 2 GB → 10 GB; 4 GB → 14 GB; 8 GB → 24 GB). Ninguna base de datos
+existente pierde espacio cuando cambia la fórmula: el límite solo crece.
+
+
+**Operaciones**: Iniciar, Detener, Reiniciar, Restablecer (destructivo, limitado a 1 por hora), Restablecer contraseña, Restablecer certificados, Descargar/Restaurar snapshot.
+
+### Gestor de datos (la pestaña "Datos")
+
+Explora y edita el **contenido** de la base de datos desde el panel, sin mostrar la contraseña ni la
+cadena de conexión. **Solo en el panel**; no está disponible a través de la API. SQL: esquemas, tablas,
+columnas, índices, filas y una consola SQL. MongoDB: colecciones, índices y documentos. Redis: claves
+mediante `SCAN`, valor según el tipo, TTL.
+
+| Límite | Valor |
+|---|---|
+| Filas/documentos/claves por página | 200 |
+| Tiempo máximo por operación (incluida la consola SQL) | 10 s, aplicado por el propio motor |
+| Filas devueltas por la consola SQL | 200 por defecto, 1000 como máximo (por encima se devuelve `truncated`) |
+| Tamaño del SQL en la consola | 64 KB |
+| Tamaño del resultado en la consola | 5 MB serializados |
+| Cuerpo de escritura (fila, documento, valor de clave) | 1 MB |
+| Elementos de una colección de Redis (list/set/zset/hash/stream) | 1000 (por encima, el valor llega con `truncated: true`) |
+| Consultas simultáneas en la consola por base de datos | 1 |
+| Límite de peticiones: consola SQL | 30/min por usuario |
+| Límite de peticiones: otras rutas de datos | 120/min por usuario |
+
+**Plan mínimo: Intermediary.** Toda la pestaña se desbloquea desde Intermediary en adelante. El control
+verifica el plan del **propietario** de la base de datos, no el plan de quien accede: un miembro de un
+workspace sin plan puede usar la pestaña Datos en una base de datos cuyo propietario tenga el plan
+requerido, y un propietario sin plan no obtiene la función por invitar a alguien con un plan superior.
+Por debajo de ese plan, el panel muestra la tarjeta del plan en lugar del explorador.
+
+**Permiso**: el acceso de lectura lo tiene cualquier miembro del workspace; **el acceso de escritura y la
+consola SQL son solo para el propietario o para administradores** (el propietario de la base de datos
+siempre puede hacerlo). Cada modificación se registra como una actividad en el log de la base de
+datos, con la operación y el objeto, nunca el contenido.
+
+**Lo que deliberadamente no existe**: un comando administrativo o la ejecución de código arbitrario en
+la consola de Redis o de Mongo. En SQL, el límite es el tiempo, el tamaño y la concurrencia.
+
+---
+
+## 4. Planes y precios
+
+| Plan | Precio | RAM | vCPU | Proyectos máximos |
+|-------|:-----:|:---:|:----:|:------------:|
+| Economy | R\$1,99/mes | 256 MB | 0,3 | limitado por la RAM |
+| Pro | R\$5,99/mes | 1.024 MB | 0,5 | limitado por la RAM |
+| Scale | R\$10,99/mes | 2.048 MB | 1 | limitado por la RAM |
+| Intermediary | R\$18,99/mes | 3.072 MB | 1,5 | limitado por la RAM |
+| Enterprise-4 | R\$23,99/mes | 4.096 MB | 2 | limitado por la RAM |
+| Enterprise-32 | R\$191,99/mes | 32.768 MB | 12 | limitado por la RAM |
+
+**Ningún plan tiene un límite de cantidad.** El límite real es la **RAM del plan**, y lo que rechaza una
+creación es `MEMORY_LIMIT_EXCEEDED`: una aplicación de 100 MB cabe 10 veces en un plan Pro. Mínimos que
+consumen esa RAM: aplicación 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1.024 MB.
+
+### vCPU por aplicación
+
+La columna **vCPU** de la tabla anterior es el techo por aplicación en el plan, no un total repartido
+entre los proyectos de la cuenta. Dentro de ese techo, la vCPU de un proyecto crece con su RAM:
+
+- **Crecimiento:** en planes de hasta 2 vCPU, +1 vCPU por cada 512 MB de RAM; en planes con más de 2
+  vCPU, +1 vCPU por cada 1 GB (1.024 MB).
+- **Mínimo:** un proyecto con 512 MB o más recibe al menos 2 vCPU; por debajo de 512 MB, al menos 1 vCPU.
+- **Máximo:** nunca más que la vCPU del plan. Economy (0,3) y Pro (0,5) siempre dan al proyecto la vCPU
+  completa del plan.
+
+La misma regla se aplica a las bases de datos. Más RAM nunca da menos vCPU. Un cambio surte efecto la
+próxima vez que el proyecto se reinicie o se despliegue.
+
+| Plan | vCPU del plan | 256 MB | 512 MB | 1 GB | 2 GB | 4 GB | 8 GB | 12 GB o más |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Scale | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
+| Intermediary | 1,5 | 1 | 1,5 | 1,5 | 1,5 | 1,5 | 1,5 | 1,5 |
+| Enterprise-4 | 2 | 1 | 2 | 2 | 2 | 2 | 2 | 2 |
+| Enterprise-32 | 12 | 1 | 2 | 2 | 2 | 4 | 8 | 12 |
+
+### Agentes de IA (MCP)
+
+Vertra no aloja chat ni modelos de IA. Conecta Claude, Codex, Cursor u otro cliente MCP al servidor
+oficial para operar aplicaciones, bases de datos, archivos, logs y despliegues con tu clave de API.
+Las validaciones internas ocurren durante el ciclo de vida de la aplicación, como el despliegue, el
+nuevo build y el reinicio; no son una superficie de producto aparte.
+
+### Precios de Enterprise
+
+| Plan | Precio/mes |
+|-------|----------:|
+| Enterprise-4 | R\$23,99 |
+| Enterprise-6 | R\$35,99 |
+| Enterprise-8 | R\$47,99 |
+| Enterprise-12 | R\$71,99 |
+| Enterprise-14 | R\$83,99 |
+| Enterprise-16 | R\$95,99 |
+| Enterprise-18 | R\$107,99 |
+| Enterprise-20 | R\$119,99 |
+| Enterprise-22 | R\$131,99 |
+| Enterprise-24 | R\$143,99 |
+| Enterprise-26 | R\$155,99 |
+| Enterprise-28 | R\$167,99 |
+| Enterprise-30 | R\$179,99 |
+| Enterprise-32 | R\$191,99 |
+
+### Nombres de los planes
+
+La API identifica un plan por su **nombre**; no existe un ID numérico de plan. `GET /v1/users/me`
+devuelve `plan` con `name`, `memory`, `expires_at` y `duration`, o `plan: null` para una cuenta sin plan
+activo. Las aplicaciones, las bases de datos y los workspaces llevan el plan del propietario en
+`owner_plan` (el nombre, o `null`).
+
+| Nombre | Plan |
+|-------|-------|
+| `economy` | Economy |
+| `pro` | Pro |
+| `scale` | Scale |
+| `intermediary` | Intermediary |
+| `enterprise-4` | Enterprise-4 |
+| `enterprise-6` | Enterprise-6 |
+| `enterprise-8` | Enterprise-8 |
+| `enterprise-12` | Enterprise-12 |
+| `enterprise-14` | Enterprise-14 |
+| `enterprise-16` | Enterprise-16 |
+| `enterprise-18` | Enterprise-18 |
+| `enterprise-20` | Enterprise-20 |
+| `enterprise-22` | Enterprise-22 |
+| `enterprise-24` | Enterprise-24 |
+| `enterprise-26` | Enterprise-26 |
+| `enterprise-28` | Enterprise-28 |
+| `enterprise-30` | Enterprise-30 |
+| `enterprise-32` | Enterprise-32 |
+
+Compara los planes por nombre, nunca por su posición en esta lista. El código que leía `plan_id`,
+`plan.id` o `owner_plan_id` debe leer en su lugar `plan.name` y `owner_plan` (cambio incompatible de la
+API, los SDK, la CLI y el MCP).
+
+### Funciones por plan
+
+| Función | Economy | Pro | Scale | Intermediary | Enterprise |
+|----------------|:-------:|:---:|:-----:|:------------:|:----------:|
+| Periodos de facturación | 1 mes | 1, 3 o 12 meses | 1, 3 o 12 meses | 1, 3 o 12 meses | 1, 3 o 12 meses |
+| Pago | PIX | PIX o tarjeta | PIX o tarjeta | PIX o tarjeta | PIX o tarjeta |
+| Renovación automática (tarjeta) | — | Sí | Sí | Sí | Sí |
+| Bases de datos | — (la mínima de Redis, 512 MB, no cabe) | Sí | Sí | Sí | Sí |
+| Publicación web (sitio con subdominio `*.vertraweb.app`) | — | Sí | Sí | Sí | Sí |
+| Elegir el nombre del subdominio | — | — | Sí | Sí | Sí |
+| Distintivo «Powered by Vertra Cloud» en el sitio | — | Sí | — | — | — |
+| Dominios personalizados por aplicación | — | — | — | 1 | 2–20 (según el nivel) |
+| Reinicio automático | Sí | Sí | Sí | Sí | Sí |
+| Gestor de archivos | — | Sí | Sí | Sí | Sí |
+| Métricas avanzadas | — | Sí | Sí | Sí | Sí |
+| Copias de seguridad diarias | — | — | Sí | Sí | Sí |
+| Copias de seguridad manuales | — | — | Sí | Sí | Sí |
+| Snapshot de seguridad al eliminar una aplicación | — | Sí | Sí | Sí | Sí |
+| Gestor de datos de bases de datos | — | — | — | Sí | Sí |
+| Imágenes Docker personalizadas (desde tu propio `Dockerfile`) | — | — | — | — | Solo Enterprise 28, 30 y 32: hasta 20 imágenes |
+| Plantillas (usar el catálogo público, recibir enlaces para compartir) | Sí | Sí | Sí | Sí | Sí |
+| Crear plantillas privadas y enlaces para compartir | — | — | — | — | Solo Enterprise 28, 30 y 32: hasta 5 plantillas (depende de las imágenes Docker personalizadas) |
+| Despliegue automático (GitHub) | — | — | — | Sí | Sí |
+| Historial de despliegues (pestaña Rollbacks) | Solo lectura | Sí | Sí | Sí | Sí |
+| Rollback manual (código + variables de entorno opcionales) | — | Sí | Sí | Sí | Sí |
+| Versiones anteriores conservadas | — | 3 | 5 | 10 | 15–30 (según el nivel) |
+| Validez de la versión | — | 7 días | 14 días | 30 días | 30 días |
+| Rollback automático | — | — | — | Sí | Sí |
+| Despliegues sin tiempo de inactividad | — | — | — | — | Sí |
+| Vertra Flow (lienzo del panel) | Sí | Sí | Sí | Sí | Sí |
+| Workspaces (roles personalizables, ver §10) | — | — | — | — | Sí (5-24 miembros) |
+| Blob Storage (cuota) | 1 GB | 5 GB | 15 GB | 20 GB | 30–250 GB |
+| Soporte | Especializado | Prioritario | Prioritario | Prioritario | Premium (E-32: agente dedicado + gestor exclusivo) |
+
+> **Versiones anteriores conservadas** cuenta las versiones distintas de la que se ejecuta ahora.
+> **Validez de la versión** cuenta desde el momento en que una versión deja de ser la que se ejecuta; la
+> versión en ejecución nunca caduca. Enterprise conserva 15 versiones en los niveles E-4, E-6 y E-8, 20
+> en E-12, E-14 y E-16, 25 de E-18 a E-24, y 30 de E-26 a E-32.
+
+> **Rollback automático** y **Despliegues sin tiempo de inactividad** son ajustes de despliegue, que se
+> cambian en la configuración de la aplicación o con `PATCH /v1/apps/{id}/config` (`deploy`). Pedir
+> cualquiera de los dos en un plan que no los incluye falla con `403 PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK`
+> o `403 PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`; desactivarlos siempre está permitido.
+
+> El gestor de archivos es la pestaña **Archivos** del panel y sus rutas HTTP; las reglas de propiedad y
+> de rutas son las mismas en la API, la CLI y el MCP.
+
+**Tres cosas distintas que la documentación suele mezclar:**
+
+- **Publicar** (Pro o superior): tener un sitio. La aplicación recibe un subdominio `*.vertraweb.app` y
+  pasa a ser accesible desde internet. En Pro, la plataforma **asigna el subdominio al azar**. En Pro,
+  las páginas HTML del sitio también muestran el distintivo **«Powered by Vertra Cloud»** en la esquina
+  inferior derecha; desde Scale en adelante no aparece. Cambiar de plan activa o desactiva el distintivo
+  de inmediato, sin volver a desplegar.
+- **Elegir el subdominio** (Scale o superior): **elegir** el nombre del subdominio, al crear o más tarde
+  (`PATCH /v1/apps/{id}/network/subdomain`). Sin esta función, el usuario puede publicar, pero no puede
+  elegir el nombre.
+- **Dominios personalizados** (Intermediary o superior): apuntar a la aplicación los dominios que tienes,
+  tantos como permita el plan (ver [Dominios personalizados](#dominios-personalizados)).
+
+### Cuenta sin plan activo
+
+Una cuenta sin plan activo no puede crear aplicaciones ni bases de datos, ni publicar un sitio: esas
+peticiones se rechazan con `PLAN_REQUIRED` (403). Suscríbete a un plan, a partir de Economy, para continuar.
+
+- Los proyectos sin conexión durante 30 días o más se eliminan automáticamente, con un snapshot previo
+- Notificaciones por correo los días 7, 23 y 27 antes de la eliminación
+
+### Periodos de facturación y pago
+
+- **Periodos:** 1, 3 o 12 meses. Una compra de 3 meses tiene un **descuento del 5 %** y una de 12 meses
+  un **descuento del 15 %** sobre el precio mensual. Economy es solo mensual.
+- **Métodos de pago:** PIX o tarjeta de crédito (Visa y Mastercard). Economy acepta **solo PIX**, por lo
+  que nunca se renueva por sí solo. Un cupón puede restringir un pedido a un único método.
+- **Los precios** están siempre en R\$. El sitio muestra un importe aproximado en dólares
+  estadounidenses junto al precio (≈ \$) solo como referencia; el cobro es en reales.
+- **Tarjeta = renovación automática.** La tarjeta se guarda en la cuenta y el plan se renueva con la
+  tarjeta predeterminada, sin periodo de fidelidad. Tres días antes de que el plan caduque se cobra la
+  tarjeta y el mismo día se envía un correo. Si el cobro falla, se reintenta en cada uno de los 2 días
+  siguientes y el día de caducidad; si fallan todos los intentos, el plan caduca con normalidad. Si el
+  banco pide confirmación, recibes un correo para confirmar el pago. Para detener la renovación
+  automática, usa **Cancelar renovación** en la tarjeta del plan, en Facturación: el plan sigue activo
+  hasta su fecha de caducidad y la tarjeta permanece guardada.
+- **PIX no se renueva.** Solo recibes el aviso habitual de caducidad y vuelves a pagar cuando quieras.
+- **Los pedidos sin pagar caducan.** Un pedido que no se paga permanece abierto durante **72 horas** desde
+  su creación; después caduca y ya no se puede pagar. Recibes un correo cuando un pedido queda abierto, y
+  recordatorios con 48 horas y 24 horas restantes.
+- **Los códigos QR de PIX duran hasta 30 minutos.** Si un código QR caduca mientras el pedido sigue
+  abierto, genera uno nuevo para el mismo pedido.
+- **Los datos de facturación son obligatorios para comprar un plan.** Son necesarios para emitir la factura
+  de servicio (NFS-e). En Brasil: nombre, CPF o CNPJ y la dirección completa (CEP, calle, número y barrio;
+  la ciudad y el estado se rellenan a partir del CEP). Fuera de Brasil: nombre, calle, ciudad, país y
+  código postal. El teléfono es opcional. Defínelos en Facturación; si faltan, el proceso de pago los pide
+  antes del pago. Por la API, un pedido sin ellos falla con `BILLING_DETAILS_INCOMPLETE`.
+- **Dónde están los datos de pago.** El número de la tarjeta, la caducidad y el CVV se escriben en un campo
+  de Stripe y se tokenizan en el navegador; nunca llegan a Vertra. Los datos de facturación (nombre,
+  dirección, teléfono, CPF/CNPJ) los almacena Stripe, no Vertra. Vertra guarda solo la marca de la tarjeta,
+  los últimos 4 dígitos y la caducidad, para listar las tarjetas guardadas.
+- **Reembolsos.** La primera compra de un plan de pago puede reembolsarse íntegramente en un plazo de 7 días.
+  Una **renovación automática con tarjeta** también puede reembolsarse íntegramente en un plazo de 7 días
+  desde el cobro; el plan vuelve a su fecha de caducidad anterior. Las renovaciones que haces tú mismo, las
+  mejoras y los cambios de plan no son reembolsables. Las solicitudes van a support@vertracloud.app.
+- **Facturas (NFS-e):** la factura de servicio brasileña (NFS-e) se emite automáticamente para cada pedido
+  pagado y se entrega **por correo electrónico**, a nombre y con el CPF/CNPJ de tus datos de facturación.
+  Un reembolso total anula la factura.
+
+---
+
+## 5. Tipos de aplicación
+
+| Tipo | Código | Descripción |
+|------|:------:|-----------|
+| Bot | 1 | Proceso en segundo plano, sin puerto HTTP. Bots de Discord, automatizaciones, workers. |
+| Sitio web | 2 | Accesible por HTTP/HTTPS, recibe un subdominio. APIs, aplicaciones web, SPAs. |
+
+El límite del nombre visible de una **aplicación**, una **base de datos** y un **workspace** es de **50 caracteres** como máximo.
+
+El tipo **no se decide de una vez por todas al crear la aplicación**. Una aplicación creada sin publicación
+web puede publicarse más tarde (`POST /v1/apps/{id}/network/publish`) y volver a dejarse sin publicar
+(`DELETE /v1/apps/{id}/network/publish`), lo que cambia el tipo entre `1` y `2`. Hay dos consecuencias que
+hay que comunicar a los usuarios:
+
+- **Activarla y desactivarla vuelve a crear el contenedor, así que la aplicación se reinicia**: las reglas
+  de red y el puerto expuesto solo existen desde el momento en que se crea el contenedor.
+- **Al desactivarla, el subdominio queda libre**: no hay reserva, así que otra persona puede reclamarlo. También
+  se elimina cada dominio personalizado, y sus registros `CNAME` y `TXT` de validación permanecen en el proveedor
+  DNS del usuario hasta que el usuario los borre.
+
+Publicar requiere **512 MB de RAM**. En este flujo la RAM no aumenta por sí sola: con menos que eso, la
+llamada devuelve `MEMORY_BELOW_MINIMUM` con `details: { current_mb, minimum_mb }`.
+
+**Aplicaciones desde una imagen Docker personalizada.** En Enterprise 28, Enterprise 30 y Enterprise 32, una
+aplicación puede ejecutarse desde una imagen construida a partir del `Dockerfile` propio del cliente. Se crea
+con `POST /v1/apps/image`, y puede ser un Bot (`web: false`) o un Sitio web (`web: true`). Reglas que hay que
+enunciar con exactitud:
+
+- Contexto de build: ZIP de hasta 100 MB, o un repositorio de GitHub, con un archivo llamado exactamente
+  `Dockerfile` en la raíz. Hasta 20 imágenes por cuenta, contando todos los estados. Plataforma `linux/amd64`.
+- Build: entorno de build aislado, límite de tiempo de 26 minutos, imagen construida de hasta 10 GB sin
+  comprimir (`IMAGE_TOO_LARGE`). Los archivos `.env*` se eliminan del contexto.
+- Runtime: siempre con el usuario `1000:1000`. `/app` es el disco persistente; `/tmp`, `/var/tmp` y `/run` se
+  pueden escribir pero son temporales; lo demás es de solo lectura. El puerto es el primer `EXPOSE` o `80`,
+  inyectado como `PORT`.
+- Rechazado: un `# syntax=` distinto del frontend oficial, `RUN --security=insecure`, `RUN --network=host`,
+  `--mount=type=ssh`, `--mount=type=secret`. Advertido: `WORKDIR /app`, `.env*` en el contexto, `COPY`/`ADD` de
+  `.env`, `VOLUME` fuera de `/app`.
+- Actualizaciones: nuevo build mediante subida, commit (sobre el contexto actual) o push a una rama de GitHub
+  vinculada. Un nuevo build nunca reinicia las aplicaciones. Cada aplicación conserva 30 releases durante 30
+  días, y el rollback usa una versión ya construida.
+- Los snapshots guardan los datos de `/app` y la versión de la imagen; al restaurar se puede volver
+  opcionalmente a esa versión.
+- Eliminar una imagen elimina todas las aplicaciones creadas a partir de ella. Los planes inferiores a
+  Enterprise 28 no pueden crear ni volver a construir imágenes; las cuentas que han bajado de plan siguen
+  funcionando y pueden eliminar.
+
+**Imágenes y plantillas.** Una plantilla de imagen ocupa **una ranura de imagen por cada imagen distinta en
+uso**, nunca una por aplicación: tres aplicaciones de la misma plantilla ocupan una sola ranura, y una nueva
+versión de la plantilla conserva la misma ranura. Una plantilla de código no ocupa ninguna. La ranura se libera
+cuando se elimina la última aplicación que usa la imagen. `POST /v1/apps/image` rechaza una imagen que
+pertenece a una plantilla (`IMAGE_TEMPLATE_ONLY`): la única forma de ejecutarla es a través de la plantilla.
+Una imagen que es el origen de una de tus plantillas privadas no se puede eliminar antes de quitarla de la
+plantilla (`IMAGE_IN_USE`). Ver [Plantillas y stacks](#23-plantillas-y-stacks).
+
+Guía: [Imágenes Docker personalizadas](/es-es/guides/custom-docker-images).
+
+### Almacenamiento
+
+Cada aplicación recibe **10 GB de almacenamiento**, sin importar la RAM asignada (antes del 14 de septiembre
+de 2026 el límite era 6 GB + 2 GB por cada 2 GB de RAM). Superar el límite rechaza las escrituras; reducir la
+RAM no baja el límite de almacenamiento, que es fijo por aplicación.
+
+### Límites de ancho de banda según la memoria
+
+| RAM asignada | Límite de ancho de banda |
+|---|---:|
+| Hasta 256 MB | 50 Mbit |
+| Hasta 512 MB | 100 Mbit |
+| Hasta 1.024 MB | 200 Mbit |
+| Hasta 2.048 MB | 400 Mbit |
+| Hasta 4.096 MB | 800 Mbit |
+| Hasta 8.192 MB | 1.600 Mbit |
+| Hasta 10.240 MB | 2.000 Mbit |
+
+Por encima de 10 GB de RAM, el límite crece en unos 50 Mbit por cada 256 MB adicionales.
+
+### Ciclo de vida
+```
+Creating (building) → Online, or Stopped if the install or build fails
+Online → Stopped (manual) or Error (crash)
+Error → Starting (auto-restart) or Stopped (crash loop: 5x in 10min)
+```
+
+**La creación es asíncrona.** `POST /v1/apps` responde `202 Accepted` de inmediato con la aplicación en
+`status: "building"`; la instalación y el build siguen en segundo plano con logs en vivo. El estado pasa a
+`up` o `down` cuando termina el build: síguelo con `GET /v1/apps/{id}` o con el flujo de logs en tiempo real.
+Mientras el estado es `building`, iniciar, detener, reiniciar, los despliegues de archivos (subida, commit), el
+rollback, los snapshots, las restauraciones y los cambios de configuración responden `409 APP_BUILDING`; eliminar
+la aplicación sí está permitido. Si el build no termina, la aplicación sigue en `down` y aparece `BUILD_INTERRUPTED`
+en su log. Cuando falla un build o una instalación, `GET /v1/apps/{id}` lleva el código en `last_build_error`
+(`null` tras un build correcto). Si la plataforma cancela la creación (por ejemplo, porque la cola está llena), la
+aplicación deja de existir y `GET` responde `404`.
+
+### Comando de build (build_command)
+
+Campo opcional por aplicación, disponible en **todos los planes**. Se ejecuta en cada despliegue (creación, subida
+de zip, despliegue desde GitHub, reinstalación de dependencias o un cambio en el propio comando), siempre **después**
+de instalar las dependencias y **antes** de que la aplicación arranque. Un simple reinicio no vuelve a ejecutar el
+build si el build anterior terminó correctamente con el mismo comando.
+
+El build se ejecuta en un **entorno de build** aislado de la aplicación: 2× la RAM de la aplicación (mínimo 1.024 MB,
+máximo 4.096 MB), con un límite de tiempo de **10 minutos**. Si el comando falla, el despliegue falla y la aplicación
+no arranca (`BUILD_FAILED`); si se agota el tiempo, `BUILD_TIMEOUT`. Al crear la aplicación, una instalación o un build
+fallidos crean igualmente la aplicación, **detenida**, con la salida en sus logs; el usuario corrige los archivos y la
+vuelve a iniciar.
+
+Cuando la aplicación tiene un comando de build, la instalación de dependencias incluye también `devDependencies`
+(Tailwind, TypeScript, PostCSS y herramientas similares funcionan sin tener que pasarlas a `dependencies`); sin comando
+de build, solo se instalan `dependencies`. Puppeteer usa el Chromium que ya está disponible en la imagen de runtime,
+así que no se descarga ningún navegador durante la instalación.
+
+El entorno de build tiene **el doble del ancho de banda de la aplicación** (la misma tabla de ancho de banda por RAM,
+×2): descargar dependencias pesa más que servir tráfico, y la ventana es corta. Superarlo interrumpe el despliegue,
+igual que ocurre con la aplicación mientras se ejecuta.
+
+Ejemplos habituales:
+
+| Framework | Build | Inicio |
+|---|---|---|
+| Next.js | `npm run build` | `npx next start -p 80` |
+| Nuxt | `npm run build` | `PORT=80 node .output/server/index.mjs` |
+| SvelteKit (adapter-node) | `npm run build` | `PORT=80 node build` |
+| Remix | `npm run build` | `npx remix-serve build/server/index.js` |
+| React Router v7 | `npm run build` | `npx react-router-serve ./build/server/index.js` |
+| Astro | `npm run build` | `npx astro preview --host 0.0.0.0 --port 80` |
+| Gatsby | `npm run build` | `npx gatsby serve --host 0.0.0.0 -p 80` |
+| Vite | `npm run build` | `npx vite preview --host 0.0.0.0 --port 80` |
+
+La aplicación debe escuchar en el **puerto 80**; esto aplica a toda aplicación de tipo Sitio web, con o sin
+`build_command`. Al crear una aplicación desde el panel a partir de un zip, la plataforma sugiere los comandos de
+build e inicio de arriba según las dependencias declaradas en `package.json` (Next.js, Nuxt, SvelteKit, Remix,
+React Router, Astro, Gatsby y Vite); el usuario puede editar ambos antes de crearla. Un proyecto sin framework
+reconocido arranca desde el archivo principal, sin comando de build.
+
+### Archivo de configuración (vertracloud.config)
+Un archivo `KEY=value` opcional en la raíz del zip subido. Solo **rellena previamente** el formulario de creación o
+subida; la configuración real está en el panel (pestaña Ajustes).
+Claves reconocidas: `NAME`, `DESCRIPTION`, `MAIN`, `MEMORY`, `START`, `BUILD`, `VERSION`,
+`SUBDOMAIN`, `LANGUAGE`; cualquier otra clave (incluida la antigua `AUTORESTART`) se ignora. `VERSION` rellena
+previamente el asistente al subir el zip y se usa al crear desde un snapshot; la versión confirmada en el asistente
+es la que ejecuta la aplicación, y una versión que no existe para el lenguaje se rechaza con `INVALID_VERSION`.
+También se acepta `vertracloud.config.json`, con claves en minúsculas. Si el zip contiene `.env.production`,
+`.env.production.local`, `.env.local` o `.env` (en ese orden), el flujo de creación rellena previamente las variables
+de entorno a partir del primero que no esté vacío.
+```
+NAME=My App
+MAIN=index.js
+BUILD=npm run build
+START=npm start
+SUBDOMAIN=my-app
+VERSION=22
+MEMORY=512
+```
+**El archivo no existe en el volumen de la aplicación** (desde el 14 de septiembre de 2026). Se descarta al extraer el
+zip y se **genera desde la base de datos** con los valores actuales al descargar el proyecto o al crear un snapshot;
+por eso un zip descargado o un snapshot restaurado siempre vuelve con la configuración actual. No aparece en el gestor
+de archivos; un archivo con ese nombre creado a mano se ignora y se sobrescribe al descargar.
+
+### Subdominios
+- Formato: `your-app.vertraweb.app`
+- Único por aplicación
+- La publicación web (obtener un subdominio) está disponible desde el plan **Pro**
+- **Elegir el nombre** del subdominio requiere el plan **Scale** o superior; por debajo, la plataforma asigna un nombre al azar
+- Formato aceptado al elegirlo: de 3 a 50 caracteres, `^[a-z0-9][a-z0-9-]*[a-z0-9]$`
+- Se puede renombrar después mediante `PATCH /v1/apps/{id}/network/subdomain` (mínimo 5 minutos entre cambios)
+
+### Dominios personalizados
+
+- Disponible desde el plan Intermediary. Dominios por aplicación (el complemento automático `www` o de la raíz no
+  cuenta): Economy, Pro y Scale 0; **Intermediary 1**; Enterprise-4 a 8: 2; Enterprise-12 a 24: 5; Enterprise-26 a 32: 20
+- La aplicación debe estar publicada en la web. Añadir, cambiar o quitar un dominio no reinicia ni vuelve a desplegar la aplicación
+- Configura los registros DNS que se muestran para el dominio (un CNAME y, normalmente, un registro de validación del
+  certificado). La configuración automática del DNS todavía no está disponible: `POST /v1/apps/{id}/domains/{domain_id}/connect`
+  responde siempre `DOMAIN_CONNECT_UNAVAILABLE`
+- El SSL se aprovisiona automáticamente tras la validación del DNS
+- **`www` automático**: añadir `example.com` añade también `www.example.com` (y al revés). El complemento redirige al
+  dominio principal con un `308`, no cuenta para el límite, se elimina junto con el dominio principal y se puede
+  desactivar con `www: false`. Cualquiera de los dos puede pasar a ser el dominio principal (`primary: true`)
+- Los **dominios raíz** necesitan un proveedor DNS que admita CNAME flattening, ALIAS o ANAME; el panel lo advierte
+- **Puerto por dominio**: cualquier puerto del 1 al 65535 (por defecto, 80), hasta 5 puertos distintos además del 80
+  por aplicación (`DOMAIN_PORT_LIMIT_REACHED` por encima de eso)
+- **Prefijo de ruta** por dominio (ruta literal como `/api`, empieza por `/`, sin `/` final): se añade delante de cada
+  petición. Recomendado para APIs; un sitio web tiene que ejecutarse bajo esa ruta
+- **Redirección** por dominio hacia otro dominio de la misma aplicación, con estado `301`, `302`, `307` o `308` (por
+  defecto, `308`), conservando la ruta y la cadena de consulta. Una redirección no puede apuntar a otra redirección
+- **Estado** por dominio: `pending` (esperando al DNS), `active`, `moved` (el DNS ha dejado de apuntar a Vertra Cloud)
+  o `deleted`; además del estado del certificado (`pending`, `active`, `failed`)
+- Un dominio que permanezca en `pending`, `moved` o `deleted` durante **14 días** se elimina automáticamente y el
+  propietario recibe un correo
+- Dejar de publicar la aplicación elimina todos sus dominios
+- **Limpia tu DNS cuando un dominio deje de existir** (lo quites tú, al dejar de publicar o por la limpieza de 14
+  días): borra sus registros `CNAME` y `TXT` de validación en tu proveedor DNS. Quitar un dominio no toca tu DNS; si
+  los registros permanecen, el nombre sigue apuntando a Vertra Cloud y otro cliente podría reclamarlo
+- Rutas: `GET`/`POST /v1/apps/{id}/domains`, `PATCH`/`DELETE /v1/apps/{id}/domains/{domain_id}`,
+  `GET /v1/apps/{id}/domains/{domain_id}/dns`, `POST /v1/apps/{id}/domains/{domain_id}/connect`. Las lecturas
+  necesitan el scope `apps:read`; las escrituras, `apps:write`
+
+---
+
+## 6. Reinicio automático y detección de bucles de fallos
+
+- Los contenedores que fallan se reinician automáticamente: **es el comportamiento predeterminado en todos los
+  planes, siempre activo, sin opción para desactivarlo**
+- El código de salida 0 (terminación normal) NO provoca un reinicio. Tampoco los errores que un reinicio no puede
+  arreglar: errores de sintaxis, módulos que faltan, falta de memoria, una instalación o un build fallidos, o una
+  pausa de Vertra Shield
+- **Cualquier otro fallo se reinicia**, incluso si la aplicación solo llevaba unos segundos en ejecución, con una
+  espera creciente entre intentos: de inmediato, y después 10 s, 30 s, 60 s y 2 min
+- **Bucle de fallos (crash loop)**: hasta 5 reinicios automáticos en una ventana de 10 minutos. El sexto fallo en esa
+  ventana suspende el reinicio automático durante 24 horas: la aplicación permanece detenida y el panel indica el motivo
+- **Iniciar o reiniciar la aplicación manualmente** borra el contador de fallos y levanta la suspensión
+- Una aplicación que permanece en ejecución 10 minutos sale de la ventana, así que los fallos anteriores dejan de contar
+
+---
+
+## 7. Protecciones de la plataforma (Vertra Shield)
+
+Vertra Shield protege todas las aplicaciones y bases de datos de la plataforma. En situaciones que podrían afectar
+a la disponibilidad, Shield puede pausar una aplicación temporalmente; el panel muestra el motivo y una cuenta atrás.
+
+### Límite de peticiones por IP de visitante
+
+Las aplicaciones en `*.vertraweb.app` y en dominios personalizados tienen un límite de peticiones que puede enviar
+una única IP de visitante. Un visitante que supere el límite queda bloqueado temporalmente, antes de que el tráfico
+llegue a la aplicación. Los picos repentinos de tráfico de muchos visitantes distintos no pausan la aplicación. Si tu
+aplicación recibe legítimamente tráfico de alto volumen desde una sola IP, como una integración servidor a servidor o
+webhooks, contacta con soporte.
+
+### Enfriamiento de Shield (pausa visible)
+
+Cuando Shield pausa una aplicación, el panel muestra un aviso con el motivo y el tiempo restante, y las acciones de
+iniciar y reiniciar dejan de estar disponibles temporalmente. El enfriamiento puede aumentar tras repeticiones, hasta
+un límite de 1 hora. Shield solo **detiene** la aplicación: nunca la elimina, ni sus archivos ni sus datos. Iniciar,
+reiniciar, desplegar, cambiar la configuración y eliminar la aplicación esperan a que termine la pausa: estas acciones
+responden `403` con el error `APP_SHIELD_COOLDOWN`, y `details` incluye el motivo y cuándo termina la pausa.
+
+### Restricciones de acceso por región (`*.vertraweb.app`)
+
+- **Bloqueados** (sanciones o restricciones regulatorias): Afganistán (AF), Bielorrusia (BY), Cuba (CU), China (CN),
+  Irán (IR), Corea del Norte (KP), Rusia (RU), Siria (SY), la Antártida (AQ) y todos los nodos de salida de Tor (T1).
+- **Comprobación en el navegador** (por motivos de seguridad): Bangladés (BD), India (IN), Irak (IQ), Filipinas (PH),
+  Ucrania (UA), Venezuela (VE), Vietnam (VN), Indonesia (ID) y Malasia (MY). Solo una persona en un navegador supera la
+  comprobación; los clientes de API y los emisores de webhooks de estos países reciben `403`.
+
+---
+
+## 8. SSL/TLS
+
+- Todos los sitios reciben certificados SSL/TLS automáticos
+- Renovación automática antes de su caducidad
+- Redirección de HTTP a HTTPS activada por defecto
+- Los dominios personalizados también reciben SSL automático
+- Todas las conexiones a bases de datos requieren TLS
+
+---
+
+## 9. Snapshots
+
+- Creación manual de snapshots para aplicaciones y bases de datos: como máximo **1 cada 5 minutos en el mismo proyecto**
+  y **10 por hora entre todos los recursos de la cuenta**; superar cualquiera de los dos límites devuelve
+  `SNAPSHOT_RATE_LIMITED` (429) con `details: { scope: "resource" | "account", retry_after }`
+- Restauración desde cualquier snapshot anterior (enfriamiento de 30 segundos)
+- Descarga el contenido del snapshot como ZIP
+- Disponible desde el plan Scale (copias de seguridad manuales)
+- **Eliminar o restablecer una base de datos hace automáticamente un snapshot de seguridad antes de destruir los datos**,
+  en todos los planes. Si la copia falla, la acción se bloquea (`SNAPSHOT_FAILED`) y la base de datos ni se elimina ni se
+  restablece. Este snapshot forzado tiene su propio límite, separado del de creación manual: como máximo 2 intentos por
+  hora en el mismo proyecto, y 10 por hora entre todos los proyectos de la cuenta; superar cualquiera de los dos devuelve
+  `FORCED_SNAPSHOT_RATE_LIMIT` y también bloquea la acción.
+- **Eliminar una aplicación hace el mismo snapshot de seguridad desde el plan Pro en adelante** (el plan del propietario).
+  Si falla, la aplicación no se elimina (`SNAPSHOT_FAILED`); se aplica el mismo límite. En Economy la aplicación se elimina
+  de inmediato sin copia, y el panel ofrece descargar antes el proyecto. Al caducar el plan, se hace snapshot de cada
+  proyecto antes de eliminarlo, en todos los planes.
+
+---
+
+## 10. Workspaces
+
+Colaboración en equipo con permisos granulares y roles personalizables. **Disponible solo en el plan Enterprise.** El
+propietario del workspace conserva el control sobre las acciones de gestión exclusivas del propietario.
+
+### Los 20 permisos
+
+| Permiso | Grupo | Qué desbloquea |
+|---|---|---|
+| `apps:read` | apps | Ver detalles, estado, métricas y logs de la aplicación |
+| `apps:manage` | apps | Editar la configuración, las variables de entorno excepto el valor secreto, el subdominio y el dominio |
+| `apps:lifecycle` | apps | Iniciar, detener, reiniciar |
+| `apps:envs` | apps | Leer y escribir variables de entorno |
+| `apps:files` | apps | Gestor de archivos de la aplicación |
+| `apps:delete` | apps | Eliminar la aplicación |
+| `databases:read` | databases | Ver detalles, estado y métricas de la base de datos |
+| `databases:manage` | databases | Editar la configuración de la base de datos |
+| `databases:lifecycle` | databases | Iniciar, detener, reiniciar, restablecer |
+| `databases:credentials` | databases | Ver o restablecer el certificado y las credenciales |
+| `databases:data` | databases | Pestaña Datos (consola SQL, colecciones, claves) |
+| `databases:delete` | databases | Eliminar la base de datos |
+| `snapshots:read` | snapshots | Ver snapshots |
+| `snapshots:manage` | snapshots | Crear y restaurar un snapshot |
+| `blob:read` | blob | Ver los archivos, los enlaces para compartir, las reglas, los dominios y el uso de Blob Storage del propietario |
+| `blob:manage` | blob | Subir, cambiar y eliminar archivos, enlaces para compartir, reglas y dominios de Blob Storage |
+| `members:read` | members | Ver miembros y roles |
+| `members:manage` | members | Invitar, quitar y cambiar el rol o la caducidad de un miembro |
+| `roles:manage` | roles | Crear, editar y eliminar un rol personalizado |
+| `activities:read` | activities | Ver y exportar el log de actividad del workspace |
+
+Acciones **solo para el propietario**, sea cual sea el rol: vincular o desvincular un proyecto, renombrar o eliminar el
+workspace, el webhook de despliegue de GitHub y activar o desactivar la publicación web.
+
+### Roles iniciales
+
+Cada workspace nace con 4 roles, que se pueden renombrar y eliminar (pasan a ser roles normales; cuentan para el límite
+del nivel igual que cualquier otro):
+
+| Rol | Permisos |
+|---|---|
+| Administrador | Todos, **excepto `snapshots:manage`, `blob:read` y `blob:manage`** (el propietario los activa por separado) |
+| Desarrollador | `apps:*` (excepto `apps:delete`), `databases:*` (excepto `databases:delete`), `snapshots:read`, `members:read`, `activities:read` |
+| Operador | `apps:read`, `apps:lifecycle`, `databases:read`, `databases:lifecycle`, `snapshots:read`, `members:read`, `activities:read` |
+| Visualizador | `apps:read`, `databases:read`, `snapshots:read`, `members:read`, `activities:read` |
+
+### Límite de roles personalizados por nivel (Enterprise)
+
+Los 4 roles iniciales cuentan para el límite.
+
+| Nivel | Límite de roles |
+|---|:-:|
+| ENTERPRISE_4 / ENTERPRISE_6 / ENTERPRISE_8 | 4 |
+| ENTERPRISE_12 / ENTERPRISE_14 / ENTERPRISE_16 | 6 |
+| ENTERPRISE_18 / ENTERPRISE_20 / ENTERPRISE_22 / ENTERPRISE_24 | 8 |
+| ENTERPRISE_26 / ENTERPRISE_28 / ENTERPRISE_30 | 10 |
+| ENTERPRISE_32 y superiores | 12 |
+
+### Miembros por nivel (Enterprise)
+
+La progresión nunca disminuye al subir de nivel (5 como mínimo y 24 como máximo). Una invitación pendiente cuenta.
+
+| Nivel | Miembros |
+|---|:-:|
+| ENTERPRISE_4 | 5 |
+| ENTERPRISE_6 / ENTERPRISE_8 | 10 |
+| ENTERPRISE_12 | 13 |
+| ENTERPRISE_14 | 14 |
+| ENTERPRISE_16 | 15 |
+| ENTERPRISE_18 | 16 |
+| ENTERPRISE_20 | 17 |
+| ENTERPRISE_22 | 18 |
+| ENTERPRISE_24 | 19 |
+| ENTERPRISE_26 | 20 |
+| ENTERPRISE_28 | 21 |
+| ENTERPRISE_30 | 22 |
+| ENTERPRISE_32 | 24 |
+
+### Invitaciones
+
+Dos formas, ambas con el permiso `members:manage`:
+
+- **Correo electrónico**: vinculada a una dirección concreta, caduca en **7 días**. `WORKSPACE_INVITE_EMAIL_MISMATCH`
+  si la acepta una cuenta con otro correo.
+- **Enlace**: de uso múltiple, con caducidad fija de **24 h**, `max_uses` opcional. Revocable en cualquier momento.
+
+Una invitación puede llevar `expires_in_days`: una caducidad de acceso que se aplica al miembro que se une con ella;
+`null` o ausente = sin caducidad. **Una invitación pendiente cuenta para el límite de miembros del plan.** Cada cuenta
+tiene el interruptor `workspace_invites_enabled` (`APIUser`) para rechazar las invitaciones por correo; cuando está
+desactivado, una nueva invitación por correo a esa cuenta falla con `WORKSPACE_INVITES_DISABLED`.
+
+### Carpetas y favoritos
+
+Las carpetas y los favoritos organizan aplicaciones y bases de datos sin cambiar los recursos. La organización se guarda
+en la cuenta y tiene dos ámbitos:
+
+- **Personal**: la vista individual de la cuenta, devuelta por `GET /v1/users/me`.
+- **Workspace**: la vista individual del miembro dentro de un workspace, devuelta por `GET /v1/workspaces/:id`. No se
+  comparte con los demás miembros.
+
+Una carpeta tiene nombre, color, posición y referencias a aplicaciones o bases de datos. Los colores permitidos son
+`neutral`, `red`, `orange`, `yellow`, `green`, `blue` y `purple`. `resource_type` solo acepta `application` y `database`.
+Los favoritos y las carpetas son independientes entre sí.
+
+Crear, editar, eliminar, mover y marcar como favorito genera una actividad. La acción puede venir del panel, de un flujo
+de trabajo o de un cliente autenticado con una clave de API, como la CLI, el MCP y la extensión de VS Code. El cliente no
+envía `origin` ni `author_id`; la API registra el origen y el autor automáticamente.
+
+La lista de proyectos y Flow usan la misma organización guardada. En Flow, la carpeta y el favorito aparecen junto a los
+recursos, pero los grupos creados en el lienzo siguen siendo locales e independientes.
+
+Las carpetas no son grupos de Flow. Un grupo organiza elementos en el lienzo local de Flow, mientras que una carpeta
+organiza recursos dentro de la cuenta o del workspace. No existe `group_id`, ni sincronización ni migración entre los
+dos conceptos.
+
+### Solicitudes de acción
+
+Un miembro que no tiene el permiso para una acción sensible (`app_delete`, `database_delete`, `snapshot_create`,
+`snapshot_restore`) puede abrir una **solicitud de acción**; quien tenga `members:manage` **y** el permiso para esa acción
+la aprueba o la rechaza. Caduca en **24 h** sin decisión (`WORKSPACE_ACTION_REQUEST_EXPIRED`).
+
+### Retención
+
+Eliminar un workspace es una eliminación lógica: el nombre vuelve a estar disponible para un nuevo workspace; un plan
+Enterprise caducado **congela las escrituras** (invitar, acciones, editar), nunca elimina datos.
+
+### Ruta → permiso
+
+| Ruta | Permiso / regla |
+|---|---|
+| `POST /v1/workspaces` | Propietario (plan Enterprise) |
+| `GET /v1/workspaces` | Cualquier miembro |
+| `GET /v1/workspaces/:id` | Cualquier miembro |
+| `PUT /v1/workspaces/:id` | Propietario |
+| `DELETE /v1/workspaces/:id` | Propietario |
+| `GET .../members` | `members:read` |
+| `PUT .../members/:user_id` | `members:manage` |
+| `DELETE .../members/:user_id` | `members:manage` o el propio miembro |
+| `GET .../roles` | `members:read` |
+| `POST .../roles` | `roles:manage` |
+| `PUT .../roles/:role_id` | `roles:manage` |
+| `DELETE .../roles/:role_id` | `roles:manage` |
+| `GET .../invites` | `members:manage` |
+| `POST .../invites` | `members:manage` |
+| `DELETE .../invites/:invite_id` | `members:manage` |
+| `GET /v1/workspaces/invites/:token` | Usuario autenticado |
+| `POST .../invites/:token/accept` or `decline` | Usuario autenticado |
+| `POST`/`DELETE .../apps/:app_id`, `.../databases/:db_id` | Propietario |
+| `GET .../action-requests` | `members:manage` |
+| `POST .../action-requests` | Cualquier miembro |
+| `POST .../action-requests/:rid/approve` | `members:manage` y el permiso para la acción |
+| `POST .../action-requests/:rid/reject` | `members:manage` |
+
+### Códigos de error
+
+| Código | HTTP |
+|---|:-:|
+| `WORKSPACE_NOT_FOUND` | 404 |
+| `WORKSPACE_NAME_ALREADY_EXISTS` | 400 |
+| `WORKSPACE_MEMBER_LIMIT_REACHED` | 400 |
+| `WORKSPACE_ROLE_LIMIT_REACHED` | 400 |
+| `WORKSPACE_ROLE_IN_USE` | 400 |
+| `WORKSPACE_ROLE_NOT_FOUND` | 404 |
+| `WORKSPACE_PERMISSION_DENIED` | 403 |
+| `WORKSPACE_PERMISSION_ESCALATION` | 403 |
+| `WORKSPACE_INVITE_NOT_FOUND` | 404 |
+| `WORKSPACE_INVITE_EXPIRED` | 410 |
+| `WORKSPACE_INVITE_EMAIL_MISMATCH` | 403 |
+| `WORKSPACE_INVITES_DISABLED` | 400 |
+| `WORKSPACE_ALREADY_MEMBER` | 409 |
+| `WORKSPACE_OWNER_ONLY` | 403 |
+| `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | 404 |
+| `WORKSPACE_ACTION_REQUEST_EXPIRED` | 410 |
+| `PLAN_RESTRICTED_FEATURE` | 403 |
+
+---
+
+## 11. Gestor de archivos
+
+- Disponible desde el plan Pro
+- Explora y edita archivos directamente en el panel
+- Resaltado de sintaxis para todos los lenguajes
+- Subida mediante arrastrar y soltar (archivos o ZIP); el **Destino del commit** del diálogo de subida empieza en la carpeta abierta y puede apuntar a cualquier otra carpeta, y un ZIP se fusiona en ella
+- Árbol de archivos de hasta 6 niveles de profundidad
+- Crear, editar, mover y eliminar archivos y carpetas
+- Lista todos los directorios del proyecto, incluidas las carpetas de dependencias como `node_modules`; solo el endpoint del árbol de archivos (`GET /v1/apps/{id}/files/tree`) omite las carpetas de dependencias y de build para mantenerse ligero
+- `vertracloud.config` no existe en el volumen: se genera desde la base de datos al descargar y al hacer un snapshot (ver §Archivo de configuración)
+- Almacenamiento: 10 GB fijos por aplicación (ver §5 Almacenamiento)
+
+---
+
+## 12. Despliegue
+
+### Métodos
+1. **Subida de ZIP** desde el panel o la API
+2. **Integración con GitHub**: selección del repositorio (incluidos los privados)
+3. **Webhooks de GitHub**: despliegue automático al hacer push a la rama elegida, `main` o `master` por defecto (planes Intermediary o superiores)
+4. **Extensión de VS Code**: desplegar directamente desde el editor
+
+### Proceso
+Subida del código → Instalación de dependencias → Build (si hay un `build_command`) → Arranque del contenedor → Asignación del subdominio → Aprovisionamiento de SSL
+
+### Límites de subida
+- Tamaño máximo del ZIP: 100 MB
+- Tiempo máximo de instalación de dependencias: 15 minutos (`INSTALL_TIMEOUT` si se supera)
+- Tiempo máximo del comando de build: 10 minutos (`BUILD_TIMEOUT` si se supera)
+- 1 puerto expuesto por aplicación
+
+### Rollback automático (Intermediary o superior)
+
+Si la nueva versión de una aplicación se detiene en los **60 segundos** posteriores a un despliegue, la plataforma vuelve a
+la versión anterior **una sola vez** y avisa al propietario, con un enlace al log de la versión fallida. Solo vuelven los
+archivos de código, no las variables de entorno. Si la versión anterior también se detiene, la aplicación queda detenida y
+se avisa al propietario. Durante esos 60 segundos el reinicio automático no reinicia la nueva versión, para que ambos no
+compitan. Un fallo después del primer minuto se trata como un fallo normal. Está desactivado por defecto, también en las
+aplicaciones creadas antes de esta función (`deploy.auto_rollback`, `false` por defecto); el propietario lo activa.
+
+### Despliegues sin tiempo de inactividad (Enterprise)
+
+En Enterprise, un despliegue puede arrancar la nueva versión junto a la que está en ejecución, esperar a que esté sana y
+solo entonces cambiar, de modo que una aplicación que recibe tráfico web siga accesible durante el despliegue. El ajuste es
+`deploy.zero_downtime`, desactivado por defecto:
+
+- `off` (por defecto): detiene primero la versión en ejecución y después arranca la nueva.
+- `auto`: sin tiempo de inactividad solo para las aplicaciones que reciben tráfico web.
+- `on`: siempre, incluidas las aplicaciones sin tráfico web, como los bots. Dos procesos de la aplicación se ejecutan juntos
+  durante un tiempo, así que un bot puede responder dos veces al mismo evento.
+
+Comprobación de salud: la plataforma llama a la nueva versión por HTTP en `deploy.health_check_path` (`/` por defecto).
+Cualquier respuesta HTTP cuenta como sana, incluido `404`; una conexión rechazada, un tiempo de espera (5 segundos por intento)
+o una respuesta `5xx` hacen fallar la comprobación. La versión debe responder correctamente dos veces seguidas y seguir en
+ejecución antes de que el tráfico se mueva. Una aplicación que solo escucha en `127.0.0.1` no supera la comprobación.
+
+Límites conocidos:
+
+- Ambas versiones usan la **misma carpeta**, y los dos procesos se ejecutan juntos durante unos 2 minutos como máximo. Los datos
+  escritos por ambos a la vez, como un archivo JSON, pueden corromperse; SQLite normalmente lo soporta. Una migración de base de
+  datos que se ejecute al arrancar se ejecuta mientras la versión anterior sigue sirviendo.
+- Una aplicación que lee archivos en cada petición (PHP, sitios estáticos, una aplicación Next.js o Nuxt ya construida, importaciones
+  tardías en Python) puede servir una mezcla de archivos antiguos y nuevos mientras el despliegue instala y construye. Para esos
+  casos, usa `off`.
+- Si la nueva versión no queda sana en unos 2 minutos, se descarta y la versión anterior sigue en ejecución. El propietario recibe
+  un aviso con el log de la versión descartada.
+- Si en ese momento no se puede arrancar la segunda copia, el despliegue recurre a detener primero la versión en ejecución.
+- Mientras se prepara la nueva versión, la terminal sigue mostrando la versión en ejecución, no el build. Una petición que la versión
+  anterior ya estaba respondiendo cuando se le pidió detenerse puede fallar una vez; gestionar `SIGTERM` de forma ordenada lo evita.
+
+### Límite de despliegues por hora
+
+Un límite por cuenta, que se renueva en una ventana de 3.600 segundos. Cuentan: crear una aplicación, subir un zip, desplegar
+desde GitHub (manualmente o mediante push), reinstalar dependencias y cambiar el comando de build. No cuentan: reiniciar y detener.
+
+| Plan | Despliegues/hora |
+|---|---:|
+| Economy | 10 |
+| Pro | 20 |
+| Scale | 40 |
+| Intermediary | 60 |
+| Enterprise (cualquier nivel) | 60 |
+
+Si se supera → `429 DEPLOY_RATE_LIMITED` con `details.limit`, `details.window_seconds` (3.600) y `details.retry_after`
+(segundos hasta que se libere). Un push de GitHub que llegue por encima del límite se **ignora** (no se pone en cola) y
+aparece en el historial de actividad.
+
+### Archivos excluidos del ZIP
+
+El panel elimina automáticamente del zip, antes de subirlo: `node_modules`, `.local`, `venv`, `.venv`, `__pycache__`, `.next`,
+`vendor`, `.bundle`, `target` y `.gradle`.
+
+- **JavaScript/TypeScript**: `node_modules`, `.npm`, `package-lock.json`, `.next`
+- **Python**: `venv`, `.venv`, `.cache`, `__pycache__`, `.env`
+- **Go**: `vendor`
+- **Rust**: `target`
+- **Java**: `target`, `.gradle`
+- **PHP/Ruby**: `vendor`
+
+> `dist/` y `build/` (salida del build) **no** se eliminan automáticamente: si tu `main`/`start` apunta dentro de ellas
+> (algo común en proyectos que empaquetan antes de desplegar), la plataforma necesita esos archivos. Exclúyelas del zip solo
+> si el punto de entrada real está fuera de ellas.
+
+---
+
+## 13. Cambio a un plan inferior
+
+- Disponible desde el panel o la API: `POST /v1/users/me/downgrade`
+- **Fórmula**: `newDays = remainingDays × (currentPrice / targetPrice)`
+- **Restricciones**: ECONOMY no puede cambiar a un plan inferior
+- **Comprobaciones**: el uso de memoria debe caber en el plan de destino, y límite de frecuencia (1 vez cada 3 horas)
+- **Impacto**: límite de memoria reducido, funciones de planes superiores desactivadas, workspaces perdidos al salir de
+  Enterprise. Los ajustes guardados de rollback automático y de despliegues sin tiempo de inactividad permanecen en la
+  aplicación, pero solo actúan en un plan que los incluya
+
+---
+
+## 14. Extensión de VS Code
+
+- Disponible en el VS Code Marketplace (busca «Vertra Cloud»)
+- Funciones: despliegue rápido, gestión de aplicaciones, gestión de archivos, monitorización en tiempo real
+- Requisitos: VS Code 1.80 o superior, una cuenta de Vertra activa y conexión a internet
+- Despliegue desde la paleta de comandos: `Ctrl+Shift+P` → "Vertra: Deploy"
+
+---
+
+## 15. Métodos de autenticación
+
+- **OAuth de Discord**: inicio de sesión y vinculación de cuenta
+- **OAuth de GitHub**: inicio de sesión y vinculación de cuenta
+- **OAuth de Google**: inicio de sesión y vinculación de cuenta
+- **Magic Link**: autenticación sin contraseña por correo electrónico
+- **Clave de API**: para acceso programático (se gestiona desde la configuración del panel); hasta 10 claves por cuenta, cada una
+  con un nombre, scopes y, opcionalmente, IP permitidas. Formato nuevo: `vc_live_` + 48 caracteres hexadecimales, que se muestran
+  una sola vez; las claves antiguas (64 caracteres hex) siguen siendo válidas con todos los scopes. Detalle completo en §16.
+
+---
+
+## 16. Referencia de la API
+
+### Autenticación
+
+Envía una clave de API en la cabecera `Authorization` como token Bearer:
+
+```http
+Authorization: Bearer YOUR_API_KEY
+```
+
+### Claves de API
+
+Una clave nueva tiene el prefijo `vc_live_` seguido de 48 caracteres hexadecimales y se muestra una sola vez, al crearla o rotarla.
+Las claves antiguas de 64 caracteres hexadecimales siguen siendo válidas.
+Una cuenta puede tener hasta **10 claves**, cada una con un nombre, scopes de acceso y una lista opcional de hasta **20 IP o CIDR
+permitidos**. Una lista vacía permite llamadas desde cualquier dirección IP.
+
+La clave necesita el scope que exige el endpoint. Los presets `read`, `write` y `full` seleccionan conjuntos comunes; los scopes
+también se pueden elegir de forma individual.
+
+| Scope | Qué permite |
+|---|---|
+| `billing:read` | Listar pedidos y consultar su estado |
+| `billing:write` | Crear un pedido de plan (1, 3 o 12 meses) y generar un pago PIX |
+| `redeem:write` | Canjear un código promocional |
+| `apps:read` | Consultar estado, métricas, logs, despliegues, descargas, red y dominios personalizados de la aplicación |
+| `apps:write` | Crear, iniciar, detener, reiniciar, configurar, publicar, gestionar dominios personalizados y despliegues |
+| `apps:delete` | Eliminar una aplicación |
+| `apps:envs` | Leer, crear y eliminar variables de entorno |
+| `apps:files` | Leer, editar y subir archivos |
+| `databases:read` | Consultar el estado y las métricas de una base de datos |
+| `databases:write` | Crear, actualizar, iniciar, detener y restablecer bases de datos |
+| `databases:delete` | Eliminar una base de datos |
+| `databases:credentials` | Ver o restablecer el certificado y las credenciales |
+| `templates:read` | Listar y leer plantillas, versiones y vistas previas de enlaces para compartir; validar un manifiesto; comprobar si hay una actualización |
+| `templates:write` | Crear, cambiar y eliminar plantillas privadas, versiones y enlaces para compartir; copiar y reportar una plantilla compartida |
+| `templates:deploy` | Usar una plantilla (desplegar), seguir un trabajo de despliegue y actualizar una aplicación o un stack a una versión más nueva |
+| `stacks:read` | Listar y leer stacks, conexiones, snapshots y el código de conexión |
+| `stacks:write` | Crear y cambiar stacks, miembros, conexiones y snapshots; añadir una base de datos o una carpeta de Blob |
+| `stacks:delete` | Eliminar un stack |
+| `snapshots:read` | Listar y descargar snapshots |
+| `snapshots:write` | Crear y restaurar snapshots |
+| `blob:read` | Leer archivos, enlaces, comparticiones, reglas, dominios y uso de Blob Storage |
+| `blob:write` | Subir y cambiar archivos, comparticiones, reglas y dominios de Blob Storage |
+| `account:read` | Ver el perfil, las sesiones y la organización personal |
+| `account:write` | Actualizar el perfil y la organización personal |
+| `workspaces:read` | Listar y ver workspaces, incluida la organización individual |
+| `workspaces:write` | Crear y actualizar workspaces, gestionar miembros, roles y recursos, y solicitar acciones |
+| `workspaces:delete` | Eliminar un workspace (solo propietario) |
+| `workspaces:invites` | Listar y revocar invitaciones; consultar, aceptar y rechazar invitaciones por token |
+
+Los permisos de workspace también se aplican a las llamadas autenticadas con clave. La gestión de claves, la navegación por la
+pestaña Datos, el cambio a un plan inferior, las nuevas invitaciones, decidir sobre solicitudes de acción y consultar o exportar
+actividades requieren una sesión del panel.
+
+Una clave sin el scope necesario recibe `403 API_KEY_SCOPE_DENIED`; una IP no permitida recibe `403 API_KEY_IP_DENIED`. Una clave
+no válida recibe `401 API_KEY_INVALID`. La gestión de claves se hace desde el panel.
+
+### Límites de peticiones
+
+La API aplica límites fijos por ruta, además de límites por cuenta por minuto y por día para las llamadas con clave de API. La
+cuota diaria se renueva a medianoche, hora de Brasilia. Las respuestas autenticadas con clave incluyen `x-ratelimit-limit`,
+`x-ratelimit-remaining`, `x-ratelimit-reset`, `x-quota-limit`, `x-quota-remaining` y `x-quota-reset`. Cuando se alcanza un límite,
+la respuesta es `429 RATE_LIMIT_EXCEEDED` o `429 DAILY_QUOTA_EXCEEDED`, con detalles y el tiempo para reintentar. Los límites fijos
+por ruta cubren las operaciones del ciclo de vida, el restablecimiento de bases de datos, los cambios de subdominio, las consultas de
+datos y la exportación de actividad.
+
+| Plan | Peticiones/min | Peticiones/día |
+|---|---:|---:|
+| Economy | 60 | 5.000 |
+| Pro | 120 | 20.000 |
+| Scale | 180 | 86.400 |
+| Intermediary | 240 | 115.200 |
+| Enterprise-4 | 300 | 144.000 |
+| Enterprise-6 | 300 | 180.000 |
+| Enterprise-8 | 300 | 216.000 |
+| Enterprise-12 | 480 | 324.000 |
+| Enterprise-14 | 480 | 378.000 |
+| Enterprise-16 | 480 | 432.000 |
+| Enterprise-18 | 480 | 486.000 |
+| Enterprise-20 | 480 | 540.000 |
+| Enterprise-22 | 480 | 594.000 |
+| Enterprise-24 | 480 | 648.000 |
+| Enterprise-26 | 480 | 702.000 |
+| Enterprise-28 | 480 | 756.000 |
+| Enterprise-30 | 480 | 810.000 |
+| Enterprise-32 | 480 | 864.000 |
+
+### Formato de respuesta
+
+- **Éxito**: `{ "response": { ... } }`
+- **Error**: `{ "code": "ERROR_CODE", "message": "..." }`
+
+### Códigos de error comunes
+
+| Código | Descripción |
+|---|---|
+| `NOT_AUTHENTICATED` | Autenticación ausente, no válida o revocada |
+| `API_KEY_INVALID` | Clave de API no válida |
+| `API_KEY_SCOPE_DENIED` | La clave no incluye el scope necesario |
+| `API_KEY_IP_DENIED` | La dirección IP no está permitida para la clave |
+| `API_KEY_LIMIT_REACHED` | Se alcanzó el límite de claves por cuenta |
+| `API_KEY_INVALID_NAME` | Nombre de clave no válido |
+| `API_KEY_INVALID_SCOPES` | Scopes vacíos o no válidos |
+| `API_KEY_INVALID_IPS` | Dirección IP o CIDR no válido |
+| `APP_NOT_FOUND` | Aplicación no encontrada |
+| `DATABASE_NOT_FOUND` | Base de datos no encontrada |
+| `ACCESS_DENIED` | Sin permiso para acceder a este recurso |
+| `PLAN_RESTRICTED_FEATURE` | Función no disponible en el plan actual |
+| `INSUFFICIENT_MEMORY` | El build se quedó sin memoria al instalar las dependencias |
+| `MAX_APPS_REACHED` | Se alcanzó el límite de aplicaciones del plan |
+| `MAX_DATABASES_REACHED` | Se alcanzó el límite de bases de datos del plan |
+| `VALIDATION_ERROR` | Cuerpo, parámetro o consulta no válidos |
+| `FILE_TOO_LARGE` | Archivo por encima del límite de subida |
+| `INVALID_ZIP` | El archivo subido no es un ZIP válido |
+| `INVALID_ZIP_STRUCTURE` | El ZIP está dañado, vacío o tiene una estructura no válida; en una restauración, no se cambia nada |
+| `FETCH_ZIP_ERROR` | No se pudo contactar con GitHub o estaba limitando peticiones al obtener un repositorio (HTTP 502) |
+| `INVALID_LANGUAGE` | El lenguaje no es compatible (HTTP 400). Ver [Lenguajes compatibles](#2-lenguajes-compatibles) |
+| `MAIN_FILE_NOT_FOUND` | Archivo principal no encontrado |
+| `INSTALL_TIMEOUT` | La instalación de dependencias superó el tiempo límite |
+| `BUILD_FAILED` | El comando de build terminó con un error |
+| `BUILD_TIMEOUT` | El comando de build superó el tiempo límite |
+| `INSTALL_OUT_OF_MEMORY` | La instalación de dependencias se quedó sin memoria; aumenta la memoria de la aplicación |
+| `BUILD_INTERRUPTED` | El build no terminó (se interrumpió); la aplicación sigue detenida y el error aparece en su log |
+| `APP_BUILDING` | La aplicación todavía se está construyendo; espera a que termine el build |
+| `DEPLOY_RATE_LIMITED` | Se alcanzó el límite de despliegues |
+| `OPERATION_IN_PROGRESS` | Otra operación sobre el recurso sigue en curso |
+| `SNAPSHOT_FAILED` | El snapshot de seguridad falló; el recurso no se modificó |
+| `APP_SHIELD_COOLDOWN` | Aplicación pausada temporalmente por Vertra Shield; iniciar, reiniciar, desplegar, cambiar la configuración y eliminar responden `403` hasta que termine la pausa |
+| `STORAGE_ABOVE_NEW_LIMIT` | El almacenamiento actual supera el nuevo límite |
+| `RATE_LIMIT_EXCEEDED` | Se alcanzó el límite de peticiones |
+| `DAILY_QUOTA_EXCEEDED` | Se alcanzó la cuota diaria de la clave de API |
+| `SNAPSHOT_RATE_LIMITED` | Se alcanzó el límite de creación de snapshots |
+| `SNAPSHOT_IMPORT_FAILED` | La restauración del snapshot falló |
+| `SNAPSHOT_ENGINE_MISMATCH` | El snapshot y la base de datos de destino usan motores distintos |
+| `SUBDOMAIN_TAKEN` | El subdominio ya está en uso |
+| `INVALID_SUBDOMAIN_FORMAT` | Formato de subdominio no válido |
+| `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH` | El plan no incluye la publicación web |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN` | El plan no incluye dominios personalizados |
+| `APP_ALREADY_PUBLISHED` | La aplicación ya está publicada |
+| `APP_NOT_PUBLISHED` | La aplicación no está publicada |
+| `MEMORY_BELOW_MINIMUM` | Memoria por debajo del mínimo para la operación |
+| `MEMORY_LIMIT_EXCEEDED` | La memoria solicitada supera el límite del plan |
+| `DOMAIN_ALREADY_IN_USE` | Dominio ya vinculado a una aplicación (409) |
+| `PURGE_FAILED` | No se pudo purgar la caché |
+| `API_KEY_NOT_FOUND` | Clave de API no encontrada en la cuenta |
+| `FILE_IS_BINARY` | El archivo solicitado es binario |
+| `FORBIDDEN_PATH` | Ruta reservada de la plataforma |
+| `INVALID_GITHUB_URL` | La URL no es un repositorio de GitHub válido |
+| `INVALID_PATH` | Ruta no válida o fuera del proyecto |
+| `INVALID_QUERY` | Parámetro de consulta no válido |
+| `NOT_A_FILE` | La ruta solicitada no es un archivo |
+| `RANGE_EXCEEDS_RETENTION` | El rango de la consulta supera la retención disponible |
+| `REPOSITORY_FILE_NOT_FOUND` | Archivo no encontrado en el repositorio |
+| `WORKSPACE_ACTION_NOT_NEEDED` | El miembro ya tiene permiso para realizar la acción |
+| `WORKSPACE_ACTION_REQUEST_EXPIRED` | La solicitud de acción caducó |
+| `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | Solicitud de acción no encontrada |
+| `WORKSPACE_ALREADY_MEMBER` | La cuenta ya forma parte del workspace |
+| `WORKSPACE_INVITES_DISABLED` | Las invitaciones están desactivadas en el workspace |
+| `WORKSPACE_INVITE_EMAIL_MISMATCH` | El correo de la cuenta no coincide con la invitación |
+| `WORKSPACE_INVITE_EXPIRED` | La invitación caducó |
+| `WORKSPACE_INVITE_NOT_FOUND` | Invitación no encontrada o ya usada |
+| `WORKSPACE_MEMBER_LIMIT_REACHED` | Se alcanzó el límite de miembros del plan |
+| `WORKSPACE_NAME_ALREADY_EXISTS` | Ya existe un workspace activo con ese nombre |
+| `WORKSPACE_NOT_FOUND` | Workspace no encontrado o sin acceso |
+| `WORKSPACE_OWNER_ONLY` | La acción solo está disponible para el propietario |
+| `WORKSPACE_PERMISSION_DENIED` | No se concedió el permiso necesario |
+| `WORKSPACE_PERMISSION_ESCALATION` | El rol solicitado concede permisos que su autor no tiene |
+| `WORKSPACE_ROLE_IN_USE` | El rol está asignado a un miembro o a una invitación pendiente |
+| `WORKSPACE_ROLE_LIMIT_REACHED` | Se alcanzó el límite de roles del plan |
+| `WORKSPACE_ROLE_NOT_FOUND` | Rol no encontrado en este workspace |
+| `ARCHIVE_TOO_LARGE` | El contenido descomprimido del ZIP supera el límite |
+| `ARCHIVE_TOO_MANY_ENTRIES` | El ZIP supera el límite de número de archivos |
+| `NO_FIELDS_TO_UPDATE` | La petición no contiene campos que actualizar |
+| `TARGET_IS_DIRECTORY` | La ruta seleccionada es una carpeta |
+| `INSTALL_SHIELD_BLOCKED` | La instalación de dependencias está pausada por los límites de protección de Shield |
+| `FORCED_SNAPSHOT_RATE_LIMIT` | Se alcanzó el límite de snapshots de seguridad |
+| `DATABASE_NOT_RUNNING` | La base de datos debe estar en ejecución para esta operación |
+| `SUBDOMAIN_FORBIDDEN` | Subdominio reservado por la plataforma |
+| `SUBDOMAIN_CHANGE_RATE_LIMITED` | El subdominio se cambió recientemente |
+| `APP_HAS_NO_SUBDOMAIN` | La aplicación no tiene un subdominio publicado |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | El plan no incluye elegir subdominio |
+| `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | El plan no incluye el rollback automático (Intermediary o superior) |
+| `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | El plan no incluye forzar despliegues sin tiempo de inactividad (Enterprise) |
+| `PLAN_REQUIRED` | La cuenta no tiene un plan activo, así que no puede crear aplicaciones ni bases de datos ni publicar un sitio (403) |
+| `INVALID_CUSTOM_DOMAIN_FORMAT` | Formato de dominio personalizado no válido (400) |
+| `FORBIDDEN_DOMAIN` | Dominio no permitido (400) |
+| `DOMAIN_NOT_FOUND` | La aplicación no tiene ningún dominio con ese ID (404) |
+| `DOMAIN_LIMIT_REACHED` | Se alcanzó el límite de dominios personalizados por aplicación del plan; el `www` automático no cuenta (403) |
+| `DOMAIN_PORT_LIMIT_REACHED` | La aplicación ya sirve dominios en 5 puertos distintos además del 80 (403) |
+| `INVALID_DOMAIN_PORT` | El puerto del dominio no es un entero del 1 al 65535 (400) |
+| `INVALID_PATH_PREFIX` | El prefijo de ruta del dominio debe empezar por `/`, no terminar en `/` y usar letras, dígitos y `. _ ~ -` (400) |
+| `INVALID_REDIRECT_TARGET` | El destino de la redirección debe ser otro dominio `active` de la misma aplicación que no redirija a su vez (400) |
+| `DOMAIN_CONNECT_UNAVAILABLE` | La configuración automática del DNS todavía no está disponible; cada llamada responde esto (404) |
+| `CUSTOM_DOMAIN_RECORD_NOT_FOUND` | Los registros DNS del dominio todavía no están disponibles (404) |
+| `CUSTOM_DOMAIN_REGISTRATION_FAILED` | No se pudo registrar el dominio en este momento (502) |
+| `INVALID_HOSTNAME_FOR_APP` | El hostname no pertenece a la aplicación |
+| `NO_AUTHORIZED_PATHS` | Ninguna de las rutas indicadas pertenece a la aplicación |
+| `INTERNAL_SERVER_ERROR` | Error interno del servidor |
+
+### Endpoints principales
+
+La lista siguiente corresponde a los endpoints públicos de la API. Los esquemas de petición y respuesta están en la
+[Referencia de la API](/es-es/api-reference/introduction). Los límites por ruta se detallan en
+[Limitaciones de la API](/es-es/api-reference/limitations#límites-de-peticiones-a-la-api).
+
+#### Aplicaciones
+
+| Método | Ruta |
+|---|---|
+| POST | `/v1/apps` |
+| GET | `/v1/apps/runtimes` |
+| GET | `/v1/apps/status` |
+| GET | `/v1/apps/{app_id}/deploys` |
+| DELETE | `/v1/apps/{app_id}/deploys/webhook` |
+| GET | `/v1/apps/{app_id}/deploys/webhook` |
+| POST | `/v1/apps/{app_id}/deploys/webhook` |
+| DELETE | `/v1/apps/{id}` |
+| GET | `/v1/apps/{id}` |
+| PATCH | `/v1/apps/{id}/config` |
+| GET | `/v1/apps/{id}/domains` |
+| POST | `/v1/apps/{id}/domains` |
+| PATCH | `/v1/apps/{id}/domains/{domain_id}` |
+| DELETE | `/v1/apps/{id}/domains/{domain_id}` |
+| GET | `/v1/apps/{id}/domains/{domain_id}/dns` |
+| POST | `/v1/apps/{id}/domains/{domain_id}/connect` |
+| GET | `/v1/apps/{id}/download` |
+| GET | `/v1/apps/{id}/envs` |
+| POST | `/v1/apps/{id}/envs` |
+| DELETE | `/v1/apps/{id}/envs/{env_id}` |
+| DELETE | `/v1/apps/{id}/files` |
+| GET | `/v1/apps/{id}/files` |
+| PATCH | `/v1/apps/{id}/files` |
+| PUT | `/v1/apps/{id}/files` |
+| GET | `/v1/apps/{id}/files/content` |
+| GET | `/v1/apps/{id}/files/tree` |
+| POST | `/v1/apps/{id}/files/upload` |
+| GET | `/v1/apps/{id}/logs` |
+| GET | `/v1/apps/{id}/metrics` |
+| POST | `/v1/apps/{id}/network/publish` |
+| POST | `/v1/apps/{id}/network/purge-cache` |
+| PATCH | `/v1/apps/{id}/network/subdomain` |
+| GET | `/v1/apps/{id}/realtime` |
+| POST | `/v1/apps/{id}/restart` |
+| POST | `/v1/apps/{id}/start` |
+| GET | `/v1/apps/{id}/status` |
+| POST | `/v1/apps/{id}/stop` |
+| GET | `/v1/users/{id}/snapshots` |
+| POST | `/v1/users/{id}/snapshots` |
+| GET | `/v1/users/{id}/snapshots/{snapshot_id}/download` |
+| POST | `/v1/users/{id}/snapshots/{snapshot_id}/restore` |
+
+#### Bases de datos
+
+| Método | Ruta |
+|---|---|
+| POST | `/v1/databases` |
+| GET | `/v1/databases/status` |
+| DELETE | `/v1/databases/{id}` |
+| GET | `/v1/databases/{id}` |
+| PUT | `/v1/databases/{id}` |
+| GET | `/v1/databases/{id}/credentials/certificate` |
+| POST | `/v1/databases/{id}/credentials/certificate/reset` |
+| POST | `/v1/databases/{id}/credentials/reset` |
+| GET | `/v1/databases/{id}/metrics` |
+| POST | `/v1/databases/{id}/reset` |
+| POST | `/v1/databases/{id}/start` |
+| GET | `/v1/databases/{id}/status` |
+| POST | `/v1/databases/{id}/stop` |
+
+#### Usuarios y cuenta
+
+| Método | Ruta |
+|---|---|
+| GET | `/v1/users/me` |
+| PATCH | `/v1/users/me` |
+| GET | `/v1/users/me/sessions` |
+| GET | `/v1/users/snapshots` |
+
+#### Workspaces
+
+| Método | Ruta |
+|---|---|
+| GET | `/v1/workspaces` |
+| POST | `/v1/workspaces` |
+| GET | `/v1/workspaces/invites/{token}` |
+| POST | `/v1/workspaces/invites/{token}/accept` |
+| POST | `/v1/workspaces/invites/{token}/decline` |
+| DELETE | `/v1/workspaces/{id}` |
+| GET | `/v1/workspaces/{id}` |
+| PUT | `/v1/workspaces/{id}` |
+| GET | `/v1/workspaces/{id}/action-requests` |
+| POST | `/v1/workspaces/{id}/action-requests` |
+| DELETE | `/v1/workspaces/{id}/apps/{app_id}` |
+| POST | `/v1/workspaces/{id}/apps/{app_id}` |
+| DELETE | `/v1/workspaces/{id}/databases/{db_id}` |
+| POST | `/v1/workspaces/{id}/databases/{db_id}` |
+| GET | `/v1/workspaces/{id}/invites` |
+| DELETE | `/v1/workspaces/{id}/invites/{invite_id}` |
+| GET | `/v1/workspaces/{id}/members` |
+| DELETE | `/v1/workspaces/{id}/members/{user_id}` |
+| PUT | `/v1/workspaces/{id}/members/{user_id}` |
+| GET | `/v1/workspaces/{id}/roles` |
+| POST | `/v1/workspaces/{id}/roles` |
+| DELETE | `/v1/workspaces/{id}/roles/{role_id}` |
+| PUT | `/v1/workspaces/{id}/roles/{role_id}` |
+
+#### Facturación
+
+| Método | Ruta |
+|---|---|
+| GET | `/v1/orders` |
+| POST | `/v1/orders` |
+| POST | `/v1/orders/{orderId}/initiate/pix` |
+| GET | `/v1/orders/{orderId}/status` |
+
+#### Canje
+
+| Método | Ruta |
+|---|---|
+| POST | `/v1/redeem/{code}` |
+
+#### Servicios
+
+| Método | Ruta |
+|---|---|
+| GET | `/v1/status` |
+
+## 17. Variables de entorno
+
+- Se inyectan en el contenedor al arrancar
+- Se gestionan desde el panel o la API
+- Límites: máximo 256 variables, la clave de hasta 255 caracteres y el valor de hasta 3.072 caracteres
+- Cifradas en reposo
+- Claves prohibidas: `PORT`, `HOST`, `PATH`, `HOME`, `USER`, `SHELL`
+- La plataforma define `PORT=80` y `HOST=0.0.0.0` en el contenedor
+
+---
+
+## 18. Limpieza automática (cuentas sin plan)
+
+En una cuenta sin plan activo, los proyectos que permanecen sin conexión durante más de 30 días se eliminan automáticamente,
+con un snapshot previo:
+
+| Día | Acción |
+|:---:|------|
+| 7 | Primer aviso por correo |
+| 23 | Segundo aviso |
+| 27 | Aviso final con un enlace de reactivación |
+| 30 | Eliminación automática (irreversible) |
+
+---
+
+## 19. Problemas frecuentes y soluciones
+
+### Plataforma
+
+- **La aplicación se cae / OOMKilled**: memoria insuficiente. Aumenta la RAM asignada. Java y Puppeteer necesitan 512 MB o más.
+- **Bucle de fallos (reinicio automático desactivado)**: 5 fallos en 10 min. Revisa los logs, corrige el error de fondo y vuelve a desplegar.
+- **La aplicación se detiene de inmediato (código de salida 0)**: el proceso no tiene nada que lo mantenga activo. Asegúrate de que el bot haya iniciado sesión o de que el servidor esté escuchando.
+- **ZIP demasiado grande**: excluye `node_modules`, `venv`, `.git`, `vendor`, `target`, `__pycache__`.
+- **La instalación de dependencias supera los 15 minutos (`INSTALL_TIMEOUT`)**: elimina las dependencias innecesarias.
+- **El comando de build supera los 10 minutos (`BUILD_TIMEOUT`)**: simplifica el `build_command` o el paso de build del framework.
+- **El sitio agota el tiempo de espera**: enlaza a `0.0.0.0` (no a `localhost`). Usa el valor de `PORT`.
+- **El dominio personalizado no funciona**: plan Intermediary o superior, CNAME correcto, espera a que se propague el DNS. Un dominio raíz necesita un proveedor DNS con CNAME flattening. Un dominio sin DNS durante 14 días se elimina; después borra sus registros CNAME y TXT en tu proveedor DNS.
+- **Conexión a la base de datos rechazada**: se requiere TLS. Descarga los certificados desde el panel.
+- **`PLAN_REQUIRED`**: la cuenta no tiene un plan activo. Suscríbete a un plan (Economy o superior) para crear aplicaciones y bases de datos o publicar un sitio.
+- **No llega el correo**: revisa el spam. Prueba con otro método (Discord, GitHub, Google).
+
+### Node.js / JavaScript
+
+- **`Cannot find module 'xxx'`**: el paquete no está en `dependencies` de `package.json` (puede estar en `devDependencies` y la aplicación no tiene comando de build, ya que `devDependencies` solo se instalan cuando existe uno).
+- **`missing script: start`**: añade `"start": "node index.js"` en `scripts` dentro de `package.json`.
+- **`Cannot use import statement outside a module`**: añade `"type": "module"` a `package.json`, o usa `require()`.
+- **`ERR_REQUIRE_ESM`**: el paquete solo admite ESM. Usa ESM o una versión anterior (por ejemplo: `node-fetch@2`).
+- **`ERESOLVE dependency tree`**: crea `.npmrc` con `legacy-peer-deps=true`.
+- **`EADDRINUSE`**: el puerto ya está en uso. Solo debe haber un `app.listen()` en el código.
+- **Fallan los módulos nativos** (better-sqlite3): no subas `node_modules/`. La plataforma compila para Linux.
+
+### TypeScript
+
+- **`tsx / ts-node: command not found`**: añade `tsx` a `dependencies`.
+- **`TSError: Unable to compile`**: incluye `tsconfig.json`. Corrige los errores de TS antes de desplegar.
+
+### Python
+
+- **`ModuleNotFoundError`**: el módulo no está en `requirements.txt`. Genéralo con `pip freeze > requirements.txt`.
+- **`requirements.txt` no encontrado**: revisa el nombre exacto y la extensión (cuidado con `.txt.txt` en Windows).
+- **`SyntaxError: invalid syntax`**: la versión de Python seleccionada no admite la función usada. Actualiza la versión.
+- **`UnicodeDecodeError`**: guarda los archivos en UTF-8. Usa `encoding='utf-8'` al abrir archivos.
+- **Flask/Django no accesibles**: usa Gunicorn: `gunicorn app:app --bind 0.0.0.0:80`.
+
+### Go
+
+- **`go.mod not found`**: ejecuta `go mod init` y `go mod tidy`. Incluye `go.mod` y `go.sum`.
+- **Binario incompatible**: compila para Linux: `GOOS=linux GOARCH=amd64 go build`.
+
+### Java
+
+- **`no main manifest attribute`**: configura la herramienta de build para crear un JAR con todas las dependencias y con Main-Class.
+- **`OutOfMemoryError`**: Java necesita 512 MB o más. Usa las opciones: `-Xmx256m -Xms128m`.
+
+### Discord Bots
+
+- **`Invalid token` / `Improper token`**: genera un token nuevo en el Developer Portal. Defínelo como variable de entorno.
+- **`DisallowedIntents`**: activa los intents privilegiados en el Developer Portal (Message Content, Server Members, Presence).
+- **`ClientMissingIntents`**: especifica los intents en tu código: `new Client({ intents: [...] })`.
+- **El bot se desconecta aleatoriamente**: memoria insuficiente o discord.js/discord.py desactualizado.
+- **`on_message` no se dispara (discord.py)**: falta `intents.message_content = True` y activarlo en el Developer Portal.
+
+### Variables de entorno
+
+- **Valores undefined/null**: configúralos desde el panel, no dependas de un archivo `.env`.
+- **`.env` no funciona**: la plataforma no lee `.env`. Usa la interfaz de variables del panel.
+
+---
+
+## 20. Cupones de descuento
+
+Un cupón puede ser un porcentaje o un importe fijo (se aplica una sola vez al total, sin dejar nunca el precio en negativo),
+puede tener un periodo de validez, un límite de canjes y restricciones de plan o de duración. Un pedido de R\$0 (un cupón del
+100 %) se entrega al instante, sin PIX. Un cupón rechazado en el pago devuelve uno de los códigos `COUPON_INVALID`,
+`COUPON_INACTIVE`, `COUPON_NOT_STARTED`, `COUPON_EXPIRED`, `COUPON_EXHAUSTED`, `COUPON_USER_LIMIT`, `COUPON_AUDIENCE`,
+`COUPON_PLAN`, `COUPON_DURATION`. Un cupón que excluye el método de pago elegido devuelve `COUPON_PAYMENT_METHOD`. Los
+descuentos por periodo de facturación (3 meses −5 %, 12 meses −15 %) se aplican antes del cupón.
+
+---
+
+## 21. Retención de datos
+
+Qué guarda Vertra Cloud sobre tu cuenta y tus proyectos, y durante cuánto tiempo. El texto legal es la
+[Política de privacidad](https://vertracloud.app/privacy); esta tabla es el resumen práctico.
+
+| Datos | Qué se registra | Retención |
+|---|---|---|
+| Datos de la cuenta | Nombre, correo, idioma, avatar y proveedores de inicio de sesión vinculados | Mientras exista la cuenta; se eliminan o anonimizan en los 30 días siguientes a su cierre, salvo lo que la ley obliga a conservar |
+| Contenido de proyectos | Archivos, variables de entorno y datos de bases de datos | Mientras exista el proyecto |
+| Snapshots | Snapshots manuales, diarios, de caducidad del plan y de seguridad de una aplicación o base de datos | 30 días desde su creación |
+| Peticiones hechas con tus claves de API | Método, ruta, IP, user agent, estado, duración, tamaño y código de error; en algunas rutas, un fragmento **censurado** del cuerpo de la petición y de la respuesta (hasta 4 KB) | 30 días |
+| Tráfico de las aplicaciones alojadas | Método, estado, duración y tamaño de cada petición — **sin ruta, sin IP y sin contenido** | 30 días |
+| Incidentes de protección (Vertra Shield) | Motivo, sentido del tráfico, hora y duración de la pausa | 90 días |
+| Historial de actividad | Acciones sobre la cuenta y los proyectos; en el gestor de archivos, solo ruta y tamaño, **nunca el contenido** | 30 días, incluso después de eliminar el proyecto |
+| Sesiones de inicio de sesión | Método de inicio de sesión, IP, ubicación aproximada y dispositivo | Hasta que la sesión caduque |
+| Tarjetas guardadas | Marca, últimos 4 dígitos y caducidad (la tarjeta en sí la almacena Stripe) | Hasta que elimines la tarjeta o cierres la cuenta |
+| Datos de facturación | Nombre, dirección, CPF/CNPJ y teléfono opcional, almacenados por **Stripe**, no por Vertra | Hasta que los cambies o cierres la cuenta |
+| Registros de pagos e impuestos | Pedidos, transacciones y facturas de servicio (NFS-e) | 5 años, según exige la legislación fiscal |
+| Registros de acceso | IP, fecha y hora de cada inicio de sesión y de cada uso de clave de API (un registro por clave, IP y día) | 6 meses, según el Marco Civil da Internet de Brasil (art. 15) |
+| Proyectos de una cuenta sin plan | — | Eliminados tras 30 días sin conexión, con un snapshot previo y avisos por correo los días 7, 23 y 27 |
+
+Tus peticiones con claves de API son visibles para ti en el panel, y el historial de actividad recoge los eventos del ciclo de vida,
+los cambios en el gestor de archivos, los snapshots restaurados, los dominios, los incidentes de protección, las compras, los canjes
+de código y las acciones iniciadas por un agente conectado.
+
+---
+
+## 22. Blob Storage
+
+Blob Storage guarda archivos (imágenes, vídeos, copias de seguridad y otros recursos) para tus proyectos. Los archivos públicos tienen
+una URL pública, los privados se leen mediante enlaces temporales o páginas de compartición, y a los mismos archivos se puede acceder
+con un cliente compatible con S3. Está disponible desde Economy. El uso de Blob y su cuota pertenecen al propietario del workspace, así
+que un workspace usa la cuota de su propietario.
+
+### Cuota y límites por plan
+
+| Plan | Cuota de Blob | Reglas de carpeta | Dominios personalizados | Transformaciones de imagen/mes |
+|---|---:|---:|---:|---:|
+| Economy | 1 GB | 5 | 0 | ninguna |
+| Pro | 5 GB | 5 | 0 | ninguna |
+| Scale | 15 GB | 5 | 0 | 600 |
+| Intermediary | 20 GB | 5 | 0 | 1.000 |
+| Enterprise-4 | 30 GB | 5 | 1 | 1.500 |
+| Enterprise-6 | 50 GB | 5 | 1 | 2.000 |
+| Enterprise-8 | 100 GB | 5 | 1 | 2.500 |
+| Enterprise-12 / 14 | 150 GB | 10 | 3 | 4.000 |
+| Enterprise-16 a 24 | 250 GB | 10 | 3 | 5.000 |
+| Enterprise-26 a 32 | 250 GB | 20 | 10 | 10.000 |
+
+### Funciones según el plan
+
+| Función | Plan mínimo |
+|---|---|
+| Dominios personalizados para archivos públicos | Enterprise-4 (1 dominio en Enterprise-4 a 8, 3 en Enterprise-12 a 24, 10 en Enterprise-26 a 32) |
+| Transformaciones de imagen (redimensionar, recortar, formato, calidad) | Scale |
+| Subidas sin el límite de 1 por segundo | Enterprise-12 (por debajo, 1 subida por segundo) |
+| Metadatos de objeto (hasta 5 claves, 512 bytes) | Enterprise-12 |
+| Enlaces para compartir con contraseña | Enterprise-12 |
+| `no-cache` para objetos y reglas de carpeta | Enterprise-26 |
+| Caducidad inferior a 7 días (hasta 1 hora) | Enterprise-26 |
+
+Las transformaciones de imagen se aplican mediante parámetros de URL (`w`, `h`, `fit`, `format`, `q`) en las imágenes públicas. Cada
+transformación distinta cuenta una vez al mes. Por encima del límite mensual se sirve la imagen original, sin error.
+
+### Límites para todos los planes
+
+- **Subida simple:** una petición de hasta 100 MB por archivo.
+- **Subida directa:** hasta 10 GB por objeto, enviado en partes directamente al almacenamiento, con reanudación y cancelación.
+- **Ruta:** de 1 a 1.024 caracteres, hasta 16 carpetas, cada parte de hasta 255 caracteres entre letras, dígitos, `.`, `_`, `-` y espacio. Todo archivo necesita una extensión.
+- **Tipos bloqueados:** `exe`, `msi`, `dll`, `bat`, `cmd`, `com`, `scr`, `cpl`, `pif`, `hta`, `vbs`, `vbe`, `jse`, `wsf`, `wsh`, `msc`, `reg`, `lnk`, `sys`, `drv`, `ps1`, `apk`, `xpi`, `dmg`, `pkg`, `deb`, `rpm` y `appimage`. Los ejecutables también se detectan por su contenido.
+- **HTML, HTM, SVG, XML y XHTML** siempre se descargan (`attachment`), nunca se muestran dentro de la página.
+- **Reglas de carpeta** definen valores por defecto para una carpeta: visibilidad, caducidad, tamaño máximo, extensiones, `Cache-Control` y eliminación tras un número de días (de 1 a 3.650).
+
+### Cuota, cambios a un plan inferior y periodo de gracia
+
+- Una escritura que supere la cuota de la cuenta se bloquea con `STORAGE_QUOTA_EXCEEDED`. Eliminar objetos libera espacio.
+- Tras un cambio a un plan inferior, tus archivos se mantienen. Si ocupan más que la nueva cuota, se bloquean las nuevas subidas y el exceso se cobra a R\$0,20 por cada GB iniciado en la siguiente renovación.
+- Cuando el plan caduca, la cuenta entra en un **periodo de gracia de 72 horas**: las subidas y demás escrituras se bloquean (`BLOB_NAMESPACE_SUSPENDED`), mientras los archivos públicos, los enlaces temporales y las páginas de compartición siguen funcionando. Renovar dentro de esas 72 horas reactiva todo. Una suspensión por abuso es distinta: los archivos quedan fuera de línea de inmediato.
+- Tras el periodo de gracia, los archivos se eliminan. **La eliminación es permanente y no hay copia de seguridad.**
+- Las páginas de compartición se abren en el sitio web. Una compartición puede tener caducidad, un límite de descargas y, desde Enterprise-12, una contraseña. Una compartición no protege un objeto público.
+
+### Acceso
+
+- **Scopes de clave de API:** `blob:read` y `blob:write`. Permisos de workspace: `blob:read` y `blob:manage`. Una clave con solo scopes `blob:*` puede **restringirse a una carpeta** (`blob_prefix`, una ruta que termina en `/`): solo llega a los objetos, subidas y comparticiones dentro de esa carpeta, y las credenciales S3 derivadas de ella heredan el límite. Todo lo demás (reglas, dominios, estadísticas) responde `403 BLOB_PREFIX_DENIED`. Un stack crea su propia clave restringida para su carpeta de Blob.
+- **Token de subida:** un token `vcup_` de vida corta para navegadores. Fija la ruta o carpeta, el tamaño, las extensiones y la visibilidad, y solo se acepta en las rutas de subida.
+- **Acceso compatible con S3:** `GET /v1/s3/credentials`, limitado a 10 llamadas por hora. Revocar la clave de API que lo creó corta el acceso S3 de inmediato. Peticiones S3 por cada 10 segundos y por cuenta: Economy/Pro 100, Scale/Intermediary 200, Enterprise-4 a 8: 400, Enterprise-12 o más: 600; CopyObject/UploadPartCopy 20. Por encima: `503 SlowDown`.
+- Cada ruta está documentada en su propia página, en **Referencia de la API > Blob Storage**.
+
+### Códigos de error de Blob
+
+| Estado | Código | Significado y solución |
+|---|---|---|
+| 404 | `BLOB_OBJECT_NOT_FOUND` | No hay ningún objeto con ese ID en esta cuenta (o pertenece a otra cuenta). Revisa el ID. |
+| 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Otro objeto ya tiene esa `path`. Envía `overwrite: true` para reemplazarlo, o elige otra ruta. |
+| 404 | `BLOB_UPLOAD_NOT_FOUND` | La subida no existe, pertenece a otra cuenta o ya se completó o se canceló. Inicia una nueva subida. |
+| 410 | `BLOB_UPLOAD_EXPIRED` | Ha pasado el tiempo límite de la subida. Inicia una nueva subida. |
+| 409 | `BLOB_UPLOAD_INCOMPLETE` | Al completar (`complete`) faltan partes o el tamaño almacenado no coincide con el `size` declarado. Sube las partes que faltan (ver `uploaded_parts`) y vuelve a intentarlo. |
+| 409 | `BLOB_UPLOAD_LIMIT` | La cuenta tiene más subidas en curso de las que permite su plan. Completa o cancela algunas y vuelve a intentarlo. |
+| 400 | `BLOB_CHECKSUM_MISMATCH` | El `checksum_sha256` que enviaste no coincide con el contenido. Calcúlalo de nuevo a partir del archivo que estás enviando. |
+| 413 | `BLOB_FILE_TOO_LARGE` | El archivo supera el límite que corresponde: 100 MB en `POST /v1/objects`, 10 GB por objeto, o el `max_size` de una regla de carpeta o de un token de subida. |
+| 403 | `STORAGE_QUOTA_EXCEEDED` | Guardar el archivo superaría la cuota de Blob del plan. Elimina objetos o pasa a un plan con más almacenamiento. |
+| 422 | `BLOCKED_FILE_TYPE` | La extensión está bloqueada, no la permite la regla de carpeta o el token de subida, o el contenido es un ejecutable. |
+| 403 | `BLOB_NAMESPACE_SUSPENDED` | El Blob Storage está suspendido, o el plan caducó. Las escrituras se rechazan desde el inicio del periodo de gracia de 72 horas (los archivos siguen sirviéndose hasta que termina, salvo que la cuenta esté suspendida por abuso). Renueva el plan o contacta con soporte si la cuenta está suspendida. |
+| 401 | `BLOB_UPLOAD_TOKEN_INVALID` | El token de subida no existe, ha caducado o fue revocado. Crea un token nuevo. |
+| 401 | `BLOB_UPLOAD_TOKEN_EXHAUSTED` | El token de subida ha agotado todos sus usos. Crea un token nuevo con un `max_uses` más alto. |
+| 403 | `BLOB_UPLOAD_TOKEN_NOT_ALLOWED` | Se envió un token de subida a una ruta distinta de las rutas de subida. Usa una clave de API en esa ruta. |
+| 403 | `BLOB_UPLOAD_TOKEN_CONSTRAINT` | La ruta, la carpeta u otra opción que fija el token de subida (visibilidad, caché, disposición, caducidad o metadatos) no coincide con la petición. Una extensión fuera del token responde `BLOCKED_FILE_TYPE`, y un tamaño superior a su `max_size` responde `BLOB_FILE_TOO_LARGE`. |
+| 404 | `BLOB_SHARE_NOT_FOUND` | La compartición no existe, fue revocada o ha caducado. |
+| 410 | `BLOB_SHARE_EXHAUSTED` | La compartición ha agotado todas sus descargas. |
+| 401 | `BLOB_SHARE_PASSWORD_INVALID` | La contraseña es incorrecta. Los intentos repetidos desde la misma IP tienen límite de frecuencia. |
+| 409 | `BLOB_RULES_CONFLICT` | El etag de `If-Match` está desactualizado porque las reglas se guardaron después de que las leyeras. Vuelve a leer las reglas y reintenta. |
+| 409 | `BLOB_RULE_LIMIT` | La cuenta tiene más reglas de carpeta de las que permite su plan (5, 10 o 20). Elimina antes una regla. |
+| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | El plan incluye dominios personalizados y la cuenta ya tiene tantos como permite. Por debajo de Enterprise-4, la respuesta es `PLAN_RESTRICTED_FEATURE`. |
+| 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | El hostname ya está en uso. |
+| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | El dominio no existe o pertenece a otra cuenta. |
+
+---
+
+## 23. Plantillas y stacks
+
+Una **plantilla** es una receta que crea software ya hecho (o un proyecto inicial) en una sola operación, tras unas cuantas
+preguntas. Un **stack** es el grupo de aplicaciones, bases de datos y carpetas de Blob que van juntas; una plantilla con más de
+un servicio crea uno. Guías: [Plantillas](/es-es/templates/overview).
+
+### Orígenes
+
+| Origen | Quién la crea | Quién puede usarla |
+|---|---|---|
+| Vertra | Vertra | Cualquier cuenta |
+| Comunidad | Colaboradores, mediante pull request al repositorio público; revisada y mantenida por Vertra | Cualquier cuenta |
+| Privada | Tú (un usuario o un workspace) | Tú, y quien reciba un enlace para compartir |
+
+Los usuarios no publican en el catálogo público desde el panel. Las plantillas privadas se crean en planes que pueden crear
+imágenes Docker, hasta **5 por cuenta**; en un workspace solo el propietario las crea y gestiona. Un miembro del workspace no
+despliega plantillas en él: solo lo hace el propietario (`WORKSPACE_OWNER_ONLY`).
+
+### Plantillas de código e imagen
+
+| Origen | Se ejecuta como | Ranura de imagen |
+|---|---|---|
+| `code` | Un ZIP de código en el runtime que elijas, como una aplicación normal | Ninguna |
+| `image` | Una imagen construida o fijada por la plantilla | 1 por cada imagen distinta en uso |
+
+En ambos casos, `/app` es el disco persistente y el resto del sistema de archivos es de solo lectura; el usuario es `1000:1000`.
+
+### Plan requerido
+
+El plan necesario se **calcula** a partir de la plantilla y de tus respuestas, y puede subir por un `min_plan` que declara el autor:
+memoria libre para la suma de la memoria mínima de cada servicio, publicación web cuando un servicio la necesita, un plan con imágenes
+Docker y una ranura libre para una plantilla de imagen, un plan con Blob cuando la plantilla tiene una carpeta de Blob, y los límites
+de la cuenta de aplicaciones, bases de datos y despliegues por hora. Cuando no cabe, la API responde `TEMPLATE_PLAN_REQUIRED`,
+`TEMPLATE_RAM_INSUFFICIENT` o `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` y el panel explica el motivo.
+
+### Uso de una plantilla
+
+- `POST /v1/templates/{id}/deploy` inicia un trabajo (`202`) que valida el plan y la memoria, crea las bases de datos y espera a que
+  estén listas, crea las aplicaciones, escribe las variables, lo arranca todo y espera a la comprobación de salud. Cualquier fallo
+  deshace todo lo que creó el trabajo (`TEMPLATE_DEPLOY_FAILED`, `details.step`); antes de eliminar una aplicación o una base de datos,
+  la reversión toma un snapshot de seguridad. Una plantilla de un workspace solo se despliega dentro de ese workspace, y solo por su
+  propietario. Envía un `Idempotency-Key` para que sea seguro repetirlo. Solo se ejecuta un despliegue de la misma plantilla a la vez
+  (`TEMPLATE_DEPLOY_IN_PROGRESS`).
+- Las preguntas tienen tipos (`text`, `secret`, `select`, `boolean`, `number`, `url`, `email`); los secretos pueden generarse por ti.
+  Las salidas, como la dirección o un token generado, se muestran al final; una salida secreta se muestra una sola vez.
+- Las actualizaciones nunca son automáticas: una versión nueva muestra **Nueva versión disponible**; actualizar toma antes un snapshot de
+  seguridad, actualiza los servicios uno a uno y, si alguno falla, restaura todos. Los permisos nunca se vuelven más estrictos en una
+  aplicación existente. Algunas plantillas bloquean el despliegue blue-green (dos copias en ejecución a la vez las romperían) y exigen que
+  el rollback restaure también los datos (`TEMPLATE_ROLLBACK_REQUIRES_DATA`).
+- Cambiar el código de una aplicación de una plantilla abierta la desvincula de la plantilla; la API pide antes `confirm_detach`
+  (`TEMPLATE_DETACH_CONFIRMATION_REQUIRED`).
+
+### Stacks
+
+- Las aplicaciones de un stack llegan a las bases de datos a través de la dirección pública, con certificados de cliente gestionados por
+  la plataforma y excluidos de las descargas, los snapshots y «guardar como plantilla». Un modo de red distinto de `public` devuelve
+  `STACK_NETWORK_MODE_UNAVAILABLE`.
+- Una **conexión** vincula una aplicación con una base de datos, una carpeta de Blob u otra aplicación. Sus variables están **gestionadas**:
+  se actualizan cuando cambian la contraseña, el certificado o el host de la base de datos, y se marcan en el panel. Editarlas a mano las
+  convierte en una variable normal. La API devuelve `restart_required` y `apps_to_restart` cuando las aplicaciones deben reiniciarse.
+- Un recurso pertenece como máximo a un stack, dentro de la misma cuenta o workspace que el stack. Un stack puede crearse desde una
+  plantilla, desde el flujo `/new`, añadiendo una base de datos a una aplicación, o transformando una carpeta que contiene una aplicación
+  y una base de datos.
+- Salir de un stack: conservar la conexión (las variables pasan a ser normales, con la dirección pública) o eliminarlas. Al eliminar un
+  stack se pregunta si solo se deshace (los recursos se mantienen) o si se elimina todo; para la carpeta de Blob, la opción es `keep`
+  (por defecto) o `delete`.
+- Las carpetas organizan, los stacks conectan: un stack tiene su propia tarjeta en la lista y su propio recuadro con las conexiones en
+  Flow, y puede estar dentro de una carpeta.
+
+### Enlaces para compartir
+
+| | Enlace de uso | Enlace de copia |
+|---|---|---|
+| Quien lo recibe obtiene | Aplicaciones o un stack creados desde la plantilla, con su propia copia de la imagen | Una plantilla privada propia |
+| Actualizaciones del autor | Sí, cuando quien lo recibe pulsa Actualizar | No |
+| Código | Abierto o cerrado, según indique la plantilla | Siempre abierto |
+| Ranura de imagen de quien lo recibe | 1 | 1 |
+
+Revocar un enlace detiene los nuevos usos y deja de ofrecer actualizaciones; lo que ya se creó sigue en ejecución, y eliminar la imagen,
+la plantilla o la cuenta originales no afecta a las copias. La vista previa muestra el autor, lo que se va a crear y **No verificado por
+Vertra**. Los enlaces pueden tener `max_uses` y una caducidad (`SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED`). Usa
+**Denunciar** en una vista previa o en una aplicación creada; para casos graves con pruebas, escribe a abuse@vertracloud.app. Una aplicación
+que procede de un enlace de uso no se puede guardar como plantilla ni compartir (`TEMPLATE_SAVE_NOT_ALLOWED`).
+
+### Plantillas cerradas
+
+Una plantilla privada puede cerrarse: quien la usa puede iniciar, detener, reiniciar, leer logs y métricas, crear snapshots y restaurarlos
+(solo en una aplicación de la misma plantilla), hacer rollback, responder a las preguntas, cambiar la memoria cuando se permita y actualizar.
+No pueden usar el gestor de archivos, descargar la aplicación o sus snapshots, crear variables libres, editar comandos, abrir una terminal,
+desplegar código, guardarla como plantilla ni desvincularla. La API lo aplica en todas las rutas (`TEMPLATE_CLOSED`); un snapshot de una
+aplicación cerrada nunca puede descargarse. Las bases de datos nunca se cierran. Las variables que el autor oculta (`env_hidden`, solo permitido
+en una plantilla cerrada) se inyectan y nunca se devuelven (`MANAGED_ENV_READONLY`); desvincular de la plantilla la aplicación o el stack
+elimina los valores ocultos.
+
+### Límites del manifiesto
+
+`vertracloud.template.yaml`: hasta 40 preguntas, 16 salidas, 8 servicios y 10 etiquetas. Nombre de hasta 50 caracteres, descripción de hasta
+128. El JSON Schema público es `/templates/schema/v1.json`. Los marcadores se resuelven en el servidor; un marcador o un servicio desconocido
+hace que el manifiesto no sea válido (`TEMPLATE_MANIFEST_INVALID`).
+
+### Códigos de error de plantillas y stacks
+
+| Estado | Código | Significado y solución |
+|---|---|---|
+| 404 | `TEMPLATE_NOT_FOUND` | La plantilla no existe, fue eliminada o no está visible para ti. |
+| 404 | `TEMPLATE_VERSION_NOT_FOUND` | No hay ninguna versión con ese número o ID. |
+| 409 | `TEMPLATE_SLUG_TAKEN` | Otra plantilla tuya usa ese slug. |
+| 400 | `TEMPLATE_MANIFEST_INVALID` | El manifiesto no es válido; `details.issues` enumera cada problema. |
+| 400 | `TEMPLATE_INPUT_INVALID` | Falta una respuesta o no es válida; `details.issues` enumera las preguntas. |
+| 400 | `TEMPLATE_SOURCE_REQUIRED` | Se envió un servicio de código sin su archivo de origen. |
+| 400 | `TEMPLATE_SECRET_IN_SOURCE` | El código contiene un secreto (un archivo `.env`, una clave o un token); `details.files` enumera las rutas. Elimínalo y vuelve a enviarlo. |
+| 400 | `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND` | El repositorio vinculado no tiene manifiesto en su raíz. |
+| 403 | `TEMPLATE_PLAN_REQUIRED` | Tu plan está por debajo de lo que necesita la plantilla; `details` indica cuál es el plan requerido. |
+| 400 | `TEMPLATE_RAM_INSUFFICIENT` | No hay suficiente memoria libre; `details` muestra la necesaria y la libre. |
+| 403 | `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | Todas las ranuras de imagen están en uso. Elimina una imagen o usa un plan con más. |
+| 403 | `TEMPLATE_CLOSED` | La ruta lee o cambia el código, los archivos, los comandos o las variables de una aplicación de una plantilla cerrada. |
+| 403 | `TEMPLATE_PRIVATE_LIMIT_REACHED` | Se alcanzó el límite de plantillas privadas. |
+| 409 | `TEMPLATE_DEPRECATED` | La plantilla está obsoleta y no puede crear nuevas aplicaciones. |
+| 400 | `TEMPLATE_VERSION_NOT_SELECTABLE` | La plantilla no permite elegir una versión anterior. |
+| 403 | `TEMPLATE_SAVE_NOT_ALLOWED` | Una aplicación procedente de un enlace para compartir no se puede guardar como plantilla ni compartir. |
+| 403 | `MANAGED_ENV_READONLY` | La plantilla inyecta la variable y no se puede leer ni cambiar. |
+| 403 | `IMAGE_TEMPLATE_ONLY` | La imagen pertenece a una plantilla y solo se puede usar a través de ella. |
+| 409 | `IMAGE_IN_USE` | La imagen es el origen de una plantilla privada; quítala antes de allí. |
+| 409 | `TEMPLATE_DEPLOY_IN_PROGRESS` | Hay otro despliegue o actualización de plantilla de la cuenta en curso. |
+| 409 | `IDEMPOTENCY_KEY_CONFLICT` | El `Idempotency-Key` se usó con una petición distinta. |
+| 409 | `TEMPLATE_UPDATE_BLOCKED` | La actualización no puede seguir adelante; `details` indica el motivo (memoria, plan o una pregunta nueva). |
+| 409 | `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | El cambio desvincula la aplicación de su plantilla; repite la petición con `confirm_detach`. |
+| 409 | `TEMPLATE_ROLLBACK_REQUIRES_DATA` | El rollback solo del código está bloqueado; restaura el snapshot que tomó la actualización. |
+| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | El trabajo de despliegue no existe o no es tuyo. |
+| 404/410 | `SHARE_LINK_NOT_FOUND`, `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED` | El enlace no existe, fue revocado, ha caducado o no le quedan usos. |
+| 404 | `STACK_NOT_FOUND`, `STACK_MEMBER_NOT_FOUND`, `STACK_BINDING_NOT_FOUND` | El stack, el miembro o la conexión no existe o no es tuyo. |
+| 409 | `STACK_MEMBER_CONFLICT` | El recurso está en otro stack, o en otra cuenta o workspace. |
+| 409 | `STACK_BLOB_PREFIX_TAKEN` | El stack ya tiene una carpeta de Blob con ese prefijo. |
+| 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | Solo está disponible `public`. |
+| 400 | `STACK_NAME_MISMATCH` | `confirm_name` no coincide con el nombre del stack. |
+| 400 | `STACK_TRANSFORM_EMPTY` | La carpeta no tiene ninguna aplicación, ni ninguna base de datos, para meter en un stack. |
+| 403 | `STACK_SERVICE_LOCKED` | El miembro procede de una plantilla cerrada y no puede salir del stack. |
+| 403 | `BLOB_PREFIX_DENIED` | La clave está restringida a una carpeta de Blob y la operación queda fuera de ella. |
+
+---
+
+## 24. Glosario
+
+| Término | Definición |
+|-------|-----------|
+| Application | Un proyecto desplegado (bot o sitio web) que se ejecuta en Vertra Cloud |
+| Database | Una instancia gestionada (PostgreSQL, MongoDB, Redis, MySQL) |
+| Workspace | Un espacio de colaboración en equipo con permisos granulares y roles personalizables (Enterprise) |
+| Permission (workspace) | Una de las 20 acciones atómicas del catálogo (`apps:read`, `members:manage`...) que componen un rol |
+| Role (workspace) | Un conjunto con nombre de permisos asignado a un miembro; 4 roles iniciales por workspace, personalizables |
+| Invite (workspace) | Una forma de unirse a un workspace, por correo (7 días, vinculada a la dirección) o por enlace (24 h, de uso múltiple) |
+| Action request (workspace) | Una solicitud de acción sensible hecha por un miembro sin el permiso, que decide quien tenga `members:manage` y el permiso para esa acción |
+| Snapshot | Una copia guardada del estado de una aplicación o de una base de datos |
+| MCP | El servidor Model Context Protocol de Vertra (`@vertracloud/mcp` en local o `mcp.vertracloud.app/mcp`): da al agente de IA del usuario las herramientas de la plataforma con su clave de API |
+| Subdomain | Una URL asignada automáticamente: `app-name.vertraweb.app` |
+| Custom domain | Un dominio propio del usuario conectado a una aplicación |
+| Auto-restart | Reinicio automático del contenedor tras un fallo; predeterminado en todos los planes, siempre activo |
+| Crash loop | 5 fallos en 10 minutos; desactiva el reinicio automático durante 24 horas |
+| vertracloud.config | Un archivo `KEY=value` opcional en el zip subido; rellena el formulario. Se genera desde la base de datos al descargar y al hacer un snapshot, y nunca se guarda en el volumen |
+| Deploy | El proceso de subir y publicar código en la plataforma |
+| Build | Un paso opcional, definido por `build_command`, que se ejecuta tras la instalación de dependencias y antes de que la aplicación arranque |
+| Build environment | El entorno aislado de la aplicación donde se ejecuta `build_command` (2× la RAM, límite de 10 minutos) |
+| Container | El entorno aislado donde se ejecuta la aplicación o la base de datos |
+| Blob Storage | Almacenamiento de archivos para proyectos: URL públicas, enlaces temporales, páginas de compartición y un endpoint compatible con S3 |

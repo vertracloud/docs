@@ -1,0 +1,44 @@
+---
+title: Listar conexiones del stack
+sidebarTitle: Listar conexiones
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/bindings
+authMethod: bearer
+description: Lista las conexiones de un stack, las variables que la plataforma inyecta en cada aplicación.
+---
+
+{/* @see RESTGetAPIStackBindingsResponse, APIStackBinding — @vertracloud/api-types */}
+Devuelve las conexiones entre los miembros de un stack. Una conexión hace que la plataforma inyecte variables (y, en el caso de una base de datos, los certificados de cliente) en una aplicación y las mantenga actualizadas. Requiere el scope `stacks:read` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack. Es obligatorio para un miembro del workspace que actúe sobre un stack que no le pertenece.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">El ID de la conexión.</ResponseField>
+  <ResponseField name="stack_id" type="string">El ID del stack.</ResponseField>
+  <ResponseField name="app_id" type="string">La aplicación que recibe las variables.</ResponseField>
+  <ResponseField name="database_id" type="string | null">La base de datos a la que se conecta la aplicación.</ResponseField>
+  <ResponseField name="blob_id" type="string | null">El miembro Blob al que se conecta la aplicación.</ResponseField>
+  <ResponseField name="target_app_id" type="string | null">Otra aplicación a la que llama la aplicación; la propia aplicación cuando la variable lleva su propia dirección.</ResponseField>
+  <ResponseField name="env_map" type="object">Nombre de variable y lo que recibe. Consulta [Crear conexión](/es-es/api-reference/endpoint/stacks/bindings/create) para ver los valores.</ResponseField>
+  <ResponseField name="certs_path" type="string | null">Carpeta dentro de la aplicación donde se escriben los certificados de cliente de la base de datos, o `null` si no hay base de datos.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time">Cuándo se creó la conexión.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+Exactamente uno de `database_id`, `blob_id` y `target_app_id` está definido.
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |

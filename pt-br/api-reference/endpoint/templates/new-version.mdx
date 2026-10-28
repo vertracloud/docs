@@ -1,0 +1,114 @@
+---
+title: Publicar uma nova versão de um template privado
+sidebarTitle: Nova versão
+api: POST https://api.vertracloud.app/v1/templates/{template_id}/versions
+authMethod: bearer
+description: Publica uma nova versão de um template privado a partir de um manifesto atualizado e, para serviços com código, de novos arquivos ZIP.
+---
+
+{/* @see RESTPostAPITemplateVersionBody, RESTPostAPITemplateVersionResponse — @vertracloud/api-types */}
+Esta chamada publica uma nova versão de um template privado e responde `201` com a versão. A requisição é `multipart/form-data`, como em [Criar um template privado](/pt-br/api-reference/endpoint/templates/create). O número de versão do manifesto precisa ser maior que o atual, e o `id` do manifesto não pode mudar. Uma versão publicada nunca muda, e um número que já foi usado fica reservado mesmo se a versão for removida.
+
+Precisa do escopo `templates:write` quando chamada com uma chave de API, e só o dono do template (em um workspace, o dono do workspace) pode publicar. Um serviço `code` sem uma nova parte ZIP mantém o código da versão anterior; se não tinha nenhum, a chamada falha com `TEMPLATE_SOURCE_REQUIRED`. Uma variável listada em `env_hidden` e ausente de `env` mantém o valor anterior; enviá-la novamente o substitui. As aplicações já criadas a partir do template não são tocadas: cada usuário [atualiza](/pt-br/templates/use/updates-and-rollback) quando quiser.
+
+<ParamField path="template_id" type="string" required>
+  O ID do template.
+</ParamField>
+
+<ParamField body="manifest" type="string" required>
+  O manifesto da nova versão, como string serializada em JSON.
+</ParamField>
+
+<ParamField body="sources[service_id]" type="file">
+  Uma parte ZIP com o novo código de um serviço, nomeada com o ID do serviço. Opcional para um serviço que já tem código.
+</ParamField>
+
+<ParamField body="changelog" type="string">
+  O que mudou, como objeto serializado em JSON com `pt-br` (obrigatório), `en` e `es`.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/tpl-abc123def456/versions \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -F 'manifest=<manifest.json' \
+  -F 'changelog={"pt-br":"Corrige o login","en":"Fixes login"}' \
+  -F 'sources[bot]=@bot.zip'
+```
+
+</RequestExample>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A nova versão.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID da versão.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    A versão semântica.
+  </ResponseField>
+
+  <ResponseField name="security" type="boolean">
+    `true` para uma versão de segurança.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    O changelog por idioma (`pt-br`, `en`, `es`), ou `null`.
+  </ResponseField>
+
+  <ResponseField name="manifest" type="object | null">
+    O manifesto da versão. Os valores de `env_hidden` nunca são incluídos.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando a versão foi publicada.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tplv-555666777888",
+    "version": "1.1.0",
+    "security": false,
+    "changelog": { "pt-br": "Corrige o login", "en": "Fixes login" },
+    "manifest": { "id": "support-bot", "version": "1.1.0", "category": "bots", "services": {} },
+    "created_at": "2026-10-27T15:30:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: O template não existe ou não é seu (`404`).
+  - `TEMPLATE_MANIFEST_INVALID`: O manifesto não é válido, a versão não é maior que a atual, ou o `id` foi alterado; `details.issues` lista os problemas encontrados.
+  - `TEMPLATE_SOURCE_REQUIRED`: Um serviço `code` não tem parte ZIP nem código de uma versão anterior.
+  - `TEMPLATE_SECRET_IN_SOURCE`: Um ZIP contém um segredo; `details.files` lista os caminhos (`400`).
+  - `IMAGE_NOT_FOUND`: Um serviço `image` aponta para uma imagem que não é sua ou não tem build concluído com sucesso.
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace publica versões dos templates dele.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_SOURCE_REQUIRED"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,83 @@
+---
+title: Desvincular una plantilla privada de GitHub
+sidebarTitle: Desvincular GitHub
+api: DELETE https://api.vertracloud.app/v1/templates/{template_id}/github
+authMethod: bearer
+description: Elimina el vínculo entre una plantilla privada y su repositorio de GitHub, para que los pushes dejen de publicar versiones.
+---
+
+{/* @see RESTDeleteAPITemplateGithubResponse — @vertracloud/api-types */}
+Después de desvincular, los pushes ya no publican versiones. Las versiones existentes y las aplicaciones creadas desde la plantilla no se ven afectadas. Puedes volver a vincular en cualquier momento con [Vincular una plantilla privada a GitHub](/es-es/api-reference/endpoint/templates/github-link). Solo el propietario de la plantilla puede desvincularla.
+
+Necesita el ámbito `templates:write` cuando se llama con una clave de API.
+
+<ParamField path="template_id" type="string" required>
+  El ID de la plantilla.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la plantilla pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.vertracloud.app/v1/templates/tpl-abc123def456/github \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Respuesta
+
+El objeto de plantilla de [Crear una plantilla privada](/es-es/api-reference/endpoint/templates/create), ahora con `github` en `null`.
+
+<ResponseField name="response" type="object">
+  La plantilla.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="github" type="object | null">
+    `null` después de desvincular.
+  </ResponseField>
+
+  <ResponseField name="id" type="string">
+    El ID de la plantilla. Los demás campos son los que se listan en [Crear una plantilla privada](/es-es/api-reference/endpoint/templates/create).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "support-bot",
+    "origin": "private",
+    "github": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: La plantilla no existe o no es tuya (`404`).
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace desvincula sus plantillas.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

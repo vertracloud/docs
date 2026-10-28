@@ -1,0 +1,156 @@
+---
+title: Vincular imagen a GitHub
+sidebarTitle: Vincular GitHub
+api: PUT https://api.vertracloud.app/v1/images/{image_id}/github
+authMethod: bearer
+description: Vincula una imagen a un repositorio de GitHub, para que un push a su rama reconstruya la imagen.
+---
+
+{/* @see RESTPutAPICustomImageGithubBody, RESTPutAPICustomImageGithubResult — @vertracloud/api-types */}
+El repositorio debe estar en una de tus instalaciones de la GitHub App. Un repositorio público que esté fuera de ellas puede compilarse una vez con [Crear imagen](/es-es/api-reference/endpoint/images/create), pero solo puede vincularse después de instalar la GitHub App en él. Un push a la rama vinculada reconstruye la imagen exactamente igual que una reconstrucción manual, con el repositorio en esa rama como contexto de build. Los pushes se omiten mientras ya haya un build de la imagen en curso. Las reconstrucciones desde GitHub nunca reinician las aplicaciones.
+
+Solo el propietario de la imagen puede vincularla. En un workspace, un miembro recibe `403` aunque tenga permiso para gestionar las aplicaciones del workspace, porque el vínculo usa las instalaciones de GitHub App del propietario.
+
+Requiere el scope `images:write` cuando se llama con una clave de API.
+
+<ParamField path="image_id" type="string" required>
+  El ID de la imagen.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la imagen pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<ParamField body="repository" type="string" required>
+  El repositorio, como `owner/name`.
+</ParamField>
+
+<ParamField body="branch" type="string">
+  La rama que dispara la reconstrucción. Es opcional: si no se indica, se usa la rama por defecto del repositorio (`main`, `master` o la que tenga configurada el repositorio).
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  La imagen.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la imagen.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    El nombre de la imagen.
+  </ResponseField>
+
+  <ResponseField name="description" type="string | null">
+    La descripción de la imagen (texto libre, de hasta 128 caracteres), o `null` si no tiene ninguna.
+  </ResponseField>
+
+  <ResponseField name="owner" type="string">
+    `account` para tus imágenes, `system` para las imágenes que proporciona la plataforma (estas no se pueden modificar ni eliminar).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Estado del último build: `building`, `success` o `failed`. Una reconstrucción fallida no cambia la versión actual: las aplicaciones siguen ejecutando la última que funcionó.
+  </ResponseField>
+
+  <ResponseField name="error" type="string | null">
+    Motivo legible del último build fallido, o `null`.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string | null">
+    Digest (`sha256:...`) de la versión actual, o `null` mientras ningún build haya tenido éxito.
+  </ResponseField>
+
+  <ResponseField name="uncompressed_bytes" type="integer | null">
+    Tamaño de la versión actual, sin comprimir, en bytes.
+  </ResponseField>
+
+  <ResponseField name="layer_count" type="integer | null">
+    Número de capas de la versión actual.
+  </ResponseField>
+
+  <ResponseField name="apps" type="object[]">
+    Las aplicaciones creadas a partir de esta imagen. Cada una tiene `id`, `name`, `version_id` (la versión de la imagen que ejecuta, o `null`) y `outdated` (`true` cuando la imagen tiene una versión más nueva; la aplicación pasa a ella en el siguiente reinicio o despliegue que pidas).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    El repositorio y la rama de GitHub vinculados (`repository` como `owner/name`, `branch`), o `null` si la imagen no está vinculada.
+  </ResponseField>
+
+  <ResponseField name="current_version_id" type="string | null">
+    La versión actual de la imagen, o `null` mientras ningún build haya tenido éxito.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó la imagen.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Cuándo se actualizó por última vez la imagen.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "img-abc123def456",
+    "name": "my-api",
+    "description": null,
+    "owner": "account",
+    "status": "success",
+    "error": null,
+    "digest": "sha256:3f1c0a9d5b7e2c4a8d6f1b0e9c3a7d5f2b4e6a8c0d1f3b5a7c9e2d4f6a8b0c1e",
+    "uncompressed_bytes": 187432960,
+    "layer_count": 9,
+    "apps": [
+      {
+        "id": "app-abc123def456",
+        "name": "my-api-prod",
+        "version_id": "imgv-111aaa222bbb",
+        "outdated": false
+      }
+    ],
+    "github": { "repository": "acme/my-api", "branch": "main" },
+    "current_version_id": "imgv-111aaa222bbb",
+    "created_at": "2026-10-23T14:02:00Z",
+    "updated_at": "2026-10-23T14:09:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope necesario (`403`).
+  - `ACCESS_DENIED`: No eres el propietario de la imagen, o es una imagen de la plataforma (`403`).
+  - `IMAGE_NOT_FOUND`: La imagen no existe o no puedes acceder a ella (`404`).
+  - `VALIDATION_ERROR`: El cuerpo no superó la validación, por ejemplo un `repository` que no es `owner/name` (`400`).
+  - `INSTALLATION_NOT_FOUND`: El repositorio no está en ninguna de tus instalaciones de GitHub App (`404`).
+  - `REPO_ALREADY_LINKED`: El repositorio ya está vinculado a otra imagen o aplicación (`409`).
+  - `FETCH_ZIP_ERROR`: No se pudo contactar con GitHub, o GitHub estaba limitando peticiones mientras se comprobaba el repositorio (`502`). Inténtalo de nuevo en unos minutos.
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: El plan no incluye imágenes Docker personalizadas (`403`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Repository must be owner/name",
+  "path": "repository"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,106 @@
+---
+title: Crear o actualizar archivo o carpeta de la aplicación
+sidebarTitle: Crear/actualizar archivo o carpeta
+api: PUT https://api.vertracloud.app/v1/apps/{id}/files
+authMethod: bearer
+description: Crea o actualiza un archivo o una carpeta de una aplicación a partir de su ID.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación en la que se creará o actualizará el archivo o la carpeta. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Los miembros con el rol Propietario, Administrador o Desarrollador pueden usar el gestor de archivos en una aplicación del workspace que no les pertenece; sin este parámetro, solo puede hacerlo el propietario de la aplicación.
+</ParamField>
+
+<ParamField query="path" type="string" required>
+  La ruta donde se creará o actualizará el archivo o la carpeta. Termina con `/` para crear una carpeta.
+</ParamField>
+
+<ParamField body="content" type="string">
+  El contenido del archivo que se creará o actualizará. Es obligatorio para los archivos; no aplica a las carpetas.
+</ParamField>
+
+<ParamField body="last_modified" type="string">
+  Fecha y hora ISO opcional de la última modificación conocida del archivo, tal como la devuelve [`GET /files/content`](/es-es/api-reference/endpoint/apps/filemanager/content). Si se envía y no coincide con la fecha de modificación actual del archivo en disco, el guardado se rechaza con `FILE_MODIFIED` en lugar de sobrescribir en silencio una versión más reciente; úsalo para detectar conflictos de edición. Omítelo para guardar sin condiciones.
+</ParamField>
+
+<ParamField body="confirm_detach" type="boolean">
+  Envía `true` para confirmar que el cambio desvincula una aplicación que viene de una plantilla abierta (deja de recibir versiones). Sin este parámetro, la petición no cambia nada y responde `409` `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`. Se ignora en las demás aplicaciones. Consulta [Desvincular de una plantilla](/es-es/api-reference/endpoint/templates/detach).
+</ParamField>
+
+### Respuesta
+
+Si todo va bien, responde `200` con `{ "response": null }`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+  - `FORBIDDEN`: El usuario no tiene permiso para acceder a la aplicación.
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+  - `PLAN_RESTRICTED_FEATURE`: El plan del usuario no admite el acceso al gestor de archivos.
+  - `MISSING_PATH`: No se proporcionó el parámetro de query `path`.
+  - `MISSING_CONTENT`: El parámetro `content` del cuerpo es obligatorio para los archivos.
+  - `INVALID_PATH`: La ruta indicada no es válida.
+  - `TARGET_IS_DIRECTORY`: La ruta ya existe como carpeta y no se puede escribir en ella como archivo.
+  - `FILE_MODIFIED`: La fecha de modificación actual del archivo no coincide con el `last_modified` enviado: alguien lo cambió desde que se leyó por última vez. Vuelve a cargar el archivo antes de guardarlo de nuevo.
+  - `PUT_FILE_FAILED`: No se pudo crear o actualizar el archivo o la carpeta.
+  - `OWNER_APP_WITHOUT_LIMITS`: No se encontraron los límites del plan del propietario.
+  - `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`: El cambio desvincularía la aplicación de su plantilla y no se envió `confirm_detach` (`409`). No se cambió nada.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Una descripción detallada con información adicional sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "FILE_MODIFIED",
+  "message": "File was modified since it was last read"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "TARGET_IS_DIRECTORY"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "MISSING_PATH",
+  "message": "Path query parameter is required"
+}
+```
+
+</ResponseExample>

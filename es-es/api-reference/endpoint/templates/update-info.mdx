@@ -1,0 +1,149 @@
+---
+title: Obtener información de actualización de la plantilla
+sidebarTitle: Información de actualización
+api: GET https://api.vertracloud.app/v1/apps/{id}/template/update
+authMethod: bearer
+description: Muestra qué haría actualizar una aplicación o un stack a la última versión de su plantilla, y si algo lo bloquea, sin cambiar nada.
+---
+
+{/* @see APITemplateUpdateInfo, RESTGetAPITemplateUpdateInfoResponse — @vertracloud/api-types */}
+Indica si hay una versión más nueva de la plantilla disponible para una aplicación o un stack, y qué cambiaría la actualización. No se escribe nada. Hay dos rutas con la misma respuesta: `GET /v1/apps/{id}/template/update` para una aplicación y `GET /v1/stacks/{stack_id}/template/update` para un stack. Con una clave de API el scope es `templates:read`. Los miembros del workspace que pueden leer el recurso pueden llamarla; actualizar es para el propietario (ver [Actualizar desde plantilla](/es-es/api-reference/endpoint/templates/update)).
+
+Una aplicación que pertenece a un stack creado a partir de una plantilla responde por **todo el stack**, con todos sus servicios juntos. Una aplicación independiente, o una que está en un stack armado a mano, responde sola. Las actualizaciones nunca son automáticas: se ejecutan solo cuando lo pides. Ver [Actualizaciones y rollback](/es-es/templates/use/updates-and-rollback).
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación (en la ruta `/v1/apps/{id}/template/update`).
+</ParamField>
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack (en la ruta `/v1/stacks/{stack_id}/template/update`).
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Lo que haría la actualización.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="update_available" type="boolean">
+    `true` cuando hay una versión más nueva y nada estructural bloquea la actualización. Es `false` cuando `blocked` trae un motivo estructural.
+  </ResponseField>
+
+  <ResponseField name="current_version" type="string">
+    La versión que el recurso ejecuta ahora.
+  </ResponseField>
+
+  <ResponseField name="latest_version" type="string | null">
+    La versión lista más nueva, o `null` cuando no hay una más nueva o la actualización está bloqueada estructuralmente.
+  </ResponseField>
+
+  <ResponseField name="security" type="boolean">
+    `true` cuando la nueva versión, o alguna intermedia, es una release de seguridad.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    Qué cambió en la nueva versión, como texto por idioma, o `null`.
+  </ResponseField>
+
+  <ResponseField name="new_inputs" type="object[]">
+    Las preguntas obligatorias que añade la nueva versión, con la misma forma que `inputs` en [Obtener plantilla](/es-es/api-reference/endpoint/templates/get). Solo preguntas sin valor por defecto que la plataforma no genera. Respóndelas en `inputs` al actualizar. Las preguntas que ya respondiste antes no se vuelven a hacer.
+  </ResponseField>
+
+  <ResponseField name="added_services" type="object[]">
+    Los servicios que añade la nueva versión, con la forma usada en [Listar plantillas](/es-es/api-reference/endpoint/templates/list). Se crean en la misma operación.
+  </ResponseField>
+
+  <ResponseField name="removed_services" type="string[]">
+    Los IDs de los servicios que la nueva versión elimina y que existen en tu cuenta. No se borran: salen de la plantilla y puedes borrarlos tú mismo.
+  </ResponseField>
+
+  <ResponseField name="ram_changes" type="object[]">
+    Servicios cuya memoria mínima subió por encima de lo que tienen. Cada uno trae `service_id`, `current` y `required_min`, en MB. Envía la nueva memoria en `ram` al actualizar.
+  </ResponseField>
+
+  <ResponseField name="free_ram" type="integer">
+    La memoria libre en tu cuenta, en MB.
+  </ResponseField>
+
+  <ResponseField name="opens_permissions" type="boolean">
+    `true` cuando la nueva versión abre permisos que la aplicación tenía cerrados, por ejemplo cuando una plantilla cerrada pasa a abierta. Una actualización nunca hace los permisos más restrictivos.
+  </ResponseField>
+
+  <ResponseField name="rollback_with_data" type="boolean">
+    `true` cuando volver desde la nueva versión siempre se lleva también los datos: la plantilla migra sus datos al actualizar, así que un rollback solo del código se rechaza y, en su lugar, restauras el snapshot de la actualización.
+  </ResponseField>
+
+  <ResponseField name="blocked" type="object | null">
+    `null` cuando la actualización puede seguir. Si no, el motivo por el que no puede.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="reason" type="string">
+      `no_new_version` (ya está en la última), `detached` (salió de la plantilla), `template_removed` (el autor la eliminó o está obsoleta), `link_revoked` (el enlace para compartir del que vino fue revocado), `app_building`, `deploy_in_progress` (otro deploy o una actualización del mismo destino está en curso), `plan`, `ram` o `image_slots`.
+    </ResponseField>
+
+    <ResponseField name="details" type="object">
+      Los números detrás del motivo. Para `plan`, `details.reason` es uno de `no_plan`, `min_plan`, `web_publish`, `image_plan`, `blob_plan`, `max_apps` o `max_databases`; para `ram` trae la memoria necesaria y la libre; para `template_removed`, `details.deprecated` distingue una plantilla obsoleta de una eliminada.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/apps/9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26/template/update \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "update_available": true,
+    "current_version": "1.0.0",
+    "latest_version": "1.1.0",
+    "security": true,
+    "changelog": { "en": "Updated discord.js to a release with a security fix." },
+    "new_inputs": [],
+    "added_services": [],
+    "removed_services": [],
+    "ram_changes": [{ "service_id": "app", "current": 256, "required_min": 384 }],
+    "free_ram": 1024,
+    "opens_permissions": false,
+    "rollback_with_data": false,
+    "blocked": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: El ID no es válido (`400`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `templates:read` (`403`).
+  - `APP_NOT_FOUND`: La aplicación no existe o no es tuya (`404`).
+  - `STACK_NOT_FOUND`: El stack no existe o no es tuyo (`404`).
+  - `TEMPLATE_NOT_FOUND`: La aplicación o el stack no vino de una plantilla (`404`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>

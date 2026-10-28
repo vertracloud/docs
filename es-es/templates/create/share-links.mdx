@@ -1,0 +1,71 @@
+---
+title: 'Compartir una plantilla privada por enlace: enlace de uso, copia completa y revocación'
+sidebarTitle: 'Compartir por enlace'
+description: 'Crea un enlace para compartir una plantilla privada, elige entre enlace de uso y de copia completa, define límites, revócalo y sabe qué ve quien lo recibe.'
+icon: 'link'
+---
+
+Un enlace para compartir permite que otra cuenta use tu plantilla privada sin que tengas que añadirla a ningún sitio. El enlace no figura en listados: quien tenga el token puede abrir la vista previa y usar la plantilla. Lo creas desde la página de la plantilla o con la CLI, y puedes revocarlo en cualquier momento.
+
+```bash
+vertra template share my-template --mode use --max-uses 20 --expires-days 30
+vertra template share list my-template
+vertra template share revoke my-template <link-id>
+```
+
+El token empieza por `vtpl_` y se muestra **una sola vez**, cuando se crea el enlace. Solo se guarda un hash, así que no se puede volver a leer; si lo pierdes, revoca el enlace y crea otro. Mantenlo fuera de los logs y de las publicaciones públicas.
+
+## Enlace de uso o copia completa
+
+Eliges el modo cuando creas el enlace.
+
+| | **Enlace de uso** (por defecto) | **Enlace de copia completa** |
+|---|---|---|
+| Qué recibe quien lo usa | Apps o un stack creados a partir de tu plantilla, ejecutándose desde **su propia copia** de la imagen | Una plantilla privada propia: manifiesto, código, Dockerfile e imagen |
+| Código | Abierto o cerrado, según lo definas | Siempre abierto |
+| Tus actualizaciones | Sí: pulsan **Actualizar** y se les copia la nueva versión | No: la copia es independiente |
+| Cupo de imagen de quien lo recibe | 1 | 1 |
+| Qué necesita tu manifiesto | Nada | `permissions.share.full_copy: true` |
+| Qué cuenta para quien lo recibe | Los límites habituales del plan | Su límite de 5 plantillas privadas |
+
+Un enlace de copia completa se rechaza para una plantilla cerrada y para una plantilla cuya versión usa `env_hidden`: tus valores ocultos nunca llegan a una copia, y una copia siempre los elimina. El permiso se comprueba cuando quien lo recibe hace la copia, así que desactivar `full_copy` más adelante detiene los enlaces que ya se habían creado.
+
+### Qué pasa con la imagen
+
+Cuando quien lo recibe usa tu plantilla, la plataforma crea una imagen **en su cuenta**, marcada como copia de la tuya, de modo que para esa persona es una imagen propia: sin rebuild y sin Dockerfile. Si eliminas la imagen, la plantilla o tu cuenta, nada cambia para ella. El enlace deja de funcionar, pero sus apps siguen en ejecución.
+
+## Límites y caducidad
+
+| Opción | Efecto |
+|---|---|
+| `max_uses` | El enlace se detiene tras ese número de usos. Un uso que falla devuelve el uso. |
+| `expires_in_days` | El enlace caduca tras ese número de días. |
+
+Sin ellas, el enlace no tiene límite y no caduca. Una petición sobre un enlace responde `SHARE_LINK_NOT_FOUND` cuando el token es desconocido y luego `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED` o `SHARE_LINK_EXHAUSTED`.
+
+## Qué ve quien lo recibe
+
+Antes de crear nada, quien lo recibe ve una vista previa: el nombre y la descripción, el nombre público del autor, lo que se creará (servicios y memoria total), el plan que necesita, los cupos de imagen que ocupa y la etiqueta **No verificado por Vertra**. Si la plantilla es cerrada, la vista previa también avisa de que los valores que rellene van a código que no puede leer y de que confía en ti.
+
+La vista previa nunca muestra el manifiesto, la fuente, el id de tu cuenta ni tu correo electrónico.
+
+## Revocar
+
+Revocar un enlace bloquea nuevos usos y deja de ofrecer actualizaciones a través de él. Lo que ya se creó pertenece a quien lo recibió y sigue en ejecución. Revocar es idempotente. Eliminar la plantilla revoca todos sus enlaces.
+
+Nunca puedes detener, eliminar ni leer nada de otra cuenta mediante un enlace.
+
+## Abuso
+
+Un enlace distribuye código que nadie en Vertra Cloud ha revisado, así que quien lo recibe ve un botón **Denunciar** en la vista previa y en la app creada. Las denuncias llegan a la plataforma. En casos graves como el malware, el personal de la plataforma puede revocar un enlace o una plantilla y detener todas las copias, como aplicación de los términos de servicio y no como una acción del autor. No uses un enlace para distribuir código que no tienes derecho a compartir.
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Recibir un enlace" icon="link" href="/es-es/templates/use/receive-a-link">
+    Qué hace la persona del otro lado.
+  </Card>
+  <Card title="Permisos" icon="user-lock" href="/es-es/templates/create/permissions">
+    `share.full_copy` y las plantillas cerradas.
+  </Card>
+</CardGroup>

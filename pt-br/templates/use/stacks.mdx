@@ -1,0 +1,101 @@
+---
+title: 'O que é uma stack na Vertra Cloud: apps, bancos de dados e Blob juntos'
+sidebarTitle: 'Stacks'
+description: 'Uma stack agrupa apps, bancos de dados e uma pasta do Blob que trabalham juntos. Como criar, adicionar um banco de dados e excluir.'
+icon: 'layer-group'
+---
+
+Uma stack é um recurso da sua conta (ou workspace) que agrupa apps, bancos de dados gerenciados e, opcionalmente, uma pasta do Blob que trabalham juntos, com as conexões entre eles já configuradas. Ela aparece como um card próprio na sua lista de apps e como uma caixa própria no Flow, com as linhas das conexões desenhadas entre os membros.
+
+Uma stack não depende de um template. Um template com dois ou mais serviços cria uma para você, mas você também pode montar uma manualmente.
+
+## Pasta ou stack
+
+Pastas organizam e stacks conectam.
+
+| | Pasta | Stack |
+|---|---|---|
+| Finalidade | Arrumar a sua lista. | Conectar recursos que trabalham juntos. |
+| Na lista | Uma linha que abre e fecha. | Um card com o status somado ("2 de 3 online"), a memória total, o modo de rede e o template de origem. |
+| No Flow | Uma caixa simples com nome e cor. | Uma caixa com cabeçalho próprio e as linhas das conexões. |
+| Ações | Renomear, colorir, mover itens. | Adicionar um banco de dados, atualizar a versão do template, snapshot de tudo, modo de rede. |
+| Exclusão | Só a pasta; os recursos permanecem. | Pergunta o que fazer com os membros (abaixo). |
+| Pertence a | Cada pessoa, mesmo em um workspace. | A conta ou o workspace, igual para todos. |
+
+Uma pasta pode conter uma stack, por exemplo uma pasta por cliente com uma stack cada.
+
+## Como a stack conecta
+
+Os apps alcançam cada banco pelo endereço público dele. A plataforma cria os certificados de cliente e as variáveis de conexão. Veja [Conectar apps a bancos de dados em uma stack](/pt-br/templates/use/connect-databases).
+
+De um app para outro, a conexão é HTTP, pelo endereço público. A plataforma não protege esse endereço: para aceitar só o outro app, confira um segredo compartilhado nos dois.
+
+## Quatro formas de obter uma stack
+
+<Steps>
+  <Step title="A partir de um template">
+    Um template com dois ou mais serviços cria a stack com seus membros. Veja [Usar um template](/pt-br/templates/use/using-a-template).
+  </Step>
+  <Step title="Adicionar um banco de dados a um app">
+    Na página de um app, **Add database** cria um banco de dados e o conecta ao app. Se o app ainda não está em uma stack, a stack é criada ali mesmo (ela recebe o nome que você der).
+  </Step>
+  <Step title="Transformar uma pasta em uma stack">
+    Em uma pasta com um app e um banco de dados que já existem, **Turn into a stack** cria a stack com esses membros. A pasta permanece. Uma pasta sem pelo menos um app e um banco de dados não pode ser transformada (`STACK_TRANSFORM_EMPTY`).
+  </Step>
+  <Step title="A partir de recursos que você já tem">
+    Crie uma stack a partir de apps e bancos de dados da mesma conta ou workspace que não estejam em outra stack.
+  </Step>
+</Steps>
+
+Qualquer coisa em uma stack montada manualmente pode ser salva depois como template. Veja [Criar templates](/pt-br/templates/create/overview).
+
+## Adicionar e remover membros
+
+Na página de uma stack, **Add database** cria um novo banco de dados já dentro da stack (engine, versão, memória, quais apps conectar e os nomes das variáveis). Você também pode mover para a stack um banco de dados ou app avulso que você já tenha:
+
+- Ele precisa pertencer ao mesmo dono e escopo (ambos pessoais, ou ambos no mesmo workspace) e não estar em outra stack; caso contrário, a chamada retorna `STACK_MEMBER_CONFLICT`.
+- Você escolhe a quais apps conectá-lo e com quais nomes de variáveis. Você pode não conectar nenhum.
+- A partir daí, ele faz parte do snapshot e da restauração da stack.
+
+Quando você tira um membro da stack, se houver apps que o usam por uma conexão, você escolhe:
+
+| Opção | O que acontece |
+|---|---|
+| **Keep the connection** (padrão) | As variáveis viram variáveis comuns e continuam funcionando, e os certificados permanecem. Elas deixam de se atualizar sozinhas, então uma redefinição posterior de senha ou certificado exige atualização manual. |
+| **Remove the variables** | As variáveis e os certificados copiados são excluídos. |
+
+Uma stack que veio de um template pode receber recursos extras, que as atualizações do template ignoram. Tirar um recurso que o template criou é permitido, com um aviso: a stack é **desvinculada do template** e deixa de receber novas versões. O app de um [template fechado](/pt-br/templates/use/closed-templates) não pode sair da stack (`STACK_SERVICE_LOCKED`); os bancos de dados dele podem.
+
+## Blob em uma stack
+
+Uma stack pode incluir uma pasta do seu [Blob Storage](/pt-br/blob/folder-rules). A plataforma cria uma chave de API restrita a essa pasta, a guarda na stack e injeta as variáveis de conexão S3 nos apps que você escolher. A pasta é `stacks/<stack-slug>/`, fixada quando a stack é criada. O plano precisa incluir Blob Storage.
+
+Desfazer a stack revoga essa chave e **mantém os arquivos**. Quando você exclui tudo, escolhe se mantém ou exclui os arquivos, e o padrão é mantê-los. Veja [Autenticação do Blob](/pt-br/blob/authentication) para chaves restritas.
+
+## Excluir uma stack
+
+Excluir uma stack pede que você digite o nome dela e oferece duas opções:
+
+| Opção | Resultado |
+|---|---|
+| **Undo the stack** | Só a stack some. Apps e bancos de dados permanecem como recursos avulsos, sem rede e sem atualizações do template; as variáveis gerenciadas deles viram variáveis comuns. |
+| **Delete everything** | Também exclui cada membro, cada um pela regra de exclusão que já tinha, incluindo o snapshot de segurança onde houver. |
+
+Um nome errado retorna `STACK_NAME_MISMATCH`. As chaves de API usadas em **Delete everything** precisam de permissão para excluir apps e bancos de dados (e de acesso de escrita ao Blob para excluir arquivos).
+
+## Snapshots
+
+Um snapshot de stack tira um snapshot de cada membro que tem dados, em conjunto, e uma restauração os traz de volta juntos. Veja [Backups e snapshots](/pt-br/guides/backups-snapshots).
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Conectar bancos de dados" icon="database" href="/pt-br/templates/use/connect-databases">
+    Variáveis injetadas, certificados e código por linguagem.
+  </Card>
+  <Card title="Atualizar e fazer rollback" icon="rotate-left" href="/pt-br/templates/use/updates-and-rollback">
+    Atualize todos os serviços da stack juntos.
+  </Card>
+</CardGroup>
+
+Para a API, veja [List stacks](/pt-br/api-reference/endpoint/stacks/list), [Create stack](/pt-br/api-reference/endpoint/stacks/create), [Delete stack](/pt-br/api-reference/endpoint/stacks/delete) e [Add database](/pt-br/api-reference/endpoint/stacks/databases/create).

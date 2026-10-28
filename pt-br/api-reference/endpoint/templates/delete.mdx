@@ -1,0 +1,64 @@
+---
+title: Excluir um template privado
+sidebarTitle: Excluir template
+api: DELETE https://api.vertracloud.app/v1/templates/{template_id}
+authMethod: bearer
+description: Exclui um template privado e revoga todos os seus links de compartilhamento. O que já foi criado a partir dele continua em execução.
+---
+
+{/* @see RESTDeleteAPITemplateResponse — @vertracloud/api-types */}
+Esta chamada exclui um template privado. Os links de compartilhamento dele deixam de funcionar imediatamente, o slug fica livre e ele deixa de contar no seu limite de 5 templates privados. Aplicações e stacks já criados a partir dele continuam em execução e são informados de que o template foi removido; eles não recebem mais atualizações. As cópias que outras pessoas fizeram por um link de cópia completa são independentes e não são afetadas.
+
+Precisa do escopo `templates:write` quando chamada com uma chave de API. Só o dono do template pode excluí-lo; se ele estiver em um workspace, quem pode excluir é o dono do workspace. Um template do catálogo ou de outra conta responde `404`, como se não existisse. Uma imagem que é a origem da versão atual de um template privado não pode ser excluída antes do template (`IMAGE_IN_USE`).
+
+<ParamField path="template_id" type="string" required>
+  O ID do template.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o template pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.vertracloud.app/v1/templates/tpl-abc123def456 \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Resposta
+
+<ResponseField name="response" type="null">
+  Sempre `null`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: O template não existe, já foi excluído ou não é seu (`404`).
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace exclui os templates do workspace.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

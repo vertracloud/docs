@@ -1,0 +1,72 @@
+---
+title: Crear conexión del stack
+sidebarTitle: Crear conexión
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/bindings
+authMethod: bearer
+description: Conecta una aplicación de un stack a una base de datos, una carpeta de Blob o otra aplicación, inyectando variables gestionadas.
+---
+
+{/* @see RESTPostAPIStackBindingBody, RESTPostAPIStackBindingResponse, APIStackBindingChange, StackBindingValue — @vertracloud/api-types */}
+Conecta una aplicación del stack a una base de datos, a una carpeta de Blob o a otra aplicación del stack. La plataforma escribe las variables en la aplicación y, en el caso de una base de datos, los certificados de cliente en `/app/.vertra/certs/<database_id>/`. El modo de red es `public`: la aplicación llega a la dirección pública de la base de datos con un certificado de cliente. Requiere el scope `stacks:write` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack, cuando actúas sobre él como propietario del workspace.
+</ParamField>
+
+<ParamField body="app_id" type="string" required>
+  La aplicación del stack que recibe las variables.
+</ParamField>
+
+<ParamField body="database_id" type="string">
+  La base de datos a la que conectarse. Envía exactamente uno de `database_id`, `blob_id` y `target_app_id`.
+</ParamField>
+
+<ParamField body="blob_id" type="string">
+  El ID del miembro Blob al que conectarse.
+</ParamField>
+
+<ParamField body="target_app_id" type="string">
+  Otra aplicación del stack a la que conectarse.
+</ParamField>
+
+<ParamField body="env_map" type="object">
+  Nombres de variables y lo que recibe cada una. Sin este campo, la plataforma usa los nombres estándar del motor (`DATABASE_URL`, `MONGODB_URI`, `REDIS_URL`, `MYSQL_URL`), con el nombre del servicio como prefijo en la segunda conexión de un mismo motor. Valores permitidos:
+
+  - Base de datos: `url`, `host`, `port`, `user`, `password`, `database`, `ssl.ca_path`, `ssl.cert_path`, `ssl.key_path`, `ssl.pem_path` (clave, certificado y CA en un solo archivo, el formato que lee MongoDB), `ssl.p12_path` (PKCS#12 con contraseña vacía, el formato que leen Prisma 6 y versiones anteriores) y `prisma_url` (una URL de PostgreSQL para Prisma 6 y versiones anteriores; nunca se añade por defecto).
+  - Otra aplicación: `url`.
+  - Carpeta de Blob: `endpoint`, `bucket`, `region`, `prefix`, `access_key_id`, `secret_access_key` y `public_base_url` (vacío cuando la carpeta es privada).
+</ParamField>
+
+### Response
+
+`201` con la conexión (los mismos campos que [Listar conexiones del stack](/es-es/api-reference/endpoint/stacks/bindings/list)) más `restart_required` y `apps_to_restart`. Una aplicación lee las variables y los certificados solo al arrancar, así que reinicia las aplicaciones listadas en `apps_to_restart`.
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/stacks/stk-abc123def456/bindings \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "app-abc123def456",
+    "database_id": "db-abc123def456",
+    "env_map": { "DATABASE_URL": "url" }
+  }'
+```
+
+</RequestExample>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | No hay exactamente un destino, o un valor de `env_map` no es válido para el destino. |
+| 400 | `FORBIDDEN_KEY` | Un nombre de variable está reservado por la plataforma. |
+| 409 | `ENV_DUPLICATE_KEY` | Un nombre de variable ya lo gestiona otra conexión. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | La aplicación o el destino no es miembro del stack. |

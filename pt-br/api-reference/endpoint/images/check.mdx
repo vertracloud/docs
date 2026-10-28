@@ -1,0 +1,88 @@
+---
+title: Verificar Dockerfile
+sidebarTitle: Verificar Dockerfile
+api: POST https://api.vertracloud.app/v1/images/check
+authMethod: bearer
+description: Verifica um Dockerfile e a lista de arquivos de um contexto de build antes do build. Não cria nada.
+---
+
+{/* @see APIDockerfileCheck, DockerfileIssueCode, RESTPostAPICustomImageCheckBody, RESTPostAPICustomImageCheckResult — @vertracloud/api-types */}
+A mesma verificação roda de novo quando você cria ou refaz o build de uma imagem, então um resultado limpo aqui não a substitui. Uma verificação não conta para nenhum limite. Exige o escopo `images:read` quando chamada com uma chave de API.
+
+<ParamField body="dockerfile" type="string" required>
+  O conteúdo do `Dockerfile`.
+</ParamField>
+
+<ParamField body="files" type="string[]" required>
+  Os caminhos dos arquivos do contexto de build, relativos à raiz dele.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="refusals" type="object[]">
+    Achados que bloqueiam o build. Cada um tem um `code` e uma `line` (começando em 1, ou `null` quando não está ligado a uma linha).
+  </ResponseField>
+
+  <ResponseField name="warnings" type="object[]">
+    Achados que não bloqueiam o build, no mesmo formato.
+  </ResponseField>
+
+  <ResponseField name="suggested_port" type="integer">
+    O primeiro `EXPOSE` do `Dockerfile`, ou `80` quando não há nenhum.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+#### Códigos dos achados
+
+| Código | Tipo | Significado |
+|---|---|---|
+| `missing_dockerfile` | Recusa | Não existe um arquivo chamado exatamente `Dockerfile` na raiz do contexto. |
+| `syntax_frontend` | Recusa | Uma diretiva `# syntax=` aponta para algo diferente do frontend oficial do Dockerfile. |
+| `run_security_insecure` | Recusa | `RUN --security=insecure`. |
+| `run_network_host` | Recusa | `RUN --network=host`. |
+| `mount_ssh` | Recusa | `--mount=type=ssh`. |
+| `mount_secret` | Recusa | `--mount=type=secret`. |
+| `workdir_app` | Aviso | `WORKDIR` em `/app` ou abaixo. `/app` é o disco persistente da aplicação, então o que a imagem coloca ali fica oculto pelo mount. |
+| `env_file_in_context` | Aviso | Arquivos `.env*` no contexto. Eles são removidos antes do build; as chaves deles viram variáveis da aplicação. |
+| `copy_env_file` | Aviso | `COPY` ou `ADD` de um arquivo `.env`. O arquivo não está no contexto de build, então o build falha nessa linha. |
+| `volume_outside_app` | Aviso | `VOLUME` fora de `/app`. Em tempo de execução, esse caminho é uma pasta temporária de 64 MB, apagada a cada restart; só `/app` mantém dados. |
+| `volume_refused` | Recusa | `VOLUME` em `/app` ou abaixo, ou com caminho relativo. `/app` já é o disco persistente da aplicação. |
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "refusals": [{ "code": "run_network_host", "line": 7 }],
+    "warnings": [{ "code": "workdir_app", "line": 3 }],
+    "suggested_port": 3000
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo exigido (`403`).
+  - `VALIDATION_ERROR`: O body falhou na validação (`400`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR",
+  "path": "dockerfile"
+}
+```
+
+</ResponseExample>

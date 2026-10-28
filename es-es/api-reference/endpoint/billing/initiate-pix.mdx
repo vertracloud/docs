@@ -1,0 +1,91 @@
+---
+title: Iniciar el pago por PIX
+sidebarTitle: Iniciar PIX
+api: POST https://api.vertracloud.app/v1/orders/{orderId}/initiate/pix
+authMethod: bearer
+description: Genera el cargo PIX (código QR) de un pedido pendiente de pago.
+---
+<ParamField path="orderId" type="string" required>
+  El ID del pedido.
+</ParamField>
+
+Cada código QR es válido durante hasta 30 minutos (`expires_at`), y nunca más allá del vencimiento del propio pedido.
+Si vuelves a llamar mientras el código QR sigue siendo válido, se devuelve el mismo. Cuando caduca,
+si vuelves a llamar mientras el pedido sigue abierto, se devuelve un código QR nuevo para el mismo pedido.
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="transaction_amount" type="number">
+    El importe del cargo, en BRL.
+  </ResponseField>
+
+  <ResponseField name="external_reference" type="string | null">
+    El ID del pedido, devuelto como referencia externa del pago.
+  </ResponseField>
+
+  <ResponseField name="txid" type="string">
+    El ID de la transacción PIX.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null">
+    Cuándo deja de poder pagarse este código QR, en ISO 8601 (hasta 30 minutos después de generarse, nunca después de que caduque el pedido).
+  </ResponseField>
+
+  <ResponseField name="qrcode" type="object">
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="copy" type="string | null">El código PIX de copiar y pegar.</ResponseField>
+    <ResponseField name="base64" type="string | null">La imagen del código QR, codificada en base64.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "transaction_amount": 24.9,
+    "external_reference": "order-abc123",
+    "txid": "9c2b1e3a-...-000",
+    "expires_at": "2026-10-13T15:30:00.000Z",
+    "qrcode": {
+      "copy": "00020126...6304ABCD",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAA..."
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
+  - `ORDER_NOT_FOUND`: El pedido indicado no existe.
+  - `FORBIDDEN`: El pedido no pertenece al usuario autenticado.
+  - `ORDER_NOT_PAYABLE`: El pedido ya está pagado, cancelado o caducado (400), o todavía se está confirmando un pago con tarjeta del pedido (409).
+  - `COUPON_PAYMENT_METHOD`: El cupón del pedido no permite PIX.
+  - `PAYMENT_METHOD_UNAVAILABLE`: El pago en línea no está disponible temporalmente.
+  - `INVALID_PARAMS`: El `orderId` tiene un formato incorrecto.
+  - `RATE_LIMIT_EXCEEDED`: Se está iniciando otro pago de la cuenta. Vuelve a intentarlo en breve.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "ORDER_NOT_PAYABLE"
+}
+```
+
+</ResponseExample>

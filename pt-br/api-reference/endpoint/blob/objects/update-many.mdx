@@ -1,0 +1,124 @@
+---
+title: "Atualizar vários objetos de blob de uma vez"
+sidebarTitle: "Atualizar vários objetos"
+api: "PATCH https://blob.vertracloud.app/v1/objects"
+authMethod: bearer
+description: "Aplica a mesma alteração a até 100 objetos de blob em uma chamada e retorna o resultado de cada um."
+---
+
+{/* @see RESTPatchAPIBlobObjectsBody, RESTPatchAPIBlobObjectsResponse, APIBlobBatchResult — @vertracloud/api-types */}
+
+Aplica as mesmas `changes` a até 100 objetos em uma chamada. A resposta tem um resultado por ID: `ok: true` com o objeto atualizado, ou `ok: false` com o `code` de erro daquele objeto. Uma falha em um objeto não interrompe os outros.
+
+**Escopo:** `blob:write`.
+
+<ParamField body="ids" type="string[]" required>
+  IDs de objetos, de 1 a 100.
+</ParamField>
+
+<ParamField body="changes" type="object" required>
+  Os campos a alterar, com o mesmo significado de [Atualizar um objeto de blob](/pt-br/api-reference/endpoint/blob/objects/update): `visibility`, `cache_control`, `content_disposition`, `filename`, `expires_at`, `metadata`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X PATCH "https://blob.vertracloud.app/v1/objects" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ids":["0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c","7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f"],"changes":{"visibility":"private"}}'
+```
+
+### Resposta
+
+<ResponseField name="response" type="object[]">
+  Um resultado por ID pedido, na mesma ordem.
+  <Expandable title="propriedades">
+  <ResponseField name="id" type="string">O ID do objeto deste resultado.</ResponseField>
+  <ResponseField name="ok" type="boolean">`true` quando a alteração foi aplicada.</ResponseField>
+  <ResponseField name="code" type="string">Somente quando `ok` é `false`: o código de erro deste objeto, como `BLOB_OBJECT_NOT_FOUND`.</ResponseField>
+  <ResponseField name="object" type="object">Somente quando `ok` é `true`: o objeto de blob atualizado, com os campos de [Obter um objeto de blob](/pt-br/api-reference/endpoint/blob/objects/get).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+      "ok": true,
+      "object": {
+        "id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+        "path": "images/logo.png",
+        "size": 48213,
+        "content_type": "image/png",
+        "etag": "9b2cf535f27731c974343645a3085d39",
+        "sha256": null,
+        "visibility": "public",
+        "url": "https://blob.vertracloud.dev/k7p2m9x4qa/images/logo.png",
+        "cache_control": null,
+        "content_disposition": "inline",
+        "filename": null,
+        "metadata": {},
+        "expires_at": null,
+        "created_at": "2026-10-14T12:00:00.000Z",
+        "updated_at": "2026-10-14T12:00:00.000Z"
+      }
+    },
+    {
+      "id": "7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f",
+      "ok": false,
+      "code": "BLOB_OBJECT_NOT_FOUND"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): o armazenamento de blob da conta está suspenso, ou o plano expirou. Uploads e outras gravações são recusados desde o início do período de carência de 72 horas.
+  - `VALIDATION_ERROR` (`400`): um parâmetro ou campo do corpo falhou na validação. `details.path` informa o campo.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

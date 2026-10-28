@@ -1,0 +1,78 @@
+---
+title: "Cancelar una subida directa de Blob"
+sidebarTitle: "Cancelar subida"
+api: "DELETE https://blob.vertracloud.app/v1/uploads/{upload_id}"
+authMethod: bearer
+description: "Cancela una subida en curso y libera el almacenamiento reservado. Volver a llamarla no es un error. Acepta un token de subida."
+---
+
+{/* @see RESTDeleteAPIBlobUploadResponse — @vertracloud/api-types */}
+
+Cancela una subida directa que no se ha completado y libera el almacenamiento que reservó, de modo que la cuota vuelve a estar disponible. Volver a llamarla sobre la misma subida no es un error, como tampoco lo es un ID que no existe ni una subida que ya se completó: la respuesta es la misma. La respuesta es `null` en el campo `response`.
+
+**Ámbito:** `blob:write`. Acepta un token de subida.
+
+**Token de subida:** esta ruta también acepta un token de subida (`Authorization: Bearer vcup_...`) en lugar de una clave de API.
+
+<ParamField path="upload_id" type="string" required>
+  El ID de la subida.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La llamada actúa sobre el blob del propietario del workspace y necesita el permiso de workspace `blob:read` (`blob:manage` en las rutas que modifican datos). Omítelo para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X DELETE "https://blob.vertracloud.app/v1/uploads/7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Respuesta
+
+Vacía si todo sale bien.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe ningún workspace con ese ID o no eres miembro.
+  - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): El token de subida no existe, ha caducado o fue revocado (solo con un token de subida).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,172 @@
+---
+title: 'How to Run Hermes Agent on Vertra Cloud: Model, Channels and Panel'
+sidebarTitle: 'Hermes Agent'
+description: 'Step-by-step guide to Hermes Agent on Vertra Cloud: provider key, Telegram, Discord, Slack and WhatsApp, panel login, browser chat, models and cost.'
+icon: 'brain'
+---
+
+Hermes Agent is an AI agent that learns from use: it keeps memories, sessions and skills, runs scheduled tasks and answers you in a chat or in the messaging apps you connect. This guide takes you from the provider key to talking with your agent. The [Hermes Agent template](/templates/catalog/hermes-agent) packages Hermes Agent v0.22.5 with a web panel, an optional browser chat and channels, behind a single login.
+
+<Note>
+  Vertra Cloud does not host a model. You bring the key of a provider, and the model usage is billed to you by that provider. This template is a Vertra Cloud packaging and is not affiliated with the Hermes Agent project (MIT license).
+</Note>
+
+## Requirements and plan
+
+| | |
+|---|---|
+| Source | Docker image (uses one [image slot](/templates/overview#image-slots)). The image is large, so the first deploy takes longer. |
+| Memory | **1.5 GB minimum**, 2 GB recommended. With 1 GB the app was killed for lack of memory when several agents worked at once. |
+| Plan | A plan that includes Docker images. The gallery card shows whether the template fits your account. See [Plans and limits](/plans-and-limits) and [Custom Docker images](/guides/custom-docker-images). |
+| Outbound access | To your provider and the channel APIs; WhatsApp also downloads its bridge from npm the first time. |
+
+## 1. Get the provider key
+
+Hermes works with OpenRouter (default), Anthropic, OpenAI, Google Gemini or any OpenAI-compatible endpoint.
+
+| Provider | Where to create the key |
+|---|---|
+| OpenRouter | The **Keys** page of your OpenRouter account. One key reaches many models. |
+| Anthropic | The API keys page of the Anthropic Console. |
+| OpenAI | The API keys page of the OpenAI platform. |
+| Google Gemini | Google AI Studio, **Get API key**. |
+| Compatible endpoint | The key and the base URL (ending in `/v1`) of your own server or another provider. |
+
+Copy the key now: most providers show it only once. It is stored only in the app's encrypted variables.
+
+## 2. Create the agent
+
+<Steps>
+  <Step title="Open the template">
+    In the dashboard open **Templates**, pick **Hermes Agent** and click **Use template**.
+  </Step>
+  <Step title="Choose provider and model">
+    Pick the **model provider** and paste the **API key**. With a compatible endpoint, also enter the **base URL** and the **model**, which is required. For the others, leave the model empty to use the provider's default, or type the model you prefer.
+  </Step>
+  <Step title="Browser chat (optional)">
+    Turn on **Browser chat (Hermes WebUI)** if you want a chat page with sessions, files and settings. It costs about 150 MB of memory more. Without it the agent still works in the panel and in your channels.
+  </Step>
+  <Step title="Connect channels (optional)">
+    Each channel asks for credentials and the **list of people allowed to talk to the agent**, which is required. See [step 4](#4-connect-a-channel); you can also do it later in the panel.
+  </Step>
+  <Step title="Create">
+    Name the app and click **Create**. The outputs show the **panel address**, the user `admin` and a generated **password, shown once**. Copy it.
+  </Step>
+</Steps>
+
+## 3. Sign in to the panel and chat
+
+Open `<address>/admin/`. The browser asks for a user and a password: use `admin` and the password from the outputs. This single login protects the panel and the chat.
+
+- **Chat in the panel:** `/admin/chat` is the Hermes terminal chat. Say hello there first to check that the key works.
+- **Chat in the browser:** if you turned it on, it lives at `<address>/` with the same login. Without it, `/` takes you to the panel.
+- **Lost the password?** Change the `HERMES_ADMIN_PASSWORD` variable in the app and restart.
+
+The first boot takes 15 to 30 seconds while Hermes syncs its skills. Later starts take about 15 seconds. Sharing usage metrics with the Hermes project is off by default: the template answers the panel's "Help improve Hermes?" question with "No thanks" at the first start, so the notice does not appear. If you turn it on later in the panel, your choice is kept.
+
+## 4. Connect a channel
+
+Each channel needs two things: the bot credential and **who may talk to the agent**. Hermes ignores everyone who is not on that list, so the agent never answers strangers. You can fill these in the wizard or later in **Channels** (`/admin/channels`).
+
+<Tabs>
+  <Tab title="Telegram">
+    1. In Telegram, talk to **@BotFather**, send `/newbot` and follow the questions. Copy the **bot token**.
+    2. Find your numeric id by talking to **@userinfobot**.
+    3. Enter the token and your id as the allowed user.
+    4. Open a chat with your bot and send a message.
+  </Tab>
+  <Tab title="Discord">
+    1. In the [Developer Portal](https://discord.com/developers/applications) create an application and open **Bot**.
+    2. Click **Reset Token** and copy it.
+    3. Turn on **Message Content Intent** on the same page.
+    4. Invite the bot to your server with **OAuth2 > URL Generator** (scope `bot`).
+    5. Turn on **Developer Mode** in Discord (**Settings > Advanced**), right-click your name and **Copy User ID**. Enter it as the allowed user.
+  </Tab>
+  <Tab title="Slack">
+    1. Create a Slack app and turn on **Socket Mode**.
+    2. Copy the **Bot User OAuth Token** (`xoxb-...`).
+    3. Create an **App-Level Token** (`xapp-...`) with the `connections:write` scope.
+    4. Copy your **member ID** from your Slack profile and enter it as the allowed member.
+  </Tab>
+  <Tab title="WhatsApp">
+    1. Tick the WhatsApp option and enter the allowed numbers: country code and digits only (for example `5511999999999`).
+    2. After the deploy, open **Channels > WhatsApp** in the panel and **scan the QR code** with the phone (**WhatsApp > Linked devices > Link a device**). The QR code expires: scan it as soon as it appears.
+    3. The first time, Hermes downloads the WhatsApp bridge from npm (about 50 MB in `/app`).
+  </Tab>
+  <Tab title="Email">
+    Enter the address, the password (an app password on Gmail), the IMAP and SMTP servers and the list of allowed senders.
+  </Tab>
+</Tabs>
+
+Signal, Matrix, Mattermost and other channels are not in the wizard. Configure them in `/admin/channels` or in the app variables. Signal needs an external `signal-cli` daemon and does not run in this container.
+
+## 5. Change the model later
+
+Provider and model are applied **on every start** from the app variables, so the variables are the source of truth. To change them, edit these variables in the app and restart:
+
+| Variable | Value |
+|---|---|
+| `HERMES_MODEL_PROVIDER` | `openrouter`, `anthropic`, `openai`, `gemini` or `custom`. |
+| `HERMES_MODEL_CUSTOM` | The model you want (it wins over the default of the provider you chose). |
+| The provider's key | `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` or `OPENAI_COMPAT_API_KEY`. |
+
+<Warning>
+  Changing provider or model inside `config.yaml` does not last: the file is overwritten from the variables on the next start. Change the variables.
+</Warning>
+
+## Skills, memory and schedules
+
+- **Skills.** Hermes syncs its skills on the first boot; you manage them in the panel.
+- **Memory.** Memories, sessions, skills and configuration are kept in `/app/.hermes` on the app's disk, so they survive restarts, updates and rollbacks.
+- **Schedules.** In **Cron** you create recurring tasks. The agent runs them and talks to you through the channel you choose.
+
+## The cost of the AI is yours
+
+The platform charges the plan for the memory the app uses. The model calls are billed by your provider, and an agent that runs scheduled tasks or reads long files can use many tokens. Set a spending limit in your provider's account, and watch the usage while you test.
+
+## Update and roll back
+
+New versions arrive as new versions of the template. A snapshot is taken before the update, and a rollback brings the state back (`/app/.hermes`). See [Update and roll back](/templates/use/updates-and-rollback). Zero-downtime deploy is off: a second copy on the same disk exits with an error.
+
+## Limits to know
+
+- Caddy is the only gate, with no attempt limit. The generated password is long; for more protection add a rate-limit rule on your own domain.
+- The generated password and the provider key are in the app's variables: do not share screenshots of them.
+- The email channel and each provider's default models were not exercised with a real account or key, so test them before depending on them.
+
+## Common problems
+
+<AccordionGroup>
+  <Accordion title="401 on everything">
+    That is the login. Use `admin` and the password from the outputs, or change `HERMES_ADMIN_PASSWORD` and restart.
+  </Accordion>
+  <Accordion title="The app dies right after starting">
+    Check the memory (1.5 GB minimum) and the app log. `HERMES_ADMIN_PASSWORD is required` means the password variable is missing.
+  </Accordion>
+  <Accordion title="A channel does not answer">
+    Open the app log. An invalid token appears there ("token ... was rejected") and the app stays up with that channel parked. Do not share this log. Then check that your own id is on the allowed list.
+  </Accordion>
+  <Accordion title="I edited config.yaml and it came back">
+    Provider and model are reapplied from the variables on every start. Change the variables and restart.
+  </Accordion>
+  <Accordion title="The WhatsApp QR code does not appear or expired">
+    Reload **Channels > WhatsApp** and scan right away. The first time takes longer because the bridge is downloaded.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Hermes Agent in the catalog" icon="store" href="/templates/catalog/hermes-agent">
+    What the template creates and its variables.
+  </Card>
+  <Card title="Update and roll back" icon="rotate-left" href="/templates/use/updates-and-rollback">
+    The safety snapshot and rollback.
+  </Card>
+  <Card title="Public page" icon="up-right-from-square" href="https://vertracloud.app/templates/hermes-agent">
+    The template in the public gallery.
+  </Card>
+  <Card title="Use a template" icon="rocket" href="/templates/use/using-a-template">
+    The gallery, the wizard and the outputs.
+  </Card>
+</CardGroup>

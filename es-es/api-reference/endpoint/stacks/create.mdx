@@ -1,0 +1,100 @@
+---
+title: Crear stack
+sidebarTitle: Crear stack
+api: POST https://api.vertracloud.app/v1/stacks
+authMethod: bearer
+description: Crea un stack a partir de aplicaciones y bases de datos que ya tienes, y opcionalmente las conecta entre sí.
+---
+
+{/* @see RESTPostAPIStackBody, RESTPostAPIStackResponse, APIStackChange — @vertracloud/api-types */}
+Agrupa aplicaciones y bases de datos que ya existen en un solo stack. Todos los miembros deben pertenecer a la misma cuenta o al mismo workspace, y ninguno puede estar ya en otro stack. Para crear un stack a partir de una carpeta en un solo paso, consulta [Convertir carpeta en stack](/es-es/api-reference/endpoint/stacks/transform). Requiere el scope `stacks:write` cuando se llama con una clave de API. Solo el propietario de un workspace puede crear stacks en él.
+
+<ParamField body="name" type="string" required>
+  El nombre del stack.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  Descripción opcional.
+</ParamField>
+
+<ParamField body="network_mode" type="string" default="public">
+  Solo se acepta `public`. Cualquier otro valor falla con `STACK_NETWORK_MODE_UNAVAILABLE`.
+</ParamField>
+
+<ParamField body="members" type="object[]">
+  Los recursos que se incluyen en el stack. Cada elemento tiene `resource_type` (`application` o `database`) y `resource_id`. Una carpeta de Blob se añade después con [Añadir carpeta de Blob](/es-es/api-reference/endpoint/stacks/blob/create).
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Conexiones que se crean entre los miembros. Cada elemento tiene `app_id` (la aplicación que recibe las variables), exactamente uno de `database_id` o `target_app_id`, y un `env_map` opcional (nombre de variable y lo que recibe; consulta [Crear conexión](/es-es/api-reference/endpoint/stacks/bindings/create)). Sin `env_map` se usan los nombres estándar del motor.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  El workspace que será propietario del stack.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  El stack creado (`201`), con los mismos campos que [Obtener stack](/es-es/api-reference/endpoint/stacks/get), más:
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="restart_required" type="boolean">
+    `true` cuando al menos una aplicación debe reiniciarse para leer las variables o los certificados que crearon las nuevas conexiones. Una aplicación los lee solo al arrancar, así que la plataforma no la reinicia por ti.
+  </ResponseField>
+
+  <ResponseField name="apps_to_restart" type="string[]">
+    Las aplicaciones que necesitan un reinicio. Vacío cuando `restart_required` es `false`. Reinícialas con [Reiniciar aplicación](/es-es/api-reference/endpoint/apps/restart).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+Esos mismos dos campos vuelven en cada cambio que pueda alterar las variables o los certificados de una aplicación: transformar, añadir o quitar un miembro, crear o cambiar una conexión, añadir una base de datos o una carpeta de Blob.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "stk-abc123def456",
+    "name": "shop",
+    "network_mode": "public",
+    "members": [],
+    "bindings": [],
+    "restart_required": true,
+    "apps_to_restart": ["app-abc123def456"]
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/stacks \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "shop",
+    "members": [
+      { "resource_type": "application", "resource_id": "app-abc123def456" },
+      { "resource_type": "database", "resource_id": "db-abc123def456" }
+    ],
+    "bindings": [{ "app_id": "app-abc123def456", "database_id": "db-abc123def456" }]
+  }'
+```
+
+</RequestExample>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | `network_mode` es `private`. |
+| 409 | `STACK_MEMBER_CONFLICT` | Un recurso ya está en otro stack, o no está en la misma cuenta o workspace que el stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
+| 404 | `APP_NOT_FOUND` | Una aplicación no existe o no es tuya. |
+| 404 | `DATABASE_NOT_FOUND` | Una base de datos no existe o no es tuya. |

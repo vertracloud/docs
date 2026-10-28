@@ -1,0 +1,230 @@
+---
+title: 'Referência do manifesto de template: todos os campos do vertracloud.template.yaml'
+sidebarTitle: 'Referência do manifesto'
+description: 'Todos os campos do vertracloud.template.yaml com regras, limites e exemplo: identidade, serviços de app, banco e Blob, healthcheck, saídas e secrets.'
+icon: 'file-code'
+---
+
+O manifesto é um único arquivo YAML chamado `vertracloud.template.yaml` na raiz do template. Campos desconhecidos são rejeitados, e as mesmas verificações rodam na CLI, no editor e na API. A versão legível por máquina é o [JSON Schema](/pt-br/templates/reference/manifest-schema).
+
+Um manifesto mínimo tem `id`, `version`, `name`, `description`, `category` e `services`:
+
+```yaml
+id: discord-bot-js
+version: 1.0.0
+name: { pt-br: Bot de Discord (JavaScript), en: Discord bot (JavaScript), es: Bot de Discord (JavaScript) }
+description:
+  pt-br: Bot de Discord com discord.js e o comando /ping. Ponto de partida para o seu bot.
+  en: Discord bot with discord.js and a /ping command. A starting point for your bot.
+category: bots
+
+services:
+  app:
+    source: { type: code, path: src }
+    language: javascript
+    start: node index.js
+    ram: { min: 256, recommended: 256 }
+    web: none
+```
+
+## Limites
+
+| O quê | Limite |
+|---|---|
+| Serviços por template | 8, com pelo menos um app |
+| Perguntas (`inputs`) | 40, com até 25 opções cada |
+| Saídas | 16 |
+| Tags | 10 |
+| Secrets declarados (`secrets`) | 16 |
+| Variáveis por app (`env`) | 256, cada valor com até 3.072 caracteres |
+| Tamanho do manifesto enviado à rota de validação | 1 MiB |
+
+Acima de qualquer um desses limites, o validador responde `too_many_services` ou `invalid_type` com o caminho do campo. Todos os códigos estão listados em [Validar e testar](/pt-br/templates/create/validate-and-test#códigos-de-validação).
+
+## Identidade
+
+| Campo | Obrigatório | Regra |
+|---|---|---|
+| `id` | sim | Slug com letras minúsculas, dígitos e hífens, até 64 caracteres, sem começar nem terminar com hífen. Único por dono; no catálogo público, único em todo o catálogo. |
+| `version` | sim | Versão semântica como `1.0.0`. Toda alteração publicada é uma versão nova, e a versão nova precisa ser maior que a atual. |
+| `name` | sim | Texto por idioma, até 50 caracteres. |
+| `description` | sim | Texto por idioma, até 128 caracteres. |
+| `category` | sim | Uma entre `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases`, `other`. |
+| `tags` | não | Até 10 slugs em minúsculas de até 30 caracteres, sem duplicatas. |
+| `icon` | não | Caminho relativo para um arquivo `.svg` ou `.png` dentro do template, sem `..`. |
+| `links` | não | `website`, `docs`, `source` e `license` do software original, cada um uma URL `http(s)`. |
+| `landing` | não | Slug de uma landing page dedicada. Apenas em templates públicos; um template privado que o defina recebe `unknown_field`. |
+| `min_plan` | não | Id do menor plano permitido, como `enterprise-28`. Um slug que não é um plano gera `invalid_plan`. Veja [Requisitos](/pt-br/templates/create/requirements). |
+| `byok` | não | `true` mostra o aviso "traga sua própria chave de modelo de IA" na página do template e no assistente. |
+
+Texto por idioma é um objeto com `pt-br`, `en` e `es`. `pt-br` é obrigatório; os outros dois recorrem a ele.
+
+```yaml
+id: n8n
+version: 1.0.0
+name: { pt-br: n8n, en: n8n, es: n8n }
+description:
+  pt-br: Automação de workflows com editor visual, nó Code em Python e JavaScript, workers e nós da comunidade.
+  en: Visual workflow automation with Python and JavaScript Code nodes, workers and community nodes.
+category: automation
+tags: [automation, workflows, webhooks, python, queue]
+links:
+  website: https://n8n.io
+  docs: https://docs.n8n.io
+  source: https://github.com/n8n-io/n8n
+  license: https://github.com/n8n-io/n8n/blob/master/LICENSE.md
+```
+
+## Serviços
+
+`services` é um mapa de id de serviço para sua definição. O id tem letras minúsculas, dígitos, `_` e `-`, até 40 caracteres, e é o que os placeholders usam (`{{services.db.host}}`). Um serviço é de um entre três tipos, distinguidos pela chave: um **app** tem `source`, um **banco de dados** tem `database` e uma **pasta Blob** tem `blob`.
+
+### Serviço de app
+
+| Campo | Obrigatório | Regra |
+|---|---|---|
+| `source.type` | sim | `code` ou `image`. |
+| `source.path` | code | Pasta com o código, relativa à raiz do template, nunca absoluta e nunca contendo `..`. Obrigatório em templates públicos. |
+| `source.image` | image | Público: origem mais digest, `registry/name@sha256:<64 hex>`; uma tag sem digest é recusada. Privado: o id de uma das suas próprias imagens. |
+| `source.context` | não | Pasta com um `Dockerfile` que builda a imagem, para templates de imagem cuja imagem a Vertra Cloud builda a partir do template. |
+| `language` | code | `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet` ou `elixir`. |
+| `runtime_version` | não | Versão do runtime da linguagem, até 32 caracteres (o bot inicial usa `recommended`). Apenas code. |
+| `main`, `build`, `start` | não | As mesmas chaves do `vertracloud.config`; `main` com até 255 caracteres, `build` e `start` com até 512. Apenas code, e sem placeholders. |
+| `port` | não | Porta em que a imagem escuta, de 1 a 65535. Apenas image. |
+| `ram` | sim | `{ min, recommended, max? }` em MB, cada um de 16 a 262144. `recommended` é no mínimo `min`, e `max` no mínimo `recommended`. |
+| `web` | sim | `required` (a publicação web é obrigatória), `optional` ou `none`. |
+| `env` | não | Mapa de nome de variável para valor, com texto fixo e [placeholders](/pt-br/templates/create/placeholders-and-inputs). |
+| `env_hidden` | não | Nomes de `env` que o usuário nunca vê. Apenas em um template fechado (`code.view: false`); recusado em um template aberto ou público. |
+| `healthcheck` | não | `{ path?, timeout }`: `path` começa com `/`; `timeout` é em segundos, de 1 a 900. |
+| `deploy` | não | Comportamento de blue-green e rollback. Veja [Configurações de deploy](/pt-br/templates/create/deploy-settings). |
+| `connections` | não | `<service>: { private: required }` tira o template da galeria pública. Veja [Stacks](/pt-br/templates/create/stacks#ligações-que-ficam-fora-da-galeria). |
+
+Um serviço code precisa de `language`, e um serviço image não pode definir `language`, `runtime_version`, `main`, `build` nem `start`. Um serviço code não pode definir `port` nem `source.image`. Serviços de app não aceitam `when`: para ligar ou desligar um app por resposta, use `sets.services` em uma [opção de pergunta](/pt-br/templates/create/placeholders-and-inputs#opções-e-sets).
+
+Serviço code, do bot inicial:
+
+```yaml
+services:
+  app:
+    source: { type: code, path: src }
+    language: javascript
+    runtime_version: recommended
+    main: index.js
+    start: node index.js
+    ram: { min: 256, recommended: 256 }
+    web: none                             # apenas conexões de saída
+    env:
+      DISCORD_TOKEN: "{{inputs.discord_token}}"
+    healthcheck: { timeout: 60 }
+```
+
+Serviço image, do n8n:
+
+```yaml
+services:
+  app:
+    source: { type: image, image: "docker.io/n8nio/n8n@sha256:942bc274709f27f99f7c6024a785d8e8f75ac06838cabcba448abb8d9127ec7b", context: . }
+    port: 5678
+    ram: { min: 1024, recommended: 2048 }
+    web: required
+    healthcheck: { path: /healthz/readiness, timeout: 240 }
+```
+
+### Healthcheck
+
+`healthcheck` define quando o serviço conta como pronto no fim do assistente. Com `path`, a plataforma requisita esse caminho até ele responder; sem ele, vale a mesma verificação de prontidão de qualquer app. Use `timeout` para o primeiro boot mais lento realista, incluindo migrações de banco de dados. Um serviço com `web: none` deve omitir `path`.
+
+### Serviço de banco de dados
+
+| Campo | Obrigatório | Regra |
+|---|---|---|
+| `database` | sim | `postgres`, `mysql`, `mongodb` ou `redis`. |
+| `ram` | sim | `{ min, recommended, max? }`, como nos apps. |
+| `version` | não | Uma das versões disponíveis para esse engine, até 16 caracteres. Sem ela, usa-se a versão recomendada. Uma versão indisponível gera `invalid_option`. |
+| `when` | não | `{ input, equals }`: cria o banco de dados só se essa resposta corresponder. |
+
+O banco de dados é criado como um banco de dados gerenciado normal, com memória própria tirada do plano. Ele **nunca é fechado**, nem em um [template fechado](/pt-br/templates/create/permissions#templates-fechados).
+
+```yaml
+  db:
+    database: postgres
+    ram: { min: 1024, recommended: 1024 }
+  queue:
+    database: redis
+    ram: { min: 512, recommended: 512 }
+    when: { input: mode, equals: queue }
+```
+
+### Pasta Blob
+
+| Campo | Obrigatório | Regra |
+|---|---|---|
+| `blob` | sim | `{ visibility? }` com `private` ou `public`. Um `blob: {}` vazio é válido. |
+| `when` | não | Igual ao de um banco de dados. |
+
+Um serviço Blob dá à stack uma pasta própria no Blob Storage e uma chave gerenciada restrita a ela, sem memória própria (`ram_extra` nele é recusado com `invalid_ram`). Os campos ficam disponíveis como [placeholders](/pt-br/templates/create/placeholders-and-inputs#placeholders), e o plano precisa incluir o Blob Storage. Desfazer a stack mantém os arquivos.
+
+```yaml
+services:
+  app:
+    source: { type: code, path: src }
+    language: javascript
+    start: node server.js
+    ram: { min: 256, recommended: 512 }
+    web: required
+    env:
+      S3_ENDPOINT: "{{services.files.endpoint}}"
+      S3_BUCKET: "{{services.files.bucket}}"
+      S3_PREFIX: "{{services.files.prefix}}"
+      S3_ACCESS_KEY_ID: "{{services.files.access_key_id}}"
+      S3_SECRET_ACCESS_KEY: "{{services.files.secret_access_key}}"
+  files:
+    blob: { visibility: private }
+```
+
+## Perguntas, permissões e deploy
+
+`inputs` define as perguntas do assistente e está documentado em [Perguntas e placeholders](/pt-br/templates/create/placeholders-and-inputs). `permissions` define o que o usuário pode alterar depois e está documentado em [Permissões e templates fechados](/pt-br/templates/create/permissions). `deploy` é um bloco por serviço, tratado em [Configurações de deploy](/pt-br/templates/create/deploy-settings).
+
+## Secrets
+
+`secrets` declara até 16 nomes. Cada um é gerado uma vez quando o template é usado (32 caracteres aleatórios) e é o mesmo em todo serviço que o lê com `{{secrets.<name>}}`. Use para uma chave que dois serviços precisam compartilhar, como a chave de criptografia de um editor e seus workers.
+
+```yaml
+secrets: [encryption_key, runners_token]
+```
+
+Para um secret de que só uma variável precisa, `{{secret:<n>}}` em `env` é mais curto. Nunca escreva um secret real como valor literal: veja [Boas práticas](/pt-br/templates/create/best-practices#nunca-coloque-um-segredo-no-template).
+
+## Saídas
+
+`outputs` é a lista que o assistente mostra quando o deploy termina. Cada item tem um `label` e um `value`, ambos por idioma, com `secret` e `once` opcionais.
+
+| Campo | Regra |
+|---|---|
+| `label` | Texto por idioma, até 128 caracteres. |
+| `value` | Uma string, ou texto por idioma, até 512 caracteres. Placeholders funcionam, exceto `{{secret:<n>}}`. |
+| `secret` | `true` marca o valor como sensível: o dashboard o mascara e a CLI o imprime só naquela execução. Um valor construído a partir de um secret, de uma senha de banco de dados, de uma URL de banco de dados ou de uma chave Blob é marcado como secret mesmo que você esqueça. |
+| `once` | `true` mostra o valor apenas uma vez; leituras posteriores não retornam nada. |
+
+`{{app.url}}` em uma saída significa o app principal: o primeiro com `web: required`, depois o primeiro com `web: optional`, depois o primeiro app.
+
+```yaml
+outputs:
+  - { label: { pt-br: Endereço, en: Address, es: Dirección }, value: "{{app.url}}" }
+  - label: { pt-br: Próximo passo, en: Next step, es: Siguiente paso }
+    value:
+      pt-br: "Abra o endereço e crie a conta de owner."
+      en: "Open the address and create the owner account."
+```
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Perguntas e placeholders" icon="sliders" href="/pt-br/templates/create/placeholders-and-inputs">
+    `inputs`, `when`, `sets` e todos os placeholders `{{...}}`.
+  </Card>
+  <Card title="JSON Schema do manifesto" icon="code" href="/pt-br/templates/reference/manifest-schema">
+    Validação e autocompletar no editor.
+  </Card>
+</CardGroup>

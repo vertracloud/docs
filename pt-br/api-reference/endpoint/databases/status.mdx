@@ -1,0 +1,141 @@
+---
+title: Obter status do banco de dados pelo ID
+sidebarTitle: Obter status
+api: GET https://api.vertracloud.app/v1/databases/{id}/status
+authMethod: bearer
+description: Retorna o status atual e o uso de recursos de um banco de dados pelo seu ID.
+---
+
+{/* @see APIDatabaseStatus — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID do banco de dados do qual obter o status. Se o banco de dados pertencer a um workspace, informe o ID dele no parâmetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o banco de dados pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que atuam sobre um banco de dados que não lhes pertence.
+</ParamField>
+
+<Note>
+  **Um banco de dados parado responde `200`, não um erro.** O container de um banco de dados parado não existe — ele é removido ao parar — e isso é um estado normal, não uma falha. A API retorna `200` com `status: "stopped"`, `running: false` e todas as métricas zeradas. Só uma falha real ao ler o status retorna `500`.
+</Note>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  Os detalhes de status e de uso de recursos do banco de dados.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="cpu" type="string">
+    Percentual de uso de CPU, já formatado (por exemplo, `12.30%`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    Uso de RAM, já formatado (por exemplo, `256.00 MB`).
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    Uso de armazenamento, já formatado (por exemplo, `512.00 MB`).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    O status do banco de dados: `running` ou `stopped`.
+  </ResponseField>
+
+  <ResponseField name="running" type="boolean">
+    Indica se o banco de dados está em execução no momento.
+  </ResponseField>
+
+  <ResponseField name="network" type="object">
+    Detalhes de uso de rede.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="total" type="string">
+      Tráfego de rede total desde que o container foi iniciado, de entrada e de saída em uma única string.
+    </ResponseField>
+
+    <ResponseField name="now" type="string">
+      Tráfego de rede atual, de entrada e de saída em uma única string.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="uptime" type="number">
+    O tempo em execução do banco de dados, em segundos.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    A data e hora em que o banco de dados foi criado.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    A data e hora em que o banco de dados foi atualizado pela última vez.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "db-abc123def456",
+    "cpu": "12.30%",
+    "ram": "256.00 MB",
+    "storage": "512.00 MB",
+    "status": "running",
+    "running": true,
+    "network": {
+      "total": "320.15KB ↓ 20.10KB ↑",
+      "now": "5.00KB ↑ 1.00KB ↓"
+    },
+    "uptime": 7200,
+    "created_at": "2026-03-09T15:51:47.234Z",
+    "updated_at": "2026-03-11T15:06:41.449Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `DATABASE_NOT_FOUND`: O banco de dados informado não existe.
+  - `FORBIDDEN`: O usuário não tem permissão para acessar o banco de dados.
+  - `INTERNAL_SERVER_ERROR`: Não foi possível ler o status. Um banco de dados parado **não** é esse caso — veja a nota acima.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

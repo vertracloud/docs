@@ -1,0 +1,50 @@
+---
+title: Listar invitaciones
+sidebarTitle: Listar
+api: GET https://api.vertracloud.app/v1/workspaces/{id}/invites
+authMethod: bearer
+description: Lista las invitaciones pendientes y pasadas. Requiere `members:manage`; una clave de API necesita el scope `workspaces:invites`.
+---
+
+{/* @see APIWorkspaceInvite, RESTGetAPIWorkspaceInvitesResponse — @vertracloud/api-types */}
+<Note>
+  Una clave de API necesita el scope `workspaces:invites` (solo en el preset `full` o en una selección personalizada).
+  Crear invitaciones sigue siendo exclusivo del panel.
+</Note>
+
+Requiere el permiso `members:manage`.
+
+### Ruta
+
+<ParamField path="id" type="string" required>ID del workspace.</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="APIWorkspaceInvite[]">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string" />
+  <ResponseField name="workspace_id" type="string" />
+  <ResponseField name="kind" type="'email' | 'link'" />
+  <ResponseField name="email" type="string | null">Solo se rellena para `kind: \"email\"`.</ResponseField>
+  <ResponseField name="role_id" type="string" />
+  <ResponseField name="role_name" type="string" />
+  <ResponseField name="invited_by" type="object">`{ id, display_name }`.</ResponseField>
+  <ResponseField name="expires_at" type="string" format="date-time">7 días desde la creación para invitaciones por correo, 24 h fijas para invitaciones por enlace.</ResponseField>
+  <ResponseField name="accepted_at" type="string | null" format="date-time" />
+  <ResponseField name="revoked_at" type="string | null" format="date-time" />
+  <ResponseField name="uses" type="number" />
+  <ResponseField name="max_uses" type="number | null">Solo para `kind: \"link\"`; `null` = ilimitado.</ResponseField>
+  <ResponseField name="expires_in_days" type="number | null">Vencimiento del acceso que se aplica al miembro cuando entra por esta invitación. `null` = sin vencimiento.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time" />
+
+  </Expandable>
+</ResponseField>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Se llamó con una clave de API que no tiene el scope `workspaces:invites`. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Quien llama no tiene `members:manage`. |
+| 404 | `WORKSPACE_NOT_FOUND` | El workspace no existe o no eres miembro. |

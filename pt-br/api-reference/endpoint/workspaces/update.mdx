@@ -1,0 +1,39 @@
+---
+title: Atualizar workspace
+sidebarTitle: Atualizar
+api: PUT https://api.vertracloud.app/v1/workspaces/{id}
+authMethod: bearer
+description: Atualiza o nome ou a descrição de um workspace. Somente o dono.
+---
+
+{/* @see RESTPutAPIWorkspaceUpdateBody — @vertracloud/api-types */}
+Somente o **dono** do workspace pode chamar isto — não é uma permissão, o `owner_id` é verificado
+diretamente. Uma chave de API precisa do escopo `workspaces:write`. Recusado enquanto o plano do dono
+estiver congelado (expirado ou rebaixado abaixo de Enterprise).
+
+### Caminho
+
+<ParamField path="id" type="string" required>
+  ID do workspace.
+</ParamField>
+
+### Corpo
+
+Mesmos campos de [Criar workspace](/pt-br/api-reference/endpoint/workspaces/create), todos opcionais — pelo menos um deve estar presente.
+
+<ParamField body="name" type="string">De 1 a 50 caracteres.</ParamField>
+<ParamField body="description" type="string">Até 200 caracteres.</ParamField>
+
+### Resposta
+
+Mesmo formato de [Obter workspace](/pt-br/api-reference/endpoint/workspaces/get).
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Nenhum campo enviado. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Quem chama não é o dono. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | O plano do dono está congelado (expirado ou abaixo de Enterprise). |
+| 404 | `WORKSPACE_NOT_FOUND` | O workspace não existe ou foi apagado de forma lógica. |
+| 409 | `WORKSPACE_NAME_ALREADY_EXISTS` | Outro workspace ativo seu já tem este nome. |

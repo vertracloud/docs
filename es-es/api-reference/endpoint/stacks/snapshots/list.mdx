@@ -1,0 +1,40 @@
+---
+title: Listar snapshots del stack
+sidebarTitle: Listar snapshots
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots
+authMethod: bearer
+description: Lista las snapshots de un stack, de la más reciente a la más antigua. Cada una agrupa las snapshots de todos los miembros que tienen datos.
+---
+
+{/* @see RESTGetAPIStackSnapshotsResponse, APIStackSnapshot — @vertracloud/api-types */}
+Devuelve las snapshots del stack, de la más reciente a la más antigua. Requiere el scope `stacks:read` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack. Es obligatorio para un miembro del workspace que actúe sobre un stack que no le pertenece.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">El ID de la snapshot del stack.</ResponseField>
+  <ResponseField name="stack_id" type="string">El ID del stack.</ResponseField>
+  <ResponseField name="reason" type="string">Por qué se tomó: `manual`, `update` (una snapshot de seguridad antes de actualizar a una versión más nueva de la plantilla) o `delete` (se toma cuando se eliminan el stack y sus miembros).</ResponseField>
+  <ResponseField name="date" type="string" format="date-time">Cuándo se tomó.</ResponseField>
+  <ResponseField name="size" type="string">Tamaño total, legible para humanos.</ResponseField>
+  <ResponseField name="members" type="object[]">La snapshot de cada miembro que tiene datos: `resource_type` (`application` o `database`), `resource_id` y `snapshot_id`.</ResponseField>
+  <ResponseField name="closed" type="boolean">`true` cuando el stack ejecuta una [plantilla cerrada](/es-es/templates/use/closed-templates): la snapshot no se puede descargar, solo restaurar.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |

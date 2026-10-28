@@ -1,0 +1,150 @@
+---
+title: Validar manifesto de template
+sidebarTitle: Validar manifesto
+api: POST https://api.vertracloud.app/v1/templates/validate
+authMethod: bearer
+description: Verifica um manifesto de template com as regras dos templates privados e devolve os problemas, o plano exigido e a memória necessária, sem criar nada.
+---
+
+{/* @see APITemplateValidation, RESTPostAPITemplateValidateBody, RESTPostAPITemplateValidateResponse — @vertracloud/api-types */}
+Verifica um manifesto e informa todos os problemas que encontra, sem criar nada. A chamada **exige autenticação** e, com uma chave de API, o escopo `templates:read`. Ela sempre responde `200`: se o manifesto é válido está no campo `valid`, então um manifesto que nem é um objeto volta como achados, não como requisição malformada. As verificações são as aplicadas a um template privado. Para os campos do manifesto e exemplos, veja a [referência do manifesto](/pt-br/templates/create/manifest-reference) e [Validar e testar um template](/pt-br/templates/create/validate-and-test).
+
+<ParamField body="manifest" type="object | string" required>
+  O manifesto. Envie como objeto JSON, ou como string com o YAML do arquivo `vertracloud.template.yaml`. Uma string que não é YAML válido é reportada como um achado.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O resultado da validação.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="valid" type="boolean">
+    `true` quando o manifesto não tem achados.
+  </ResponseField>
+
+  <ResponseField name="issues" type="object[]">
+    Os achados. Vazio quando `valid` é `true`.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="path" type="string">
+      O caminho do campo no manifesto, como `services.app.ram.min`. Vazio quando o problema é o manifesto como um todo.
+    </ResponseField>
+
+    <ResponseField name="code" type="string">
+      O tipo do achado: `invalid_type`, `required`, `unknown_field`, `invalid_slug`, `invalid_version`, `invalid_category`, `invalid_text`, `invalid_ram`, `invalid_plan`, `unknown_placeholder`, `unknown_service`, `unknown_input`, `invalid_when`, `invalid_option`, `invalid_source`, `invalid_permissions`, `forbidden_env`, `forbidden_in_public`, `secret_in_manifest`, `invalid_deploy`, `invalid_connection`, `duplicate_id` ou `too_many_services`.
+    </ResponseField>
+
+    <ResponseField name="message" type="string">
+      Uma explicação legível, em inglês.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="required_plan" type="string | null">
+    O plano mais baixo que pode usar o template, calculado a partir do manifesto. `null` quando o manifesto não é válido o bastante para calcular.
+  </ResponseField>
+
+  <ResponseField name="ram_min_total" type="integer | null">
+    A soma da memória mínima de cada serviço, em MB, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="services" type="object[]">
+    Os serviços que o manifesto cria, no mesmo formato de [Listar templates](/pt-br/api-reference/endpoint/templates/list). Vazio quando o manifesto não é válido.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/validate \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manifest": {
+      "id": "my-bot",
+      "version": "1.0.0",
+      "name": { "pt-br": "Meu bot" },
+      "description": { "pt-br": "Um bot de exemplo." },
+      "category": "bots",
+      "services": {
+        "app": {
+          "source": { "type": "code", "path": "src" },
+          "language": "javascript",
+          "main": "index.js",
+          "ram": { "min": 128, "recommended": 256 },
+          "web": "none"
+        }
+      }
+    }
+  }'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response (valid)
+{
+  "response": {
+    "valid": true,
+    "issues": [],
+    "required_plan": "economy",
+    "ram_min_total": 128,
+    "services": [
+      {
+        "id": "app",
+        "kind": "app",
+        "source_type": "code",
+        "database": null,
+        "blob_visibility": null,
+        "ram": { "min": 128, "recommended": 256 },
+        "web": "none",
+        "conditional": false
+      }
+    ]
+  }
+}
+```
+
+```json Response (with findings)
+{
+  "response": {
+    "valid": false,
+    "issues": [
+      { "path": "category", "code": "invalid_category", "message": "category must be one of the template categories" },
+      { "path": "services.app.env.LD_PRELOAD", "code": "forbidden_env", "message": "This variable is controlled by the platform" }
+    ],
+    "required_plan": null,
+    "ram_min_total": null,
+    "services": []
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: O corpo não tem o campo `manifest` (`400`).
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:read` (`403`).
+  - `RATE_LIMIT_EXCEEDED`: Requisições demais (`429`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

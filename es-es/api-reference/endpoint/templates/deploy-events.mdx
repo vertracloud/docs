@@ -1,0 +1,106 @@
+---
+title: Transmitir eventos de despliegue de plantilla
+sidebarTitle: Eventos de despliegue
+api: GET https://api.vertracloud.app/v1/template-deploys/{deploy_id}/events
+authMethod: bearer
+description: Transmite el progreso de un trabajo de despliegue o actualización como Server-Sent Events, con un evento por cada cambio de paso, hasta que termina.
+---
+
+{/* @see APITemplateDeployEvent, RESTGetAPITemplateDeployEventsResponse — @vertracloud/api-types */}
+Transmite el progreso de un trabajo de despliegue o de actualización para que no tengas que hacer polling. Con una clave de API, el ámbito es `templates:deploy`. Solo la cuenta que inició el trabajo puede seguirlo; cualquier otro ID de trabajo responde `TEMPLATE_DEPLOY_NOT_FOUND`.
+
+La respuesta es un flujo de **Server-Sent Events** (`text/event-stream`), no JSON. Empieza con el estado actual del trabajo y después envía un evento `progress` cada vez que el trabajo cambia. Llega un evento `heartbeat` cada 15 segundos mientras no hay cambios, para mantener la conexión abierta. Cuando el trabajo llega a `succeeded` o `failed`, un evento `end` cierra el flujo. Como el estado sale de datos almacenados, puedes reconectarte en cualquier momento y obtener de nuevo el estado actual.
+
+<ParamField path="deploy_id" type="string" required>
+  El ID del trabajo.
+</ParamField>
+
+### Eventos
+
+<ResponseField name="progress" type="event">
+  El `data` es un objeto JSON con el estado del trabajo.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="deploy_id" type="string">
+    El ID del trabajo.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `queued`, `running`, `undoing`, `succeeded` o `failed`.
+  </ResponseField>
+
+  <ResponseField name="current_step" type="string | null">
+    El paso que se ejecuta ahora, o `null`.
+  </ResponseField>
+
+  <ResponseField name="steps" type="object[]">
+    Los pasos del trabajo con `step`, `status`, `started_at` y `finished_at`, como en [Obtener trabajo de despliegue](/es-es/api-reference/endpoint/templates/deploy-status).
+  </ResponseField>
+
+  <ResponseField name="error" type="object | null">
+    El error legible (`code`, `message`, `step`) de un trabajo fallido, o `null`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="heartbeat" type="event">
+  Un mensaje de keep-alive. El `data` es un objeto vacío (`{}`).
+</ResponseField>
+
+<ResponseField name="end" type="event">
+  El trabajo terminó y el flujo se cierra. El `data` es `{ "deploy_id": "..." }`.
+</ResponseField>
+
+Los eventos nunca llevan salidas, recursos ni valores de variables. Cuando recibas `end`, lee el trabajo con [Obtener trabajo de despliegue](/es-es/api-reference/endpoint/templates/deploy-status) para obtener las salidas. Una salida secreta marcada como `once` se devuelve en esa primera lectura del trabajo terminado.
+
+<RequestExample>
+
+```bash cURL
+curl -N https://api.vertracloud.app/v1/template-deploys/3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63/events \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Accept: text/event-stream"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```text Response
+event: progress
+data: {"deploy_id":"3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63","status":"running","current_step":"apps","steps":[{"step":"validate","status":"done","started_at":"2026-10-28T14:00:01Z","finished_at":"2026-10-28T14:00:02Z"},{"step":"apps","status":"running","started_at":"2026-10-28T14:00:02Z","finished_at":null},{"step":"start","status":"pending","started_at":null,"finished_at":null}],"error":null}
+
+event: heartbeat
+data: {}
+
+event: progress
+data: {"deploy_id":"3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63","status":"succeeded","current_step":null,"steps":[{"step":"validate","status":"done","started_at":"2026-10-28T14:00:01Z","finished_at":"2026-10-28T14:00:02Z"},{"step":"apps","status":"done","started_at":"2026-10-28T14:00:02Z","finished_at":"2026-10-28T14:00:20Z"},{"step":"start","status":"done","started_at":"2026-10-28T14:00:21Z","finished_at":"2026-10-28T14:00:30Z"}],"error":null}
+
+event: end
+data: {"deploy_id":"3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63"}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+Los errores se devuelven antes de abrir el flujo, como JSON.
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: `deploy_id` no es un ID válido (`400`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:deploy` (`403`).
+  - `TEMPLATE_DEPLOY_NOT_FOUND`: El trabajo no existe o pertenece a otra cuenta (`404`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_DEPLOY_NOT_FOUND"
+}
+```
+
+</ResponseExample>

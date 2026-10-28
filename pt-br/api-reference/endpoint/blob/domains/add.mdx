@@ -1,0 +1,133 @@
+---
+title: "Adicionar um domínio personalizado para o armazenamento de blob"
+sidebarTitle: "Adicionar domínio"
+api: "POST https://blob.vertracloud.app/v1/domains"
+authMethod: bearer
+description: "Adiciona um subdomínio que serve arquivos públicos de blob. Retorna 201; crie os registros CNAME e TXT para ativá-lo."
+---
+
+{/* @see RESTPostAPIBlobDomainBody, RESTPostAPIBlobDomainResponse, APIBlobCustomDomain — @vertracloud/api-types */}
+
+Adiciona um subdomínio, como `cdn.example.com`, que serve os arquivos públicos de blob da conta. Crie um registro CNAME desse hostname apontando para `cname_target` e o registro TXT de `verification`, depois chame [Verificar um domínio personalizado](/pt-br/api-reference/endpoint/blob/domains/verify). A quantidade de domínios depende do plano: 0 abaixo do Enterprise-4, depois 1, 3 e 10. Retorna `201`.
+
+**Escopo:** `blob:write`.
+
+<ParamField body="hostname" type="string" required>
+  Somente o subdomínio, sem esquema nem caminho.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  Servir somente esta pasta no domínio. Omita-o para servir a conta inteira.
+</ParamField>
+
+<ParamField body="web_content" type="boolean">
+  O padrão é `false`. Quando `true`, o domínio serve arquivos `.html`, `.htm`, `.xhtml`, `.svg` e `.xml` no navegador com o tipo real, em sandbox. Veja [Domínios personalizados](/pt-br/blob/custom-domains#servir-páginas-web).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/domains" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"hostname":"cdn.example.com","prefix":"images/","web_content":false}'
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O domínio, ainda como `pending` até que o CNAME seja encontrado e o registro TXT de posse seja verificado. Ele só passa a `active` depois dos dois. Responde com `201`.
+  <Expandable title="propriedades">
+  <ResponseField name="id" type="string">ID do domínio.</ResponseField>
+  <ResponseField name="hostname" type="string">Somente o subdomínio, por exemplo `cdn.example.com`.</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `active`, `failed` ou `suspended`. Somente `active` serve arquivos.</ResponseField>
+  <ResponseField name="ssl_status" type="string">Status do certificado TLS do hostname.</ResponseField>
+  <ResponseField name="cname_target" type="string">Aponte um registro CNAME de `hostname` para este valor.</ResponseField>
+  <ResponseField name="prefix" type="string | null">Quando definido, o domínio serve somente esta pasta.</ResponseField>
+  <ResponseField name="web_content" type="boolean">`true` quando o domínio serve `.html`, `.htm`, `.xhtml`, `.svg` e `.xml` no navegador (em sandbox); `false` quando esses tipos sempre são baixados.</ResponseField>
+  <ResponseField name="verification" type="object | null">
+    O registro TXT que comprova que você é dono do hostname. Presente somente enquanto o domínio não está `active`; ausente ou `null` depois.
+    <Expandable title="propriedades">
+    <ResponseField name="type" type="string">Sempre `txt`.</ResponseField>
+    <ResponseField name="name" type="string">Nome do registro TXT a ser criado.</ResponseField>
+    <ResponseField name="value" type="string">Valor do registro TXT.</ResponseField>
+    </Expandable>
+  </ResponseField>
+  <ResponseField name="created_at" type="string">Data de criação em ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5",
+    "hostname": "cdn.example.com",
+    "status": "pending",
+    "ssl_status": "pending_validation",
+    "cname_target": "cname.vertracloud.dev",
+    "prefix": "images/",
+    "web_content": false,
+    "verification": { "type": "txt", "name": "_vertra-blob.cdn.example.com", "value": "3f9a1c7e2b5d4e8a9c0d6a1b2c3d4e5f" },
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `VALIDATION_ERROR` (`400`): um parâmetro ou campo do corpo falhou na validação. `details.path` informa o campo.
+  - `INVALID_CUSTOM_DOMAIN_FORMAT` (`400`): o hostname não é um subdomínio válido.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): o plano não tem domínios personalizados (abaixo do Enterprise-4).
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): o armazenamento de blob da conta está suspenso, ou o plano expirou.
+  - `BLOB_CUSTOM_DOMAIN_LIMIT` (`409`): o plano inclui domínios personalizados e o limite foi atingido.
+  - `BLOB_CUSTOM_DOMAIN_TAKEN` (`409`): o hostname já está em uso.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_CUSTOM_DOMAIN_LIMIT"
+}
+```
+
+</ResponseExample>

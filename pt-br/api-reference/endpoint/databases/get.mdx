@@ -1,0 +1,160 @@
+---
+title: Obter banco de dados pelo ID
+sidebarTitle: Obter banco de dados
+api: GET https://api.vertracloud.app/v1/databases/{id}
+authMethod: bearer
+description: Retorna os detalhes de um banco de dados específico pelo seu ID.
+---
+
+{/* @see APIDatabase — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID do banco de dados a obter. Se o banco de dados pertencer a um workspace, informe o ID dele no parâmetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o banco de dados pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que atuam sobre um banco de dados que não lhes pertence.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  Os detalhes do banco de dados.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="number">
+    O ID do cluster do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="type" type="number">
+    O tipo do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    O nome do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    A descrição do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    O ID do dono do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="owner_plan" type="string | null">
+    O nome do plano do dono (por exemplo, `pro` ou `enterprise-8`), ou `null` quando o dono não tem plano.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    O status do banco de dados (por exemplo, `up`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    A RAM alocada ao banco de dados, em MB.
+  </ResponseField>
+
+  <ResponseField name="host" type="string">
+    O endereço do host do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="port" type="number">
+    A porta usada pelo banco de dados.
+  </ResponseField>
+
+  <ResponseField name="username" type="string">
+    O usuário para conectar. Bancos de dados criados a partir da v26.4.8 usam `vertracloud` (banco padrão `vertracloud`, sem ser superusuário); bancos de dados mais antigos mantêm o usuário do motor (`postgres`, `default` ou `root`).
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    A versão major do motor, por exemplo `"18"` ou `"8.0"`. Atualizações de segurança são aplicadas no restart sem alterá-la.
+  </ResponseField>
+
+  <ResponseField name="stack_id" type="string | null">
+    O ID da [stack](/pt-br/api-reference/endpoint/stacks/get) à qual o banco de dados pertence, ou `null` quando ele não está em uma stack.
+  </ResponseField>
+
+  <ResponseField name="stack_service_key" type="string | null">
+    O ID do serviço do template em que este banco de dados está dentro da stack, ou `null` quando você o adicionou por conta própria.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    A data e hora em que o banco de dados foi criado.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    A data e hora em que o banco de dados foi atualizado pela última vez.
+  </ResponseField>
+
+  <ResponseField name="offline_since" type="string | null" format="date-time">
+    A data e hora em que o banco de dados ficou offline, se aplicável.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    A data e hora do último snapshot, se disponível.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "00000000000000000000000000000001",
+    "cluster": 1,
+    "type": 3,
+    "name": "MyDatabase",
+    "description": "I have a description :)",
+    "owner_id": "123456789012345678",
+    "owner_plan": "pro",
+    "status": "up",
+    "ram": 256,
+    "host": "database.example.com",
+    "port": 6379,
+    "username": "vertracloud",
+    "version": "8.2",
+    "offline_since": null,
+    "last_snapshot": "2026-03-14T19:58:00Z",
+    "created_at": "2026-03-14T19:58:00Z",
+    "updated_at": "2026-03-14T19:58:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: O header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: A chave de API é usada a partir de um IP fora da sua lista de IPs permitidos, ou não tem o escopo que a rota exige (`403`).
+  - `ACCESS_DENIED`: O recurso pertence a outra conta, ou você não tem a permissão de workspace para ele (`403`).
+  - `DATABASE_NOT_FOUND`: O banco de dados informado não existe ou o usuário não tem acesso.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

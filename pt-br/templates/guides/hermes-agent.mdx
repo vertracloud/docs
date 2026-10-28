@@ -1,0 +1,172 @@
+---
+title: 'Como rodar o Hermes Agent na Vertra Cloud: modelo, canais e painel'
+sidebarTitle: 'Hermes Agent'
+description: 'Guia do Hermes Agent na Vertra Cloud: chave do provedor, Telegram, Discord, Slack, WhatsApp, login do painel, chat no navegador, troca de modelo e custo.'
+icon: 'brain'
+---
+
+O Hermes Agent é um agente de IA que aprende com o uso: ele guarda memórias, sessões e skills, executa tarefas agendadas e responde a você em um chat ou nos apps de mensagem que você conectar. Este guia leva você da chave do provedor até a conversa com o seu agente. O [template do Hermes Agent](/pt-br/templates/catalog/hermes-agent) empacota o Hermes Agent v0.22.5 com um painel web, um chat opcional no navegador e canais, atrás de um único login.
+
+<Note>
+  A Vertra Cloud não hospeda modelo. Você traz a chave de um provedor, e o uso do modelo é cobrado de você por esse provedor. Este template é um empacotamento da Vertra Cloud e não é afiliado ao projeto Hermes Agent (licença MIT).
+</Note>
+
+## Requisitos e plano
+
+| | |
+|---|---|
+| Origem | Imagem Docker (usa uma [vaga de imagem](/pt-br/templates/overview#vagas-de-imagem)). A imagem é grande, então o primeiro deploy demora mais. |
+| Memória | **1,5 GB no mínimo**, 2 GB recomendado. Com 1 GB o app foi encerrado por falta de memória quando vários agentes trabalharam ao mesmo tempo. |
+| Plano | Um plano que inclua imagens Docker. O card da galeria mostra se o template cabe na sua conta. Veja [Planos e limites](/pt-br/plans-and-limits) e [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images). |
+| Acesso de saída | Ao seu provedor e às APIs dos canais; o WhatsApp também baixa a bridge dele do npm na primeira vez. |
+
+## 1. Obtenha a chave do provedor
+
+O Hermes funciona com OpenRouter (padrão), Anthropic, OpenAI, Google Gemini ou qualquer endpoint compatível com a OpenAI.
+
+| Provedor | Onde criar a chave |
+|---|---|
+| OpenRouter | A página **Keys** da sua conta no OpenRouter. Uma chave alcança muitos modelos. |
+| Anthropic | A página de chaves de API do Anthropic Console. |
+| OpenAI | A página de chaves de API da plataforma OpenAI. |
+| Google Gemini | Google AI Studio, **Get API key**. |
+| Endpoint compatível | A chave e a URL base (terminada em `/v1`) do seu próprio servidor ou de outro provedor. |
+
+Copie a chave agora: a maioria dos provedores a mostra só uma vez. Ela é guardada apenas nas variáveis criptografadas do app.
+
+## 2. Crie o agente
+
+<Steps>
+  <Step title="Abra o template">
+    No dashboard, abra **Templates**, escolha **Hermes Agent** e clique em **Use template**.
+  </Step>
+  <Step title="Escolha provedor e modelo">
+    Escolha o **model provider** e cole a **API key**. Com um endpoint compatível, informe também a **base URL** e o **model**, que é obrigatório. Para os demais, deixe o modelo vazio para usar o padrão do provedor, ou digite o modelo que preferir.
+  </Step>
+  <Step title="Chat no navegador (opcional)">
+    Ative **Browser chat (Hermes WebUI)** se quiser uma página de chat com sessões, arquivos e configurações. Custa cerca de 150 MB de memória a mais. Sem ele, o agente continua funcionando no painel e nos seus canais.
+  </Step>
+  <Step title="Conecte canais (opcional)">
+    Cada canal pede credenciais e a **lista de pessoas autorizadas a falar com o agente**, que é obrigatória. Veja o [passo 4](#4-conecte-um-canal); você também pode fazer isso depois, no painel.
+  </Step>
+  <Step title="Crie">
+    Dê um nome ao app e clique em **Create**. As saídas mostram o **endereço do painel**, o usuário `admin` e uma **senha gerada, mostrada uma única vez**. Copie-a.
+  </Step>
+</Steps>
+
+## 3. Entre no painel e converse
+
+Abra `<address>/admin/`. O navegador pede usuário e senha: use `admin` e a senha das saídas. Esse login único protege o painel e o chat.
+
+- **Chat no painel:** `/admin/chat` é o chat de terminal do Hermes. Diga olá por ali primeiro para conferir se a chave funciona.
+- **Chat no navegador:** se você o ativou, ele fica em `<address>/` com o mesmo login. Sem ele, `/` leva você ao painel.
+- **Perdeu a senha?** Altere a variável `HERMES_ADMIN_PASSWORD` no app e reinicie.
+
+O primeiro boot leva de 15 a 30 segundos enquanto o Hermes sincroniza as skills. As inicializações seguintes levam cerca de 15 segundos. O compartilhamento de métricas de uso com o projeto Hermes vem desligado por padrão: o template responde "No thanks" à pergunta "Help improve Hermes?" do painel no primeiro boot, então o aviso não aparece. Se você ligar depois, pelo painel, a sua escolha é mantida.
+
+## 4. Conecte um canal
+
+Cada canal precisa de duas coisas: a credencial do bot e **quem pode falar com o agente**. O Hermes ignora todo mundo que não está nessa lista, então o agente nunca responde a estranhos. Você pode preencher isso no assistente ou depois em **Channels** (`/admin/channels`).
+
+<Tabs>
+  <Tab title="Telegram">
+    1. No Telegram, fale com o **@BotFather**, envie `/newbot` e siga as perguntas. Copie o **bot token**.
+    2. Descubra seu id numérico falando com o **@userinfobot**.
+    3. Informe o token e o seu id como usuário permitido.
+    4. Abra uma conversa com o seu bot e envie uma mensagem.
+  </Tab>
+  <Tab title="Discord">
+    1. No [Developer Portal](https://discord.com/developers/applications) crie uma aplicação e abra **Bot**.
+    2. Clique em **Reset Token** e copie-o.
+    3. Ative **Message Content Intent** na mesma página.
+    4. Convide o bot para o seu servidor com **OAuth2 > URL Generator** (escopo `bot`).
+    5. Ative o **Developer Mode** no Discord (**Settings > Advanced**), clique com o botão direito no seu nome e em **Copy User ID**. Informe-o como usuário permitido.
+  </Tab>
+  <Tab title="Slack">
+    1. Crie um app no Slack e ative o **Socket Mode**.
+    2. Copie o **Bot User OAuth Token** (`xoxb-...`).
+    3. Crie um **App-Level Token** (`xapp-...`) com o escopo `connections:write`.
+    4. Copie seu **member ID** do seu perfil no Slack e informe-o como membro permitido.
+  </Tab>
+  <Tab title="WhatsApp">
+    1. Marque a opção do WhatsApp e informe os números permitidos: código do país e apenas dígitos (por exemplo `5511999999999`).
+    2. Depois do deploy, abra **Channels > WhatsApp** no painel e **escaneie o QR code** com o celular (**WhatsApp > Linked devices > Link a device**). O QR code expira: escaneie assim que ele aparecer.
+    3. Na primeira vez, o Hermes baixa a bridge do WhatsApp do npm (cerca de 50 MB em `/app`).
+  </Tab>
+  <Tab title="Email">
+    Informe o endereço, a senha (uma senha de app no Gmail), os servidores IMAP e SMTP e a lista de remetentes permitidos.
+  </Tab>
+</Tabs>
+
+Signal, Matrix, Mattermost e outros canais não estão no assistente. Configure-os em `/admin/channels` ou nas variáveis do app. O Signal precisa de um daemon `signal-cli` externo e não roda neste container.
+
+## 5. Mude o modelo depois
+
+O provedor e o modelo são aplicados **a cada inicialização** a partir das variáveis do app, então as variáveis são a fonte da verdade. Para mudá-los, edite estas variáveis no app e reinicie:
+
+| Variável | Valor |
+|---|---|
+| `HERMES_MODEL_PROVIDER` | `openrouter`, `anthropic`, `openai`, `gemini` ou `custom`. |
+| `HERMES_MODEL_CUSTOM` | O modelo que você quer (ele prevalece sobre o padrão do provedor escolhido). |
+| A chave do provedor | `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `OPENAI_COMPAT_API_KEY`. |
+
+<Warning>
+  Mudar o provedor ou o modelo dentro do `config.yaml` não persiste: o arquivo é sobrescrito a partir das variáveis na próxima inicialização. Altere as variáveis.
+</Warning>
+
+## Skills, memória e agendamentos
+
+- **Skills.** O Hermes sincroniza as skills no primeiro boot; você as gerencia no painel.
+- **Memória.** Memórias, sessões, skills e configuração ficam em `/app/.hermes`, no disco do app, então sobrevivem a reinícios, atualizações e rollbacks.
+- **Agendamentos.** Em **Cron** você cria tarefas recorrentes. O agente as executa e fala com você pelo canal que você escolher.
+
+## O custo da IA é seu
+
+A plataforma cobra do plano a memória que o app usa. As chamadas ao modelo são cobradas pelo seu provedor, e um agente que executa tarefas agendadas ou lê arquivos longos pode consumir muitos tokens. Defina um limite de gastos na conta do seu provedor e acompanhe o uso enquanto testa.
+
+## Atualize e faça rollback
+
+As novas versões chegam como novas versões do template. Um snapshot é feito antes da atualização, e um rollback traz o estado de volta (`/app/.hermes`). Veja [Atualizar e fazer rollback](/pt-br/templates/use/updates-and-rollback). O deploy sem downtime está desligado: uma segunda cópia no mesmo disco encerra com erro.
+
+## Limites que você precisa conhecer
+
+- O Caddy é a única barreira, sem limite de tentativas. A senha gerada é longa; para mais proteção, adicione uma regra de rate limit no seu próprio domínio.
+- A senha gerada e a chave do provedor estão nas variáveis do app: não compartilhe capturas de tela delas.
+- O canal de e-mail e os modelos padrão de cada provedor não foram testados com uma conta ou chave reais, então teste-os antes de depender deles.
+
+## Problemas comuns
+
+<AccordionGroup>
+  <Accordion title="401 em tudo">
+    Esse é o login. Use `admin` e a senha das saídas, ou altere `HERMES_ADMIN_PASSWORD` e reinicie.
+  </Accordion>
+  <Accordion title="O app morre logo depois de iniciar">
+    Confira a memória (1,5 GB no mínimo) e o log do app. `HERMES_ADMIN_PASSWORD is required` significa que a variável da senha está faltando.
+  </Accordion>
+  <Accordion title="Um canal não responde">
+    Abra o log do app. Um token inválido aparece ali ("token ... was rejected") e o app continua no ar com esse canal parado. Não compartilhe esse log. Depois confira se o seu próprio id está na lista de permitidos.
+  </Accordion>
+  <Accordion title="Editei o config.yaml e ele voltou">
+    O provedor e o modelo são reaplicados a partir das variáveis a cada inicialização. Altere as variáveis e reinicie.
+  </Accordion>
+  <Accordion title="O QR code do WhatsApp não aparece ou expirou">
+    Recarregue **Channels > WhatsApp** e escaneie na hora. A primeira vez demora mais porque a bridge é baixada.
+  </Accordion>
+</AccordionGroup>
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Hermes Agent no catálogo" icon="store" href="/pt-br/templates/catalog/hermes-agent">
+    O que o template cria e suas variáveis.
+  </Card>
+  <Card title="Atualizar e fazer rollback" icon="rotate-left" href="/pt-br/templates/use/updates-and-rollback">
+    O snapshot de segurança e o rollback.
+  </Card>
+  <Card title="Página pública" icon="up-right-from-square" href="https://vertracloud.app/templates/hermes-agent">
+    O template na galeria pública.
+  </Card>
+  <Card title="Usar um template" icon="rocket" href="/pt-br/templates/use/using-a-template">
+    A galeria, o assistente e as saídas.
+  </Card>
+</CardGroup>

@@ -1,0 +1,223 @@
+---
+title: 'Tutorial: Build Your First Code Template (Discord Bot)'
+sidebarTitle: 'First code template'
+description: 'Turn a discord.js bot into a private code template with one secret question and minimum RAM, then validate it, create it and deploy it.'
+icon: 'discord'
+---
+
+A **code template** packages your source code and a manifest, `vertracloud.template.yaml`, that tells the platform what to ask, how much memory to reserve and how to start the app. In this tutorial you build a Discord bot template that asks one question (the bot token, a secret), runs with the minimum RAM and creates a working bot in a few clicks. It takes about 20 minutes and ends with the bot answering `/ping`.
+
+A code template does not use an image slot, because the platform builds your code the same way it builds any application. If you are not sure whether you need a code or an image template, read the [overview for authors](/templates/create/overview) first.
+
+## Before you start
+
+<Check>The Vertra CLI installed and signed in with an API key (`vertra auth login`) that has the `templates:read`, `templates:write` and `templates:deploy` scopes.</Check>
+<Check>A plan that can create private templates (the same plans that can create Docker images, see [Plans and limits](/plans-and-limits)). Each account can keep up to 5 private templates.</Check>
+<Check>Node.js 22 or newer on your computer, only to generate the lock file.</Check>
+
+## Step by step
+
+<Steps>
+  <Step title="Create the folder and the bot code">
+    A template folder holds the manifest at the root and the code of each code service in a subfolder. Create this layout:
+
+    ```text
+    my-discord-bot/
+    ├── vertracloud.template.yaml
+    └── src/
+        ├── index.js
+        └── package.json
+    ```
+
+    `src/package.json` pins the library version so every copy of the template installs the same code:
+
+    ```json title="src/package.json"
+    {
+      "name": "discord-bot",
+      "version": "1.0.0",
+      "private": true,
+      "main": "index.js",
+      "scripts": { "start": "node index.js" },
+      "engines": { "node": ">=22" },
+      "dependencies": { "discord.js": "14.27.0" }
+    }
+    ```
+
+    `src/index.js` reads the token from the environment, registers a `/ping` command and exits with a clear message when the login fails, so a wrong token shows up in the log instead of a silent crash loop:
+
+    ```javascript title="src/index.js"
+    "use strict";
+
+    const { Client, Events, GatewayIntentBits } = require("discord.js");
+
+    const token = process.env.DISCORD_TOKEN;
+    if (!token) {
+      console.error("DISCORD_TOKEN is not set. Add it in the app environment variables and restart.");
+      process.exit(1);
+    }
+
+    // Slash commands need no privileged intent: Guilds is enough.
+    const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+    client.once(Events.ClientReady, async (ready) => {
+      // Registers /ping globally on every start (idempotent).
+      await ready.application.commands.set([{ name: "ping", description: "Replies with pong and the gateway latency" }]);
+      console.log(`Logged in as ${ready.user.tag}. Slash command /ping registered.`);
+    });
+
+    client.on(Events.InteractionCreate, async (interaction) => {
+      if (!interaction.isChatInputCommand() || interaction.commandName !== "ping") return;
+      await interaction.reply(`Pong! ${Math.round(client.ws.ping)} ms`);
+    });
+
+    client.on(Events.Error, (error) => console.error("Discord client error:", error.message));
+
+    client.login(token).catch((error) => {
+      console.error(`Login failed: ${error.message.replace(/\.$/, "")}. Check that DISCORD_TOKEN is the bot token.`);
+      process.exit(1);
+    });
+    ```
+
+    Generate the lock file without installing anything, so no `node_modules` folder ends up in the package:
+
+    ```bash
+    cd my-discord-bot/src && npm install --package-lock-only
+    ```
+  </Step>
+  <Step title="Get a bot token to test with">
+    In the Discord Developer Portal, create an application, open **Bot** and use **Reset Token**. Copy the token somewhere safe: you will type it when you use the template, never in a file. Then invite the bot to a test server (**OAuth2**, scopes `bot` and `applications.commands`).
+  </Step>
+  <Step title="Write the manifest">
+    The manifest answers four questions: what is this template, what does the user fill in, what runs, and what may the user change afterwards. Create `vertracloud.template.yaml`:
+
+    ```yaml title="vertracloud.template.yaml"
+    id: my-discord-bot
+    version: 1.0.0
+    name:
+      pt-br: Meu bot de Discord
+      en: My Discord bot
+    description:
+      pt-br: Bot de Discord com o comando /ping, pronto para você editar.
+      en: Discord bot with a /ping command, ready for you to edit.
+    category: bots
+    tags: [discord, bot, javascript]
+
+    inputs:
+      - id: discord_token
+        type: secret
+        required: true
+        label:
+          pt-br: Token do bot
+          en: Bot token
+        help:
+          pt-br: "No Discord Developer Portal, abra Bot e use Reset Token."
+          en: "In the Discord Developer Portal, open Bot and use Reset Token."
+        validation: { min_length: 50, max_length: 100 }
+
+    services:
+      app:
+        source: { type: code, path: src }
+        language: javascript
+        runtime_version: recommended
+        main: index.js
+        start: node index.js
+        ram: { min: 100, recommended: 256 }
+        web: none
+        env:
+          DISCORD_TOKEN: "{{inputs.discord_token}}"
+        healthcheck: { timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+
+    permissions:
+      code: { view: true, edit: true }
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+        value:
+          pt-br: "Convide o bot ao seu servidor e digite /ping. O comando global pode levar alguns minutos para aparecer."
+          en: "Invite the bot to your server and type /ping. The global command can take a few minutes to show up."
+    ```
+
+    What each part does:
+
+    | Part | Why it is there |
+    |---|---|
+    | `name`, `description` | Text in each language. `pt-br` is required and the other languages fall back to it. The name takes up to 50 characters and the description up to 128. |
+    | `inputs` | One question, `discord_token`, of type `secret`: the wizard hides what is typed and the value is stored as a protected variable. `validation` rejects a token of the wrong size before anything is created. |
+    | `source` | `type: code` with `path: src` packs that folder. `language`, `runtime_version`, `main` and `start` are the same settings a regular application has. |
+    | `ram` | `min` is the least memory the wizard accepts, `recommended` is the starting value. A bot with one command runs in a few tens of MB, so 100 MB is the floor and 256 MB a comfortable start. |
+    | `web: none` | The bot only makes outbound connections to Discord, so it gets no port and no subdomain. |
+    | `env` | `{{inputs.discord_token}}` is replaced with the answer when the app is created. The full list of placeholders is in [Placeholders and questions](/templates/create/placeholders-and-inputs). |
+    | `healthcheck` | Without a `path`, the template is "ready" when the app boots and stays up. `timeout` is how many seconds to wait for that. |
+    | `deploy` | Two copies of the bot with the same token would answer every command twice, so blue-green is off and locked. Read [Deploy settings](/templates/create/deploy-settings) for the other choices. |
+    | `permissions` | Open code that users may view and edit, and RAM they may raise but not lower below `min`. |
+    | `outputs` | What the wizard shows when the deploy ends. |
+
+    <Warning>Never write the token in `env`. A manifest that carries a literal value for a variable named like a secret (`*_TOKEN`, `*_KEY`, `*_SECRET`, `PASSWORD`) is refused with `secret_in_manifest`. Ask for it with a `secret` question, as above.</Warning>
+  </Step>
+  <Step title="Validate the manifest">
+    From the template folder, run:
+
+    ```bash
+    vertra template validate
+    ```
+
+    The command checks the manifest against the platform's rules without creating anything. It prints each finding with its file, line, manifest path and code, and exits with a failure status when there is at least one. Add `--json` to get `{ valid, file, issues: [{ path, code, message, line }] }` for scripts. Fix every finding and run it again until it passes; the common ones are listed in [Validate and test](/templates/create/validate-and-test) and in the [error reference](/templates/reference/errors).
+  </Step>
+  <Step title="Create the private template">
+    ```bash
+    vertra template create
+    ```
+
+    The CLI packs the `src` folder (`.env*` files, `.git` and symlinks are never sent) and creates a private template that only you, or your workspace, can see. It appears under **Templates**, tab **My templates**, with a counter such as "1 of 5 private templates". The platform also scans the code for secrets before accepting it and, if it finds any, lists the files.
+  </Step>
+  <Step title="Use your own template">
+    Open **Templates**, **My templates**, pick the template and choose **Use**. The wizard asks for the bot token, lets you set the app name and, if you want, a larger RAM. Or from the terminal:
+
+    ```bash
+    vertra template list --origin private
+    vertra template deploy my-discord-bot --name my-bot --set discord_token="$DISCORD_TOKEN"
+    ```
+
+    The deploy runs as a job: it creates the app, injects the variable, starts it and waits for the healthcheck. If any step fails, everything it created is undone. At the end the wizard shows the outputs.
+  </Step>
+  <Step title="Check the bot">
+    Open the app log. A healthy start prints `Logged in as <bot name>. Slash command /ping registered.` In your test server type `/ping`: the bot answers with the latency. If the log shows `Login failed`, the token is wrong or was reset.
+  </Step>
+  <Step title="Publish a new version">
+    Change the code or the manifest, raise `version` (for example to `1.0.1`) and run:
+
+    ```bash
+    vertra template create --template my-discord-bot --changelog "Fix the ping reply"
+    ```
+
+    A version is immutable and must be higher than the previous one. Apps created from the template see "New version available" and update when their owner clicks, always with a safety snapshot first.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `validate` reports `secret_in_manifest` | A variable named like a secret has a literal value. Move it to a `secret` question. |
+| `validate` reports `unknown_input` or `unknown_placeholder` | A placeholder or `when` points to a question that does not exist, or the id is misspelled. Ids use lowercase letters, digits, `_` and `-`. |
+| `create` fails with `TEMPLATE_SECRET_IN_SOURCE` | The code contains something that looks like a secret; the error lists the files. Remove it and read it from an environment variable. |
+| `create` fails with `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | Private templates need a plan that can create Docker images. See [Plans and limits](/plans-and-limits). |
+| `create` fails with `TEMPLATE_PRIVATE_LIMIT_REACHED` | You already have 5 private templates. Delete one you no longer use. |
+| The app starts and stops with `Login failed` | The token is wrong, expired or from another application. Reset it in the Developer Portal and update the variable. |
+| `/ping` does not show up | Global commands can take a few minutes. Confirm the bot was invited with the `applications.commands` scope. |
+
+## Next steps
+
+- [Manifest reference](/templates/create/manifest-reference): every field, with an example.
+- [Placeholders and questions](/templates/create/placeholders-and-inputs): types of question, `when` and `sets`.
+- [Requirements and plan](/templates/create/requirements): how RAM and web turn into the required plan.
+- [Permissions](/templates/create/permissions): what the people who use the template can change.
+- [Private templates](/templates/create/private-templates): versions, workspaces and the other ways to create one.
+- [Validate and test](/templates/create/validate-and-test): a checklist before you share.
+- Next tutorial: [package an app with a Dockerfile as an image template](/templates/tutorials/image-template).

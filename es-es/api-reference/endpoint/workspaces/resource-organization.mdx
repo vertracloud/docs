@@ -1,0 +1,115 @@
+---
+title: 'Organización de recursos del workspace'
+sidebarTitle: 'Carpetas y favoritos'
+description: 'Organiza las aplicaciones y bases de datos de un workspace con carpetas y favoritos individuales.'
+---
+Esta API organiza la vista de quien hace la llamada. Las carpetas y los favoritos de un workspace son individuales:
+cada miembro puede elegir su propia organización, sin cambiar la vista de los demás miembros.
+
+## Alcance y lectura
+
+Usa un token Bearer y el ID del workspace en la ruta. La organización del miembro se devuelve en
+[`GET /v1/workspaces/:id`](/es-es/api-reference/endpoint/workspaces/get), en el campo
+`response.resource_organization`.
+
+Una clave de API necesita `workspaces:read` para leer el workspace y `workspaces:write` para cambiar la
+organización de ese workspace.
+
+Las carpetas y los favoritos aceptan `application`, `database`, `image` y `stack`. Los colores de carpeta son
+`neutral`, `red`, `orange`, `yellow`, `green`, `blue` y `purple`.
+
+## Crear una carpeta
+
+```http
+POST /v1/workspaces/{id}/folders
+```
+
+```json
+{
+  "name": "Production",
+  "color": "green",
+  "position": 0
+}
+```
+
+`name` es obligatorio. `color`, `position`, `notes` (texto libre; `null` lo elimina al actualizar) y `flow_layout`
+(`{ "x": 0, "y": 0, "collapsed": false }`, su lugar en el lienzo de Flow; `null` lo elimina al actualizar) son
+opcionales. La respuesta contiene la carpeta creada en `response`.
+
+## Renombrar, cambiar el color o reordenar una carpeta
+
+```http
+PATCH /v1/workspaces/{id}/folders/{folder_id}
+```
+
+```json
+{
+  "name": "Published production",
+  "color": "blue",
+  "position": 1
+}
+```
+
+Envía solo los campos que quieres cambiar. La respuesta contiene la carpeta actualizada en `response`.
+
+## Eliminar una carpeta
+
+```http
+DELETE /v1/workspaces/{id}/folders/{folder_id}
+```
+
+Eliminar quita la organización de la carpeta, pero no elimina ni desvincula la aplicación o la base de datos.
+
+## Poner o quitar un recurso en una carpeta
+
+```http
+PUT /v1/workspaces/{id}/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Usa `resource_type=application`, `database`, `image` o `stack`. `resource_id` identifica el recurso al que el
+miembro puede acceder. El body puede contener la posición dentro de la carpeta:
+
+```json
+{
+  "position": 0
+}
+```
+
+Para quitar solo el vínculo:
+
+```http
+DELETE /v1/workspaces/{id}/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Poner el mismo recurso en otra carpeta lo mueve dentro de la organización de ese miembro. La respuesta de ambas
+operaciones devuelve la organización actualizada en `response`.
+
+## Marcar y desmarcar un recurso como favorito
+
+```http
+PUT /v1/workspaces/{id}/favorites/{resource_type}/{resource_id}
+```
+
+```json
+{
+  "position": 0
+}
+```
+
+Para desmarcar:
+
+```http
+DELETE /v1/workspaces/{id}/favorites/{resource_type}/{resource_id}
+```
+
+Favorito y carpeta son independientes, y las operaciones devuelven la organización actualizada en `response`.
+Pueden repetirse sin problema.
+
+## Actividad
+
+Crear, editar o eliminar una carpeta, mover un recurso, y marcar o desmarcar un favorito genera una actividad. Esto
+aplica tanto a las acciones del panel y de los workflows como a las llamadas con clave de API hechas desde la CLI, el
+MCP o la extensión. El cliente no envía `origin` ni `author_id`; los define la API.
+
+Estas carpetas no son grupos de Flow. Los grupos organizan elementos en el lienzo local de Flow; no tienen un
+`group_id` compartido con esta API y no se sincronizan ni migran a carpetas.

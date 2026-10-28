@@ -1,0 +1,79 @@
+---
+title: Eliminar dominio de la aplicación
+sidebarTitle: Eliminar dominio
+api: DELETE https://api.vertracloud.app/v1/apps/{id}/domains/{domain_id}
+authMethod: bearer
+description: Elimina un dominio personalizado de una aplicación, junto con su complemento automático www.
+---
+
+{/* @see RESTDeleteAPIApplicationDomainResponse — @vertracloud/api-types */}
+Elimina el dominio y, si tiene uno, su complemento automático `www` (o el raíz). El dominio deja de resolver a la aplicación de inmediato y puede
+añadirse a otra aplicación. La aplicación no se reinicia. Los dominios que redirigían al eliminado empiezan a servir la aplicación en su lugar.
+Requiere el scope `apps:write` cuando se llama con una clave de API.
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación.
+</ParamField>
+
+<ParamField path="domain_id" type="string" required>
+  El ID del dominio que se va a eliminar, obtenido de [Listar dominios de la aplicación](/es-es/api-reference/endpoint/apps/domains/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Obligatorio para los miembros del workspace que actúan sobre una aplicación que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+Si todo va bien, responde `200` con `{ "response": null }`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+<Warning>
+  **Eliminar un dominio no modifica tu DNS.** Borra en tu proveedor de DNS los registros `CNAME` y los `TXT` de validación del dominio y de su
+  complemento. Si se quedan, el nombre sigue apuntando a Vertra Cloud y otro cliente podría reclamarlo. Lo mismo ocurre cuando el dominio desaparece
+  porque se dejó de publicar la aplicación o porque la limpieza de 14 días lo eliminó.
+</Warning>
+
+<Note>
+  Eliminar el **complemento** de un dominio elimina solo el complemento. Para quitar ambos, elimina el dominio principal.
+  Dejar de publicar la aplicación elimina todos los dominios de una vez.
+</Note>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: Los parámetros de ruta no superaron la validación (`400`). La respuesta incluye también `message` y `path`.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas (`403`).
+  - `USER_NOT_FOUND`: No se pudo resolver el usuario autenticado (`401`).
+  - `ACCESS_DENIED`: El usuario no tiene permiso para actuar sobre la aplicación (`403`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `apps:write` (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe (`404`).
+  - `DOMAIN_NOT_FOUND`: La aplicación no tiene ningún dominio con ese ID (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Se alcanzó el presupuesto de la ruta (`429`).
+  - `INTERNAL_SERVER_ERROR`: Error inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DOMAIN_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta ruta tiene su propio presupuesto de 10 peticiones por minuto. Consulta [Límites de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
+</Note>

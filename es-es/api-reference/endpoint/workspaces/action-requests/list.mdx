@@ -1,0 +1,53 @@
+---
+title: Listar solicitudes de acción
+sidebarTitle: Listar
+api: GET https://api.vertracloud.app/v1/workspaces/{id}/action-requests
+authMethod: bearer
+description: Lista las solicitudes de acción pendientes o decididas. Requiere `members:manage`; una clave de API necesita el scope `workspaces:read`.
+---
+
+{/* @see APIWorkspaceActionRequest, RESTGetAPIWorkspaceActionRequestsResponse — @vertracloud/api-types */}
+<Note>
+  Una clave de API necesita el scope `workspaces:read`. Aprobar y rechazar siguen siendo exclusivos del panel:
+  decidir una solicitud es una decisión humana, incluso cuando la solicitud viene de un agente.
+</Note>
+
+Requiere `members:manage`.
+
+### Ruta
+
+<ParamField path="id" type="string" required>ID del workspace.</ParamField>
+
+### Query
+
+<ParamField query="status" type="string">Uno de `pending`, `approved`, `rejected`, `expired`. Si se omite = todas.</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="APIWorkspaceActionRequest[]">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string" />
+  <ResponseField name="workspace_id" type="string" />
+  <ResponseField name="action" type="'app_delete' | 'database_delete' | 'snapshot_create' | 'snapshot_restore'" />
+  <ResponseField name="resource_type" type="'application' | 'database'" />
+  <ResponseField name="resource_id" type="string" />
+  <ResponseField name="resource_name" type="string | null" />
+  <ResponseField name="params" type="object">Los parámetros guardados al crear la solicitud: esto, y no lo que se envía al aprobar, es lo que se ejecuta.</ResponseField>
+  <ResponseField name="status" type="'pending' | 'approved' | 'rejected' | 'expired'" />
+  <ResponseField name="requested_by" type="object">`{ id, display_name }`.</ResponseField>
+  <ResponseField name="decided_by" type="object | null">`{ id, display_name }`, `null` mientras esté `pending`.</ResponseField>
+  <ResponseField name="decided_at" type="string | null" format="date-time" />
+  <ResponseField name="expires_at" type="string" format="date-time">24 h después de la creación.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time" />
+
+  </Expandable>
+</ResponseField>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Se llamó con una clave de API que no tiene el scope `workspaces:read`. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Quien llama no tiene `members:manage`. |
+| 404 | `WORKSPACE_NOT_FOUND` | El workspace no existe o no eres miembro. |

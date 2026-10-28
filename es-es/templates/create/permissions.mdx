@@ -1,0 +1,98 @@
+---
+title: 'Permisos de la plantilla y plantillas cerradas: qué puede cambiar el usuario'
+sidebarTitle: 'Permisos'
+description: 'Define qué puede hacer el usuario con las apps de una plantilla: ver y editar código, cambiar la memoria, añadir variables y crear una plantilla cerrada.'
+icon: 'user-lock'
+---
+
+`permissions` controla lo que puede hacer con las aplicaciones que crea tu plantilla la persona que lo usa. Los permisos se guardan con cada versión y viajan con la aplicación, de modo que una versión posterior de la plantilla no se los quita en silencio a las aplicaciones que ya existen.
+
+## Los permisos
+
+| Campo | Por defecto | Qué controla |
+|---|---|---|
+| `code.view` | `true` | `false` convierte la plantilla en **cerrada**: el usuario no puede ver el código. Solo plantillas privadas. |
+| `code.edit` | `true` para code, `false` para image | Permite al usuario editar el código. Editar el código de una plantilla abierta **desvincula** la aplicación: pasa a ser una aplicación normal y deja de recibir actualizaciones. |
+| `ram.change` | `true` | Permite al usuario cambiar la memoria tras la creación. |
+| `ram.below_min` | `false` | Permite que la memoria baje de `ram.min`. Requiere `ram.change`. |
+| `ram.above_max` | `true` | Permite que la memoria supere `ram.max`, cuando declaraste uno. Requiere `ram.change`. |
+| `env.add` | `true` | Permite al usuario crear variables que no declaraste. |
+| `commands.edit` | `true` para code | Permite al usuario editar los comandos de inicio y de build. |
+| `version.selectable` | `false` | Permite al usuario elegir una versión anterior de la plantilla en el asistente. |
+| `share.full_copy` | `false` | Permite los [enlaces de copia completa](/es-es/templates/create/share-links#enlace-de-uso-o-copia-completa). Solo plantillas privadas. |
+
+```yaml
+permissions:
+  code: { view: true, edit: true }
+  ram: { change: true, below_min: false, above_max: true }
+```
+
+## Combinaciones rechazadas
+
+| Combinación | Código |
+|---|---|
+| `code.view: false` en una plantilla pública | `forbidden_in_public` |
+| `share.full_copy: true` en una plantilla pública | `forbidden_in_public` |
+| `code.view: false` con `code.edit: true` | `invalid_permissions` |
+| `code.view: false` con `env.add: true` | `invalid_permissions` |
+| `code.view: false` con `commands.edit: true` | `invalid_permissions` |
+| `code.view: false` con `share.full_copy: true` | `invalid_permissions` |
+| `ram.change: false` con `ram.below_min: true` o `ram.above_max: true` | `invalid_permissions` |
+
+Omitir el campo siempre está permitido: una plantilla cerrada que no menciona `env.add` simplemente obtiene `false`.
+
+## Plantillas cerradas
+
+Una plantilla cerrada mantiene su código en el `/app` de la aplicación, pero quienes lo usan no tienen forma de leerlo. Define `code.view: false` en una plantilla privada para crear una.
+
+```yaml
+# origin: private
+permissions:
+  code: { view: false }
+  ram: { change: true }
+```
+
+El validador deriva el resto y no puedes cambiarlo. En una plantilla cerrada, el usuario:
+
+| Puede | No puede |
+|---|---|
+| Iniciar, detener, reiniciar, leer logs y métricas | Abrir el gestor de archivos (listar, leer, subir, mover, eliminar) |
+| Crear un snapshot y **restaurarlo** | **Descargar** un snapshot o la aplicación |
+| Hacer rollback | Crear variables libres (por ejemplo `NODE_OPTIONS` o `LD_PRELOAD`) |
+| Responder las preguntas de la plantilla y cambiar la memoria, si lo permites | Editar los comandos de inicio y de build |
+| Actualizar a una versión más reciente | Usar un terminal |
+| Mover la aplicación a otra carpeta o workspace | Desplegar mediante GitHub o subir código |
+| Usar las **bases de datos** del stack sin restricción | Guardar la aplicación como plantilla, desvincularla o crear un enlace de copia completa |
+
+La API aplica el bloqueo en cada ruta de archivos y de código, no solo en el panel, de modo que rige por igual para la CLI, el servidor MCP y los SDK. Un snapshot tomado de una aplicación cerrada solo se puede restaurar en el misma plantilla cerrada.
+
+Las variables que enumeras en `env_hidden` se inyectan en la aplicación y la API de Vertra Cloud nunca las devuelve ni el panel las muestra. Son el lugar adecuado para una clave que te pertenece, como una licencia. Existen solo en una plantilla **cerrada** (`code.view: false`): cuando el usuario puede leer el código o las variables, ocultar un valor no serviría de nada, así que el validador rechaza `env_hidden` en una plantilla abierta. Una versión que usa `env_hidden` no puede activar `share.full_copy`, de modo que el valor nunca llega a una copia. Si la aplicación se desvincula alguna vez de la plantilla, los valores ocultos se eliminan.
+
+<Warning>
+  Las bases de datos nunca están cerradas. Una plantilla cerrada no oculta los datos de su Postgres, MongoDB, Redis o MySQL: el usuario puede conectarse a ellas directamente. Mantén tu propiedad intelectual en el código y los datos del usuario en las bases de datos.
+</Warning>
+
+### Qué garantiza Vertra Cloud y qué no
+
+| Garantizado | No garantizado |
+|---|---|
+| La plataforma no da al usuario ninguna vía al código: ni gestor de archivos, ni descarga, ni terminal, ni despliegue desde GitHub, ni descarga de snapshots. | Un fallo en **tu propio código** que exponga sus archivos (una ruta que sirve sus propias fuentes, un endpoint de depuración, un path traversal). |
+| Los valores de `env_hidden` nunca los devuelve la API de Vertra Cloud ni se muestran en el panel. | Cualquier cosa que tu aplicación imprima en sus logs o devuelva en sus respuestas. |
+| Las aplicaciones cerradas no se pueden convertir en plantilla ni desvincular. | El acceso administrativo de los operadores de la plataforma, que está cubierto por los términos del servicio. |
+
+La persona que recibe tu plantilla ve un aviso de que el código está cerrada y de que lo que escribe va a un código que no puede leer. Ten cuidado con lo que pides en `inputs`.
+
+## Actualizaciones y permisos
+
+Cuando publicas una versión, los permisos nunca se vuelven más restrictivos para las aplicaciones que ya existen: cada indicador permanece activo si la política actual de la aplicación o la nueva versión lo concede. Una plantilla cerrada que más tarde abres también se abre para las aplicaciones existentes; al revés, no cierra una aplicación que ya se está ejecutando. Los servicios nuevos de una versión nueva se crean con la política de la versión nueva.
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Usar una plantilla cerrada" icon="eye-slash" href="/es-es/templates/use/closed-templates">
+    Las mismas reglas, desde el lado del usuario.
+  </Card>
+  <Card title="Plantillas privadas" icon="lock" href="/es-es/templates/create/private-templates">
+    Dónde se crean las plantillas cerradas.
+  </Card>
+</CardGroup>

@@ -1,0 +1,60 @@
+---
+title: Listar versiones de bases de datos
+sidebarTitle: Versiones
+api: GET https://api.vertracloud.app/v1/databases/versions
+authMethod: bearer
+description: Devuelve las versiones disponibles para las bases de datos nuevas de cada motor, y la recomendada, para usarlas al crear una base de datos.
+---
+{/* @see RESTGetAPIDatabaseVersionsResponse — @vertracloud/api-types */}
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Un mapa del `type` de motor de base de datos (`1` PostgreSQL, `2` MongoDB, `3` Redis, `4` MySQL) a su entrada de versiones.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="recommended" type="string">
+    La versión recomendada, que se usa cuando se omite `version` al crear.
+  </ResponseField>
+
+  <ResponseField name="available" type="array">
+    Todas las versiones que se pueden elegir para una base de datos nueva de este motor.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "1": { "recommended": "18", "available": ["18", "17"] },
+    "2": { "recommended": "8.0", "available": ["9.0", "8.0"] },
+    "3": { "recommended": "8.2", "available": ["8.2", "7.2"] },
+    "4": { "recommended": "9.7", "available": ["9.7", "8.4"] }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP que no está en su lista de permitidas, o no tiene el ámbito que requiere la ruta (`403`).
+  - `RATE_LIMIT_EXCEEDED`: Demasiadas peticiones; vuelve a intentarlo después del tiempo indicado en `retry_after`.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,223 @@
+---
+title: 'Tutorial: crea tu primera plantilla de código (bot de Discord)'
+sidebarTitle: 'Primera plantilla de código'
+description: 'Convierte un bot de discord.js en una plantilla de código privada con una pregunta secreta y RAM mínima, y luego valídala, créala y despliégala.'
+icon: 'discord'
+---
+
+Una **plantilla de código** empaqueta tu código fuente y un manifiesto, `vertracloud.template.yaml`, que le dice a la plataforma qué preguntar, cuánta memoria reservar y cómo arrancar la aplicación. En este tutorial creas una plantilla de bot de Discord que hace una pregunta (el token del bot, un secreto), se ejecuta con la RAM mínima y crea un bot funcional en unos pocos clics. Lleva unos 20 minutos y termina con el bot respondiendo a `/ping`.
+
+Una plantilla de código no usa un cupo de imagen, porque la plataforma compila tu código igual que compila cualquier aplicación. Si no sabes si necesitas una plantilla de código o de imagen, lee antes la [visión general para autores](/es-es/templates/create/overview).
+
+## Antes de empezar
+
+<Check>La CLI de Vertra instalada y con la sesión iniciada con una clave de API (`vertra auth login`) que tenga los scopes `templates:read`, `templates:write` y `templates:deploy`.</Check>
+<Check>Un plan que pueda crear plantillas privadas (los mismos planes que pueden crear imágenes Docker, consulta [Planes y límites](/es-es/plans-and-limits)). Cada cuenta puede mantener hasta 5 plantillas privadas.</Check>
+<Check>Node.js 22 o superior en tu ordenador, solo para generar el archivo de bloqueo.</Check>
+
+## Paso a paso
+
+<Steps>
+  <Step title="Crea la carpeta y el código del bot">
+    Una carpeta de plantilla contiene el manifiesto en la raíz y el código de cada servicio de código en una subcarpeta. Crea esta estructura:
+
+    ```text
+    my-discord-bot/
+    ├── vertracloud.template.yaml
+    └── src/
+        ├── index.js
+        └── package.json
+    ```
+
+    `src/package.json` fija la versión de la biblioteca para que cada copia de la plantilla instale el mismo código:
+
+    ```json title="src/package.json"
+    {
+      "name": "discord-bot",
+      "version": "1.0.0",
+      "private": true,
+      "main": "index.js",
+      "scripts": { "start": "node index.js" },
+      "engines": { "node": ">=22" },
+      "dependencies": { "discord.js": "14.27.0" }
+    }
+    ```
+
+    `src/index.js` lee el token del entorno, registra un comando `/ping` y termina con un mensaje claro cuando falla el inicio de sesión, de modo que un token incorrecto aparece en el log en lugar de un bucle de fallos silencioso:
+
+    ```javascript title="src/index.js"
+    "use strict";
+
+    const { Client, Events, GatewayIntentBits } = require("discord.js");
+
+    const token = process.env.DISCORD_TOKEN;
+    if (!token) {
+      console.error("DISCORD_TOKEN is not set. Add it in the app environment variables and restart.");
+      process.exit(1);
+    }
+
+    // Los comandos slash no necesitan ningún intent privilegiado: Guilds basta.
+    const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+    client.once(Events.ClientReady, async (ready) => {
+      // Registra /ping de forma global en cada arranque (idempotente).
+      await ready.application.commands.set([{ name: "ping", description: "Replies with pong and the gateway latency" }]);
+      console.log(`Logged in as ${ready.user.tag}. Slash command /ping registered.`);
+    });
+
+    client.on(Events.InteractionCreate, async (interaction) => {
+      if (!interaction.isChatInputCommand() || interaction.commandName !== "ping") return;
+      await interaction.reply(`Pong! ${Math.round(client.ws.ping)} ms`);
+    });
+
+    client.on(Events.Error, (error) => console.error("Discord client error:", error.message));
+
+    client.login(token).catch((error) => {
+      console.error(`Login failed: ${error.message.replace(/\.$/, "")}. Check that DISCORD_TOKEN is the bot token.`);
+      process.exit(1);
+    });
+    ```
+
+    Genera el archivo de bloqueo sin instalar nada, para que no quede ninguna carpeta `node_modules` en el paquete:
+
+    ```bash
+    cd my-discord-bot/src && npm install --package-lock-only
+    ```
+  </Step>
+  <Step title="Consigue un token de bot para probar">
+    En el Discord Developer Portal, crea una aplicación, abre **Bot** y usa **Reset Token**. Copia el token en un lugar seguro: lo escribirás al usar la plantilla, nunca en un archivo. Después invita al bot a un servidor de pruebas (**OAuth2**, scopes `bot` y `applications.commands`).
+  </Step>
+  <Step title="Escribe el manifiesto">
+    El manifiesto responde a cuatro preguntas: qué es esta plantilla, qué rellena el usuario, qué se ejecuta y qué puede cambiar el usuario después. Crea `vertracloud.template.yaml`:
+
+    ```yaml title="vertracloud.template.yaml"
+    id: my-discord-bot
+    version: 1.0.0
+    name:
+      pt-br: Meu bot de Discord
+      en: My Discord bot
+    description:
+      pt-br: Bot de Discord com o comando /ping, pronto para você editar.
+      en: Discord bot with a /ping command, ready for you to edit.
+    category: bots
+    tags: [discord, bot, javascript]
+
+    inputs:
+      - id: discord_token
+        type: secret
+        required: true
+        label:
+          pt-br: Token do bot
+          en: Bot token
+        help:
+          pt-br: "No Discord Developer Portal, abra Bot e use Reset Token."
+          en: "In the Discord Developer Portal, open Bot and use Reset Token."
+        validation: { min_length: 50, max_length: 100 }
+
+    services:
+      app:
+        source: { type: code, path: src }
+        language: javascript
+        runtime_version: recommended
+        main: index.js
+        start: node index.js
+        ram: { min: 100, recommended: 256 }
+        web: none
+        env:
+          DISCORD_TOKEN: "{{inputs.discord_token}}"
+        healthcheck: { timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+
+    permissions:
+      code: { view: true, edit: true }
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+        value:
+          pt-br: "Convide o bot ao seu servidor e digite /ping. O comando global pode levar alguns minutos para aparecer."
+          en: "Invite the bot to your server and type /ping. The global command can take a few minutes to show up."
+    ```
+
+    Qué hace cada parte:
+
+    | Parte | Para qué sirve |
+    |---|---|
+    | `name`, `description` | Texto en cada idioma. `pt-br` es obligatorio y los demás idiomas recurren a él. El nombre admite hasta 50 caracteres y la descripción hasta 128. |
+    | `inputs` | Una pregunta, `discord_token`, de tipo `secret`: el asistente oculta lo que se escribe y el valor se guarda como variable protegida. `validation` rechaza un token de tamaño incorrecto antes de crear nada. |
+    | `source` | `type: code` con `path: src` empaqueta esa carpeta. `language`, `runtime_version`, `main` y `start` son los mismos ajustes que tiene una aplicación normal. |
+    | `ram` | `min` es la memoria mínima que acepta el asistente y `recommended` es el valor inicial. Un bot con un comando se ejecuta en unas pocas decenas de MB, así que 100 MB es el mínimo y 256 MB un comienzo holgado. |
+    | `web: none` | El bot solo hace conexiones salientes hacia Discord, así que no recibe puerto ni subdominio. |
+    | `env` | `{{inputs.discord_token}}` se sustituye por la respuesta cuando se crea la aplicación. La lista completa de placeholders está en [Placeholders y preguntas](/es-es/templates/create/placeholders-and-inputs). |
+    | `healthcheck` | Sin `path`, la plantilla está "lista" cuando la aplicación arranca y se mantiene activa. `timeout` es cuántos segundos esperar para ello. |
+    | `deploy` | Dos copias del bot con el mismo token responderían dos veces a cada comando, así que el blue-green está desactivado y bloqueado. Lee [Ajustes de despliegue](/es-es/templates/create/deploy-settings) para ver las demás opciones. |
+    | `permissions` | Código abierto que los usuarios pueden ver y editar, y RAM que pueden subir pero no bajar de `min`. |
+    | `outputs` | Lo que muestra el asistente cuando termina el despliegue. |
+
+    <Warning>Nunca escribas el token en `env`. Un manifiesto que lleve un valor literal en una variable con nombre de secreto (`*_TOKEN`, `*_KEY`, `*_SECRET`, `PASSWORD`) se rechaza con `secret_in_manifest`. Pídelo con una pregunta `secret`, como arriba.</Warning>
+  </Step>
+  <Step title="Valida el manifiesto">
+    Desde la carpeta de la plantilla, ejecuta:
+
+    ```bash
+    vertra template validate
+    ```
+
+    El comando comprueba el manifiesto con las reglas de la plataforma sin crear nada. Imprime cada hallazgo con su archivo, línea, ruta en el manifiesto y código, y termina con estado de error si hay al menos uno. Añade `--json` para obtener `{ valid, file, issues: [{ path, code, message, line }] }` en scripts. Corrige cada hallazgo y vuelve a ejecutarlo hasta que pase; los más comunes se listan en [Validar y probar](/es-es/templates/create/validate-and-test) y en la [referencia de errores](/es-es/templates/reference/errors).
+  </Step>
+  <Step title="Crea la plantilla privada">
+    ```bash
+    vertra template create
+    ```
+
+    La CLI empaqueta la carpeta `src` (los archivos `.env*`, `.git` y los enlaces simbólicos nunca se envían) y crea una plantilla privada que solo tú, o tu workspace, podéis ver. Aparece en **Plantillas**, pestaña **Mis plantillas**, con un contador como "1 de 5 plantillas privadas". La plataforma también analiza el código en busca de secretos antes de aceptarlo y, si encuentra alguno, lista los archivos.
+  </Step>
+  <Step title="Usa tu propia plantilla">
+    Abre **Plantillas**, **Mis plantillas**, elige la plantilla y pulsa **Usar**. El asistente te pide el token del bot, te deja definir el nombre de la aplicación y, si quieres, una RAM mayor. O desde el terminal:
+
+    ```bash
+    vertra template list --origin private
+    vertra template deploy my-discord-bot --name my-bot --set discord_token="$DISCORD_TOKEN"
+    ```
+
+    El despliegue se ejecuta como un job: crea la aplicación, inyecta la variable, la inicia y espera al healthcheck. Si algún paso falla, se deshace todo lo que creó. Al final el asistente muestra los outputs.
+  </Step>
+  <Step title="Comprueba el bot">
+    Abre el log de la aplicación. Un arranque correcto imprime `Logged in as <bot name>. Slash command /ping registered.` En tu servidor de pruebas escribe `/ping`: el bot responde con la latencia. Si el log muestra `Login failed`, el token es incorrecto o se ha restablecido.
+  </Step>
+  <Step title="Publica una versión nueva">
+    Cambia el código o el manifiesto, sube `version` (por ejemplo a `1.0.1`) y ejecuta:
+
+    ```bash
+    vertra template create --template my-discord-bot --changelog "Fix the ping reply"
+    ```
+
+    Una versión es inmutable y debe ser superior a la anterior. Las aplicaciones creadas a partir de la plantilla ven "Nueva versión disponible" y se actualizan cuando su propietario hace clic, siempre con un snapshot de seguridad previo.
+  </Step>
+</Steps>
+
+## Solución de problemas
+
+| Síntoma | Causa y solución |
+|---|---|
+| `validate` informa `secret_in_manifest` | Una variable con nombre de secreto tiene un valor literal. Pásala a una pregunta `secret`. |
+| `validate` informa `unknown_input` o `unknown_placeholder` | Un placeholder o un `when` apunta a una pregunta que no existe, o el id está mal escrito. Los ids usan letras minúsculas, dígitos, `_` y `-`. |
+| `create` falla con `TEMPLATE_SECRET_IN_SOURCE` | El código contiene algo que parece un secreto; el error lista los archivos. Quítalo y léelo desde una variable de entorno. |
+| `create` falla con `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | Las plantillas privadas necesitan un plan que pueda crear imágenes Docker. Consulta [Planes y límites](/es-es/plans-and-limits). |
+| `create` falla con `TEMPLATE_PRIVATE_LIMIT_REACHED` | Ya tienes 5 plantillas privadas. Elimina una que ya no uses. |
+| La aplicación arranca y se detiene con `Login failed` | El token es incorrecto, ha caducado o es de otra aplicación. Restablécelo en el Developer Portal y actualiza la variable. |
+| `/ping` no aparece | Los comandos globales pueden tardar unos minutos. Confirma que el bot se invitó con el scope `applications.commands`. |
+
+## Próximos pasos
+
+- [Referencia del manifiesto](/es-es/templates/create/manifest-reference): todos los campos, con un ejemplo.
+- [Placeholders y preguntas](/es-es/templates/create/placeholders-and-inputs): tipos de pregunta, `when` y `sets`.
+- [Requisitos y plan](/es-es/templates/create/requirements): cómo la RAM y la web determinan el plan necesario.
+- [Permisos](/es-es/templates/create/permissions): qué pueden cambiar las personas que usan la plantilla.
+- [Plantillas privadas](/es-es/templates/create/private-templates): versiones, workspaces y las demás formas de crearla.
+- [Validar y probar](/es-es/templates/create/validate-and-test): una lista de comprobación antes de compartir.
+- Siguiente tutorial: [empaqueta una aplicación con un Dockerfile como plantilla de imagen](/es-es/templates/tutorials/image-template).

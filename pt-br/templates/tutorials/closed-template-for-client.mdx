@@ -1,0 +1,170 @@
+---
+title: 'Tutorial: entregue um template fechado a um cliente por link'
+sidebarTitle: 'Template fechado para um cliente'
+description: 'Crie um template privado com código fechado e uma variável oculta, gere um link de uso único e veja o que o seu cliente pode e não pode fazer.'
+icon: 'lock'
+---
+
+Um **template fechado** permite que um cliente rode o seu software na própria conta sem poder abrir o código. Você define `code.view: false` no manifesto, oculta as variáveis que são suas com `env_hidden` e envia um **link de uso**: o cliente vê uma prévia, preenche as próprias respostas e recebe um app que inicia, para, gera logs e snapshots como qualquer outro, com o código lacrado. Neste tutorial você entrega um bot a um cliente dessa forma.
+
+A plataforma aplica o lacre na própria API, em toda rota que lê ou altera arquivos e código, e não só no dashboard. Isso não torna o seu código secreto para quem controla a máquina em que ele roda nem para a equipe da Vertra, e não protege você de uma falha no seu próprio código que sirva arquivos. Leia [Permissões](/pt-br/templates/create/permissions) para a lista completa de garantias.
+
+## Antes de começar
+
+<Check>Um template de código privado funcionando, como o do [primeiro tutorial](/pt-br/templates/tutorials/discord-bot-code). Templates abertos e fechados têm a mesma estrutura, então você só muda as permissões.</Check>
+<Check>Um plano que possa criar templates privados (veja [Planos e limites](/pt-br/plans-and-limits)).</Check>
+<Check>Uma segunda conta na qual você consiga entrar. É a única forma de ver a prévia e o app fechado exatamente como o cliente vê.</Check>
+
+## O que o cliente pode e não pode fazer
+
+| O cliente pode | O cliente não pode |
+|---|---|
+| Iniciar, parar e reiniciar o app, ler logs e métricas | Abrir o gerenciador de arquivos (ver, enviar, mover ou excluir arquivos) |
+| Criar snapshots e restaurá-los | Baixar um snapshot ou baixar o app |
+| Fazer rollback e atualizar para uma nova versão que você publicar | Criar variáveis livres (como `NODE_OPTIONS`) ou editar os comandos de início e de build |
+| Responder às perguntas do template e alterar a RAM, se você permitir | Usar um terminal, fazer deploy pelo GitHub ou enviar código |
+| Usar os **bancos de dados** da stack sem nenhuma restrição | Salvar o app como template, desvinculá-lo do template ou criar links a partir dele |
+
+Os bancos de dados nunca são fechados: o cliente tem acesso total aos dados deles, como teria em qualquer banco de dados que possui. Mantenha tudo o que precisa ficar fora do alcance do cliente no seu próprio código e nas suas variáveis, não no banco de dados.
+
+## Passo a passo
+
+<Steps>
+  <Step title="Decida o que é seu e o que é do cliente">
+    Divida a configuração em duas. O que o **cliente** fornece (o token de Discord dele) vira uma pergunta. O que **você** fornece (uma chave de um serviço que você paga, ou uma licença) vira uma variável oculta: injetada no app, nunca devolvida pela API e nunca mostrada no painel. Neste tutorial o bot lê `VENDOR_API_KEY`, que é sua.
+  </Step>
+  <Step title="Escreva o manifesto fechado">
+    Parta do manifesto do primeiro tutorial e mude três coisas: defina `code.view` como `false`, adicione a variável oculta e deixe de fora tudo o que um template fechado não pode permitir.
+
+    ```yaml title="vertracloud.template.yaml"
+    id: support-bot
+    version: 1.0.0
+    name:
+      pt-br: Bot de suporte
+      en: Support bot
+    description:
+      pt-br: Bot de suporte entregue ao cliente, com código fechado.
+      en: A support bot delivered to a client, with closed code.
+    category: bots
+    tags: [discord, bot, support]
+
+    inputs:
+      - id: discord_token
+        type: secret
+        required: true
+        label:
+          pt-br: Token do seu bot
+          en: Your bot token
+        help:
+          pt-br: "No Discord Developer Portal, abra Bot e use Reset Token."
+          en: "In the Discord Developer Portal, open Bot and use Reset Token."
+        validation: { min_length: 50, max_length: 100 }
+
+    services:
+      app:
+        source: { type: code, path: src }
+        language: javascript
+        runtime_version: recommended
+        main: index.js
+        start: node index.js
+        ram: { min: 256, recommended: 256 }
+        web: none
+        env:
+          DISCORD_TOKEN: "{{inputs.discord_token}}"
+          VENDOR_API_KEY: "paste-your-real-key-here-before-create"
+        env_hidden: [VENDOR_API_KEY]
+        healthcheck: { timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+
+    permissions:
+      code: { view: false }
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+        value:
+          pt-br: "Convide o bot ao seu servidor. Em caso de dúvida, fale com o suporte de quem lhe entregou o bot."
+          en: "Invite the bot to your server. If in doubt, contact whoever delivered the bot to you."
+    ```
+
+    - **`permissions.code.view: false`** é o que fecha o template. A plataforma deriva o resto: sem variáveis livres, sem edição de comandos, sem terminal, sem salvar como template, sem desvincular, sem deploy de código.
+    - **`env_hidden`** lista chaves de `env`. O valor é escrito no manifesto só para que a plataforma possa guardá-lo; depois que o template é criado, o manifesto armazenado não o carrega mais.
+    - **O que você deve deixar de fora.** `code.edit: true`, `env.add: true`, `commands.edit: true` e `share.full_copy: true` são recusados em um template fechado com `invalid_permissions`, porque cada um devolveria o código ou os segredos dele. Não os liste de forma alguma.
+    - **Os placeholders continuam funcionando.** As respostas do cliente e os segredos gerados entram no app normalmente; o código que você oculta é a única coisa que o cliente não pode ler.
+
+    <Warning>O valor real de `VENDOR_API_KEY` está neste arquivo, então mantenha este manifesto fora de qualquer repositório público. Defina o valor só na máquina que executa `vertra template create` e não faça commit dele. Quando você publica uma nova versão, uma chave oculta que você deixa de fora de `env` mantém o valor anterior, e um valor que você envia de novo o substitui. O `vertra template validate` não conhece a versão anterior, então ainda exige a chave em `env`.</Warning>
+
+    <Note>Código fechado e `env_hidden` só existem em templates **privados**, e `env_hidden` apenas em um **fechado** (caso contrário, o validador dá o erro `invalid_permissions`). Um template do catálogo público sempre mostra o código, e o catálogo recusa `code.view: false` e `env_hidden` com `forbidden_in_public`.</Note>
+  </Step>
+  <Step title="Valide">
+    ```bash
+    vertra template validate
+    ```
+
+    Teste uma combinação proibida para ver a regra em ação: adicione `code: { view: false, edit: true }` e o achado será `permissions.code.edit` com o código `invalid_permissions` ("A closed template cannot let users edit its code"). Remova a linha `edit` de novo.
+  </Step>
+  <Step title="Crie o template">
+    ```bash
+    vertra template create
+    ```
+
+    O template é privado e começa como uma nova entrada em **Templates**, **My templates**, com a marca **Closed code**. Um template fechado nunca é legível por outras contas: pedir o manifesto de um que não é seu retorna `null`.
+  </Step>
+  <Step title="Crie o link de uso">
+    Um link de uso dá ao cliente o direito de criar apps a partir do template, com a cópia própria da imagem quando o template usa uma. Para um cliente, deixe-o de uso único e de curta duração:
+
+    ```bash
+    vertra template share <template-id> --mode use --max-uses 1 --expires-days 14
+    ```
+
+    A CLI imprime o token **uma única vez**. Copie-o e envie ao cliente na hora; depois você só consegue ver o final dele e revogá-lo. No painel, o equivalente é **Templates**, **My templates**, o template, **Share links**, **Create link**.
+
+    Também existe um link de **cópia completa**, que dá ao destinatário um template próprio com código e imagem. Ele não está disponível aqui: um link de cópia completa mostra o código, então, em um template fechado, o painel diz "Unavailable: closed template" e a API recusa a combinação do manifesto com `invalid_permissions`.
+
+    <Tip>Faça a primeira execução você mesmo com a segunda conta: abra o link sem estar autenticado, confira a prévia, entre na conta e crie o app. Depois tente o gerenciador de arquivos e o terminal e confirme que estão fechados.</Tip>
+  </Step>
+  <Step title="Saiba o que o cliente vê">
+    O link abre uma página de prévia antes de qualquer coisa ser criada. O cliente vê o autor, a versão, o que será criado (serviços, memória mínima, plano exigido, vagas de imagem), um selo **Not verified by Vertra** e este aviso:
+
+    > Closed code. The values you fill in (for example, your OpenAI key) go to code you cannot see. You are trusting the author.
+
+    O cliente então entra na conta, escolhe onde criar o app e responde às perguntas. A prévia tem um botão **Report** para quem achar o template abusivo. No app, o cliente vê a marca **Closed template** e a explicação de que o código pertence ao autor e de quais ações continuam abertas.
+
+    Seja honesto com o seu cliente sobre a confiança envolvida: o aviso acima é mostrado a ele por design.
+  </Step>
+  <Step title="Atualize e revogue">
+    Para corrigir algo, aumente `version` e execute `vertra template create --template support-bot --changelog "Describe the change"`. O cliente vê **New version available** e se atualiza quando quiser, com um snapshot de segurança feito antes; uma atualização nunca é automática. Quando o contrato com o cliente terminar, revogue o link:
+
+    ```bash
+    vertra template share list <template-id>
+    vertra template share revoke <template-id> <link-id>
+    ```
+
+    Revogar impede novas criações e deixa de oferecer atualizações. O que o cliente já criou continua rodando: pertence a ele, e você nunca poderá parar, excluir nem ler nada na conta dele.
+  </Step>
+</Steps>
+
+## Solução de problemas
+
+| Sintoma | Causa e correção |
+|---|---|
+| O `validate` reporta `invalid_permissions` | Uma permissão que reabriria o código (`code.edit`, `env.add`, `commands.edit`, `share.full_copy`) está como `true` em um template fechado. Remova-a. |
+| Um pipeline do catálogo reporta `forbidden_in_public` | Você tentou publicar o template no catálogo público. Código fechado e `env_hidden` são só para templates privados. |
+| O `validate` reporta `unknown_field` em `env_hidden` | Uma chave listada em `env_hidden` não está em `env`. Adicione-a a `env` com o valor dela. |
+| O `validate` reporta `secret_in_manifest` | Uma variável com nome de segredo tem um valor literal e não está em `env_hidden`. Oculte-a ou transforme-a em uma pergunta. |
+| O cliente recebe `TEMPLATE_CLOSED` em uma ação de arquivo, terminal ou código | É o lacre funcionando. Atenda a necessidade com uma pergunta ou uma nova versão. |
+| O link do cliente diz revogado, expirado ou esgotado | Um link tem estado próprio: revogado por você, fora da validade ou usado o número máximo de vezes. Crie outro. |
+| Você não consegue salvar o app de um cliente como template | Apps criados a partir de um link de uso, e apps de um template fechado, não podem virar template nem gerar um link. Isso é por design. |
+
+## Próximos passos
+
+- [Templates fechados para quem os usa](/pt-br/templates/use/closed-templates): o lado do cliente desta mesma página.
+- [Receba um template por link](/pt-br/templates/use/receive-a-link): a prévia, a cópia da imagem e o fluxo de denúncia.
+- [Links de compartilhamento](/pt-br/templates/create/share-links): links de uso versus links de cópia completa, limites e revogação.
+- [Permissões](/pt-br/templates/create/permissions): todas as combinações e o que cada uma bloqueia.
+- [Boas práticas](/pt-br/templates/create/best-practices): onde guardar dados em um template fechado.
+- Próximo tutorial: [de um template privado ao catálogo público](/pt-br/templates/tutorials/private-to-public-pr).

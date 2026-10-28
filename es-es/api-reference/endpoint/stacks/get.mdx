@@ -1,0 +1,110 @@
+---
+title: Obtener stack
+sidebarTitle: Obtener stack
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}
+authMethod: bearer
+description: Devuelve un stack con sus miembros, estado, conexiones, memoria total y la plantilla de la que procede.
+---
+
+{/* @see RESTGetAPIStackResponse, APIStack, APIStackMember, APIStackBinding — @vertracloud/api-types */}
+Devuelve un stack y todo lo que contiene: aplicaciones, bases de datos y carpetas de Blob, las conexiones entre ellas, el estado de los miembros sumado y, cuando el stack procede de una plantilla, la plantilla y su versión. Requiere el scope `stacks:read` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack. Es obligatorio para un miembro del workspace que actúe sobre un stack que no le pertenece; el propietario puede omitirlo.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  El stack.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">El ID del stack.</ResponseField>
+  <ResponseField name="name" type="string">El nombre del stack.</ResponseField>
+  <ResponseField name="description" type="string | null">Descripción opcional, o `null`.</ResponseField>
+
+  <ResponseField name="network_mode" type="string">
+    Cómo se comunican entre sí los miembros. El valor es `public`: los servicios usan sus direcciones públicas y las bases de datos se alcanzan con certificados de cliente.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">La cuenta que es propietaria del stack.</ResponseField>
+  <ResponseField name="workspace_id" type="string | null">El workspace al que pertenece el stack, o `null` cuando es tuyo.</ResponseField>
+
+  <ResponseField name="members" type="object[]">
+    Los miembros. Cada uno tiene `resource_type` (`application`, `database` o `blob`), `resource_id`, `name`, `status` (`null` para una carpeta de Blob), `ram` en MB (`0` para una carpeta de Blob), `service_key` (el ID del servicio en la plantilla, `null` para un miembro que añadiste tú), `database_type` (el motor de una base de datos, si no `null`), `closed` (`true` para una aplicación de una [plantilla cerrada](/es-es/templates/use/closed-templates): su código no es accesible) y `blob`.
+
+    Para un miembro Blob, `blob` tiene el `prefix` de la carpeta, `visibility` (`private` o `public`), `used_bytes` (o `null`) y `api_key_id`, la clave que creó la plataforma para el stack y restringida a esa carpeta. Consulta [Añadir carpeta de Blob](/es-es/api-reference/endpoint/stacks/blob/create).
+  </ResponseField>
+
+  <ResponseField name="status" type="object">
+    Miembros en línea, fuera de línea y en build, sumados: `up`, `down`, `building` y `total` (los miembros que tienen estado).
+  </ResponseField>
+
+  <ResponseField name="ram_total" type="integer">Memoria de todos los miembros, en MB.</ResponseField>
+
+  <ResponseField name="bindings" type="object[]">
+    Las conexiones entre miembros. Cada una tiene `id`, `stack_id`, `app_id` (la aplicación que recibe las variables), exactamente uno de `database_id`, `blob_id` y `target_app_id`, `env_map` (nombre de variable y lo que recibe), `certs_path` (la carpeta dentro de la aplicación donde se escriben los certificados de cliente de una base de datos, `null` sin base de datos) y `created_at`. Consulta [Crear conexión](/es-es/api-reference/endpoint/stacks/bindings/create).
+  </ResponseField>
+
+  <ResponseField name="template" type="object | null">
+    La plantilla y la versión de las que procede el stack, o `null` para un stack montado a mano. Tiene los mismos campos que el `template` de una [aplicación](/es-es/api-reference/endpoint/apps/get), incluido `icon_url`, la URL estable del icono de la plantilla (`null` cuando no hay ninguno).
+  </ResponseField>
+
+  <ResponseField name="update_available" type="boolean">`true` cuando la plantilla tiene una versión más nueva a la que el stack puede actualizarse.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time">Cuándo se creó el stack.</ResponseField>
+  <ResponseField name="updated_at" type="string" format="date-time">Cuándo se actualizó por última vez el stack.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "stk-abc123def456",
+    "name": "shop",
+    "description": null,
+    "network_mode": "public",
+    "owner_id": "usr-abc123",
+    "workspace_id": null,
+    "members": [
+      { "resource_type": "application", "resource_id": "app-abc123def456", "name": "web", "status": "up", "ram": 512, "service_key": null, "database_type": null, "closed": false, "blob": null },
+      { "resource_type": "database", "resource_id": "db-abc123def456", "name": "main", "status": "up", "ram": 256, "service_key": null, "database_type": "postgres", "closed": false, "blob": null }
+    ],
+    "status": { "up": 2, "down": 0, "building": 0, "total": 2 },
+    "ram_total": 768,
+    "bindings": [
+      {
+        "id": "bnd-abc123def456",
+        "stack_id": "stk-abc123def456",
+        "app_id": "app-abc123def456",
+        "database_id": "db-abc123def456",
+        "blob_id": null,
+        "target_app_id": null,
+        "env_map": { "DATABASE_URL": "url" },
+        "certs_path": "/app/.vertra/certs/db-abc123def456/",
+        "created_at": "2026-10-27T12:00:00.000Z"
+      }
+    ],
+    "template": null,
+    "update_available": false,
+    "created_at": "2026-10-27T12:00:00.000Z",
+    "updated_at": "2026-10-27T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | La clave no tiene `stacks:read`. |
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |

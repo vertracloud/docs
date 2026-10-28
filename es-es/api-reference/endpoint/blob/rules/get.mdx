@@ -1,0 +1,99 @@
+---
+title: "Obtener las reglas de carpeta y su ETag"
+sidebarTitle: "Obtener reglas"
+api: "GET https://blob.vertracloud.app/v1/rules"
+authMethod: bearer
+description: "Devuelve las reglas de carpeta de la cuenta y el etag que debes enviar de vuelta al reemplazarlas."
+---
+
+{/* @see RESTGetAPIBlobRulesResponse, APIBlobRules — @vertracloud/api-types */}
+
+Devuelve todas las reglas de carpeta de la cuenta y el `etag` de la lista. Lee la lista antes de cambiarla, y envía el
+`etag` de vuelta en `If-Match` al [reemplazar todas las reglas](/es-es/api-reference/endpoint/blob/rules/replace).
+
+**Ámbito:** `blob:read`.
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl "https://blob.vertracloud.app/v1/rules" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La lista de reglas y su etag.
+  <Expandable title="propiedades">
+  <ResponseField name="rules" type="object[]">Reglas de carpeta. Se aplica el prefijo coincidente más largo.</ResponseField>
+  <ResponseField name="rules[].prefix" type="string">Prefijo de carpeta, que siempre se guarda con `/` al final.</ResponseField>
+  <ResponseField name="rules[].visibility" type="string">Visibilidad por defecto de los objetos nuevos de la carpeta.</ResponseField>
+  <ResponseField name="rules[].expire_seconds" type="number">Caducidad por defecto de cada objeto nuevo, en segundos.</ResponseField>
+  <ResponseField name="rules[].max_size" type="number">Archivo aceptado más grande, en bytes, de 512 B a 10 GB.</ResponseField>
+  <ResponseField name="rules[].extensions" type="string[]">Extensiones aceptadas, de 1 a 50, en minúsculas, sin el punto.</ResponseField>
+  <ResponseField name="rules[].cache_control" type="string">`cache_control` por defecto de los objetos nuevos.</ResponseField>
+  <ResponseField name="rules[].delete_after_days" type="number">Los objetos se eliminan estos días después de subirlos, de 1 a 3650.</ResponseField>
+  <ResponseField name="rules[].active_from" type="string">Cuándo empieza a aplicarse `delete_after_days`, lo fija la plataforma (24 horas después de guardar la regla).</ResponseField>
+  <ResponseField name="rules[].created_at" type="string">Fecha ISO 8601 de creación de la regla.</ResponseField>
+  <ResponseField name="etag" type="string">Versión de la lista completa de reglas. Envíala de vuelta en `If-Match` cuando reemplaces la lista.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "rules": [
+      {
+        "prefix": "tmp/",
+        "delete_after_days": 30,
+        "active_from": "2026-10-15T12:00:00.000Z",
+        "created_at": "2026-10-14T12:00:00.000Z"
+      }
+    ],
+    "etag": "v3"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,182 @@
+---
+title: Desplegar plantilla
+sidebarTitle: Desplegar plantilla
+api: POST https://api.vertracloud.app/v1/templates/{template_id}/deploy
+authMethod: bearer
+description: Inicia un despliegue que crea, en una sola operación, las aplicaciones, bases de datos y stack de una plantilla, y lo deshace todo si un paso falla.
+---
+
+{/* @see RESTPostAPITemplateDeployBody, RESTPostAPITemplateDeployHeaders, RESTPostAPITemplateDeployResponse — @vertracloud/api-types */}
+Crea todo lo que describe la plantilla como una operación asíncrona y responde `202 Accepted` con el trabajo. El ámbito necesario es `templates:deploy` (incluido en el preset `write`). Si algún paso falla, el trabajo elimina todo lo que creó, tomando un snapshot de seguridad antes de borrar cada aplicación o base de datos, y termina como `failed`. Sigue el trabajo con [Obtener trabajo de despliegue](/es-es/api-reference/endpoint/templates/deploy-status) o con su [flujo de eventos](/es-es/api-reference/endpoint/templates/deploy-events). Para usar la plantilla desde el panel, consulta [Usar una plantilla](/es-es/templates/use/using-a-template).
+
+Solo el **propietario** de la cuenta o del workspace puede desplegar una plantilla: un miembro del workspace recibe `WORKSPACE_OWNER_ONLY`, y lo que se crea pertenece al propietario del workspace. Una cuenta puede ejecutar **un despliegue a la vez**; una segunda llamada mientras hay uno en curso falla con `TEMPLATE_DEPLOY_IN_PROGRESS`. Antes de responder `202`, la llamada ya comprueba tus respuestas, el destino, la memoria, el plan que exige la plantilla, tus límites de aplicaciones y bases de datos, el límite horario de despliegues y los slots de imagen.
+
+<ParamField path="template_id" type="string" required>
+  El ID de la plantilla o su slug.
+</ParamField>
+
+<ParamField header="Idempotency-Key" type="string">
+  Hace que la llamada sea segura de repetir, y se recomienda en cada llamada. De 1 a 255 caracteres visibles, única por cuenta. Repetir la misma clave con la misma petición devuelve **el mismo trabajo** con `200` en lugar de crear un segundo conjunto de recursos. La misma clave con una petición distinta falla con `IDEMPOTENCY_KEY_CONFLICT`.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  El nombre de la aplicación, o del stack cuando la plantilla tiene más de un servicio. De 1 a 50 caracteres.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Una descripción opcional, de hasta 128 caracteres.
+</ParamField>
+
+<ParamField body="version" type="string">
+  Un número de versión, como `1.1.0`. Solo es válido cuando la plantilla permite elegir versiones (en otro caso responde `TEMPLATE_VERSION_NOT_SELECTABLE`). Por defecto: la más reciente. Consulta [Listar versiones de plantilla](/es-es/api-reference/endpoint/templates/versions).
+</ParamField>
+
+<ParamField body="inputs" type="object">
+  Tus respuestas a las preguntas de la plantilla, por ID de pregunta, como texto, número o booleano. Las preguntas vienen de `inputs` en [Obtener plantilla](/es-es/api-reference/endpoint/templates/get). Una pregunta obligatoria sin respuesta, una respuesta fuera de sus límites o una pregunta que no aplica falla con `TEMPLATE_INPUT_INVALID`. Las preguntas secretas con generador las rellena la plataforma si se dejan vacías. Hasta 50 respuestas.
+</ParamField>
+
+<ParamField body="services" type="object">
+  Tus elecciones por servicio, por ID de servicio (hasta 20 servicios). Cada valor es un objeto con:
+
+  - `name` (string, de 1 a 50 caracteres): el nombre de la aplicación o de la base de datos. Por defecto: el nombre del despliegue seguido del ID del servicio.
+  - `ram` (entero, MB): la memoria, dentro de lo que permite la plantilla. No puede estar por debajo del mínimo del servicio, a menos que la plantilla lo permita.
+  - `subdomain` (string, hasta 63 caracteres): para una aplicación con web, `"random"` o el subdominio que quieras. Un subdominio ocupado falla con `SUBDOMAIN_TAKEN`.
+</ParamField>
+
+<ParamField body="network_mode" type="string">
+  El modo de red del stack. Solo se acepta `public`: las aplicaciones del stack llegan a sus bases de datos por su dirección pública con certificados de cliente. Cualquier otro valor falla con `STACK_NETWORK_MODE_UNAVAILABLE`. Consulta [Stacks](/es-es/templates/use/stacks).
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  El workspace que será propietario de lo creado. Debes ser su propietario.
+</ParamField>
+
+<ParamField body="folder_id" type="string">
+  Una carpeta de recursos donde poner la aplicación o el stack, en la cuenta o en el workspace `workspace_id`.
+</ParamField>
+
+### Qué hace el trabajo
+
+El trabajo lista solo los pasos que aplican a la plantilla, en este orden:
+
+| Paso | Qué ocurre |
+|---|---|
+| `validate` | Se vuelven a comprobar el plan, la memoria, los límites y las respuestas. |
+| `network` | Con dos o más servicios, se crea el stack. |
+| `databases` | Se crean las bases de datos y se espera a que estén listas. |
+| `blob` | Se crean la carpeta de Blob del stack y su clave restringida. |
+| `images` | Las imágenes quedan disponibles para tu cuenta. |
+| `apps` | Se crean las aplicaciones. |
+| `variables` | Las variables se resuelven y se guardan. |
+| `certificates` | Los certificados de cliente de las bases de datos se entregan a las aplicaciones. |
+| `start` | Todo se inicia. |
+| `healthcheck` | La plataforma espera a que cada servicio responda a su comprobación de estado (health check). |
+| `outputs` | Se guardan las salidas que se muestran al final. |
+
+Si un paso falla, el trabajo pasa a `undoing`, elimina en orden inverso solo lo que creó (los archivos de Blob se conservan) y termina como `failed` con el `error` legible. Un slot de imagen que tomó el trabajo se libera, y se devuelve el uso del enlace para compartir que se haya consumido. Un trabajo sin progreso durante un tiempo lo recoge la plataforma y lo deshace.
+
+### Salidas
+
+Cuando el trabajo termina con éxito, sus `outputs` contienen lo que la plantilla quiere que veas, como la dirección de la aplicación o credenciales generadas. Una salida marcada como `once` **se muestra una sola vez**: la primera lectura del trabajo terminado devuelve su valor, y cada lectura posterior devuelve `null`. Cópiala en ese momento. Las salidas nunca se envían por el flujo de eventos. Las aplicaciones de una [plantilla cerrada](/es-es/templates/use/closed-templates) mantienen su código oculto.
+
+### Respuesta
+
+Estado `202` con el trabajo nuevo. Estado `200` con el mismo trabajo cuando la `Idempotency-Key` ya se usó con la misma petición.
+
+<ResponseField name="response" type="object">
+  El trabajo, en estado `queued`. Sus campos se describen en [Obtener trabajo de despliegue](/es-es/api-reference/endpoint/templates/deploy-status): `id`, `kind` (`deploy`), `template_id`, `version_id`, `version`, `status`, `current_step`, `steps`, `error`, `resources`, `stack_id`, `application_id`, `outputs`, `created_at`, `updated_at` y `finished_at`.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/discord-bot-js/deploy \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 5b0e2f6a-8d1c-4a47-9e53-3c7f1a2b6d90" \
+  -d '{
+    "name": "my-discord-bot",
+    "inputs": { "discord_token": "YOUR_BOT_TOKEN" },
+    "services": { "app": { "ram": 256 } }
+  }'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63",
+    "kind": "deploy",
+    "template_id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "version_id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+    "version": "1.0.0",
+    "status": "queued",
+    "current_step": null,
+    "steps": [
+      { "step": "validate", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "apps", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "variables", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "start", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "healthcheck", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "outputs", "status": "pending", "started_at": null, "finished_at": null }
+    ],
+    "error": null,
+    "resources": [],
+    "stack_id": null,
+    "application_id": null,
+    "outputs": [],
+    "created_at": "2026-10-28T14:00:00Z",
+    "updated_at": "2026-10-28T14:00:00Z",
+    "finished_at": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: El cuerpo o la `Idempotency-Key` no son válidos (`400`).
+  - `TEMPLATE_INPUT_INVALID`: Falta una respuesta o no es válida, o una elección de servicio está fuera de lo que permite la plantilla; `details.issues` lista las preguntas (`400`). Un subdominio mal formado responde `INVALID_SUBDOMAIN_FORMAT` o `SUBDOMAIN_FORBIDDEN` (`400`).
+  - `STACK_NETWORK_MODE_UNAVAILABLE`: `network_mode` no es `public` (`400`).
+  - `TEMPLATE_RAM_INSUFFICIENT`: No hay memoria libre suficiente para la plantilla; `details` trae los motivos (`400`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:deploy` (`403`).
+  - `PLAN_REQUIRED`: La cuenta no tiene plan (`403`).
+  - `TEMPLATE_PLAN_REQUIRED`: Tu plan está por debajo de lo que necesita la plantilla; `details.reasons` y `details.required_plan` explican por qué (`403`).
+  - `TEMPLATE_IMAGE_SLOTS_EXHAUSTED`: La plantilla ejecuta una imagen y todos los slots de imagen de tu plan están en uso (`403`).
+  - `MAX_APPS_REACHED`, `MAX_DATABASES_REACHED`: El despliegue superaría el límite de aplicaciones o de bases de datos de tu plan (`403`).
+  - `TEMPLATE_DEPRECATED`: La plantilla está obsoleta y no puede usarse para aplicaciones nuevas (`409`).
+  - `TEMPLATE_VERSION_NOT_SELECTABLE`: La plantilla no permite elegir una versión (`400`).
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace puede usar plantillas en él (`403`). Una plantilla de workspace solo se despliega dentro de su propio workspace: con un `workspace_id` de otro workspace, o sin ninguno, responde `TEMPLATE_NOT_FOUND` (`404`).
+  - `TEMPLATE_NOT_FOUND`: La plantilla no existe o no es visible para ti (`404`).
+  - `TEMPLATE_VERSION_NOT_FOUND`: La plantilla no tiene una versión lista con ese número (`404`).
+  - `WORKSPACE_NOT_FOUND`: El workspace no existe o no formas parte de él (`404`).
+  - `WORKSPACE_RESOURCE_FOLDER_NOT_FOUND`: La carpeta no existe (`404`).
+  - `TEMPLATE_DEPLOY_IN_PROGRESS`: Otro despliegue de tu cuenta está en curso (`409`).
+  - `IDEMPOTENCY_KEY_CONFLICT`: La `Idempotency-Key` ya se usó con una petición distinta (`409`).
+  - `SUBDOMAIN_TAKEN`: Un subdominio elegido ya está en uso (`409`).
+  - `DEPLOY_RATE_LIMITED`: Se alcanzó el límite horario de despliegues (`429`).
+  - `RATE_LIMIT_EXCEEDED`: Demasiadas peticiones (`429`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+
+  Un fallo posterior al `202` no se devuelve aquí: termina el trabajo como `failed`, con el código en `error.code`. Consulta [Obtener trabajo de despliegue](/es-es/api-reference/endpoint/templates/deploy-status).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_PLAN_REQUIRED",
+  "details": {
+    "reasons": [{ "reason": "min_plan", "required": "intermediary", "available": "economy" }],
+    "required_plan": "intermediary"
+  }
+}
+```
+
+</ResponseExample>

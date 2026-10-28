@@ -1,0 +1,190 @@
+---
+title: Fazer deploy a partir de um link de uso
+sidebarTitle: Usar link
+api: POST https://api.vertracloud.app/v1/share/templates/{token}/deploy
+authMethod: bearer
+description: Cria as aplicações, bancos e a stack de um link de uso como um único job assíncrono, seguro para repetir com um Idempotency-Key.
+---
+
+{/* @see RESTPostAPITemplateShareDeployBody, RESTPostAPITemplateShareDeployResponse — @vertracloud/api-types */}
+Esta chamada cria, como uma única operação, tudo o que o template por trás de um link `use` descreve, e responde `202` com um job em `status: "queued"`. Se alguma etapa falhar, tudo o que o job criou é removido. Acompanhe o job com [Obter job de deploy de template](/pt-br/api-reference/endpoint/templates/deploy-status) ou com o [stream de eventos](/pt-br/api-reference/endpoint/templates/deploy-events). O corpo é o mesmo de [usar um template do catálogo](/pt-br/api-reference/endpoint/templates/deploy), sem a escolha de versão: o link fornece uma única versão.
+
+Exige uma conta (uma sessão ou uma chave de API com o escopo `templates:deploy`), e só o dono de um workspace pode usar um template nele; um membro recebe `WORKSPACE_OWNER_ONLY`. Um link `full_copy` é recusado aqui com `400`: use [Copiar um template a partir de um link de cópia completa](/pt-br/api-reference/endpoint/templates/share-links/copy). Cada chamada usa um dos usos do link; uma chamada que não termina em um novo job devolve o uso, e o mesmo acontece com um job que é desfeito. Visualize o link antes com [Visualizar um link de compartilhamento de template](/pt-br/api-reference/endpoint/templates/share-links/preview). As aplicações criadas a partir de um link podem ser denunciadas depois pelo dono, e só recebem atualizações enquanto o link estiver ativo.
+
+<ParamField path="token" type="string" required>
+  O token do link.
+</ParamField>
+
+<ParamField header="Idempotency-Key" type="string">
+  Torna a chamada segura para repetir: a mesma chave com a mesma requisição retorna o mesmo job (`200`) e não gasta um segundo uso; a mesma chave com uma requisição diferente retorna `IDEMPOTENCY_KEY_CONFLICT`. Recomendado em todas as chamadas.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  O nome da aplicação, ou da stack quando o template tem mais de um serviço.
+</ParamField>
+
+<ParamField body="description" type="string">
+  A descrição.
+</ParamField>
+
+<ParamField body="inputs" type="object">
+  As respostas às perguntas do template, por ID da pergunta. Um valor é um texto, um número ou um booleano.
+</ParamField>
+
+<ParamField body="services" type="object">
+  Escolhas por serviço, por ID do serviço. Cada um pode ter `name`, `ram` (MB, dentro do que o template permite) e `subdomain` (`"random"` ou o que você quiser, para uma aplicação com web).
+</ParamField>
+
+<ParamField body="network_mode" type="string">
+  Só `public` é aceito. Qualquer outro valor falha com `STACK_NETWORK_MODE_UNAVAILABLE`.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O workspace que será dono do que for criado.
+</ParamField>
+
+<ParamField body="folder_id" type="string">
+  A pasta onde colocar a aplicação ou a stack.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/share/templates/vtpl_EXAMPLE_TOKEN/deploy \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Idempotency-Key: 6f1c2d3e-0000-4000-8000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "support-bot", "inputs": { "discord_token": "..." } }'
+```
+
+</RequestExample>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O job.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do job.
+  </ResponseField>
+
+  <ResponseField name="kind" type="string">
+    `deploy` neste caso.
+  </ResponseField>
+
+  <ResponseField name="template_id" type="string">
+    O template.
+  </ResponseField>
+
+  <ResponseField name="version_id" type="string">
+    A versão que está sendo implantada.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    O número dessa versão.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `queued`, `running`, `undoing`, `succeeded` ou `failed`.
+  </ResponseField>
+
+  <ResponseField name="current_step" type="string | null">
+    A etapa em execução agora, ou `null` quando o job está na fila ou terminou.
+  </ResponseField>
+
+  <ResponseField name="steps" type="object[]">
+    Cada etapa com seu `step`, `status` (`pending`, `running`, `done`, `skipped` ou `failed`), `started_at` e `finished_at`.
+  </ResponseField>
+
+  <ResponseField name="error" type="object | null">
+    Definido quando o job falhou: `code`, `message`, `step` e `details` opcional.
+  </ResponseField>
+
+  <ResponseField name="resources" type="object[]">
+    O que o job criou, cada item com `resource_type`, `resource_id`, `service_id` e `name`. Vazio após uma falha.
+  </ResponseField>
+
+  <ResponseField name="stack_id" type="string | null">
+    A stack, quando o template tem dois ou mais serviços.
+  </ResponseField>
+
+  <ResponseField name="application_id" type="string | null">
+    A aplicação, quando o template tem uma única aplicação.
+  </ResponseField>
+
+  <ResponseField name="outputs" type="object[]">
+    O que o template exibe ao final, cada item com `label`, `value`, `secret` e `once`. Um valor `once` volta apenas na primeira leitura do job finalizado.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando o job foi criado.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Quando o job mudou pela última vez.
+  </ResponseField>
+
+  <ResponseField name="finished_at" type="string | null" format="date-time">
+    Quando o job terminou, ou `null`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "dep-abc123def456",
+    "kind": "deploy",
+    "template_id": "tpl-abc123def456",
+    "version_id": "tplv-111222333444",
+    "version": "1.0.0",
+    "status": "queued",
+    "current_step": null,
+    "steps": [],
+    "error": null,
+    "resources": [],
+    "stack_id": null,
+    "application_id": null,
+    "outputs": [],
+    "created_at": "2026-10-27T14:02:00Z",
+    "updated_at": "2026-10-27T14:02:00Z",
+    "finished_at": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:deploy` (`403`).
+  - `SHARE_LINK_NOT_FOUND`: O token tem formato inválido, não existe, ou o template foi excluído (`404`).
+  - `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED`: O link foi revogado, expirou ou atingiu `max_uses` (`410`).
+  - `TEMPLATE_INPUT_INVALID`: Uma resposta está faltando ou é inválida.
+  - `TEMPLATE_PLAN_REQUIRED`: O plano da conta não cobre o template (`403`); `details.reason` informa o motivo.
+  - `TEMPLATE_RAM_INSUFFICIENT`: Memória livre insuficiente para o template (`400`).
+  - `TEMPLATE_IMAGE_SLOTS_EXHAUSTED`: O template precisa de mais vagas de imagem personalizada do que a conta tem livres (`403`).
+  - `TEMPLATE_DEPLOY_IN_PROGRESS`: Outro deploy da conta está em execução (`409`).
+  - `IDEMPOTENCY_KEY_CONFLICT`: A chave foi usada com uma requisição diferente.
+  - `MAX_APPS_REACHED`, `MAX_DATABASES_REACHED`: O limite do plano seria ultrapassado.
+  - `WORKSPACE_OWNER_ONLY`: Só o dono de um workspace usa templates nele.
+  - `DEPLOY_RATE_LIMITED`: Deploys demais na última hora.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_RAM_INSUFFICIENT",
+  "details": { "reason": "ram", "required": 512, "available": 256 }
+}
+```
+
+</ResponseExample>

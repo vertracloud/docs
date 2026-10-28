@@ -1,0 +1,115 @@
+---
+title: 'Organização de recursos do workspace'
+sidebarTitle: 'Pastas e favoritos'
+description: 'Organize as aplicações e os bancos de dados de um workspace com pastas e favoritos individuais.'
+---
+Esta API organiza a visão de quem faz a chamada. As pastas e os favoritos de um workspace são
+individuais: cada membro pode escolher a própria organização, sem alterar a visão dos outros membros.
+
+## Escopo e leitura
+
+Use um token Bearer e o ID do workspace no caminho. A organização do membro é retornada em
+[`GET /v1/workspaces/:id`](/pt-br/api-reference/endpoint/workspaces/get), no campo
+`response.resource_organization`.
+
+Uma chave de API precisa de `workspaces:read` para ler o workspace e de `workspaces:write` para
+alterar a organização desse workspace.
+
+Pastas e favoritos aceitam `application`, `database`, `image` e `stack`. As cores das pastas são
+`neutral`, `red`, `orange`, `yellow`, `green`, `blue` e `purple`.
+
+## Criar uma pasta
+
+```http
+POST /v1/workspaces/{id}/folders
+```
+
+```json
+{
+  "name": "Production",
+  "color": "green",
+  "position": 0
+}
+```
+
+`name` é obrigatório. `color`, `position`, `notes` (texto livre; `null` remove na atualização) e
+`flow_layout` (`{ "x": 0, "y": 0, "collapsed": false }`, a posição dela no canvas do Flow; `null`
+remove na atualização) são opcionais. A resposta contém a pasta criada em `response`.
+
+## Renomear, mudar a cor ou reordenar uma pasta
+
+```http
+PATCH /v1/workspaces/{id}/folders/{folder_id}
+```
+
+```json
+{
+  "name": "Published production",
+  "color": "blue",
+  "position": 1
+}
+```
+
+Envie apenas os campos que quer alterar. A resposta contém a pasta atualizada em `response`.
+
+## Apagar uma pasta
+
+```http
+DELETE /v1/workspaces/{id}/folders/{folder_id}
+```
+
+Apagar remove a organização da pasta, mas não apaga nem desvincula a aplicação ou o banco de dados.
+
+## Colocar ou remover um recurso em uma pasta
+
+```http
+PUT /v1/workspaces/{id}/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Use `resource_type=application`, `database`, `image` ou `stack`. `resource_id` identifica o recurso
+ao qual o membro tem acesso. O corpo pode conter a posição dentro da pasta:
+
+```json
+{
+  "position": 0
+}
+```
+
+Para remover apenas o vínculo:
+
+```http
+DELETE /v1/workspaces/{id}/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Colocar o mesmo recurso em outra pasta o move dentro da organização desse membro. A resposta das duas
+operações retorna a organização atualizada em `response`.
+
+## Favoritar e desfavoritar um recurso
+
+```http
+PUT /v1/workspaces/{id}/favorites/{resource_type}/{resource_id}
+```
+
+```json
+{
+  "position": 0
+}
+```
+
+Para desfavoritar:
+
+```http
+DELETE /v1/workspaces/{id}/favorites/{resource_type}/{resource_id}
+```
+
+Favorito e pasta são independentes, e as operações retornam a organização atualizada em `response`.
+Podem ser repetidas com segurança.
+
+## Atividade
+
+Criar, editar ou apagar uma pasta, mover um recurso, e favoritar ou desfavoritar geram uma atividade.
+Isso vale para ações no painel e em workflows, e também para chamadas com chave de API feitas pela CLI,
+pelo MCP ou pela extensão. O cliente não envia `origin` nem `author_id`; a API define esses campos.
+
+Estas pastas não são grupos do Flow. Grupos organizam elementos no canvas local do Flow; eles não têm
+um `group_id` compartilhado com esta API e não são sincronizados nem migrados para pastas.

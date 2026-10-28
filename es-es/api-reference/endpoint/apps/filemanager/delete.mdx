@@ -1,0 +1,81 @@
+---
+title: Eliminar archivo o carpeta de la aplicación
+sidebarTitle: Eliminar archivo o carpeta
+api: DELETE https://api.vertracloud.app/v1/apps/{id}/files
+authMethod: bearer
+description: Elimina un archivo o una carpeta de una aplicación a partir de su ID.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación de la que se eliminará el archivo o la carpeta. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Los miembros con el rol Propietario, Administrador o Desarrollador pueden usar el gestor de archivos en una aplicación del workspace que no les pertenece; sin este parámetro, solo puede hacerlo el propietario de la aplicación.
+</ParamField>
+
+<ParamField query="path" type="string" required>
+  La ruta del archivo o de la carpeta que se va a eliminar.
+</ParamField>
+
+<ParamField query="confirm_detach" type="boolean">
+  Envía `true` para confirmar que el cambio desvincula una aplicación que viene de una plantilla abierta (deja de recibir versiones). Sin este parámetro, la petición no cambia nada y responde `409` `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`. Se ignora en las demás aplicaciones. Consulta [Desvincular de una plantilla](/es-es/api-reference/endpoint/templates/detach).
+</ParamField>
+
+### Respuesta
+
+Si todo va bien, responde `200` con `{ "response": null }`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+  - `FORBIDDEN`: El usuario no tiene permiso para acceder a la aplicación.
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+  - `PLAN_RESTRICTED_FEATURE`: El plan del usuario no admite el acceso al gestor de archivos.
+  - `MISSING_PATH`: No se proporcionó el parámetro de query `path`.
+  - `FORBIDDEN_PATH`: La ruta indicada está restringida.
+  - `FILE_DELETE_FAILED`: No se pudo eliminar el archivo o la carpeta.
+  - `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`: El cambio desvincularía la aplicación de su plantilla y no se envió `confirm_detach` (`409`). No se cambió nada.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Una descripción detallada con información adicional sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "MISSING_PATH",
+  "message": "Path query parameter is required"
+}
+```
+
+</ResponseExample>

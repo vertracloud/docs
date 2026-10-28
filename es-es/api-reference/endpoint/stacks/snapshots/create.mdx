@@ -1,0 +1,30 @@
+---
+title: Crear snapshot del stack
+sidebarTitle: Crear snapshot
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots
+authMethod: bearer
+description: Toma una snapshot de todos los miembros de un stack que tengan datos, juntos, para poder restaurarlos como grupo.
+---
+
+{/* @see RESTPostAPIStackSnapshotResponse, APIStackSnapshot — @vertracloud/api-types */}
+Toma una snapshot de cada aplicación y base de datos del stack y las agrupa. Se aplican las reglas y ventanas de snapshots del plan, igual que en las [snapshots de un recurso individual](/es-es/api-reference/endpoint/apps/snapshots/create). Requiere el scope `stacks:write` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack, cuando actúas sobre él como propietario del workspace.
+</ParamField>
+
+### Response
+
+La snapshot creada, con los mismos campos que un elemento de [Listar snapshots del stack](/es-es/api-reference/endpoint/stacks/snapshots/list), con `reason` igual a `manual`.
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `PLAN_RESTRICTED_FEATURE` | El plan no incluye snapshots manuales. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |

@@ -1,0 +1,50 @@
+---
+title: Previsualizar invitación
+sidebarTitle: Previsualizar
+api: GET https://api.vertracloud.app/v1/workspaces/invites/{token}
+authMethod: bearer
+description: Muestra a qué lleva una invitación antes de aceptarla. Cualquier cuenta con sesión iniciada; una clave de API necesita el scope `workspaces:invites`.
+---
+
+{/* @see APIWorkspaceInvitePreview, RESTGetAPIWorkspaceInvitePreviewResponse — @vertracloud/api-types */}
+<Note>
+  Una clave de API necesita el scope `workspaces:invites`. Tiene un límite de **10 peticiones por minuto**, por sesión
+  + IP a la vez: el token es adivinable en teoría (32 bytes aleatorios, pero sigue siendo un secreto de tipo bearer en la
+  URL), por eso esta ruta tiene un cupo más estricto que el resto de `/v1/workspaces`.
+</Note>
+
+Cualquier cuenta con sesión iniciada puede llamar a esto: el propio token es la credencial, no la pertenencia al workspace.
+
+<Info>
+  `410 WORKSPACE_INVITE_EXPIRED` significa que la invitación existió y se le acabó el tiempo. `404
+  WORKSPACE_INVITE_NOT_FOUND` cubre las revocadas, las ya aceptadas y las agotadas (enlace con `max_uses`), porque esos
+  tres casos deberían verse distintos para quien tiene el enlace que un «llegaste tarde».
+</Info>
+
+### Ruta
+
+<ParamField path="token" type="string" required>
+  El token de la invitación, de la URL o del correo. Opaco, de 16 a 128 caracteres.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="APIWorkspaceInvitePreview">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="workspace" type="object">`{ id, name }`.</ResponseField>
+  <ResponseField name="inviter" type="object">`{ display_name }`.</ResponseField>
+  <ResponseField name="role_name" type="string" />
+  <ResponseField name="kind" type="'email' | 'link'" />
+  <ResponseField name="expires_at" type="string" format="date-time" />
+
+  </Expandable>
+</ResponseField>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Se llamó con una clave de API que no tiene el scope `workspaces:invites`. |
+| 404 | `WORKSPACE_INVITE_NOT_FOUND` | El token no existe, o la invitación fue revocada, aceptada o agotada. |
+| 410 | `WORKSPACE_INVITE_EXPIRED` | La invitación existió, pero ya venció. |

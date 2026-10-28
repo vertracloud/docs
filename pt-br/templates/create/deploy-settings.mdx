@@ -1,0 +1,74 @@
+---
+title: 'Configurações de deploy do template: blue-green, rollback automático e rollback com dados'
+sidebarTitle: 'Configurações de deploy'
+description: 'Defina zero_downtime, auto_rollback e rollback.with_data por serviço e saiba quando travar o blue-green desligado porque duas cópias quebrariam o seu software.'
+icon: 'arrows-rotate'
+---
+
+`deploy` é um bloco dentro de um serviço de app que define o padrão e o travamento de três comportamentos: deploys sem downtime (blue-green), rollback automático e rollback com dados. Ele só restringe: o plano continua decidindo o que existe, e um manifesto nunca habilita algo que o plano não inclui.
+
+```yaml
+services:
+  app:
+    # ...
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: required }
+```
+
+## As três configurações
+
+| Configuração | Valores | O que faz |
+|---|---|---|
+| `zero_downtime.default` | `auto`, `on`, `off` | O modo inicial do app. |
+| `zero_downtime.locked` | `true` ou `false` | Com `true`, o usuário não pode alterar o modo. Uma configuração travada exige `default: on` ou `default: off`; `locked: true` com `auto` gera `invalid_deploy`. |
+| `auto_rollback.default` | `true` ou `false` | Se um deploy que falhou volta por conta própria. |
+| `auto_rollback.locked` | `true` ou `false` | Com `true`, o usuário não pode alterá-lo. |
+| `rollback.with_data` | `required` ou `optional` | `required` bloqueia um rollback só do código: o rollback restaura o código, o `/app` e os bancos de dados juntos, a partir do snapshot de segurança. |
+
+Coloque `"off"` e `"on"` entre aspas no YAML, ou o parser os lê como booleanos. Para saber como funcionam o blue-green e o rollback em um app comum, veja [Rollbacks e deploys sem downtime](/pt-br/guides/rollback-and-zero-downtime-deploys).
+
+## Quando travar o blue-green desligado
+
+O blue-green executa a cópia antiga e a nova ao mesmo tempo enquanto o tráfego é movido. **Trave-o desligado** (`default: "off"`, `locked: true`) sempre que duas cópias rodando juntas causariam dano.
+
+| Software | O que quebra com duas cópias |
+|---|---|
+| Um bot que se conecta a um canal (Discord, Telegram, WhatsApp) | As duas cópias se conectam com o mesmo token e cada mensagem é respondida duas vezes. |
+| Software com gatilhos agendados (n8n, executores de jobs) | Os agendamentos disparam duas vezes; no modo de fila, as duas cópias podem se declarar o líder. |
+| Um app preso a um número ou sessão do WhatsApp | Uma segunda sessão do mesmo número desconecta a primeira. |
+| Qualquer coisa com SQLite, ou qualquer arquivo de escritor único em `/app` | Dois processos escrevendo o mesmo arquivo podem corrompê-lo. |
+| Um worker que precisa ser o único consumidor de uma fila ou de um lock | Trabalho duplicado ou split brain. |
+
+Deixe-o aberto (`auto`, destravado) para apps web e APIs stateless que mantêm os dados em um banco de dados gerenciado e respondem a requisições sem efeitos colaterais na inicialização.
+
+## Quando exigir rollback com dados
+
+Use `rollback: { with_data: required }` quando a nova versão **migra o banco de dados ou os arquivos de dados** na inicialização. Fazer rollback só do código deixaria um programa antigo lendo um schema que ele não entende mais. Com `required`, o rollback manual e o automático só do código ficam bloqueados, e o caminho de volta é restaurar o snapshot tirado antes da atualização, que traz de volta o código, o `/app` e os bancos de dados da stack juntos.
+
+Use `optional` (o padrão) quando o código puder sofrer rollback de forma independente, como em um bot stateless cujo estado é apenas um token.
+
+## Atualizações do template
+
+Quem usa o template recebe uma nova versão somente quando escolhe atualizar. Antes da atualização, a plataforma tira um snapshot de segurança do `/app` e dos bancos de dados da stack, atualiza os serviços um após o outro e, se um passo falhar, volta ao snapshot. `with_data: required` é o que informa à plataforma que restaurar os bancos de dados faz parte da volta.
+
+## Exemplo: n8n e o bot inicial
+
+O n8n migra o próprio banco de dados, executa agendamentos e pode manter SQLite, então trava o blue-green desligado e exige rollback com dados:
+
+```yaml
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: required }
+```
+
+O bot inicial não tem dados para migrar, mas duas cópias com o mesmo token responderiam em dobro:
+
+```yaml
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: optional }
+```

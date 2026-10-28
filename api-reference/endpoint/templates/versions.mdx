@@ -1,0 +1,130 @@
+---
+title: List Template Versions
+sidebarTitle: List Versions
+api: GET https://api.vertracloud.app/v1/templates/{template_id}/versions
+authMethod: bearer
+description: Lists the published versions of a template, newest first, with the changelog and manifest of each one, to pick a version or read what changed.
+---
+
+{/* @see APITemplateVersion, RESTGetAPITemplateVersionsResponse — @vertracloud/api-types */}
+Returns the ready versions of a template, newest first, up to 100. Versions never change after they are published. Visibility is the one of [Get Template](/api-reference/endpoint/templates/get): public templates need no authentication, a private one is visible only to its owner or workspace readers, and anyone else gets `TEMPLATE_NOT_FOUND`. With an API key the scope is `templates:read`. Reads are limited to 60 requests per minute per client.
+
+<ParamField path="template_id" type="string" required>
+  The template ID or its slug.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace of a private template. Needed to resolve a workspace template by slug.
+</ParamField>
+
+You can deploy an earlier version only when the template allows it; see `version` in [Deploy Template](/api-reference/endpoint/templates/deploy).
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  An array of versions.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The version ID.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    The semantic version, such as `1.2.0`.
+  </ResponseField>
+
+  <ResponseField name="security" type="boolean">
+    `true` for a security release. Owners of applications on an earlier version are told about it.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    When the version was published.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    What changed, as a text per language (`pt-br`, `en`, `es`), or `null`.
+  </ResponseField>
+
+  <ResponseField name="manifest" type="object | null">
+    The manifest of the version: `id`, `version`, `name`, `description`, `category`, `tags`, `inputs`, `services`, `permissions`, `outputs` and the other fields described in the [manifest reference](/templates/create/manifest-reference). Values of hidden variables are never included. It is `null` when the template is closed and you are not its owner.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/discord-bot-js/versions \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+      "version": "1.1.0",
+      "security": true,
+      "created_at": "2026-10-28T10:30:00Z",
+      "changelog": { "en": "Updated discord.js to a release with a security fix." },
+      "manifest": {
+        "id": "discord-bot-js",
+        "version": "1.1.0",
+        "name": { "pt-br": "Bot de Discord (JavaScript)", "en": "Discord bot (JavaScript)" },
+        "description": { "pt-br": "Bot de Discord com discord.js e o comando /ping." },
+        "category": "bots",
+        "inputs": [{ "id": "discord_token", "type": "secret", "required": true, "label": { "pt-br": "Token do bot", "en": "Bot token" } }],
+        "services": {
+          "app": {
+            "source": { "type": "code", "path": "src" },
+            "language": "javascript",
+            "main": "index.js",
+            "start": "node index.js",
+            "ram": { "min": 256, "recommended": 256 },
+            "web": "none",
+            "env": { "DISCORD_TOKEN": "{{inputs.discord_token}}" }
+          }
+        }
+      }
+    },
+    {
+      "id": "b4f81c36-0a5e-47d2-b1c9-6e3a7d90f2a8",
+      "version": "1.0.0",
+      "security": false,
+      "created_at": "2026-10-26T13:05:00Z",
+      "changelog": null,
+      "manifest": { "id": "discord-bot-js", "version": "1.0.0", "category": "bots", "services": { "app": { "source": { "type": "code", "path": "src" }, "ram": { "min": 256, "recommended": 256 } } } }
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: A parameter is not valid (`400`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:read` scope (`403`).
+  - `TEMPLATE_NOT_FOUND`: The template does not exist, was removed or is not visible to you (`404`).
+  - `WORKSPACE_NOT_FOUND`: The workspace in `workspace_id` does not exist or you are not part of it (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Too many requests (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

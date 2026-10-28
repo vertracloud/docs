@@ -1,0 +1,83 @@
+---
+title: Unlink a Private Template from GitHub
+sidebarTitle: Unlink GitHub
+api: DELETE https://api.vertracloud.app/v1/templates/{template_id}/github
+authMethod: bearer
+description: Removes the link between a private template and its GitHub repository, so pushes no longer publish versions.
+---
+
+{/* @see RESTDeleteAPITemplateGithubResponse — @vertracloud/api-types */}
+After unlinking, pushes no longer publish versions. Existing versions and the apps created from the template are not affected. You can link again at any time with [Link a Private Template to GitHub](/api-reference/endpoint/templates/github-link). Only the owner of the template can unlink it.
+
+Needs the `templates:write` scope when called with an API key.
+
+<ParamField path="template_id" type="string" required>
+  The template ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the template belongs to a workspace, the workspace's ID.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.vertracloud.app/v1/templates/tpl-abc123def456/github \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Response
+
+The template object of [Create a Private Template](/api-reference/endpoint/templates/create), now with `github` set to `null`.
+
+<ResponseField name="response" type="object">
+  The template.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="github" type="object | null">
+    `null` after unlinking.
+  </ResponseField>
+
+  <ResponseField name="id" type="string">
+    The template ID. The other fields are the ones listed in [Create a Private Template](/api-reference/endpoint/templates/create).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "support-bot",
+    "origin": "private",
+    "github": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:write` scope (`403`).
+  - `TEMPLATE_NOT_FOUND`: The template does not exist or is not yours (`404`).
+  - `WORKSPACE_OWNER_ONLY`: Only the workspace owner unlinks its templates.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

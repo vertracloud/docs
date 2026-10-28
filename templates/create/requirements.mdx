@@ -1,0 +1,84 @@
+---
+title: 'Template Requirements: How the Required Plan and min_plan Are Calculated'
+sidebarTitle: 'Requirements'
+description: 'How Vertra Cloud works out the plan a template needs from its RAM, web, image, Blob and database services, and how min_plan adds a commercial minimum.'
+icon: 'gauge-high'
+---
+
+The plan a template needs is the higher of two plans: the one **calculated** from what the services require, and the `min_plan` you **declared**. Any plan can use a template as long as it meets both. You do not write the calculated part; the platform derives it from the manifest.
+
+```text
+required plan = max(plan calculated from the services, min_plan)
+```
+
+## What is calculated
+
+The API calculates it over the plan catalog, never from a fixed list, so it stays correct when plans change. For the plans themselves, see [Plans and limits](/plans-and-limits).
+
+| Requirement | Where it comes from | What the user needs |
+|---|---|---|
+| Memory | The sum of `ram.min` of every service that will be created, after the user's answers | That sum fits in the **free** memory of the plan. The wizard shows "needs X, you have Y free". |
+| Web publishing | Any app with `web: required` | A plan that publishes on the web. |
+| Image | Any app with `source.type: image` | A plan that includes [custom Docker images](/guides/custom-docker-images) and a free image slot. |
+| Blob | A `blob` service | A plan that includes Blob Storage. |
+| Number of apps and databases | The services that will be created | Room under the plan's limits of apps and databases. |
+| Deploys per hour | One per app created | A deploy slot in the last hour. |
+
+Services switched off by an answer are not counted, so a template whose Postgres is optional asks for less memory when the user picks SQLite. A `private: required` link stays out of the public gallery. See [Stacks](/templates/create/stacks#links-that-stay-out-of-the-gallery).
+
+### Image slots
+
+A template of image uses **one slot per distinct image** the user runs. Services that share the same `source.image` share a slot, three apps from the same template use one, and a new version of the template keeps the same slot. The slot is released when the last app that uses the image is gone. A `code` template uses none. In your own private template, the images are yours and already occupy your slots.
+
+## Why a template does not fit
+
+When a template does not fit an account, the card and the page say why. The reasons are:
+
+| Reason | Meaning |
+|---|---|
+| `no_plan` | The account has no active plan. |
+| `min_plan` | The plan is below your `min_plan`. |
+| `ram` | Not enough free memory. |
+| `web_publish` | The plan does not publish on the web. |
+| `image_plan` | The plan does not include custom images. |
+| `image_slots` | Every image slot is in use. |
+| `blob_plan` | The plan does not include Blob Storage. |
+| `private_network` | The template asks for a link that stays out of the gallery. |
+| `max_apps` | The plan's limit of apps would be exceeded. |
+| `max_databases` | The plan's limit of databases would be exceeded. |
+| `deploys_per_hour` | The hourly limit of deploys was reached. |
+
+The same list is returned by the API for each template when you are signed in, in `account.reasons`.
+
+## `min_plan`
+
+`min_plan` is a commercial decision of the author, for example "only from Enterprise-28 up". It is the **id** of the plan, not the name shown in the dashboard:
+
+```yaml
+min_plan: enterprise-28
+```
+
+The ids are `economy`, `pro`, `scale`, `intermediary` and `enterprise-<size>`. A value that is not the id of an existing plan is refused with `invalid_plan` by the CLI, the editor, the API and the CI of the public repository, so a template never silently points to a plan that was renamed. Use it sparingly: if the services already force a plan, `min_plan` is redundant.
+
+## See the result before you publish
+
+`vertra template validate` and `POST /v1/templates/validate` return the calculated plan for your manifest (here, for the starter bot):
+
+```json
+{
+  "valid": true,
+  "issues": [],
+  "required_plan": "economy",
+  "ram_min_total": 256,
+  "services": [
+    { "id": "app", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null,
+      "ram": { "min": 256, "recommended": 256 }, "web": "none", "conditional": false }
+  ]
+}
+```
+
+`required_plan` is the lowest plan that meets the requirements and `min_plan`, and `ram_min_total` is the sum of the minimum memory of all services in MB. Both are `null` when the manifest is too invalid to calculate. See [Validate and test](/templates/create/validate-and-test).
+
+## Deploy settings never grant more
+
+The `deploy` block of a service can only restrict behavior, never unlock something the plan does not include. A manifest that asks for blue-green on a plan without it still runs without it. See [Deploy settings](/templates/create/deploy-settings).

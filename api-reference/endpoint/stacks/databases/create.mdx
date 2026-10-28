@@ -1,0 +1,74 @@
+---
+title: Add Database to Stack
+sidebarTitle: Add Database
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/databases
+authMethod: bearer
+description: Creates a database already inside a stack and connects it to the applications you choose.
+---
+
+{/* @see RESTPostAPIStackDatabaseBody, RESTPostAPIStackDatabaseResponse, APIStackDatabaseAdded — @vertracloud/api-types */}
+Creates a database inside the stack and connects it to the applications you list. The database counts against your plan like any other, with the same limits as [Create Database](/api-reference/endpoint/databases/create). Needs the `stacks:write` scope when called with an API key.
+
+The same body works on `POST https://api.vertracloud.app/v1/apps/{id}/stack/databases`, which starts from an application. When that application is **not in a stack**, the call also creates the stack, named by `stack_name`.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID. On `/v1/apps/{id}/stack/databases`, the path has the application ID instead.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to, when you act on it as the workspace owner.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  The database engine.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  The database name.
+</ParamField>
+
+<ParamField body="ram" type="integer" required>
+  Memory in MB.
+</ParamField>
+
+<ParamField body="version" type="string">
+  The engine version.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  Optional description.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  The applications to connect it to. Each item has `app_id` and an optional `env_map` (see [Create Stack Connection](/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+<ParamField body="stack_name" type="string">
+  Only for `POST /v1/apps/{id}/stack/databases` on an application that is not in a stack: the name of the stack that is created.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  `201`.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="stack" type="object">The stack, as in [Get Stack](/api-reference/endpoint/stacks/get).</ResponseField>
+  <ResponseField name="database_id" type="string">The ID of the new database.</ResponseField>
+  <ResponseField name="restart_required" type="boolean">`true` when an application must restart to read the new variables and certificates.</ResponseField>
+  <ResponseField name="apps_to_restart" type="string[]">The applications that need a restart.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `MAX_DATABASES_REACHED` | The plan's database limit was reached. |
+| 403 | `INSUFFICIENT_MEMORY` | Not enough free memory in the plan for the database. |
+| 400 | `INVALID_DATABASE_VERSION` | The version does not exist for the engine. |
+| 409 | `STACK_MEMBER_CONFLICT` | The application is already in another stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |

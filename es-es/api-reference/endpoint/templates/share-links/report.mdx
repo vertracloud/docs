@@ -1,0 +1,83 @@
+---
+title: Reportar una plantilla
+sidebarTitle: Reportar plantilla
+api: POST https://api.vertracloud.app/v1/share/templates/{token}/report
+authMethod: bearer
+description: Reporta una plantilla privada a Vertra Cloud desde su enlace o desde una aplicación creada con ella, con un motivo y detalles opcionales.
+---
+
+{/* @see RESTPostAPITemplateReportBody, RESTPostAPITemplateReportResponse — @vertracloud/api-types */}
+Esta llamada reporta una plantilla privada a Vertra Cloud y responde `200` con `null`. Al autor no se le informa quién reportó. Los reportes los revisa la plataforma; en un caso grave con pruebas, escribe también a `abuse@vertracloud.app`.
+
+Hay dos rutas con el mismo cuerpo: `POST /v1/share/templates/{token}/report` desde un enlace para compartir, que sigue funcionando aunque el enlace se haya revocado, y `POST /v1/apps/{id}/template/report` desde una aplicación creada a partir de la plantilla. Para la ruta de aplicación, quien llama es el propietario de la aplicación o, en un workspace, un miembro con acceso a las aplicaciones. Una cuenta puede reportar la misma plantilla como máximo 3 veces; después, la llamada falla con `429`.
+
+Ambas necesitan el ámbito `templates:write` cuando se llama con una clave de API. Los detalles nunca se escriben en los logs.
+
+<ParamField path="token" type="string" required>
+  El token del enlace, en la ruta de enlace.
+</ParamField>
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación, en la ruta de aplicación.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  En la ruta de aplicación, el ID del workspace cuando la aplicación pertenece a uno.
+</ParamField>
+
+<ParamField body="reason" type="string" required>
+  `malware`, `scam`, `copyright`, `leaked_secret` u `other`.
+</ParamField>
+
+<ParamField body="details" type="string">
+  Lo que viste, hasta 1.000 caracteres.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/share/templates/vtpl_EXAMPLE_TOKEN/report \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "leaked_secret", "details": "The code has a token in src/config.js" }'
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="null">
+  Siempre `null`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:write` (`403`).
+  - `VALIDATION_ERROR`: `reason` no es uno de los valores anteriores, o `details` supera los 1.000 caracteres (`400`).
+  - `SHARE_LINK_NOT_FOUND`: El token tiene un formato no válido, no existe, o su plantilla fue eliminada (`404`).
+  - `APP_NOT_FOUND`: En la ruta de aplicación, la aplicación no existe o no es tuya.
+  - `TEMPLATE_NOT_FOUND`: En la ruta de aplicación, la aplicación no vino de una plantilla (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Ya reportaste esta plantilla 3 veces (`429`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "SHARE_LINK_NOT_FOUND"
+}
+```
+
+</ResponseExample>

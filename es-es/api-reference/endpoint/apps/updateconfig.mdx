@@ -1,0 +1,190 @@
+---
+title: Actualizar la configuración de la aplicación
+sidebarTitle: Actualizar configuración
+api: PATCH https://api.vertracloud.app/v1/apps/{id}/config
+authMethod: bearer
+description: Actualiza la configuración guardada de una aplicación a partir de su ID.
+---
+
+{/* @see RESTPostAPIApplicationUpdateConfigResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación que quieres actualizar. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de consulta `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúen sobre una aplicación que no les pertenece.
+</ParamField>
+
+<Note>
+  **Envía solo los campos que quieres cambiar.** Todos los campos del cuerpo son opcionales, pero debe haber al menos uno: un cuerpo vacío se rechaza. Los campos que omitas conservan su valor actual.
+</Note>
+
+<ParamField body="name" type="string">
+  El nombre visible de la aplicación. Máximo 50 caracteres.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  La descripción de la aplicación. Máximo 128 caracteres. Envía `null` para borrarla.
+</ParamField>
+
+<ParamField body="main_file" type="string">
+  El archivo de entrada de la aplicación (por ejemplo, `index.js`). No puede estar vacío.
+</ParamField>
+
+<ParamField body="language" type="string">
+  El lenguaje de runtime de la aplicación. Uno de `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet`, `elixir`. Cualquier otro valor se rechaza.
+</ParamField>
+
+<Note>
+  **Cambiar el lenguaje restablece la versión.** Cuando `language` es distinto del lenguaje actual de la aplicación, `version` se fuerza a `recommended` en la misma actualización, aunque el cuerpo de la petición envíe una `version` explícita: la versión guardada para el lenguaje anterior puede no existir para el nuevo. `main_file` y `start_command` no se ajustan automáticamente; un archivo de entrada o un comando de inicio escritos para el lenguaje anterior puede que no funcionen con el nuevo.
+</Note>
+
+<ParamField body="version" type="string">
+  La versión del runtime. Acepta `recommended`, `latest`, `auto` o una cadena de versión explícita compatible con el lenguaje de la aplicación. No puede estar vacía.
+</ParamField>
+
+<ParamField body="start_command" type="string | null">
+  Un comando de inicio personalizado (por ejemplo, `node index.js`). Máximo 512 caracteres. Envía `null` para volver al comando predeterminado del lenguaje.
+</ParamField>
+
+<ParamField body="build_command" type="string | null">
+  Un comando de build opcional (por ejemplo, `npm run build`). Máximo 512 caracteres. Envía `null` para
+  eliminarlo. Se ejecuta en el siguiente despliegue, después de instalar las dependencias y antes de que la aplicación
+  arranque, en un entorno de build aislado (2× la RAM de la aplicación, mínimo 1.024 MB y máximo 4.096 MB;
+  tiempo límite de 10 minutos). Disponible en todos los planes. Un simple reinicio no
+  vuelve a ejecutar el build si el anterior terminó bien con el mismo comando.
+</ParamField>
+
+<ParamField body="ram" type="integer">
+  La memoria asignada a la aplicación, en MB. Debe ser un entero de al menos `100`. Las aplicaciones publicadas en la web (con un subdominio o un dominio personalizado) requieren al menos `512`.
+</ParamField>
+
+<Note>
+  **Cambiar la memoria cambia el límite de disco de la aplicación.** La cuota de volumen se deriva de la memoria asignada, así que bajar `ram` reduce cuánto puede almacenar la aplicación; por eso bajarla puede rechazarse con `409 STORAGE_ABOVE_NEW_LIMIT`. Consulta [Códigos de error comunes](/es-es/api-reference/introduction#qué-códigos-de-error-puede-devolver-la-api).
+</Note>
+
+<ParamField body="deploy" type="object">
+  Cómo se aplica un nuevo despliegue y qué pasa si falla. Envía solo los subcampos que quieres cambiar.
+
+  <Expandable title="Propiedades de deploy">
+    <ParamField body="zero_downtime" type="string">
+      Cómo un despliegue reemplaza la versión en ejecución. Uno de `off`, `auto` u `on`. `off` (el predeterminado) detiene la versión en ejecución antes de arrancar la nueva; `auto` despliega sin interrupción solo cuando la aplicación recibe tráfico web; `on` despliega siempre sin interrupción. `on` requiere el plan Enterprise; `auto` solo tiene efecto en Enterprise.
+    </ParamField>
+
+    <ParamField body="auto_rollback" type="boolean">
+      Con `true`, si la nueva versión se detiene en los 60 segundos posteriores a un despliegue, la plataforma vuelve a la versión anterior, una sola vez, y te avisa. Solo vuelven los archivos de código, no las variables de entorno. Por defecto es `false`, también en las aplicaciones creadas antes de esta función. `true` requiere Intermediary o superior.
+    </ParamField>
+
+    <ParamField body="health_check_path" type="string | null">
+      La ruta HTTP que la plataforma llama en una nueva versión para comprobar que está sana. Debe empezar por `/`, tener como máximo 200 caracteres y usar solo ASCII imprimible sin espacios. Codifica en porcentaje cualquier otro carácter (por ejemplo, `%20` para un espacio). Envía `null` para borrarla y volver a `/`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<Note>
+  **Requisitos de plan para `deploy`.** `zero_downtime: "on"` en un plan inferior a Enterprise falla con `403 PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`, y `auto_rollback: true` en un plan inferior a Intermediary falla con `403 PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK`. La comprobación se aplica incluso cuando el valor que envías es igual al que ya está guardado. `zero_downtime: "off"`, `zero_downtime: "auto"` y `auto_rollback: false` siempre se aceptan. Un valor guardado se mantiene en la aplicación tras un cambio a un plan inferior, pero solo surte efecto en un plan que incluya la función.
+</Note>
+
+<Note>
+  **Cambiar `deploy` no reinicia la aplicación.** La nueva configuración se aplica desde el siguiente despliegue. El objeto `deploy` que devuelve [Obtener aplicación](/es-es/api-reference/endpoint/apps/get) muestra lo que se aplica ahora mismo.
+</Note>
+
+<Note>
+  **Cambiar `build_command` consume el presupuesto horario de despliegues de la cuenta**, el mismo que
+  usan la creación de una aplicación o la subida de un ZIP. Consulta [Límites de despliegue](/es-es/api-reference/introduction).
+</Note>
+
+### Ejemplo de petición
+
+```bash
+curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deploy": {
+      "auto_rollback": true,
+      "zero_downtime": "auto",
+      "health_check_path": "/health"
+    }
+  }'
+```
+
+### Respuesta
+
+<ResponseField name="response" type="string">
+  El estado de la operación (`success`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": "success"
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `USER_NOT_FOUND`: La petición no está autenticada (`401`).
+  - `VALIDATION_ERROR`: Un campo no superó la validación: tipo incorrecto, longitud máxima superada o cuerpo vacío (`400`). La respuesta incluye `message` y `path`, que apuntan al campo con problemas.
+  - `APP_NOT_FOUND`: La aplicación indicada no existe (`404`).
+  - `ACCESS_DENIED`: El usuario no tiene permiso para actuar sobre la aplicación (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK`: Se envió `deploy.auto_rollback: true` y el plan del propietario es inferior a Intermediary (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`: Se envió `deploy.zero_downtime: "on"` y el plan del propietario no es Enterprise (`403`).
+  - `APP_SHIELD_COOLDOWN`: Vertra Shield pausó la aplicación; esta acción queda bloqueada hasta que termine la pausa (`403`). `details.until` indica cuándo.
+  - `OWNER_APP_WITHOUT_LIMITS`: No se pudieron leer los límites del plan del propietario de la aplicación, así que la memoria solicitada no se puede validar (`404`).
+  - `MEMORY_BELOW_MINIMUM`: La memoria solicitada está por debajo del mínimo para esta aplicación: `512` MB para una aplicación publicada en la web (`400`).
+  - `MEMORY_LIMIT_EXCEEDED`: La memoria solicitada no cabe en la memoria restante del plan, contando todos los demás recursos del propietario (`400`).
+  - `STORAGE_ABOVE_NEW_LIMIT`: El volumen ya contiene más que el límite de disco que implica la memoria solicitada (`409`). No se cambió nada. Consulta más abajo.
+  - `DEPLOY_RATE_LIMITED`: Se pidió un cambio de `build_command` y ya se alcanzó el presupuesto horario de despliegues de la cuenta para su plan (`429`).
+  - `INTERNAL_SERVER_ERROR`: No se pudo actualizar la configuración (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Un mensaje descriptivo con más detalles sobre el error.
+</ResponseField>
+
+<ResponseField name="details" type="object">
+  Presente en `STORAGE_ABOVE_NEW_LIMIT`. Incluye `used_mb`, `limit_mb` y `free_mb`: cuánto ocupa el volumen, el límite que impondría la memoria solicitada y cuánto hay que borrar antes de que se acepte el cambio.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "MEMORY_LIMIT_EXCEEDED"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "STORAGE_ABOVE_NEW_LIMIT",
+  "details": {
+    "used_mb": 2048,
+    "limit_mb": 1024,
+    "free_mb": 1024
+  }
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta ruta escribe la configuración; no reinicia ni reconstruye el contenedor. Los nuevos valores surten efecto en la siguiente reconstrucción de la aplicación. Los ajustes de `deploy` surten efecto en el siguiente reinicio o despliegue.
+</Note>

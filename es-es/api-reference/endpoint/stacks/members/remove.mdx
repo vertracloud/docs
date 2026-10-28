@@ -1,0 +1,50 @@
+---
+title: Quitar miembro del stack
+sidebarTitle: Quitar miembro
+api: DELETE https://api.vertracloud.app/v1/stacks/{stack_id}/members/{resource_type}/{resource_id}
+authMethod: bearer
+description: Saca una aplicación, base de datos o carpeta de Blob de un stack sin eliminarla, eligiendo qué pasa con sus variables.
+---
+
+{/* @see RESTDeleteAPIStackMemberQuery, RESTDeleteAPIStackMemberResponse — @vertracloud/api-types */}
+Saca un miembro del stack. El recurso **no se elimina**. Sacar un miembro que procede de una plantilla desvincula el stack de la plantilla: deja de recibir versiones. Una aplicación de una [plantilla cerrada](/es-es/templates/use/closed-templates) no puede salir. Requiere el scope `stacks:write` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField path="resource_type" type="string" required>
+  `application`, `database` o `blob`.
+</ParamField>
+
+<ParamField path="resource_id" type="string" required>
+  El ID de la aplicación o de la base de datos. Para una carpeta de Blob, el ID del miembro, como en `members` de [Obtener stack](/es-es/api-reference/endpoint/stacks/get).
+</ParamField>
+
+<ParamField query="bindings" type="string" default="keep_connection">
+  Qué pasa con las variables que crearon las conexiones del miembro:
+
+  - `keep_connection`: se convierten en variables normales, reescritas a la dirección pública con certificados, así que la aplicación sigue conectándose.
+  - `remove_variables`: se eliminan las variables, y también los certificados copiados a la aplicación.
+</ParamField>
+
+<ParamField query="blob" type="string" default="keep">
+  Para un miembro Blob: `keep` deja los archivos, `delete` los elimina. En ambos casos se revoca la clave que creó la plataforma para el stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack, cuando actúas sobre él como propietario del workspace.
+</ParamField>
+
+### Response
+
+El stack actualizado con `restart_required` y `apps_to_restart`, como en [Crear stack](/es-es/api-reference/endpoint/stacks/create). Las aplicaciones leen las variables solo al arrancar: reinicia las listadas.
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `STACK_SERVICE_LOCKED` | El miembro procede de una plantilla cerrada y no puede salir del stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | El recurso no es miembro del stack. |

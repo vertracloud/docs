@@ -1,0 +1,88 @@
+---
+title: Comprobar un Dockerfile
+sidebarTitle: Comprobar Dockerfile
+api: POST https://api.vertracloud.app/v1/images/check
+authMethod: bearer
+description: Comprueba un Dockerfile y la lista de archivos de un contexto de build antes de construir. No crea nada.
+---
+
+{/* @see APIDockerfileCheck, DockerfileIssueCode, RESTPostAPICustomImageCheckBody, RESTPostAPICustomImageCheckResult — @vertracloud/api-types */}
+La misma comprobación se vuelve a ejecutar al crear o reconstruir una imagen, así que un resultado limpio aquí no la sustituye. Una comprobación no cuenta para ningún límite. Necesita el ámbito `images:read` cuando se llama con una clave de API.
+
+<ParamField body="dockerfile" type="string" required>
+  El contenido del `Dockerfile`.
+</ParamField>
+
+<ParamField body="files" type="string[]" required>
+  Las rutas de los archivos del contexto de build, relativas a su raíz.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="refusals" type="object[]">
+    Hallazgos que bloquean el build. Cada uno tiene un `code` y una `line` (empieza en 1, o `null` cuando no está ligado a una línea).
+  </ResponseField>
+
+  <ResponseField name="warnings" type="object[]">
+    Hallazgos que no bloquean el build, con el mismo formato.
+  </ResponseField>
+
+  <ResponseField name="suggested_port" type="integer">
+    El primer `EXPOSE` del `Dockerfile`, o `80` si no hay ninguno.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+#### Códigos de hallazgo
+
+| Código | Tipo | Significado |
+|---|---|---|
+| `missing_dockerfile` | Rechazo | No hay ningún archivo llamado exactamente `Dockerfile` en la raíz del contexto. |
+| `syntax_frontend` | Rechazo | Una directiva `# syntax=` apunta a algo distinto del frontend oficial de Dockerfile. |
+| `run_security_insecure` | Rechazo | `RUN --security=insecure`. |
+| `run_network_host` | Rechazo | `RUN --network=host`. |
+| `mount_ssh` | Rechazo | `--mount=type=ssh`. |
+| `mount_secret` | Rechazo | `--mount=type=secret`. |
+| `workdir_app` | Aviso | `WORKDIR` en `/app` o por debajo. `/app` es el disco persistente de la aplicación, así que lo que la imagen coloca ahí queda oculto por el montaje. |
+| `env_file_in_context` | Aviso | Archivos `.env*` en el contexto. Se eliminan antes del build; sus claves se convierten en variables de la aplicación. |
+| `copy_env_file` | Aviso | `COPY` o `ADD` de un archivo `.env`. El archivo no está en el contexto de build, así que el build falla en esa línea. |
+| `volume_outside_app` | Aviso | `VOLUME` fuera de `/app`. En ejecución, esa ruta es una carpeta temporal de 64 MB que se borra en cada reinicio; solo `/app` conserva los datos. |
+| `volume_refused` | Rechazo | `VOLUME` en `/app` o por debajo, o con una ruta relativa. `/app` ya es el disco persistente de la aplicación. |
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "refusals": [{ "code": "run_network_host", "line": 7 }],
+    "warnings": [{ "code": "workdir_app", "line": 3 }],
+    "suggested_port": 3000
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito requerido (`403`).
+  - `VALIDATION_ERROR`: El cuerpo no superó la validación (`400`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR",
+  "path": "dockerfile"
+}
+```
+
+</ResponseExample>

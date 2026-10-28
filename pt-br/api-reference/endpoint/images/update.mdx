@@ -1,0 +1,151 @@
+---
+title: Atualizar imagem
+sidebarTitle: Atualizar imagem
+api: PATCH https://api.vertracloud.app/v1/images/{image_id}
+authMethod: bearer
+description: Renomeia uma imagem Docker personalizada e/ou altera a descrição dela, sem construir nada.
+---
+
+{/* @see RESTPatchAPICustomImageBody, RESTPatchAPICustomImageResult — @vertracloud/api-types */}
+Altera o `name` e/ou a `description` da imagem. Nada é construído nem reiniciado: a imagem mantém o ID e as versões, e os apps criados a partir dela continuam rodando. Envie apenas os campos que quer alterar; pelo menos um é obrigatório. Imagens da plataforma (`owner: "system"`) não podem ser alteradas.
+
+Precisa do escopo `images:write` quando chamado com uma chave de API. Em um workspace, você precisa de permissão para gerenciar os apps do workspace.
+
+<ParamField path="image_id" type="string" required>
+  O ID da imagem.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a imagem pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<ParamField body="name" type="string">
+  O novo nome: de 1 a 50 caracteres, único entre as imagens do dono. Enviar o nome atual não é erro. Um nome já usado por outra imagem sua falha com `VALIDATION_ERROR`, com `path` igual a `name`.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  A nova descrição, de até 128 caracteres (texto livre). `null` ou uma string vazia a remove.
+</ParamField>
+
+### Resposta
+
+
+<ResponseField name="response" type="object">
+  A imagem atualizada.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID da imagem.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    O nome da imagem.
+  </ResponseField>
+
+  <ResponseField name="description" type="string | null">
+    A descrição da imagem (texto livre, até 128 caracteres), ou `null` quando ela não tem uma.
+  </ResponseField>
+
+  <ResponseField name="owner" type="string">
+    `account` para as suas imagens, `system` para imagens fornecidas pela plataforma (estas não podem ser alteradas nem apagadas).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Estado do build mais recente: `building`, `success` ou `failed`. Uma reconstrução que falha não muda a versão atual: os apps continuam rodando a última versão que deu certo.
+  </ResponseField>
+
+  <ResponseField name="error" type="string | null">
+    Motivo legível do último build que falhou, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string | null">
+    Digest (`sha256:...`) da versão atual, ou `null` enquanto nenhum build tiver dado certo.
+  </ResponseField>
+
+  <ResponseField name="uncompressed_bytes" type="integer | null">
+    Tamanho da versão atual, descompactada, em bytes.
+  </ResponseField>
+
+  <ResponseField name="layer_count" type="integer | null">
+    Número de camadas da versão atual.
+  </ResponseField>
+
+  <ResponseField name="apps" type="object[]">
+    Os apps criados a partir desta imagem. Cada um tem `id`, `name`, `version_id` (a versão da imagem que ele executa, ou `null`) e `outdated` (`true` quando a imagem tem uma versão mais nova; o app passa para ela no próximo restart ou deploy que você pedir).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    O repositório e a branch do GitHub vinculados (`repository` no formato `owner/name`, `branch`), ou `null` quando a imagem não está vinculada.
+  </ResponseField>
+
+  <ResponseField name="current_version_id" type="string | null">
+    A versão atual da imagem, ou `null` enquanto nenhum build tiver dado certo.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando a imagem foi criada.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Quando a imagem foi atualizada pela última vez.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "img-abc123def456",
+    "name": "my-api-base",
+    "description": "Node 22 with our base packages",
+    "owner": "account",
+    "status": "success",
+    "error": null,
+    "digest": "sha256:3f1c0a9d5b7e2c4a8d6f1b0e9c3a7d5f2b4e6a8c0d1f3b5a7c9e2d4f6a8b0c1e",
+    "uncompressed_bytes": 187432960,
+    "layer_count": 9,
+    "apps": [
+      {
+        "id": "app-abc123def456",
+        "name": "my-api-prod",
+        "version_id": "imgv-111aaa222bbb",
+        "outdated": false
+      }
+    ],
+    "github": null,
+    "current_version_id": "imgv-111aaa222bbb",
+    "created_at": "2026-10-23T14:02:00Z",
+    "updated_at": "2026-10-23T14:09:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo necessário (`403`).
+  - `VALIDATION_ERROR`: O corpo está vazio, o nome não tem de 1 a 50 caracteres, o nome já é usado por outra imagem sua (`path` é `name`), a descrição passa de 128 caracteres, ou o nome ou a descrição têm caracteres de controle (`400`).
+  - `ACCESS_DENIED`: A imagem é da plataforma, que não pode ser alterada (`403`).
+  - `IMAGE_NOT_FOUND`: A imagem não existe ou você não tem acesso a ela (`404`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR",
+  "message": "An image with this name already exists",
+  "path": "name"
+}
+```
+
+</ResponseExample>

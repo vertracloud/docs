@@ -1,0 +1,76 @@
+---
+title: Listar categorías de plantillas
+sidebarTitle: Listar categorías
+api: GET https://api.vertracloud.app/v1/templates/categories
+authMethod: bearer
+description: Devuelve las categorías de plantillas con el número de plantillas de cada una, para que una galería pueda mostrar filtros y contadores.
+---
+
+{/* @see APITemplateCategoryCount, RESTGetAPITemplateCategoriesResponse — @vertracloud/api-types */}
+Devuelve cada categoría del catálogo de plantillas con cuántas plantillas públicas contiene. La llamada **no necesita autenticación**. Con una sesión o una clave de API (scope `templates:read`), los contadores incluyen también tus plantillas privadas; una petición con cabecera `Authorization` siempre se valida, así que una clave no válida devuelve `401`. Las lecturas están limitadas a 60 peticiones por minuto y cliente.
+
+<ParamField query="workspace_id" type="string">
+  Cuenta también las plantillas privadas de ese workspace. Pueden usarlo el propietario del workspace y los miembros que pueden leer sus aplicaciones.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  Un array con un elemento por categoría.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="category" type="string">
+    La categoría: `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases` u `other`.
+  </ResponseField>
+
+  <ResponseField name="count" type="integer">
+    El número de plantillas de la categoría. Usa el mismo valor de `category` en [Listar plantillas](/es-es/api-reference/endpoint/templates/list) para abrirla.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/categories
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    { "category": "automation", "count": 6 },
+    { "category": "ai-agents", "count": 4 },
+    { "category": "bots", "count": 3 },
+    { "category": "cms", "count": 2 }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: `workspace_id` no es un ID válido (`400`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `templates:read` (`403`).
+  - `WORKSPACE_NOT_FOUND`: El workspace no existe o no formas parte de él (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Demasiadas peticiones (`429`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

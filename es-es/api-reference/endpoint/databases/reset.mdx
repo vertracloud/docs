@@ -1,0 +1,67 @@
+---
+title: Restablecer una base de datos
+sidebarTitle: Restablecer base de datos
+api: POST https://api.vertracloud.app/v1/databases/{id}/reset
+authMethod: bearer
+description: Restablece una base de datos concreta a partir de su ID, borrando todos sus datos.
+---
+
+{/* @see success — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la base de datos que se va a restablecer.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="string">
+  El mensaje de respuesta, que indica que la operación se realizó correctamente.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": "success"
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP que no está en su lista de permitidas, o no tiene el ámbito que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+  - `DATABASE_NOT_FOUND`: La base de datos indicada no existe o el usuario no tiene acceso.
+  - `DATABASE_ID_REQUIRED`: No se indicó el ID de la base de datos.
+  - `SNAPSHOT_FAILED`: No se pudo tomar el snapshot de seguridad; la base de datos no se restableció. Contacta con soporte (`500`).
+  - `INTERNAL_SERVER_ERROR`: No se pudo restablecer la base de datos.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Un mensaje descriptivo con más detalles sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "DATABASE_ID_REQUIRED"
+}
+```
+
+</ResponseExample>

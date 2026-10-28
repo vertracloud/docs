@@ -1,0 +1,132 @@
+---
+title: Restaurar snapshot de la aplicación
+sidebarTitle: Restaurar snapshot
+api: POST https://api.vertracloud.app/v1/users/{id}/snapshots/{snapshot_id}/restore
+authMethod: bearer
+description: Restaura un snapshot concreto en una aplicación o base de datos y, después, reconstruye o reinicia el recurso automáticamente.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación o de la base de datos en la que restaurar el snapshot.
+</ParamField>
+
+<ParamField path="snapshot_id" type="string" required>
+  El ID del snapshot que quieres restaurar.
+</ParamField>
+
+<ParamField query="scope" type="string" required>
+  El tipo de recurso. Valores posibles: `applications`, `databases`.
+</ParamField>
+
+<ParamField body="resource_id" type="string">
+  Opcional. Sustituye el recurso de destino para una restauración entre recursos. Si se omite, se restaura en el recurso indicado por `id`.
+</ParamField>
+
+<ParamField body="restore_image_version" type="boolean">
+  Solo para una aplicación que ejecuta una imagen Docker personalizada. Con `true`, la restauración también vuelve a la versión de la imagen que ejecutaba la aplicación cuando se tomó el snapshot, si todavía existe. Por defecto `false`: solo se restauran los datos y la aplicación mantiene su versión de imagen actual.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Confirmación de que se inició el proceso de restauración.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="message" type="string">
+    Un mensaje que confirma que la restauración se inició.
+  </ResponseField>
+
+  <ResponseField name="warning" type="string">
+    Aparece cuando `restore_image_version` era `true`, pero la versión de imagen registrada en el snapshot ya no existe: `IMAGE_VERSION_NOT_FOUND`. Solo se restauraron los datos y la aplicación sigue en su versión actual.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "message": "Restoration started and rebuild triggered"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+  - `DATABASE_NOT_FOUND`: La base de datos indicada no existe.
+  - `ACCESS_DENIED`: El usuario no es propietario del recurso o del snapshot.
+  - `RESTORE_COOLDOWN`: Se hizo una restauración hace poco en este recurso. Espera antes de volver a intentarlo.
+  - `TYPE_MISMATCH`: El tipo de recurso del snapshot no coincide con el tipo del recurso de destino.
+  - `SNAPSHOT_ENGINE_MISMATCH`: El snapshot pertenece a un motor de base de datos distinto al del destino (`400`).
+  - `SNAPSHOT_VERSION_NEWER`: El snapshot se tomó en una versión mayor más nueva que la base de datos de destino; no se cambia nada (`400`).
+  - `SNAPSHOT_NOT_FOUND`: El snapshot indicado no existe.
+  - `INVALID_ZIP_STRUCTURE`: El archivo del snapshot está dañado, o un snapshot de aplicación no tiene archivos (`400`). La restauración se rechaza antes de cambiar nada: los archivos de la aplicación y la base de datos siguen como estaban.
+  - `OPERATION_IN_PROGRESS`: Otra operación de ciclo de vida sobre el mismo recurso ya está en curso (`409`). No se restauró nada; espera unos segundos y vuelve a intentarlo. Consulta [Códigos de error comunes](/es-es/api-reference/introduction#qué-códigos-de-error-puede-devolver-la-api).
+  - `SNAPSHOT_IMPORT_FAILED`: La restauración falló al cargar los datos (`500`). La base de datos queda en ejecución y vacía; el snapshot sigue disponible para volver a intentarlo.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "SNAPSHOT_NOT_FOUND"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RESTORE_COOLDOWN"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "TYPE_MISMATCH",
+  "message": "Cannot restore snapshot to a different resource type"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "SNAPSHOT_ENGINE_MISMATCH"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "SNAPSHOT_IMPORT_FAILED"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,62 @@
+---
+title: Iniciar una base de datos
+sidebarTitle: Iniciar base de datos
+api: POST https://api.vertracloud.app/v1/databases/{id}/start
+authMethod: bearer
+description: Inicia una base de datos por su ID.
+---
+
+{/* @see success — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la base de datos que se va a iniciar. Si la base de datos pertenece a un workspace, pasa su ID en el parámetro de consulta `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la base de datos pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúan sobre una base de datos que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La respuesta con el estado de la operación.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="status" type="string">
+    El estado de la operación (`success`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "status": "success"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `DATABASE_NOT_FOUND`: La base de datos indicada no existe.
+  - `ACCESS_DENIED`: El usuario no tiene permiso para actuar sobre la base de datos.
+  - `PLAN_REQUIRED`: La cuenta propietaria de la base de datos no tiene un plan activo (`403`). Contrata un plan para continuar.
+  - `OPERATION_IN_PROGRESS`: Ya hay otra operación del ciclo de vida en curso sobre la misma base de datos (`409`). El contenedor no se ha tocado: espera unos segundos y vuelve a intentarlo. Consulta [Códigos de error comunes](/es-es/api-reference/introduction#qué-códigos-de-error-puede-devolver-la-api).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+</ResponseExample>

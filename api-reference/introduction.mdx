@@ -56,10 +56,10 @@ management itself or the database Data tab (`/v1/databases/{id}/data/*`) — alw
 regardless of scopes: **the Data tab can only be driven by a dashboard session**.
 
 Three presets speed up creation: **`read`** marks every `*:read` scope, **`write`** adds every
-`*:write` scope on top of `read`, **`full`** marks the entire catalog, including scopes with no
+`*:write` scope and `templates:deploy` on top of `read`, **`full`** marks the entire catalog, including scopes with no
 read/write suffix (delete, envs, files, credentials).
 
-25 scopes across 8 groups:
+31 scopes across 10 groups:
 
 | Scope | Group | What it allows |
 |---|---|---|
@@ -88,8 +88,18 @@ read/write suffix (delete, envs, files, credentials).
 | `workspaces:write` | Workspaces | Create and update workspaces, manage members/roles/resources, your individual folders/favorites, and ask for an action request |
 | `workspaces:delete` | Workspaces | Delete a workspace (owner only) |
 | `workspaces:invites` | Workspaces | List and revoke a workspace's invites; preview, accept and decline an invite by token |
+| `templates:read` | Templates | Browse the catalog and your own templates and their versions, validate a manifest, read share links and preview what an update would do |
+| `templates:write` | Templates | Create and manage your private templates, versions and share links, save an application or stack as a template, copy a shared template and report a template |
+| `templates:deploy` | Templates | Use a template (including through a share link), follow the deploy job and its events, and update an application or stack to a newer version |
+| `stacks:read` | Stacks | List and read stacks, their connections and snapshots, and get connection code |
+| `stacks:write` | Stacks | Create and change stacks, members and connections, add a database or a Blob folder, take and restore stack snapshots, detach from a template |
+| `stacks:delete` | Stacks | Delete a stack |
 <Note>
   Deleting an image needs `images:delete`, and `images:write` does not cover it. When the image has applications, the key also needs `apps:delete`, because the applications are deleted with it; without it the call answers `403 API_KEY_SCOPE_DENIED` with `details.required` set to `apps:delete`. Uploading files to an application that runs an image is a commit that rebuilds the image, so it needs `images:write` as well as `apps:files`. Creating an app from an image uses `apps:write`.
+</Note>
+
+<Note>
+  `templates:deploy` creates applications, databases and stacks, so it needs the `write` preset or a custom selection; `read` never includes it. `stacks:delete` has no `read`/`write` suffix and is only in `full` or a custom selection. With `mode: "delete_all"`, deleting a stack also needs `apps:delete` and `databases:delete`, and `blob:write` when the Blob files are deleted. Adding a Blob folder to a stack needs `blob:write` as well as `stacks:write`. Only the workspace owner deploys templates; a member gets `WORKSPACE_OWNER_ONLY`. See [Stacks](/templates/use/stacks).
 </Note>
 
 <Note>

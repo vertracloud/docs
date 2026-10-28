@@ -1,0 +1,130 @@
+---
+title: Listar versões do template
+sidebarTitle: Listar versões
+api: GET https://api.vertracloud.app/v1/templates/{template_id}/versions
+authMethod: bearer
+description: Lista as versões publicadas de um template, da mais nova para a mais antiga, com changelog e manifesto de cada uma, para escolher ou ver o que mudou.
+---
+
+{/* @see APITemplateVersion, RESTGetAPITemplateVersionsResponse — @vertracloud/api-types */}
+Retorna as versões prontas de um template, da mais nova para a mais antiga, até 100. Versões nunca mudam depois de publicadas. A visibilidade é a de [Obter template](/pt-br/api-reference/endpoint/templates/get): templates públicos não precisam de autenticação, um privado é visível só para o dono ou para leitores do workspace, e qualquer outra pessoa recebe `TEMPLATE_NOT_FOUND`. Com uma chave de API, o escopo é `templates:read`. As leituras são limitadas a 60 requisições por minuto por cliente.
+
+<ParamField path="template_id" type="string" required>
+  O ID do template ou o seu slug.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace de um template privado. Necessário para resolver um template de workspace pelo slug.
+</ParamField>
+
+Você só pode fazer deploy de uma versão anterior quando o template permite; veja `version` em [Deploy de template](/pt-br/api-reference/endpoint/templates/deploy).
+
+### Resposta
+
+<ResponseField name="response" type="object[]">
+  Um array de versões.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID da versão.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    A versão semântica, como `1.2.0`.
+  </ResponseField>
+
+  <ResponseField name="security" type="boolean">
+    `true` para uma release de segurança. Donos de aplicações em uma versão anterior são avisados.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando a versão foi publicada.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    O que mudou, como um texto por idioma (`pt-br`, `en`, `es`), ou `null`.
+  </ResponseField>
+
+  <ResponseField name="manifest" type="object | null">
+    O manifesto da versão: `id`, `version`, `name`, `description`, `category`, `tags`, `inputs`, `services`, `permissions`, `outputs` e os outros campos descritos na [referência do manifesto](/pt-br/templates/create/manifest-reference). Valores de variáveis ocultas nunca são incluídos. Fica `null` quando o template está fechado e você não é o dono.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/discord-bot-js/versions \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+      "version": "1.1.0",
+      "security": true,
+      "created_at": "2026-10-28T10:30:00Z",
+      "changelog": { "en": "Updated discord.js to a release with a security fix." },
+      "manifest": {
+        "id": "discord-bot-js",
+        "version": "1.1.0",
+        "name": { "pt-br": "Bot de Discord (JavaScript)", "en": "Discord bot (JavaScript)" },
+        "description": { "pt-br": "Bot de Discord com discord.js e o comando /ping." },
+        "category": "bots",
+        "inputs": [{ "id": "discord_token", "type": "secret", "required": true, "label": { "pt-br": "Token do bot", "en": "Bot token" } }],
+        "services": {
+          "app": {
+            "source": { "type": "code", "path": "src" },
+            "language": "javascript",
+            "main": "index.js",
+            "start": "node index.js",
+            "ram": { "min": 256, "recommended": 256 },
+            "web": "none",
+            "env": { "DISCORD_TOKEN": "{{inputs.discord_token}}" }
+          }
+        }
+      }
+    },
+    {
+      "id": "b4f81c36-0a5e-47d2-b1c9-6e3a7d90f2a8",
+      "version": "1.0.0",
+      "security": false,
+      "created_at": "2026-10-26T13:05:00Z",
+      "changelog": null,
+      "manifest": { "id": "discord-bot-js", "version": "1.0.0", "category": "bots", "services": { "app": { "source": { "type": "code", "path": "src" }, "ram": { "min": 256, "recommended": 256 } } } }
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: Um parâmetro não é válido (`400`).
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:read` (`403`).
+  - `TEMPLATE_NOT_FOUND`: O template não existe, foi removido ou não é visível para você (`404`).
+  - `WORKSPACE_NOT_FOUND`: O workspace em `workspace_id` não existe ou você não faz parte dele (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Requisições demais (`429`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

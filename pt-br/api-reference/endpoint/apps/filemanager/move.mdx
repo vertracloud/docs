@@ -1,0 +1,85 @@
+---
+title: Mover arquivo ou pasta da aplicação
+sidebarTitle: Mover arquivo ou pasta
+api: PATCH https://api.vertracloud.app/v1/apps/{id}/files
+authMethod: bearer
+description: Move um arquivo ou pasta dentro de uma aplicação para um novo local, pelo seu ID.
+---
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID da aplicação dentro da qual o arquivo ou pasta será movido. Se a aplicação pertencer a um workspace, informe o ID dele no parâmetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Membros com papel de Owner, Admin ou Developer podem usar o gerenciador de arquivos em uma aplicação do workspace que não é deles; sem isso, somente o dono da aplicação pode.
+</ParamField>
+
+<ParamField query="path" type="string" required>
+  O caminho de origem do arquivo ou pasta a mover.
+</ParamField>
+
+<ParamField query="to" type="string" required>
+  O caminho de destino para onde o arquivo ou pasta será movido.
+</ParamField>
+
+<ParamField query="confirm_detach" type="boolean">
+  Envie `true` para confirmar que a alteração desvincula uma aplicação que veio de um template aberto (ela deixa de receber versões). Sem ele, a requisição não altera nada e responde `409` `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`. Ignorado para outras aplicações. Veja [Desvincular de um template](/pt-br/api-reference/endpoint/templates/detach).
+</ParamField>
+
+### Resposta
+
+Em caso de sucesso, a resposta é `200` com `{ "response": null }`.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões, ou não tem o escopo que a rota exige (`403`).
+  - `ACCESS_DENIED`: o recurso pertence a outra conta, ou você não tem a permissão do workspace para ele (`403`).
+  - `FORBIDDEN`: o usuário não tem permissão para acessar a aplicação.
+  - `APP_NOT_FOUND`: a aplicação especificada não existe.
+  - `PLAN_RESTRICTED_FEATURE`: o plano do usuário não oferece suporte ao acesso ao gerenciador de arquivos.
+  - `MISSING_PATH_OR_DESTINATION`: o parâmetro de query `path` ou o de destino não foi informado.
+  - `FORBIDDEN_PATH`: o caminho de origem especificado é restrito.
+  - `FILE_MOVE_FAILED`: falha ao mover o arquivo ou pasta.
+  - `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`: a alteração desvincularia a aplicação do seu template e `confirm_detach` não foi enviado (`409`). Nada foi alterado.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "MISSING_PATH_OR_DESTINATION",
+  "message": "Both 'path' and 'to' query parameters are required"
+}
+```
+
+</ResponseExample>

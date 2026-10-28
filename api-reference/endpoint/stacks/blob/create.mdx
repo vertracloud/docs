@@ -1,0 +1,58 @@
+---
+title: Add Blob Folder to Stack
+sidebarTitle: Add Blob Folder
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/blob
+authMethod: bearer
+description: Adds a folder of your Blob Storage to a stack, with a managed key restricted to it and variables injected into your applications.
+---
+
+{/* @see RESTPostAPIStackBlobBody, RESTPostAPIStackBlobResponse, APIStackBlobAdded — @vertracloud/api-types */}
+Adds a folder of your [Blob Storage](/blob/overview) to the stack. The platform creates an API key **restricted to that folder**, keeps it in the stack, and injects the S3 connection variables into the applications you choose. The key is managed by the platform: it never shows its secret, and it is revoked when the Blob folder leaves the stack or the stack is dissolved or deleted. The files are kept unless you ask to delete them (see [Remove Stack Member](/api-reference/endpoint/stacks/members/remove) and [Delete Stack](/api-reference/endpoint/stacks/delete)).
+
+The plan must include Blob Storage. Needs the `stacks:write` and `blob:write` scopes when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to, when you act on it as the workspace owner.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  The folder of the Blob, ending in `/`. Without it, the platform picks a folder named after the stack, under `stacks/`. A folder with files of yours, or one already used by a stack, cannot be chosen.
+</ParamField>
+
+<ParamField body="visibility" type="string" default="private">
+  `private` or `public`.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  The applications to connect it to. Each item has `app_id` and an optional `env_map` (see [Create Stack Connection](/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  `201`.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="stack" type="object">The stack, as in [Get Stack](/api-reference/endpoint/stacks/get).</ResponseField>
+  <ResponseField name="blob" type="object">The new member, with `blob.prefix`, `blob.visibility`, `blob.used_bytes` and `blob.api_key_id`.</ResponseField>
+  <ResponseField name="restart_required" type="boolean">`true` when an application must restart to read the new variables.</ResponseField>
+  <ResponseField name="apps_to_restart" type="string[]">The applications that need a restart.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `STACK_BLOB_PREFIX_TAKEN` | The folder is already used by a Blob folder of a stack, or has files. |
+| 400 | `VALIDATION_ERROR` | The prefix is not valid. |
+| 403 | `BLOB_NAMESPACE_SUSPENDED` | Blob Storage is suspended for the account. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | The plan does not include Blob Storage. |
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |

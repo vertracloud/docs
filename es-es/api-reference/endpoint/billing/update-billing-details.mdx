@@ -1,0 +1,100 @@
+---
+title: "Actualizar los datos de facturación"
+sidebarTitle: "Actualizar datos de facturación"
+api: PUT https://api.vertracloud.app/v1/users/me/billing
+authMethod: bearer
+description: "Reemplaza los datos de facturación de la cuenta. Requiere el ámbito billing:write."
+---
+Los datos de facturación se usan en los recibos y en las facturas, y un pedido necesita que estén completos. La petición
+reemplaza los datos guardados. Incluye datos personales (nombre, dirección y CPF/CNPJ), así que envía solo valores que
+haya facilitado el titular de la cuenta.
+
+<ParamField body="name" type="string" required>
+  El nombre que aparece en los recibos y en las facturas.
+</ParamField>
+
+<ParamField body="address" type="object" required>
+  <Expandable title="Mostrar objeto">
+  <ParamField body="line1" type="string" required>Nombre de la calle.</ParamField>
+  <ParamField body="number" type="string">Número de la calle, o `S/N`. Obligatorio en Brasil.</ParamField>
+  <ParamField body="line2" type="string">Complemento, por ejemplo `Apt 2`.</ParamField>
+  <ParamField body="district" type="string">Barrio (bairro). Obligatorio en Brasil.</ParamField>
+  <ParamField body="city" type="string" required>Ciudad.</ParamField>
+  <ParamField body="city_code" type="string">Código de ciudad del IBGE de siete dígitos. Obligatorio en Brasil.</ParamField>
+  <ParamField body="state" type="string">Código de estado de dos letras en Brasil, por ejemplo `CE`. Obligatorio en Brasil.</ParamField>
+  <ParamField body="postal_code" type="string">Código postal. En Brasil, es obligatorio el CEP de 8 dígitos.</ParamField>
+  <ParamField body="country" type="string" required>Código de país ISO de dos letras, por ejemplo `BR`.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="phone" type="string | null">
+  Número de teléfono opcional, en formato E.164, por ejemplo `+5585999990000`. `null` o omitirlo elimina el teléfono
+  guardado.
+</ParamField>
+
+<ParamField body="tax_id" type="object | null">
+  El CPF o el CNPJ. Obligatorio en Brasil para que los datos estén completos. `null` elimina el documento guardado;
+  omitir el campo lo mantiene.
+  <Expandable title="Mostrar objeto">
+  <ParamField body="type" type="string" required>`cpf` o `cnpj`.</ParamField>
+  <ParamField body="value" type="string" required>El número del documento.</ParamField>
+  </Expandable>
+</ParamField>
+
+Fuera de Brasil, bastan `line1`, `city` y `postal_code`.
+
+### Respuesta
+
+Los datos guardados, con el documento enmascarado, y `complete`. Consulta
+[Obtener los datos de facturación](/es-es/api-reference/endpoint/billing/get-billing-details) para ver los campos. La
+respuesta nunca se almacena en caché.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "name": "Ana Souza",
+    "address": {
+      "line1": "Rua das Flores",
+      "number": "120",
+      "line2": null,
+      "district": "Centro",
+      "city": "Fortaleza",
+      "city_code": "2304400",
+      "state": "CE",
+      "postal_code": "60000000",
+      "country": "BR"
+    },
+    "phone": "+5585999990000",
+    "tax_id": { "type": "cpf", "masked": "CPF ••• 47" },
+    "complete": true
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP que no está en su lista de permitidas, o no tiene el ámbito que requiere la ruta (`403`).
+  - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
+  - `BILLING_DETAILS_INVALID`: Un campo no superó la validación; su nombre está en `details.path` (`400`).
+  - `TAX_ID_INVALID`: El CPF o el CNPJ no es válido (`400`).
+  - `PAYMENT_METHOD_UNAVAILABLE`: El pago en línea no está disponible temporalmente (`400`).
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "BILLING_DETAILS_INVALID",
+  "details": { "path": "address.postal_code" }
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,138 @@
+---
+title: "Listar objetos blob de una carpeta"
+sidebarTitle: "Listar objetos"
+api: "GET https://blob.vertracloud.app/v1/objects"
+authMethod: bearer
+description: "Lista los objetos blob de la cuenta por prefijo de ruta, con carpetas y un cursor para la página siguiente. Devuelve hasta 1.000 objetos por llamada."
+---
+
+{/* @see RESTGetAPIBlobObjectsQuery, RESTGetAPIBlobObjectsResponse, APIBlobObjectList — @vertracloud/api-types */}
+
+Lista los objetos blob de la cuenta en orden de ruta. Usa `prefix` para listar una carpeta y `delimiter=/` para obtener sus
+subcarpetas como `folders`. Pasa el `cursor` devuelto para obtener la página siguiente; `cursor` es `null` en la última
+página.
+
+**Ámbito:** `blob:read`.
+
+<ParamField query="prefix" type="string">
+  Solo los objetos cuyo `path` empiece por este texto, por ejemplo `images/`.
+</ParamField>
+
+<ParamField query="delimiter" type="string">
+  Agrupa las rutas en carpetas en este carácter, normalmente `/`. Las carpetas se devuelven en `folders` y no como objetos.
+</ParamField>
+
+<ParamField query="visibility" type="string">
+  Solo objetos `public` o solo objetos `private`.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  El `cursor` de la página anterior. Omítelo en la primera página.
+</ParamField>
+
+<ParamField query="limit" type="number">
+  Objetos por página, de 1 a 1000. Por defecto `100`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl "https://blob.vertracloud.app/v1/objects?prefix=images/&delimiter=/&limit=100" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La página de objetos, sus subcarpetas y el cursor de la página siguiente.
+  <Expandable title="propiedades">
+  <ResponseField name="objects" type="object[]">Objetos de esta página. Cada elemento tiene los campos de [Obtener un objeto blob](/es-es/api-reference/endpoint/blob/objects/get).</ResponseField>
+  <ResponseField name="objects[].id" type="string">ID estable del objeto.</ResponseField>
+  <ResponseField name="objects[].path" type="string">Ruta completa dentro de la cuenta.</ResponseField>
+  <ResponseField name="objects[].size" type="number">Tamaño en bytes.</ResponseField>
+  <ResponseField name="objects[].visibility" type="string">`public` o `private`.</ResponseField>
+  <ResponseField name="objects[].url" type="string | null">URL pública, o `null` mientras sea privado.</ResponseField>
+  <ResponseField name="folders" type="string[]">Prefijos de carpeta que terminan en `/`. Vacío sin `delimiter`.</ResponseField>
+  <ResponseField name="cursor" type="string | null">Envíalo de vuelta como `cursor` para obtener la página siguiente. `null` en la última página.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "objects": [
+      {
+        "id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+        "path": "images/logo.png",
+        "size": 48213,
+        "content_type": "image/png",
+        "etag": "9b2cf535f27731c974343645a3085d39",
+        "sha256": null,
+        "visibility": "public",
+        "url": "https://blob.vertracloud.dev/k7p2m9x4qa/images/logo.png",
+        "cache_control": null,
+        "content_disposition": "inline",
+        "filename": null,
+        "metadata": {},
+        "expires_at": null,
+        "created_at": "2026-10-14T12:00:00.000Z",
+        "updated_at": "2026-10-14T12:00:00.000Z"
+      }
+    ],
+    "folders": [
+      "images/avatars/"
+    ],
+    "cursor": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `VALIDATION_ERROR` (`400`): Un parámetro no superó la validación, y `details.path` lo indica. Un `cursor` mal formado, o uno de otra consulta, devuelve este error con `details.path` en `cursor`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

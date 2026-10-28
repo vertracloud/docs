@@ -1,0 +1,84 @@
+---
+title: 'Qué son las plantillas en Vertra Cloud y qué plan necesitas'
+sidebarTitle: 'Resumen'
+description: 'Las plantillas crean una app o un stack de apps y bases de datos en un paso. Conoce los tres orígenes, el plan necesario y los cupos de imagen.'
+icon: 'cubes'
+---
+
+Una plantilla es una receta lista que crea una app, o un grupo de apps y bases de datos conectadas, en un solo paso. Lo eliges, respondes unas preguntas y Vertra Cloud construye todo, configura las conexiones y te entrega la dirección y las credenciales. Si algún paso falla, se elimina todo lo que la plantilla había creado.
+
+Cualquier plan puede usar plantillas, siempre que la cuenta cumpla los requisitos de la plantilla: memoria libre, publicación web y, para las plantillas que ejecutan una imagen Docker, un plan con imágenes y un cupo de imagen libre. Consulta [Planes y límites](/es-es/plans-and-limits) para ver qué incluye cada plan.
+
+## Qué crea una plantilla
+
+| La plantilla tiene | Qué obtienes |
+|---|---|
+| Una app y ninguna base de datos | Solo la app. |
+| Dos o más servicios (apps, bases de datos, una carpeta de Blob) | Un [stack](/es-es/templates/use/stacks): los servicios creados juntos y ya conectados. |
+
+Todo lo que crea una plantilla es un recurso normal de tu cuenta. La carpeta `/app` de la app es su disco persistente y el resto del sistema de archivos es de solo lectura, igual que en cualquier otra app de la plataforma.
+
+## Plantillas de código y plantillas de imagen
+
+Cada app de una plantilla viene de una de dos fuentes, y la fuente decide lo que la plantilla exige de tu plan.
+
+| Fuente | Cómo se ejecuta | Requisito del plan | Cupo de imagen |
+|---|---|---|---|
+| `code` | Un ZIP con el código de la plantilla, extraído en `/app` y ejecutado por uno de los runtimes de lenguaje de la plataforma. | Solo memoria y, para apps web, publicación web. | No se usa. |
+| `image` | Una imagen Docker fijada a una versión exacta. | Un plan que incluya imágenes Docker. | Un cupo por cada imagen distinta. |
+
+Las plantillas de bots de Discord son plantillas de código. n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI y Uptime Kuma ejecutan una imagen. Consulta el [catálogo](/es-es/templates/catalog).
+
+## Los tres orígenes
+
+Cada plantilla lleva una insignia que indica de dónde viene.
+
+| Origen | Quién lo publica | Qué conviene saber |
+|---|---|---|
+| **Vertra** | Vertra Cloud. | Se prueba antes de publicar cada versión. El código es abierto. |
+| **Comunidad** | Autores que aportaron la plantilla al catálogo público mediante un pull request. | Se revisa antes de entrar en el catálogo. El código es abierto. |
+| **Privada** | Tú, tu workspace, o alguien que te envió un [enlace para compartir](/es-es/templates/use/receive-a-link). | No aparece en listados públicos. Una plantilla de enlace muestra **No verificado por Vertra**. El autor puede [cerrar el código](/es-es/templates/use/closed-templates). |
+
+Las plantillas públicas (Vertra y Comunidad) nunca contienen secretos: todo lo sensible se te pide o se genera para ti cuando usas la plantilla. Para publicar las tuyas, consulta [Crear plantillas](/es-es/templates/create/overview).
+
+## Cómo se calcula el plan necesario
+
+La plataforma calcula el plan que necesita una plantilla a partir de lo que va a crear, incluyendo tus respuestas al asistente, y lo compara con tu cuenta. El plan necesario es el mayor de dos valores:
+
+- **Requisitos calculados:** la suma de la memoria mínima de todos los servicios debe caber en tu memoria **libre**; un servicio con web necesita publicación web; un servicio de imagen necesita un plan con imágenes y un cupo de imagen libre; una carpeta de Blob necesita un plan con Blob Storage; los límites del plan de apps y bases de datos y su límite por hora de despliegues deben dejar margen.
+- **Plan mínimo declarado:** un autor también puede exigir un plan mínimo por motivos comerciales.
+
+Una plantilla puede restringir lo que permite tu plan (por ejemplo, desactivar los despliegues sin downtime), pero nunca desbloquea nada que tu plan no incluya.
+
+Cuando la cuenta no encaja, la tarjeta de la galería y la página de la plantilla explican por qué («necesita 2 GB de memoria libre», «necesita un plan con imágenes») y el botón lleva al upgrade. El asistente muestra «necesita X, tienes Y libre» para la memoria. Los números de los planes están en [Planes y límites](/es-es/plans-and-limits).
+
+## Cupos de imagen
+
+Una plantilla que ejecuta una imagen usa **un cupo de imagen por cada imagen distinta**, nunca uno por app.
+
+| De dónde viene la imagen | Qué cupo usa |
+|---|---|
+| Tu propia imagen | El tuyo, como antes. |
+| Tu propia plantilla privada | El tuyo. La imagen ya lo ocupa. |
+| Una plantilla pública (Vertra o Comunidad) | El tuyo: un cupo por cada plantilla de imagen en uso. |
+| Un enlace para compartir | El tuyo: un cupo por la copia de la imagen. El autor conserva el suyo. |
+| Una plantilla de código | Ninguno. |
+
+Tres apps creadas desde la misma plantilla usan un solo cupo, y una nueva versión de esa plantilla usa el mismo cupo. El cupo se libera cuando desaparece la última app que usa la imagen. En tu lista de imágenes, el cupo aparece como «n8n (plantilla)» sin acciones de reconstruir ni editar. Los cupos cuentan para el mismo límite que las [imágenes Docker propias](/es-es/guides/custom-docker-images).
+
+## Adónde ir después
+
+<CardGroup cols={2}>
+  <Card title="Usar una plantilla" icon="rocket" href="/es-es/templates/use/using-a-template">
+    La galería, el asistente, lo que se crea y los resultados.
+  </Card>
+  <Card title="Stacks" icon="layer-group" href="/es-es/templates/use/stacks">
+    Cómo conviven apps, bases de datos y carpetas de Blob.
+  </Card>
+  <Card title="Actualizar y revertir" icon="rotate-left" href="/es-es/templates/use/updates-and-rollback">
+    Nuevas versiones, el snapshot de seguridad y el rollback con datos.
+  </Card>
+  <Card title="Catálogo" icon="store" href="/es-es/templates/catalog">
+    Las plantillas oficiales.
+  </Card>
+</CardGroup>

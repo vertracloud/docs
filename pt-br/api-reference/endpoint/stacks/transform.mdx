@@ -1,0 +1,42 @@
+---
+title: Transformar pasta em stack
+sidebarTitle: Transformar em stack
+api: POST https://api.vertracloud.app/v1/stacks/transform
+authMethod: bearer
+description: Transforma os apps e bancos de dados de uma pasta em uma stack, injetando opcionalmente as variáveis de conexão.
+---
+
+{/* @see RESTPostAPIStackTransformBody, RESTPostAPIStackTransformResponse — @vertracloud/api-types */}
+Cria uma stack com cada app e banco de dados de uma pasta. A pasta permanece. Com `inject_variables: true`, a plataforma adiciona as variáveis de conexão e os certificados aos apps; com `false`, presume-se que os apps se conectam por conta própria. Precisa do escopo `stacks:write` quando chamado com uma chave de API.
+
+<ParamField body="folder_id" type="string" required>
+  A pasta de onde tirar os recursos.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O workspace da pasta. Ausente significa a sua pasta.
+</ParamField>
+
+<ParamField body="name" type="string">
+  O nome da stack. Opcional.
+</ParamField>
+
+<ParamField body="inject_variables" type="boolean" required>
+  Se a plataforma cria as conexões e injeta as variáveis e os certificados.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Conexões a criar quando `inject_variables` é `true`. Cada item tem `app_id`, `database_id` e um `env_map` opcional (veja [Criar conexão da stack](/pt-br/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+### Resposta
+
+`201` com a stack, igual a [Criar stack](/pt-br/api-reference/endpoint/stacks/create), incluindo `restart_required` e `apps_to_restart`.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `STACK_TRANSFORM_EMPTY` | A pasta não tem app, nem banco de dados, para colocar em uma stack. |
+| 409 | `STACK_MEMBER_CONFLICT` | Um recurso da pasta já está em outra stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |

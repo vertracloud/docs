@@ -1,0 +1,119 @@
+---
+title: Revocar un enlace para compartir
+sidebarTitle: Revocar enlace
+api: DELETE https://api.vertracloud.app/v1/templates/{template_id}/share-links/{link_id}
+authMethod: bearer
+description: Revoca un enlace para compartir de una plantilla privada para que nadie pueda volver a usarlo, sin afectar a lo que ya se creó a partir de él.
+---
+
+{/* @see RESTDeleteAPITemplateShareLinkResponse — @vertracloud/api-types */}
+Esta llamada revoca un enlace para compartir: no acepta ningún uso nuevo y deja de ofrecer actualizaciones a lo que se creó a partir de él. Las aplicaciones y los stacks ya creados desde el enlace siguen funcionando, y las copias ya hechas se quedan con sus propietarios. Revocar es idempotente: revocar un enlace ya revocado responde con el enlace tal como está.
+
+Necesita el ámbito `templates:write` cuando se llama con una clave de API. Solo el propietario de la plantilla puede revocar sus enlaces.
+
+<ParamField path="template_id" type="string" required>
+  El ID de la plantilla.
+</ParamField>
+
+<ParamField path="link_id" type="string" required>
+  El ID del enlace.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la plantilla pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.vertracloud.app/v1/templates/tpl-abc123def456/share-links/lnk-abc123def456 \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El enlace, con `revoked_at` completado.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID del enlace.
+  </ResponseField>
+
+  <ResponseField name="template_id" type="string">
+    La plantilla a la que pertenece el enlace.
+  </ResponseField>
+
+  <ResponseField name="mode" type="string">
+    `use` o `full_copy`.
+  </ResponseField>
+
+  <ResponseField name="last4" type="string">
+    Los últimos 4 caracteres del token, para distinguir los enlaces.
+  </ResponseField>
+
+  <ResponseField name="uses" type="integer">
+    Cuántas veces se usó el enlace.
+  </ResponseField>
+
+  <ResponseField name="max_uses" type="integer | null">
+    El número máximo de usos, o `null` si no hay límite.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null" format="date-time">
+    Cuándo caduca el enlace, o `null` si no caduca.
+  </ResponseField>
+
+  <ResponseField name="revoked_at" type="string | null" format="date-time">
+    Cuándo lo revocó el autor, o `null`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó el enlace.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "lnk-abc123def456",
+    "template_id": "tpl-abc123def456",
+    "mode": "use",
+    "last4": "x9Qa",
+    "uses": 3,
+    "max_uses": 10,
+    "expires_at": null,
+    "revoked_at": "2026-10-27T16:00:00Z",
+    "created_at": "2026-10-27T14:02:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: La plantilla no existe o no es tuya (`404`).
+  - `SHARE_LINK_NOT_FOUND`: El enlace no existe en esa plantilla (`404`).
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace revoca los enlaces de sus plantillas.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "SHARE_LINK_NOT_FOUND"
+}
+```
+
+</ResponseExample>

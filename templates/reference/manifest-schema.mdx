@@ -1,0 +1,78 @@
+---
+title: 'Template Manifest JSON Schema: Validate vertracloud.template.yaml in Your Editor'
+sidebarTitle: 'Manifest schema'
+description: 'The versioned JSON Schema of the Vertra Cloud template manifest: editor validation and autocomplete, what it checks and what only the API checks.'
+icon: 'code'
+---
+
+The manifest has a public, versioned JSON Schema at [`/templates/schema/v1.json`](/templates/schema/v1.json). Point your editor at it and `vertracloud.template.yaml` is validated and autocompleted as you type, with no tool to install besides a YAML extension. The schema is generated from the same definition the API uses to validate manifests, so it does not drift from the platform.
+
+## Use it in your editor
+
+Add this comment as the **first line** of the manifest:
+
+```yaml
+# yaml-language-server: $schema=https://docs.vertracloud.app/templates/schema/v1.json
+id: my-template
+version: 1.0.0
+```
+
+Editors that run the YAML language server pick it up, such as Visual Studio Code with the YAML extension by Red Hat, and the JetBrains IDEs. You get:
+
+- autocomplete for every field and enum (`category`, `language`, `web`, `database`, ...);
+- an error underline for unknown fields, wrong types, values out of range and patterns that do not match (for example an `id` with capital letters).
+
+You can also associate the schema with the file name once in your editor settings instead of using the comment.
+
+## Use it in CI
+
+Any JSON Schema validator can check a manifest after you parse the YAML to JSON. For example, with `ajv-cli`:
+
+```bash
+npx ajv-cli validate -s v1.json -d manifest.json --spec=draft7
+```
+
+The schema is JSON Schema draft-07. For the complete check, including the rules that cross fields, use `vertra template validate`.
+
+## What the schema checks
+
+The schema checks the **shape** of the manifest: which fields exist, their types and enums, string patterns, numeric ranges and lengths, array sizes, and which fields each kind of service requires.
+
+| Checked by the schema | Example |
+|---|---|
+| Required fields | `id`, `version`, `name`, `description`, `category`, `services`; `source`, `ram` and `web` on an app; `database` and `ram` on a database |
+| Enums | `category`, `language`, `web`, `source.type`, `database`, `generate` pattern |
+| Patterns | `id`, `version`, service and question ids, variable names, `icon` path |
+| Limits | 40 questions, 25 options, 16 outputs, 10 tags, 256 variables, 3,072 characters per value |
+| Unknown fields | Every object rejects fields it does not define |
+
+## What only the API checks
+
+Some rules cannot be written in JSON Schema because they look at several fields at once or at the state of the platform. The CLI, the editor, the API and the CI of the public repository run them with the same code:
+
+- placeholders that point to services, questions or secrets that exist;
+- `when` that refers to an earlier question, with an `equals` of the right type;
+- a `select` question with options, and a `default` that is one of them;
+- `recommended` not below `min`, and `max` not below `recommended`;
+- image fields on code services and code fields on image services;
+- `min_plan` that is the id of a real plan, and a database `version` that is available;
+- unsafe regular expressions in `validation.regex`;
+- platform-controlled variable names, and literal values that look like secrets;
+- permission combinations, and fields reserved for private or for public templates.
+
+A manifest that passes the schema can still fail these. The findings and how to fix them are in [Validate and test](/templates/create/validate-and-test#validation-codes).
+
+## Versioning
+
+The file name carries the version: `v1.json` describes manifest format v1. A format change that is not compatible would be published under a new file name instead of replacing `v1.json`. Point your editor at the version you wrote your manifest against.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Manifest reference" icon="file-code" href="/templates/create/manifest-reference">
+    Every field in prose, with examples.
+  </Card>
+  <Card title="Validate and test" icon="circle-check" href="/templates/create/validate-and-test">
+    The CLI, the API and the validation codes.
+  </Card>
+</CardGroup>

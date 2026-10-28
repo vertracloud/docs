@@ -1,0 +1,92 @@
+---
+title: 'Template Best Practices: Data, Disk, Port, Healthcheck and Secrets'
+sidebarTitle: 'Best practices'
+description: 'Write templates that run in the Vertra Cloud sandbox: data in stack databases, /app as the only disk, uid 1000, the right port, healthcheck, no secrets.'
+icon: 'list-check'
+---
+
+A template runs inside the same sandbox as every other app, so it has to respect the same rules: one writable disk, no root, the right port and a healthcheck that tells the truth. A template that ignores them works on your laptop and fails on the first boot.
+
+## Keep data in the stack's databases
+
+Put the data that matters in the databases of the stack (Postgres, MySQL, MongoDB or Redis), not in files under `/app`. Databases are snapshotted, restored, rolled back and updated by the platform, and they are never closed, so they behave the same in a [closed template](/templates/create/permissions#closed-templates). A file in `/app` of a closed template is invisible to the user and is your responsibility.
+
+When the software offers a choice, expose it: n8n lets the user pick managed Postgres or the built-in SQLite through a question, and uses `sets` to turn the database on or off. See [Placeholders and inputs](/templates/create/placeholders-and-inputs#options-and-sets).
+
+## `/app` is the only persistent disk
+
+The root file system is **read-only**. `/app` is the app's working directory and `HOME`, and the only place where files survive a restart, a deploy and a snapshot. Point everything the software writes there with a variable:
+
+```yaml
+env:
+  N8N_USER_FOLDER: /app
+  OPENCLAW_HOME: /app
+```
+
+There is no persistence property in the manifest, and a `VOLUME` instruction in a Dockerfile is ignored. Do not rely on any other path for state: the rest of the file system is read-only.
+
+`/app/.vertra/` is reserved for the platform (database certificates). Never write there and never ship files there.
+
+## Run as uid 1000
+
+Processes run as the unprivileged user with uid 1000, with no new privileges and a read-only root. Software that must start as root, change users at boot (`usermod`, `chown` of system paths), use an init system as PID 1 or write to `/opt` or `/var` does not run as it is. Adapt it:
+
+- Use an image or a Dockerfile that starts as a normal user and keeps its data under `/app`.
+- Remove boot steps that need root.
+- Test with a read-only root and uid 1000 before you publish; see [Validate and test](/templates/create/validate-and-test).
+
+## Set the port
+
+For an image service, set `port` to the port the software listens on (the `EXPOSE` of the image). A code service follows the same rules as any app (see [Applications](/applications)) and cannot set `port`. Do not set `PORT` in `env`: the platform controls it, and the manifest is refused with `forbidden_env` if you try.
+
+## Write an honest healthcheck
+
+The healthcheck decides when the wizard says "ready". Pick a path that answers only once the software is really able to serve:
+
+- Prefer a readiness path over a liveness path. n8n's `/healthz` opens before its migrations finish, so its template uses `/healthz/readiness`, which waits for the database.
+- Set `timeout` to the slowest first boot you measured, with margin. Migrations and image pulls make the first boot slower than the next ones.
+- A service with no HTTP (a bot, a worker) omits `path`: the usual ready check applies and a process that exits shows up as a failed deploy.
+
+```yaml
+healthcheck: { path: /healthz/readiness, timeout: 240 }
+```
+
+## Never put a secret in the template
+
+A template is copied, shared and, in the public catalog, read by everyone.
+
+- **Generate** what the user does not need to know: `{{secret:48}}`, a declared `secrets` name or a question with `generate`.
+- **Ask** for what only the user has, such as a bot token, with a `secret` question. The value goes to the app encrypted and is not kept in the template.
+- **Hide** what belongs to you (a license key) with `env_hidden`, in a closed private template.
+- Do not leave `.env*` files, private keys or tokens in the code. The platform refuses a code upload that contains them (`TEMPLATE_SECRET_IN_SOURCE`), and the validator refuses a variable whose name looks like a secret (`*_KEY`, `*_TOKEN`, `*_SECRET`, `PASSWORD`...) with a literal value (`secret_in_manifest`).
+
+```yaml
+env:
+  N8N_ENCRYPTION_KEY: "{{secrets.encryption_key}}"   # generated once, the same in every service
+  DISCORD_TOKEN: "{{inputs.discord_token}}"          # typed by the user
+```
+
+## Variables the platform controls
+
+Some names are owned by the platform, and a manifest that sets them is refused with `forbidden_env`: `PORT`, `HOST`, `NODE_ENV`, `RACK_ENV`, `RAILS_ENV`, `APP_ID`, `PATH`, `HOME`, `USER`, `SHELL`, plus `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT`, `NODE_OPTIONS` and anything starting with `DYLD_`. Comparison ignores letter case. Pass settings to the software through its own variables instead.
+
+## Pin what you ship
+
+- Pin an image by digest (`name@sha256:...`). A public template with only a tag is refused with `invalid_source`, and a pinned version means everyone who uses a given version of your template gets the same software.
+- Pin runtime and dependency versions in code templates, and commit the lock file.
+- Keep the memory honest: `ram.min` is what the software needs to boot with the default answers, and `recommended` is what you would run in production.
+
+## Write the docs a user needs
+
+The `README.md` and the optional `docs/` folder are shown on the template's page. Say what the template creates, what the user must do after the deploy (create the first account, invite a bot), and where the data lives. Put the first steps also in the `outputs`, where the user sees them when the deploy finishes.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Permissions" icon="user-lock" href="/templates/create/permissions">
+    What the user may change afterwards.
+  </Card>
+  <Card title="Deploy settings" icon="arrows-rotate" href="/templates/create/deploy-settings">
+    When to lock blue-green off.
+  </Card>
+</CardGroup>

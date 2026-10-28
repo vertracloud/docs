@@ -1,0 +1,150 @@
+---
+title: Validar el manifiesto de una plantilla
+sidebarTitle: Validar manifiesto
+api: POST https://api.vertracloud.app/v1/templates/validate
+authMethod: bearer
+description: Comprueba un manifiesto de plantilla con las reglas de las plantillas privadas y devuelve los hallazgos, el plan necesario y la memoria que requiere, sin crear nada.
+---
+
+{/* @see APITemplateValidation, RESTPostAPITemplateValidateBody, RESTPostAPITemplateValidateResponse — @vertracloud/api-types */}
+Comprueba un manifiesto e informa de cada problema que encuentra, sin crear nada. La llamada **necesita autenticación** y, con una clave de API, el scope `templates:read`. Siempre responde `200`: si el manifiesto es válido está en el campo `valid`, así que un manifiesto que ni siquiera es un objeto vuelve como hallazgos, no como una petición mal formada. Las comprobaciones son las que se aplican a una plantilla privada. Para los campos del manifiesto y ejemplos, ver la [referencia del manifiesto](/es-es/templates/create/manifest-reference) y [Validar y probar una plantilla](/es-es/templates/create/validate-and-test).
+
+<ParamField body="manifest" type="object | string" required>
+  El manifiesto. Envíalo como objeto JSON, o como string con el YAML del archivo `vertracloud.template.yaml`. Un string que no es YAML válido se informa como hallazgo.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El resultado de la validación.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="valid" type="boolean">
+    `true` cuando el manifiesto no tiene hallazgos.
+  </ResponseField>
+
+  <ResponseField name="issues" type="object[]">
+    Los hallazgos. Vacío cuando `valid` es `true`.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="path" type="string">
+      La ruta del campo en el manifiesto, como `services.app.ram.min`. Vacía cuando el problema es el manifiesto en su conjunto.
+    </ResponseField>
+
+    <ResponseField name="code" type="string">
+      El tipo de hallazgo: `invalid_type`, `required`, `unknown_field`, `invalid_slug`, `invalid_version`, `invalid_category`, `invalid_text`, `invalid_ram`, `invalid_plan`, `unknown_placeholder`, `unknown_service`, `unknown_input`, `invalid_when`, `invalid_option`, `invalid_source`, `invalid_permissions`, `forbidden_env`, `forbidden_in_public`, `secret_in_manifest`, `invalid_deploy`, `invalid_connection`, `duplicate_id` o `too_many_services`.
+    </ResponseField>
+
+    <ResponseField name="message" type="string">
+      Una explicación legible, en inglés.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="required_plan" type="string | null">
+    El plan más bajo que puede usar la plantilla, calculado a partir del manifiesto. `null` cuando el manifiesto no es lo bastante válido para calcularlo.
+  </ResponseField>
+
+  <ResponseField name="ram_min_total" type="integer | null">
+    La suma de la memoria mínima de cada servicio, en MB, o `null`.
+  </ResponseField>
+
+  <ResponseField name="services" type="object[]">
+    Los servicios que crea el manifiesto, con la misma forma que en [Listar plantillas](/es-es/api-reference/endpoint/templates/list). Vacío cuando el manifiesto no es válido.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/validate \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manifest": {
+      "id": "my-bot",
+      "version": "1.0.0",
+      "name": { "pt-br": "Meu bot" },
+      "description": { "pt-br": "Um bot de exemplo." },
+      "category": "bots",
+      "services": {
+        "app": {
+          "source": { "type": "code", "path": "src" },
+          "language": "javascript",
+          "main": "index.js",
+          "ram": { "min": 128, "recommended": 256 },
+          "web": "none"
+        }
+      }
+    }
+  }'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response (valid)
+{
+  "response": {
+    "valid": true,
+    "issues": [],
+    "required_plan": "economy",
+    "ram_min_total": 128,
+    "services": [
+      {
+        "id": "app",
+        "kind": "app",
+        "source_type": "code",
+        "database": null,
+        "blob_visibility": null,
+        "ram": { "min": 128, "recommended": 256 },
+        "web": "none",
+        "conditional": false
+      }
+    ]
+  }
+}
+```
+
+```json Response (with findings)
+{
+  "response": {
+    "valid": false,
+    "issues": [
+      { "path": "category", "code": "invalid_category", "message": "category must be one of the template categories" },
+      { "path": "services.app.env.LD_PRELOAD", "code": "forbidden_env", "message": "This variable is controlled by the platform" }
+    ],
+    "required_plan": null,
+    "ram_min_total": null,
+    "services": []
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: El body no tiene el campo `manifest` (`400`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `templates:read` (`403`).
+  - `RATE_LIMIT_EXCEEDED`: Demasiadas peticiones (`429`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

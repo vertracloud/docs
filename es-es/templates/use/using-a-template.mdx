@@ -1,0 +1,104 @@
+---
+title: 'Cómo desplegar una plantilla en Vertra Cloud'
+sidebarTitle: 'Usar una plantilla'
+description: 'Elige una plantilla en la galería, responde el asistente y obtén una app o un stack en marcha. También desde la CLI, el servidor MCP y la API.'
+icon: 'rocket'
+---
+
+Para usar una plantilla, ábrela en la galería, haz clic en **Usar plantilla**, responde el asistente y haz clic en **Crear**. Vertra Cloud crea todos los servicios como una sola operación, espera a que la app esté sana y muestra los resultados (dirección, contraseñas generadas, próximos pasos). Si algún paso falla, se elimina todo lo que la plantilla había creado y ves qué paso falló.
+
+Solo el propietario de un workspace puede usar una plantilla dentro de él. Un miembro del workspace ve las plantillas, pero no puede desplegarlas: pídeselo al propietario. Una plantilla que pertenece a un workspace solo se despliega dentro de ese workspace, nunca en una cuenta personal ni en otro workspace.
+
+## Encuentra una plantilla en la galería
+
+La galería lista las plantillas disponibles para ti. En el panel, abre **Plantillas** en la barra lateral, que tiene tres pestañas: **Catálogo**, **Mis plantillas** (tus plantillas privadas) y **En uso** (las apps y los stacks que creaste desde plantillas, con una insignia **Nueva versión disponible** cuando hay una actualización).
+
+- **Búsqueda y categorías:** automatización, agentes de IA, bots, APIs, CMS, monitorización, proyectos iniciales, bases de datos y otros.
+- **Cabe en mi plan:** muestra solo lo que tu cuenta puede usar ahora mismo, con tu memoria libre y tus cupos de imagen libres en cada tarjeta. Una plantilla que no encaja explica por qué.
+- **Orden:** recomendados, más usados, nuevos o de la A a la Z.
+- **Insignias:** Vertra, Comunidad, Privada y Del workspace. Consulta [los tres orígenes](/es-es/templates/overview#los-tres-orígenes).
+
+Cada página de plantilla muestra lo que se va a crear (servicios y memoria total), los requisitos, la documentación, la versión con su changelog, la licencia del software empaquetado y el botón **Usar plantilla**. También puedes empezar desde **Nuevo** en el panel, en la pestaña **Plantillas**.
+
+## Paso a paso en el asistente
+
+<Steps>
+  <Step title="Nombre y destino">
+    Ponle nombre a la app (o al stack, cuando la plantilla tiene varios servicios) y elige el workspace y la carpeta.
+  </Step>
+  <Step title="Las preguntas de la plantilla">
+    Las preguntas aparecen en orden, y algunas solo aparecen según las respuestas anteriores. Una pregunta puede ser de texto, de número, de sí o no, de elección o de secreto. Las preguntas que genera la plataforma (como una clave de cifrado) se rellenan por ti.
+  </Step>
+  <Step title="Memoria de cada servicio">
+    Elige la memoria de cada servicio dentro de lo que permite la plantilla. El asistente muestra «necesita X, tienes Y libre».
+  </Step>
+  <Step title="Subdominio">
+    Si un servicio tiene web, elige un subdominio o déjalo aleatorio.
+  </Step>
+  <Step title="Resumen">
+    Revisa lo que se va a crear, el plan necesario, los cupos de imagen y el modo de red del stack.
+  </Step>
+  <Step title="Crear">
+    Sigue el progreso por pasos: validación, bases de datos, imágenes, apps, variables, certificados, arranque y health check.
+  </Step>
+</Steps>
+
+Solo se ejecuta un despliegue de plantilla por cuenta a la vez. Un segundo despliegue devuelve [`TEMPLATE_DEPLOY_IN_PROGRESS`](/es-es/templates/reference/errors#errores-de-despliegue-y-actualización).
+
+## Qué se crea
+
+| Plantilla | Qué obtienes |
+|---|---|
+| Una app | Una app, con las variables de la plantilla ya configuradas. |
+| Dos o más servicios | Un [stack](/es-es/templates/use/stacks) con sus apps, bases de datos gestionadas y, si la plantilla lo pide, una carpeta de Blob, conectados entre sí. |
+
+Las bases de datos son [bases de datos gestionadas](/es-es/databases) normales, cada una con su propia memoria tomada de tu plan. Las variables de conexión y los certificados se inyectan por ti: consulta [Conectar apps a bases de datos en un stack](/es-es/templates/use/connect-databases). Todo lo que se crea desde una plantilla queda vinculado a la versión de la que vino, así que puedes [actualizarlo más adelante](/es-es/templates/use/updates-and-rollback).
+
+## Resultados y secretos de un solo uso
+
+Cuando el job termina, el asistente muestra los **resultados** de la plantilla: la dirección de la app, los próximos pasos y las credenciales generadas. Un resultado marcado como secreto que se muestra una sola vez aparece en la primera lectura del job terminado y desaparece después. Cópialo antes de salir de la página. Lo mismo se aplica a la CLI, el servidor MCP y la API.
+
+<Warning>
+  Un secreto mostrado una sola vez no se puede volver a leer. Si lo pierdes, cámbialo en la app (por ejemplo, restablece la contraseña de administrador dentro del software) en lugar de buscarlo en la plataforma.
+</Warning>
+
+## Si el despliegue falla
+
+El job deshace todo lo que creó, en orden inverso. Antes de eliminar una aplicación o una base de datos toma un snapshot de seguridad, porque la base de datos puede haber aceptado ya conexiones y el `/app` de la aplicación puede haber cambiado. El error lleva un código estable y el paso que falló, por ejemplo `TEMPLATE_RAM_INSUFFICIENT` en el paso `validate`. Consulta la [referencia de errores](/es-es/templates/reference/errors) para ver causas y soluciones.
+
+## Usar una plantilla desde la CLI, el MCP o la API
+
+<Tabs>
+  <Tab title="CLI">
+    ```sh
+    vertra template list --search n8n --fits
+    vertra template info n8n
+    vertra template deploy n8n --name my-n8n --set mode=postgres
+    ```
+
+    `deploy` hace las preguntas de la plantilla en el terminal (los secretos se escriben sin eco), sigue los pasos e imprime los resultados al final. Responde por adelantado con `--set <question>=<value>`; `--yes`, `--json` o una sesión sin terminal no preguntan nada y fallan listando todas las respuestas que faltan. `--service <service>.ram=2048` define la memoria por servicio y `--share <link>` despliega desde un [enlace para compartir](/es-es/templates/use/receive-a-link). Consulta la [referencia de la CLI](/es-es/cli).
+  </Tab>
+  <Tab title="MCP">
+    Un agente llama a `list_templates` (con `fits` para filtrar según tu cuenta), luego a `get_template` para leer los servicios, las preguntas, los resultados y el plan necesario, y después a `deploy_template` para crearlo. Por defecto, `deploy_template` sigue el job hasta que termina; si todavía se está ejecutando, sigue leyéndolo con `get_template_deploy`. Los resultados que se muestran una sola vez se devuelven a la primera lectura que ve el job terminar con éxito, así que muéstralos al usuario de inmediato. El readme y el changelog del autor llegan como contenido no confiable. Consulta el [servidor MCP](/es-es/mcp).
+  </Tab>
+  <Tab title="API">
+    `POST /v1/templates/{template_id}/deploy` devuelve `202` con un job. Envía una cabecera `Idempotency-Key` para que una llamada repetida devuelva el mismo job en lugar de crear un segundo conjunto de recursos. Sigue el job con la ruta de estado o con su flujo de eventos. Las claves necesitan el scope `templates:deploy`; leer el catálogo necesita `templates:read`.
+
+    - [List templates](/es-es/api-reference/endpoint/templates/list) y [Get template](/es-es/api-reference/endpoint/templates/get)
+    - [Deploy a template](/es-es/api-reference/endpoint/templates/deploy)
+    - [Deploy status](/es-es/api-reference/endpoint/templates/deploy-status) y [Deploy events](/es-es/api-reference/endpoint/templates/deploy-events)
+  </Tab>
+</Tabs>
+
+El catálogo público se puede leer sin autenticación; con una clave, cada plantilla también indica si encaja con tu plan y tu memoria libre.
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Stacks" icon="layer-group" href="/es-es/templates/use/stacks">
+    Qué crea una plantilla de varios servicios.
+  </Card>
+  <Card title="Actualizar y revertir" icon="rotate-left" href="/es-es/templates/use/updates-and-rollback">
+    Nuevas versiones de una plantilla.
+  </Card>
+</CardGroup>

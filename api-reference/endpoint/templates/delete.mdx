@@ -1,0 +1,64 @@
+---
+title: Delete a Private Template
+sidebarTitle: Delete Template
+api: DELETE https://api.vertracloud.app/v1/templates/{template_id}
+authMethod: bearer
+description: Deletes a private template and revokes all its share links, while what was already created from it keeps running.
+---
+
+{/* @see RESTDeleteAPITemplateResponse — @vertracloud/api-types */}
+This call deletes a private template. Its share links stop working at once, its slug is freed and it stops counting against your limit of 5 private templates. Applications and stacks already created from it keep running and are told the template was removed; they get no more updates. Copies others made with a full-copy link are independent and are not affected.
+
+Needs the `templates:write` scope when called with an API key. Only the owner of the template can delete it; in a workspace, its owner. A catalog template or one of another account answers `404`, as if it did not exist. An image that is the source of the current version of a private template cannot be deleted before the template (`IMAGE_IN_USE`).
+
+<ParamField path="template_id" type="string" required>
+  The template ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the template belongs to a workspace, the workspace's ID.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.vertracloud.app/v1/templates/tpl-abc123def456 \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Response
+
+<ResponseField name="response" type="null">
+  Always `null`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:write` scope (`403`).
+  - `TEMPLATE_NOT_FOUND`: The template does not exist, was already deleted, or is not yours (`404`).
+  - `WORKSPACE_OWNER_ONLY`: Only the workspace owner deletes its templates.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

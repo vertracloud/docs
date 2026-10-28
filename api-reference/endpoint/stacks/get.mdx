@@ -1,0 +1,110 @@
+---
+title: Get Stack
+sidebarTitle: Get Stack
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}
+authMethod: bearer
+description: Returns one stack with its members, status, connections, memory total and the template it came from.
+---
+
+{/* @see RESTGetAPIStackResponse, APIStack, APIStackMember, APIStackBinding — @vertracloud/api-types */}
+Returns a stack and everything in it: applications, databases and Blob folders, the connections between them, the status of the members added up and, when the stack came from a template, the template and version. Needs the `stacks:read` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to. Required for a workspace member acting on a stack they do not own; the owner may omit it.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The stack.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">The stack ID.</ResponseField>
+  <ResponseField name="name" type="string">The stack name.</ResponseField>
+  <ResponseField name="description" type="string | null">Optional description, or `null`.</ResponseField>
+
+  <ResponseField name="network_mode" type="string">
+    How the members reach each other. The value is `public`: services use their public addresses and databases are reached with client certificates.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">The account that owns the stack.</ResponseField>
+  <ResponseField name="workspace_id" type="string | null">The workspace the stack belongs to, or `null` when it belongs to you.</ResponseField>
+
+  <ResponseField name="members" type="object[]">
+    The members. Each has `resource_type` (`application`, `database` or `blob`), `resource_id`, `name`, `status` (`null` for a Blob folder), `ram` in MB (`0` for a Blob folder), `service_key` (the service id in the template, `null` for a member you added), `database_type` (the engine of a database, otherwise `null`), `closed` (`true` for an application of a [closed template](/templates/use/closed-templates): its code is not accessible) and `blob`.
+
+    For a Blob member, `blob` has the folder `prefix`, `visibility` (`private` or `public`), `used_bytes` (or `null`) and `api_key_id`, the key the platform created for the stack and restricted to that folder. See [Add Blob Folder](/api-reference/endpoint/stacks/blob/create).
+  </ResponseField>
+
+  <ResponseField name="status" type="object">
+    Members online, offline and building, added up: `up`, `down`, `building` and `total` (the members that have a status).
+  </ResponseField>
+
+  <ResponseField name="ram_total" type="integer">Memory of every member, in MB.</ResponseField>
+
+  <ResponseField name="bindings" type="object[]">
+    The connections between members. Each has `id`, `stack_id`, `app_id` (the application that receives the variables), exactly one of `database_id`, `blob_id` and `target_app_id`, `env_map` (variable name to what it receives), `certs_path` (the folder inside the application where the client certificates of a database are written, `null` without a database) and `created_at`. See [Create Connection](/api-reference/endpoint/stacks/bindings/create).
+  </ResponseField>
+
+  <ResponseField name="template" type="object | null">
+    The template and version the stack came from, or `null` for a stack assembled by hand. It has the same fields as the `template` of an [application](/api-reference/endpoint/apps/get), including `icon_url`, the stable URL of the template icon (`null` when there is none).
+  </ResponseField>
+
+  <ResponseField name="update_available" type="boolean">`true` when the template has a newer version the stack can update to.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time">When the stack was created.</ResponseField>
+  <ResponseField name="updated_at" type="string" format="date-time">When the stack was last updated.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "stk-abc123def456",
+    "name": "shop",
+    "description": null,
+    "network_mode": "public",
+    "owner_id": "usr-abc123",
+    "workspace_id": null,
+    "members": [
+      { "resource_type": "application", "resource_id": "app-abc123def456", "name": "web", "status": "up", "ram": 512, "service_key": null, "database_type": null, "closed": false, "blob": null },
+      { "resource_type": "database", "resource_id": "db-abc123def456", "name": "main", "status": "up", "ram": 256, "service_key": null, "database_type": "postgres", "closed": false, "blob": null }
+    ],
+    "status": { "up": 2, "down": 0, "building": 0, "total": 2 },
+    "ram_total": 768,
+    "bindings": [
+      {
+        "id": "bnd-abc123def456",
+        "stack_id": "stk-abc123def456",
+        "app_id": "app-abc123def456",
+        "database_id": "db-abc123def456",
+        "blob_id": null,
+        "target_app_id": null,
+        "env_map": { "DATABASE_URL": "url" },
+        "certs_path": "/app/.vertra/certs/db-abc123def456/",
+        "created_at": "2026-10-27T12:00:00.000Z"
+      }
+    ],
+    "template": null,
+    "update_available": false,
+    "created_at": "2026-10-27T12:00:00.000Z",
+    "updated_at": "2026-10-27T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | The key does not have `stacks:read`. |
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |

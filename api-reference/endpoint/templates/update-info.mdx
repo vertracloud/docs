@@ -1,0 +1,149 @@
+---
+title: Get Template Update Info
+sidebarTitle: Update Info
+api: GET https://api.vertracloud.app/v1/apps/{id}/template/update
+authMethod: bearer
+description: Shows what updating an application or stack to the latest version of its template would do, and whether anything blocks it, without changing anything.
+---
+
+{/* @see APITemplateUpdateInfo, RESTGetAPITemplateUpdateInfoResponse — @vertracloud/api-types */}
+Reports whether a newer version of the template is available for an application or a stack, and what the update would change. Nothing is written. There are two routes with the same response: `GET /v1/apps/{id}/template/update` for an application and `GET /v1/stacks/{stack_id}/template/update` for a stack. With an API key the scope is `templates:read`. Workspace members who can read the resource can call it; updating is for the owner (see [Update from Template](/api-reference/endpoint/templates/update)).
+
+An application that belongs to a stack made from a template answers for the **whole stack**, with every service together. A standalone application, or one in a stack assembled by hand, answers alone. Updates are never automatic: they run only when you ask. See [Updates and rollback](/templates/use/updates-and-rollback).
+
+<ParamField path="id" type="string" required>
+  The application ID (on the `/v1/apps/{id}/template/update` route).
+</ParamField>
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID (on the `/v1/stacks/{stack_id}/template/update` route).
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  What the update would do.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="update_available" type="boolean">
+    `true` when there is a newer version and nothing structural blocks the update. It is `false` when `blocked` carries a structural reason.
+  </ResponseField>
+
+  <ResponseField name="current_version" type="string">
+    The version the resource runs now.
+  </ResponseField>
+
+  <ResponseField name="latest_version" type="string | null">
+    The newest ready version, or `null` when there is no newer one or the update is structurally blocked.
+  </ResponseField>
+
+  <ResponseField name="security" type="boolean">
+    `true` when the new version, or one in between, is a security release.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    What changed in the new version, as a text per language, or `null`.
+  </ResponseField>
+
+  <ResponseField name="new_inputs" type="object[]">
+    The required questions the new version adds, in the same shape as `inputs` in [Get Template](/api-reference/endpoint/templates/get). Only questions with no default that the platform does not generate. Answer them in `inputs` when you update. Questions you answered before are not asked again.
+  </ResponseField>
+
+  <ResponseField name="added_services" type="object[]">
+    The services the new version adds, in the shape used in [List Templates](/api-reference/endpoint/templates/list). They are created in the same operation.
+  </ResponseField>
+
+  <ResponseField name="removed_services" type="string[]">
+    The IDs of services the new version drops that exist in your account. They are not deleted: they leave the template and you can delete them yourself.
+  </ResponseField>
+
+  <ResponseField name="ram_changes" type="object[]">
+    Services whose minimum memory rose above what they have. Each has `service_id`, `current` and `required_min`, in MB. Send the new memory in `ram` when you update.
+  </ResponseField>
+
+  <ResponseField name="free_ram" type="integer">
+    The memory free in your account, in MB.
+  </ResponseField>
+
+  <ResponseField name="opens_permissions" type="boolean">
+    `true` when the new version opens permissions the application had closed, for example when a closed template becomes open. Permissions are never made more restrictive by an update.
+  </ResponseField>
+
+  <ResponseField name="rollback_with_data" type="boolean">
+    `true` when going back from the new version always takes the data along: the template migrates its data when it updates, so rolling back only the code is refused and you restore the update's snapshot instead.
+  </ResponseField>
+
+  <ResponseField name="blocked" type="object | null">
+    `null` when the update can go ahead. Otherwise the reason it cannot.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="reason" type="string">
+      `no_new_version` (already on the latest), `detached` (left the template), `template_removed` (the author removed it, or it is deprecated), `link_revoked` (the share link it came from was revoked), `app_building`, `deploy_in_progress` (another deploy or update of the same target is running), `plan`, `ram` or `image_slots`.
+    </ResponseField>
+
+    <ResponseField name="details" type="object">
+      Numbers behind the reason. For `plan`, `details.reason` is one of `no_plan`, `min_plan`, `web_publish`, `image_plan`, `blob_plan`, `max_apps` or `max_databases`; for `ram` it carries the memory needed and free; for `template_removed`, `details.deprecated` tells a deprecated template from a removed one.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/apps/9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26/template/update \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "update_available": true,
+    "current_version": "1.0.0",
+    "latest_version": "1.1.0",
+    "security": true,
+    "changelog": { "en": "Updated discord.js to a release with a security fix." },
+    "new_inputs": [],
+    "added_services": [],
+    "removed_services": [],
+    "ram_changes": [{ "service_id": "app", "current": 256, "required_min": 384 }],
+    "free_ram": 1024,
+    "opens_permissions": false,
+    "rollback_with_data": false,
+    "blocked": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: The ID is not valid (`400`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:read` scope (`403`).
+  - `APP_NOT_FOUND`: The application does not exist or is not yours (`404`).
+  - `STACK_NOT_FOUND`: The stack does not exist or is not yours (`404`).
+  - `TEMPLATE_NOT_FOUND`: The application or stack did not come from a template (`404`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>

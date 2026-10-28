@@ -1,0 +1,72 @@
+---
+title: Obter URL do webhook de deploy
+sidebarTitle: URL do webhook
+api: GET https://api.vertracloud.app/v1/apps/{app_id}/deploys/webhook
+authMethod: bearer
+description: Retorna a URL do webhook de deploy do GitHub e as informações do repositório de uma aplicação.
+---
+
+{/* @see webhook URL — @vertracloud/api-types */}
+<ParamField path="app_id" type="string" required>
+O ID da aplicação cuja URL do webhook será retornada.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+Contém os detalhes do repositório e do webhook.
+
+<Expandable title="Mostrar objeto">
+  <ResponseField name="repo_owner" type="string">
+  O proprietário do repositório no GitHub.
+  </ResponseField>
+
+  <ResponseField name="repo_name" type="string">
+  O nome do repositório no GitHub.
+  </ResponseField>
+
+  <ResponseField name="webhook_url" type="string">
+  A URL do webhook de deploy.
+  </ResponseField>
+
+  <ResponseField name="branch" type="string | null">
+  A branch cujos pushes fazem o deploy da aplicação. `null` significa `main` ou `master`.
+  </ResponseField>
+</Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "response": {
+    "repo_owner": "owner_name",
+    "repo_name": "repository_name",
+    "webhook_url": "https://api.vertracloud.app/v1/apps/123/deploys/receiver/webhook",
+    "branch": "develop"
+  }
+}
+```
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+Códigos de erro possíveis:
+- `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+- `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões, ou não tem o escopo que a rota exige (`403`).
+- `ACCESS_DENIED`: o recurso pertence a outra conta, ou você não tem a permissão do workspace para ele (`403`).
+- `PLAN_RESTRICTED_FEATURE`: o plano do usuário não oferece suporte a deploy automático.
+- `DEPLOYMENT_NOT_FOUND`: webhook de integração não encontrado para a aplicação.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "code": "DEPLOYMENT_NOT_FOUND"
+}
+```
+</ResponseExample>

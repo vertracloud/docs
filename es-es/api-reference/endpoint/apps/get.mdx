@@ -1,0 +1,277 @@
+---
+title: Detalles de la aplicación
+sidebarTitle: Obtener aplicación
+api: GET https://api.vertracloud.app/v1/apps/{id}
+authMethod: bearer
+description: Devuelve los detalles de una aplicación a partir de su ID.
+---
+
+{/* @see APIApplication — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación cuyos detalles quieres obtener. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de consulta `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúen sobre una aplicación que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Los detalles de la aplicación.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="integer">
+    El ID del clúster de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="type" type="integer">
+    El tipo de aplicación.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    El nombre de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    La descripción de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    El ID del propietario de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="owner_plan" type="string | null">
+    El nombre del plan del propietario (por ejemplo, `pro` o `enterprise-8`), o `null` si el propietario no tiene plan.
+  </ResponseField>
+
+  <ResponseField name="language" type="string">
+    El lenguaje de programación de la aplicación (por ejemplo, `javascript`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="integer">
+    La RAM de la aplicación, en MB.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    El estado de la aplicación: `up`, `down` o `building` (creación en curso; la mayoría de las acciones responden `409 APP_BUILDING`).
+  </ResponseField>
+
+  <ResponseField name="last_build_error" type="string | null">
+    El código del último fallo de build o de instalación, o `null` tras un build correcto. Es uno de
+    `BUILD_FAILED`, `BUILD_TIMEOUT`, `BUILD_INTERRUPTED`, `INSTALL_FAILED`, `INSTALL_OUT_OF_MEMORY`,
+    `INSTALL_TIMEOUT` o `INSTALL_SHIELD_BLOCKED`. El detalle está en los logs de la aplicación; consulta
+    [Errores](/es-es/api-reference/errors#códigos-de-fallo-del-build) para saber qué hacer con cada código.
+  </ResponseField>
+
+  <ResponseField name="subdomain" type="string | null">
+    El subdominio de la aplicación, si aplica.
+  </ResponseField>
+
+  <ResponseField name="domains" type="APIApplicationDomain[]">
+    Los dominios personalizados de la aplicación, con su estado, el estado del SSL, el puerto, el prefijo de ruta y la redirección. Vacío si no tiene ninguno.
+    Cada elemento se describe en [Listar dominios de la aplicación](/es-es/api-reference/endpoint/apps/domains/list#respuesta).
+  </ResponseField>
+
+  <ResponseField name="public_url" type="string | null">
+    La URL pública canónica de la aplicación, ya calculada por el servidor: el dominio personalizado principal si existe; si no, el `subdomain`
+    (`null` si la aplicación no tiene ninguno de los dos, es decir, no está publicada en la web). Construye los enlaces a partir de este campo,
+    nunca directamente desde `subdomain`: un despliegue autoalojado detrás de un edge no estándar puede devolver aquí otro host o esquema.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    La fecha y hora del último snapshot de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="main_file" type="string">
+    El archivo principal de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    La versión del runtime (por ejemplo, `recommended` o `latest`).
+  </ResponseField>
+
+  <ResponseField name="start_command" type="string | null">
+    El comando de inicio de la aplicación, si se ha especificado.
+  </ResponseField>
+
+  <ResponseField name="build_command" type="string | null">
+    El comando de build, si se ha especificado. Se ejecuta después de instalar las dependencias y antes de que la aplicación arranque,
+    en un entorno de build aislado. `null` cuando no hay ningún comando de build configurado.
+  </ResponseField>
+
+  <ResponseField name="offline_since" type="string | null" format="date-time">
+    La fecha y hora desde la que la aplicación está fuera de línea, si aplica.
+  </ResponseField>
+
+  <ResponseField name="shield_cooldown" type="object | null">
+    Aparece mientras Vertra Shield tiene la aplicación en pausa. Incluye `until` (la hora en que termina el enfriamiento), `reason` (`burst` o `rate_limit`)
+    y `direction` (`in` o `out`); `null` cuando no hay ningún enfriamiento activo.
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    El repositorio de GitHub vinculado (`repo_owner`, `repo_name`) cuando el auto-deploy está conectado; `null` si la aplicación se creó desde un zip
+    o un snapshot. La URL del webhook no se incluye: para obtenerla, usa `GET /v1/apps/{id}/deploys/webhook`.
+  </ResponseField>
+
+  <ResponseField name="custom_image" type="object | null">
+    La imagen Docker personalizada desde la que se ejecuta la aplicación; `null` en una aplicación normal. Con una imagen, `language`, `version`, `main_file`, `start_command`
+    y `build_command` no aplican: vienen de la imagen. Consulta [Imágenes Docker personalizadas](/es-es/guides/custom-docker-images).
+
+    <Expandable title="Propiedades de custom_image">
+      <ResponseField name="image_id" type="string">
+        El ID de la imagen. `id` y `name` de este objeto son los de la aplicación, no los de la imagen.
+      </ResponseField>
+
+      <ResponseField name="port" type="integer | null">
+        El puerto en el que escucha la aplicación y al que la plataforma enruta el tráfico; `null` en una aplicación sin tráfico web.
+      </ResponseField>
+
+      <ResponseField name="version_id" type="string | null">
+        La versión de la imagen que ejecuta la aplicación, o `null` si todavía no ha arrancado con ninguna versión.
+      </ResponseField>
+
+      <ResponseField name="outdated" type="boolean">
+        `true` cuando la imagen tiene una versión más reciente que la que ejecuta la aplicación. La aplicación pasará a ella en el siguiente reinicio o despliegue que pidas.
+      </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="template" type="object | null">
+    Desde dónde se creó la aplicación, cuando se creó desde una [plantilla](/es-es/templates/use/using-a-template), o `null` en una aplicación normal.
+
+    <Expandable title="Propiedades de template">
+      <ResponseField name="template_id" type="string">El ID de la plantilla.</ResponseField>
+      <ResponseField name="slug" type="string">El slug de la plantilla.</ResponseField>
+      <ResponseField name="name" type="object">El nombre de la plantilla por idioma: `pt-br`, y `en` y `es` cuando está traducida.</ResponseField>
+      <ResponseField name="icon_url" type="string | null">La URL estable del icono de la plantilla, o `null` para una plantilla privada sin icono o una plantilla que se ha eliminado.</ResponseField>
+      <ResponseField name="origin" type="string">`vertra`, `community` o `private`.</ResponseField>
+      <ResponseField name="version_id" type="string">El ID de la versión con la que se creó la aplicación o a la que se actualizó por última vez.</ResponseField>
+      <ResponseField name="version" type="string">El número de esa versión.</ResponseField>
+      <ResponseField name="closed" type="boolean">`true` cuando la plantilla está cerrada: el código de la aplicación no es accesible.</ResponseField>
+      <ResponseField name="detached" type="boolean">`true` cuando la aplicación se desvinculó de la plantilla y ya no recibe versiones.</ResponseField>
+      <ResponseField name="update_available" type="boolean">`true` cuando la plantilla tiene una versión más reciente a la que la aplicación puede actualizarse.</ResponseField>
+      <ResponseField name="latest_version" type="string | null">El número de la versión más reciente, o `null` si no hay ninguna.</ResponseField>
+      <ResponseField name="removed" type="boolean">`true` cuando el autor eliminó la plantilla; la aplicación sigue funcionando, pero ya no recibe actualizaciones.</ResponseField>
+      <ResponseField name="via_share_link" type="boolean">`true` cuando la aplicación se creó desde un enlace para compartir.</ResponseField>
+      <ResponseField name="service_id" type="string | null">El ID del servicio de la plantilla que es esta aplicación, o `null` cuando la plantilla tiene un único servicio.</ResponseField>
+      <ResponseField name="permissions" type="object">Lo que la plantilla te permite hacer con esta aplicación: `code_view`, `code_edit`, `ram_change`, `ram_below_min`, `ram_above_max`, `env_add`, `commands_edit`, `terminal`, `save_as_template` y `detach`, todos booleanos.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="stack_id" type="string | null">
+    El ID del [stack](/es-es/api-reference/endpoint/stacks/get) al que pertenece la aplicación, o `null` si no está en ninguno.
+  </ResponseField>
+
+  <ResponseField name="stack_service_key" type="string | null">
+    El ID del servicio de la plantilla que es esta aplicación dentro del stack, o `null` si la añadiste tú mismo.
+  </ResponseField>
+
+  <ResponseField name="deploy" type="object">
+    Cómo un despliegue reemplaza la versión en ejecución y qué pasa si falla.
+
+    <Expandable title="Propiedades de deploy">
+      <ResponseField name="zero_downtime" type="string">
+        La opción guardada: `off` (la predeterminada), `auto` u `on`. Cámbiala con [Actualizar la configuración de la aplicación](/es-es/api-reference/endpoint/apps/updateconfig).
+      </ResponseField>
+
+      <ResponseField name="zero_downtime_active" type="boolean">
+        Lo que se aplica al siguiente reinicio o despliegue: `true` en Enterprise cuando `zero_downtime` es `on`, o cuando es `auto` y la aplicación recibe tráfico web.
+      </ResponseField>
+
+      <ResponseField name="auto_rollback" type="boolean">
+        La opción guardada, `false` por defecto. Devuelve el valor guardado en cualquier plan, pero solo surte efecto desde Intermediary.
+      </ResponseField>
+
+      <ResponseField name="health_check_path" type="string | null">
+        La ruta HTTP a la que se llama en una nueva versión para comprobar que está sana. `null` significa `/`.
+      </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    La fecha y hora en que se creó la aplicación.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    La fecha y hora de la última actualización de la aplicación.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "cluster": 1,
+    "type": 1,
+    "name": "API Simples",
+    "description": "I have a description :)",
+    "owner_id": "user-123456789012345678",
+    "owner_plan": "pro",
+    "language": "javascript",
+    "ram": 128,
+    "status": "up",
+    "subdomain": "myapp.vertraweb.app",
+    "domains": [],
+    "public_url": "https://myapp.vertraweb.app",
+    "last_snapshot": "2026-03-09T15:51:47.234Z",
+    "main_file": "index.js",
+    "version": "recommended",
+    "start_command": "node index.js",
+    "build_command": null,
+    "offline_since": null,
+    "shield_cooldown": null,
+    "github": null,
+    "custom_image": null,
+    "deploy": {
+      "zero_downtime": "off",
+      "zero_downtime_active": false,
+      "auto_rollback": false,
+      "health_check_path": null
+    },
+    "created_at": "2026-03-09T15:51:47.234Z",
+    "updated_at": "2026-03-20T15:06:41.449Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Un mensaje descriptivo con más detalles sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+</ResponseExample>

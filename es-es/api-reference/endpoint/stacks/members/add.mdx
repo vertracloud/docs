@@ -1,0 +1,44 @@
+---
+title: Añadir miembro al stack
+sidebarTitle: Añadir miembro
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/members
+authMethod: bearer
+description: Incorpora a un stack una aplicación o base de datos que ya tienes, con conexiones opcionales.
+---
+
+{/* @see RESTPostAPIStackMemberBody, RESTPostAPIStackMemberResponse — @vertracloud/api-types */}
+Añade una aplicación o una base de datos al stack. Debe pertenecer a la misma cuenta o workspace que el stack y no estar en otro stack. Requiere el scope `stacks:write` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack, cuando actúas sobre él como propietario del workspace.
+</ParamField>
+
+<ParamField body="resource_type" type="string" required>
+  `application` o `database`.
+</ParamField>
+
+<ParamField body="resource_id" type="string" required>
+  El ID de la aplicación o de la base de datos.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Conexiones que se crean entre el nuevo miembro y las aplicaciones del stack. Puede estar vacío. Cada elemento tiene `app_id`, exactamente uno de `database_id` o `target_app_id`, y un `env_map` opcional (consulta [Crear conexión](/es-es/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+### Response
+
+El stack actualizado con `restart_required` y `apps_to_restart`, como en [Crear stack](/es-es/api-reference/endpoint/stacks/create). Reinicia las aplicaciones listadas para que lean las nuevas variables.
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 409 | `STACK_MEMBER_CONFLICT` | El recurso ya está en otro stack, o no está en la misma cuenta o workspace. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 404 | `APP_NOT_FOUND` | La aplicación no existe o no es tuya. |
+| 404 | `DATABASE_NOT_FOUND` | La base de datos no existe o no es tuya. |

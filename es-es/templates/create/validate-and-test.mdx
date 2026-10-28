@@ -1,0 +1,115 @@
+---
+title: 'Validar y probar una plantilla: CLI, API y errores de validación comunes'
+sidebarTitle: 'Validar y probar'
+description: 'Comprueba un manifiesto con vertra plantilla validate o POST /v1/plantillas/validate, pruébalo como plantilla privada y corrige cada código de validación.'
+icon: 'circle-check'
+---
+
+Valida un manifiesto con `vertra template validate`, que lo envía a la API y no crea nada, y pruébalo después de verdad creándolo como plantilla privada en tu propia cuenta. La validación detecta errores del archivo; solo un despliegue real demuestra que el software arranca en el sandbox.
+
+## Validar desde la CLI
+
+```bash
+vertra template validate            # the current folder
+vertra template validate ./my-template
+vertra template validate ./my-template/vertracloud.template.yaml --json
+```
+
+El comando lee `vertracloud.template.yaml` de la carpeta (o el archivo que le pases) y lo comprueba con la API. Cada hallazgo se imprime con su archivo, línea, ruta del manifiesto y código, y el comando termina con estado de fallo cuando hay al menos uno. Con `--json` imprime:
+
+```json
+{
+  "valid": false,
+  "file": "vertracloud.template.yaml",
+  "issues": [
+    { "path": "services.app.env.API_TOKEN", "code": "secret_in_manifest", "message": "...", "line": 24 }
+  ]
+}
+```
+
+Necesitas haber iniciado sesión (`vertra auth login`) o tener `VERTRA_API_KEY` definida. Consulta [CLI](/es-es/cli) para la instalación.
+
+## Validar desde la API
+
+`POST /v1/templates/validate` recibe un manifiesto como JSON y no crea nada. Siempre responde `200`, con `valid` y la lista de hallazgos, y necesita el scope `templates:read`.
+
+```bash
+curl -X POST https://api.vertracloud.app/v1/templates/validate \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "manifest": { "id": "demo", "version": "1.0.0" } }'
+```
+
+```json
+{
+  "response": {
+    "valid": false,
+    "issues": [
+      { "path": "name", "code": "required", "message": "Required" },
+      { "path": "services", "code": "required", "message": "Required" }
+    ],
+    "required_plan": null,
+    "ram_min_total": null,
+    "services": []
+  }
+}
+```
+
+Un manifiesto válido devuelve `issues` vacío, el `required_plan` calculado, la suma de memoria mínima en `ram_min_total` y un resumen de cada servicio. El cuerpo puede ser de hasta 1 MiB. Consulta [la referencia del endpoint](/es-es/api-reference/endpoint/templates/validate).
+
+## Validar en tu editor
+
+Añade esta línea en la primera línea del manifiesto y un editor compatible con YAML valida y autocompleta mientras escribes:
+
+```yaml
+# yaml-language-server: $schema=https://docs.vertracloud.app/templates/schema/v1.json
+```
+
+Los detalles están en [JSON Schema del manifiesto](/es-es/templates/reference/manifest-schema). El esquema cubre la forma; la CLI además ejecuta las reglas que cruzan campos, como placeholders que apuntan a servicios que existen.
+
+## Pruébala como plantilla privada
+
+La validación no ejecuta tu software. Antes de publicar o de abrir un pull request:
+
+1. Crea la plantilla como privada en tu propia cuenta: `vertra template create .` (o **Guardar como plantilla** en el panel).
+2. Úsalo: `vertra template deploy my-template --name test-1 --set discord_token=...`, o usa el asistente del panel. Responde a las preguntas exactamente como lo haría un usuario nuevo, y prueba cada opción que activa o desactiva un servicio.
+3. Comprueba el healthcheck, los logs, los outputs, y que un reinicio conserve los datos de `/app` y de las bases de datos.
+4. Prueba una actualización: sube `version`, publícala y actualiza la app, y después haz rollback.
+5. Elimina la app o el stack de prueba. Si el despliegue falla, todo lo que creó el job se elimina solo.
+
+<Note>
+  Una plantilla que funciona en tu ordenador puede seguir fallando en el sandbox porque la raíz es de solo lectura, el proceso se ejecuta como uid 1000 y solo `/app` es escribible. Consulta [Buenas prácticas](/es-es/templates/create/best-practices).
+</Note>
+
+## Códigos de validación
+
+Cada hallazgo tiene un `path` (por ejemplo `services.app.ram.recommended`) y uno de estos códigos. La misma lista aparece en `details.issues` de `TEMPLATE_MANIFEST_INVALID` cuando creas una plantilla.
+
+| Código | Qué significa | Cómo corregirlo |
+|---|---|---|
+| `invalid_type` | Un valor tiene el tipo equivocado o está fuera de rango (una regex insegura, `min` por encima de `max`, `generate` en algo que no es secreto, demasiadas variables). | Lee el mensaje; corrige el valor. |
+| `required` | Falta un campo obligatorio: `name`, `services`, `language` para código, o no hay ninguna app. | Añádelo. |
+| `unknown_field` | Un campo que el esquema no conoce, o `landing` en una plantilla privada. | Elimínalo o renómbralo. |
+| `invalid_slug` | Un id con caracteres fuera de los permitidos. | Usa letras minúsculas, dígitos y guiones. |
+| `invalid_version` | `version` no es una versión semántica. | Usa `MAJOR.MINOR.PATCH`. |
+| `invalid_category` | `category` no está en la lista. | Usa una de la [referencia del manifiesto](/es-es/templates/create/manifest-reference#identidad). |
+| `invalid_text` | Falta `pt-br` en un texto, o es demasiado largo. | Añade `pt-br` y respeta los límites. |
+| `invalid_ram` | `recommended` por debajo de `min`, `max` por debajo de `recommended`, o `ram_extra` en un Blob. | Ordena los valores `min`, `recommended`, `max`. |
+| `invalid_plan` | `min_plan` no es un id de plan existente. | Usa un id como `enterprise-28`. |
+| `unknown_placeholder` | Un `{{ }}` mal formado o desconocido, un secreto no declarado, o un placeholder en `main`, `build`, `start` o `healthcheck.path`. | Consulta [Placeholders](/es-es/templates/create/placeholders-and-inputs#placeholders). |
+| `unknown_service` | Un placeholder, `sets` o `connections` apunta a un servicio que no existe. | Corrige el id del servicio. |
+| `unknown_input` | Un `{{inputs.x}}` o un `when` apunta a una pregunta que no existe. | Corrige el id de la pregunta. |
+| `invalid_when` | Una condición sobre una pregunta posterior, sobre sí misma, o con un `equals` del tipo equivocado. | Mueve la pregunta después de aquella de la que depende. |
+| `invalid_option` | Un `select` sin opciones, un `default` que no es una opción, una opción duplicada, o una versión de base de datos no disponible. | Corrige las opciones o usa una versión disponible. |
+| `invalid_source` | Campos de imagen y de código mezclados, una imagen sin digest en una plantilla pública, un `source.path` ausente, o una ruta fuera de la plantilla. | Ajusta los campos a `source.type`; fija el digest. |
+| `invalid_permissions` | Una combinación de permisos que no pueden coexistir. | Consulta [Permisos](/es-es/templates/create/permissions#combinaciones-rechazadas). |
+| `forbidden_env` | Una variable que controla la plataforma (`PORT`, `HOME`, `LD_PRELOAD`, `NODE_OPTIONS`, `DYLD_*`...). | Elimínala. |
+| `forbidden_in_public` | `env_hidden`, `code.view: false` o `share.full_copy` en una plantilla pública. | Usa una plantilla privada. |
+| `invalid_permissions` | `env_hidden` en una plantilla que no está cerrada (`code.view` no es `false`). | Cierra la plantilla, o convierte el valor en una pregunta. |
+| `secret_in_manifest` | Una variable cuyo nombre parece un secreto tiene un valor literal, o un valor tiene forma de credencial. | Usa `{{secret:<n>}}`, una pregunta secret, o `env_hidden` en una plantilla cerrada. |
+| `invalid_deploy` | `zero_downtime` bloqueado con `auto`, o un placeholder en `healthcheck.path`. | Define `on` u `off` cuando esté bloqueado. |
+| `invalid_connection` | Un servicio conectado consigo mismo. | Elimina la conexión. |
+| `duplicate_id` | Dos preguntas, secretos, etiquetas, opciones o claves comparten un id. | Hazlos únicos. |
+| `too_many_services` | Más de 8 servicios. | Divide la plantilla. |
+
+Los errores también pueden llegar al crear o publicar la plantilla: consulta [Plantillas privadas](/es-es/templates/create/private-templates#errores-comunes) y la [referencia de errores de plantillas](/es-es/templates/reference/errors).

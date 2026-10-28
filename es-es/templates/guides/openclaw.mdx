@@ -1,0 +1,161 @@
+---
+title: 'Cómo ejecutar OpenClaw en Vertra Cloud: token del gateway, canales y navegador'
+sidebarTitle: 'OpenClaw'
+description: 'Guía paso a paso de OpenClaw en Vertra Cloud: clave y modelo del proveedor, token del gateway, aprobar dispositivos, Telegram, Discord, Slack, WhatsApp y navegador.'
+icon: 'robot'
+---
+
+OpenClaw es un asistente personal de IA con un panel de control, canales de mensajería y un navegador opcional que puede usar para abrir, leer y rellenar páginas web. Esta guía te lleva de la clave del proveedor a un asistente conectado. La [plantilla de OpenClaw](/es-es/templates/catalog/openclaw) empaqueta OpenClaw 2026.10.7 con un Chromium headless dentro del contenedor.
+
+<Note>
+  Vertra Cloud no aloja un modelo. Tú traes la clave de un proveedor y le pagas a ese proveedor el uso del modelo. Esta plantilla es un empaquetado de Vertra Cloud y no está afiliada al proyecto OpenClaw (licencia MIT).
+</Note>
+
+## Requisitos y plan
+
+| | |
+|---|---|
+| Origen | Imagen Docker (usa un [cupo de imagen](/es-es/templates/overview#cupos-de-imagen)). La imagen es grande, así que el primer despliegue tarda más. |
+| Memoria | **Con el navegador: 3 GB como mínimo, 4 GB recomendados.** Sin él: 2 GB como mínimo, 3 GB recomendados. El gateway usa cerca de 1 GiB; el navegador con varias pestañas pesadas llega a unos 1,9 GiB. |
+| Plan | Un plan que incluya imágenes Docker. La tarjeta de la galería muestra si la plantilla encaja en tu cuenta. Consulta [Planes y límites](/es-es/plans-and-limits) e [Imágenes Docker personalizadas](/es-es/guides/custom-docker-images). |
+| Acceso de salida | A tu proveedor y, con Discord o Slack, al registro de npm (los plugins de los canales se instalan desde allí). |
+
+## 1. Consigue la clave del proveedor y elige el modelo
+
+OpenClaw funciona con OpenAI, Anthropic, Google Gemini, OpenRouter o un endpoint compatible con OpenAI, y decenas más desde el panel (**Settings > Models**). Crea una clave en la cuenta de tu proveedor y cópiala: la mayoría de los proveedores la muestran solo una vez.
+
+En el asistente das la clave y, opcionalmente, el **modelo**. Vacío significa el predeterminado del proveedor. Con un endpoint compatible, la **URL base** (que termina en `/v1`) y el modelo son obligatorios. En OpenRouter sirve cualquier id de modelo, incluidos los `:free`. OpenClaw arranca incluso con una clave no válida; la clave solo se usa cuando el asistente responde, así que pruébala en el primer chat.
+
+## 2. Crea el asistente
+
+<Steps>
+  <Step title="Abre la plantilla">
+    En el panel abre **Plantillas**, elige **OpenClaw** y haz clic en **Usar plantilla**.
+  </Step>
+  <Step title="Proveedor, clave y modelo">
+    Elige el proveedor, pega la clave y, si quieres, escribe el modelo.
+  </Step>
+  <Step title="Navegador: sí o no">
+    **Can the assistant use a browser?** Sí (predeterminado) añade Chromium a la aplicación y necesita al menos 3 GB de memoria. No da un asistente solo de texto con 2 GB. Se aplica en el primer arranque.
+  </Step>
+  <Step title="Canales (opcional)">
+    Telegram, Discord y Slack piden cada uno el token y **quién puede hablar con el bot**. Sin una lista de autorizados el canal no se activa. Consulta el [paso 4](#4-conecta-un-canal).
+  </Step>
+  <Step title="Crea">
+    Ponle nombre a la aplicación y haz clic en **Crear**. Las salidas muestran la **dirección** de la aplicación y el **token del gateway, mostrado una sola vez**. Copia el token.
+  </Step>
+</Steps>
+
+## 3. Primer acceso: el token del gateway
+
+<Steps>
+  <Step title="Abre la dirección">
+    Abre la dirección de la aplicación. El panel (Control UI) pide el token.
+  </Step>
+  <Step title="Pega el token">
+    En **Settings > Gateway** pega el **token del gateway** de las salidas. El token también vive en la variable cifrada `OPENCLAW_GATEWAY_TOKEN`.
+  </Step>
+  <Step title="Espera el emparejamiento">
+    Espera hasta 15 segundos: el **primer navegador** que uses se aprueba automáticamente. Después, habla con el asistente en el panel.
+  </Step>
+</Steps>
+
+### Aprueba un segundo navegador o dispositivo
+
+Solo el primer dispositivo se aprueba solo. Cuando abres el panel desde otro navegador u ordenador y pegas el token, el dispositivo queda esperando aprobación. Desde un dispositivo ya conectado, abre **Settings > Devices** y aprueba el nuevo.
+
+<Note>
+  El emparejamiento automático rebaja "token más aprobación" a "token" solo para ese primer dispositivo. Si prefieres aprobar todos los dispositivos, define `OPENCLAW_BOOTSTRAP_PAIRING` como `off` en las variables de la aplicación antes del primer acceso.
+</Note>
+
+## 4. Conecta un canal
+
+Puedes configurar los canales en el asistente o más tarde en el panel.
+
+<Tabs>
+  <Tab title="Telegram">
+    1. En Telegram, habla con **@BotFather**, envía `/newbot` y copia el **token del bot**.
+    2. Averigua tu id numérico con **@userinfobot**.
+    3. Introduce el token y tu id.
+  </Tab>
+  <Tab title="Discord">
+    1. En el [Developer Portal](https://discord.com/developers/applications) crea una aplicación, abre **Bot** y haz clic en **Reset Token**.
+    2. Activa **Message Content Intent**.
+    3. Activa el **Developer Mode** en Discord y usa **Copy User ID** en tu perfil. Introdúcelo como usuario autorizado.
+  </Tab>
+  <Tab title="Slack">
+    1. Crea una aplicación de Slack con **Socket Mode**.
+    2. Introduce el **Bot User OAuth Token** (`xoxb-`) y el **App-Level Token** (`xapp-`, scope `connections:write`).
+    3. Introduce tu member id.
+  </Tab>
+  <Tab title="WhatsApp">
+    Abre **Settings > Channels > WhatsApp** y escanea el código QR en cuanto aparezca (**WhatsApp > Linked devices > Link a device**). El código caduca. Hay una sesión de WhatsApp por aplicación.
+  </Tab>
+</Tabs>
+
+El primer arranque tarda de 30 a 45 segundos sin canales y **de 1 a 3 minutos con Discord o Slack**, porque OpenClaw instala los plugins de los canales desde npm y ejecuta su doctor. Después, los arranques tardan de 15 a 50 segundos.
+
+## 5. Usa el navegador
+
+Pide algo que necesite la web, como "abre example.com y dime el título". En **Chat > + > Browser** ves la ventana que está usando el agente.
+
+- El navegador del agente **bloquea las redes privadas y locales**, a propósito.
+- Se ejecuta sin el sandbox propio de Chromium: el contenedor es el aislamiento.
+- Necesita memoria. Con varias pestañas Chromium pasa de 2 GB, así que importa un plan con margen.
+
+## El terminal del panel
+
+El panel tiene un terminal que abre una shell en el propio contenedor de la aplicación, sin privilegios adicionales. Úsalo para echar un vistazo, pero recuerda que el sistema de archivos del contenedor fuera de `/app` es de solo lectura.
+
+## Cron, skills y voz
+
+Usa **Settings > Cron** para las tareas programadas. Las skills listas aparecen en **Skills**. La voz necesita el micrófono de tu navegador y un proveedor de voz.
+
+## Cambia el proveedor o el modelo más tarde
+
+Usa **Settings > Models** en el panel. Las variables `OPENCLAW_PROVIDER` y `OPENCLAW_MODEL_ID` también siguen al asistente en cada arranque. El archivo `/app/.openclaw/openclaw.json` se genera **una sola vez**; después es tuyo y el panel lo reescribe. El token del gateway, el origen público y el modelo siguen las variables de la aplicación.
+
+## El coste de la IA corre por tu cuenta
+
+El plan cobra la memoria. Tu proveedor factura las llamadas al modelo. Las tareas del navegador y los trabajos programados pueden consumir muchos tokens, así que define un límite de gasto en la cuenta de tu proveedor.
+
+## Actualiza y revierte
+
+Las nuevas versiones llegan como nuevas versiones de la plantilla. Se toma un snapshot antes de la actualización, y el rollback trae los datos consigo, porque OpenClaw migra su esquema local cuando arranca una versión nueva. Consulta [Actualizar y revertir](/es-es/templates/use/updates-and-rollback). El despliegue sin caída está desactivado: dos copias en el mismo disco no pueden coexistir.
+
+## Problemas comunes
+
+<AccordionGroup>
+  <Accordion title="El panel no se conecta">
+    Comprueba el token en **Settings > Gateway**, y que la dirección que abriste es la propia de la aplicación (`PUBLIC_ORIGIN`).
+  </Accordion>
+  <Accordion title="Un segundo navegador se queda esperando">
+    Apruébalo en **Settings > Devices** desde un dispositivo ya conectado.
+  </Accordion>
+  <Accordion title="Timeouts en las herramientas del navegador">
+    Falta memoria: Chromium pasa de 2 GB con varias pestañas. Sube la memoria de la aplicación o usa menos pestañas.
+  </Accordion>
+  <Accordion title="Discord o Slack tardan mucho en levantarse">
+    Es normal en el primer arranque (plugins de npm). Si falla, revisa el token y el acceso a npm en el log de la aplicación.
+  </Accordion>
+  <Accordion title="OPENCLAW_MODEL_ID is required">
+    Con un endpoint compatible el modelo es obligatorio. Define `OPENCLAW_MODEL_ID` y reinicia.
+  </Accordion>
+</AccordionGroup>
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="OpenClaw en el catálogo" icon="store" href="/es-es/templates/catalog/openclaw">
+    Qué crea la plantilla y sus variables.
+  </Card>
+  <Card title="Actualizar y revertir" icon="rotate-left" href="/es-es/templates/use/updates-and-rollback">
+    El snapshot de seguridad y el rollback con datos.
+  </Card>
+  <Card title="Página pública" icon="up-right-from-square" href="https://vertracloud.app/templates/openclaw">
+    La plantilla en la galería pública.
+  </Card>
+  <Card title="Usar una plantilla" icon="rocket" href="/es-es/templates/use/using-a-template">
+    La galería, el asistente y las salidas.
+  </Card>
+</CardGroup>

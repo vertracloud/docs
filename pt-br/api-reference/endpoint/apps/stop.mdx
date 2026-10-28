@@ -1,0 +1,69 @@
+---
+title: Parar aplicação
+sidebarTitle: Parar aplicação
+api: POST https://api.vertracloud.app/v1/apps/{id}/stop
+authMethod: bearer
+description: Para uma aplicação pelo seu ID.
+---
+
+{/* @see RESTPostAPIApplicationStartResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID da aplicação a parar. Se a aplicação pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma aplicação que não lhes pertence.
+</ParamField>
+
+<Note>
+  **Parar é idempotente.** Parar uma aplicação que já está parada é um sucesso, não um erro: a API responde `200` e garante que o estado registrado seja `down`. Você não precisa ler o status antes para decidir se a chamada é segura.
+</Note>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A resposta com o status da operação.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="status" type="string">
+    O status da operação (`success`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "status": "success"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `APP_NOT_FOUND`: a aplicação informada não existe.
+  - `ACCESS_DENIED`: o usuário não tem permissão para agir sobre a aplicação.
+  - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida na mesma aplicação já está em execução (`409`). O container não foi tocado — aguarde alguns segundos e tente de novo. Veja [Códigos de erro comuns](/pt-br/api-reference/introduction#quais-códigos-de-erro-a-api-pode-retornar).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta rota compartilha com `start` e `restart` um orçamento de 10 requisições por minuto por aplicação. Veja [Limite de requisições](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa).
+</Note>

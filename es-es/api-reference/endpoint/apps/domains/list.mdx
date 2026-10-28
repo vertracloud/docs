@@ -1,0 +1,151 @@
+---
+title: Listar dominios de la aplicación
+sidebarTitle: Listar dominios
+api: GET https://api.vertracloud.app/v1/apps/{id}/domains
+authMethod: bearer
+description: Lista los dominios personalizados de una aplicación con su estado, el estado del certificado, el puerto, el prefijo de ruta y la redirección.
+---
+
+{/* @see RESTGetAPIApplicationDomainsResponse, APIApplicationDomain — @vertracloud/api-types */}
+Devuelve todos los dominios personalizados de la aplicación, incluido el complemento automático `www` (o el raíz) que
+[Añadir dominio a la aplicación](/es-es/api-reference/endpoint/apps/domains/create) crea junto al dominio que añades. La lista está vacía si la
+aplicación no tiene ninguno. Requiere el scope `apps:read` cuando se llama con una clave de API.
+
+Para saber cómo funcionan los dominios, consulta la [guía de dominios personalizados](/es-es/guides/custom-domain).
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Obligatorio para los miembros del workspace que actúan sobre una aplicación que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="APIApplicationDomain[]">
+  Los dominios personalizados de la aplicación, del más antiguo al más reciente.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID del dominio. Úsalo en las demás rutas de dominios y en `redirect_to`.
+  </ResponseField>
+
+  <ResponseField name="hostname" type="string">
+    El nombre de host, en minúsculas (por ejemplo, `example.com`).
+  </ResponseField>
+
+  <ResponseField name="apex" type="boolean">
+    `true` cuando el nombre de host es un dominio raíz (`example.com`, `example.com.br`) y no un subdominio.
+    Un registro `CNAME` en la raíz solo funciona en los proveedores de DNS que lo aplanan; consulta la [guía](/es-es/guides/custom-domain#dominio-raíz-y-www).
+  </ResponseField>
+
+  <ResponseField name="companion_of" type="string | null">
+    El ID del dominio principal cuando este es su complemento automático `www` (o el raíz); `null` en caso contrario.
+    Un complemento no cuenta para el límite de dominios del plan.
+  </ResponseField>
+
+  <ResponseField name="redirect_to" type="string | null">
+    El ID de otro dominio de la misma aplicación al que redirige este, o `null` cuando sirve la aplicación.
+  </ResponseField>
+
+  <ResponseField name="redirect_status" type="integer">
+    El estado HTTP de la redirección: `301`, `302`, `307` o `308`. Siempre `308` cuando `redirect_to` es `null`.
+  </ResponseField>
+
+  <ResponseField name="path_prefix" type="string | null">
+    Una ruta que se antepone a cada petición a la aplicación (por ejemplo, `/api`), o `null` si no hay ninguna.
+  </ResponseField>
+
+  <ResponseField name="port" type="integer">
+    El puerto de la aplicación que sirve este dominio, de `1` a `65535`. Por defecto, `80`.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `pending` (esperando los registros DNS), `active` (sirviendo la aplicación), `moved` (el dominio dejó de apuntar a Vertra Cloud)
+    o `deleted` (ya no está registrado).
+  </ResponseField>
+
+  <ResponseField name="ssl_status" type="string">
+    El estado del certificado HTTPS: `pending`, `active` o `failed`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se añadió el dominio.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "hostname": "example.com",
+      "apex": true,
+      "companion_of": null,
+      "redirect_to": null,
+      "redirect_status": 308,
+      "path_prefix": null,
+      "port": 80,
+      "status": "active",
+      "ssl_status": "active",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    },
+    {
+      "id": "c2a9d4f1-86b0-4a37-b5e8-1f3d7a9c0e62",
+      "hostname": "www.example.com",
+      "apex": false,
+      "companion_of": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "redirect_to": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "redirect_status": 308,
+      "path_prefix": null,
+      "port": 80,
+      "status": "active",
+      "ssl_status": "active",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+<Note>
+  `status` y `ssl_status` se actualizan en segundo plano y cada vez que llamas a [Registros DNS del dominio](/es-es/api-reference/endpoint/apps/domains/dns),
+  así que un dominio puede mostrar `pending` durante unos minutos después de que sus registros se resuelvan. Un dominio que nunca llega a `active`
+  se elimina automáticamente a los 14 días; después, borra sus registros DNS en tu proveedor.
+</Note>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: El parámetro de ruta o la query no superaron la validación (`400`). La respuesta incluye también `message` y `path`.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas (`403`).
+  - `USER_NOT_FOUND`: No se pudo resolver el usuario autenticado (`401`).
+  - `ACCESS_DENIED`: El usuario no tiene permiso para leer la aplicación (`403`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `apps:read` (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Se alcanzó el presupuesto de la ruta (`429`).
+  - `INTERNAL_SERVER_ERROR`: Error inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta ruta tiene su propio presupuesto de 30 peticiones por minuto. Consulta [Límites de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
+</Note>

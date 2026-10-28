@@ -1,0 +1,146 @@
+---
+title: "Atualizar configurações de um objeto de blob"
+sidebarTitle: "Atualizar objeto"
+api: "PATCH https://blob.vertracloud.app/v1/objects/{object_id}"
+authMethod: bearer
+description: "Altera a visibilidade, o cache, o nome de download, a expiração ou os metadados de um objeto sem enviar o arquivo de novo."
+---
+
+{/* @see RESTPatchAPIBlobObjectBody, RESTPatchAPIBlobObjectResponse, APIBlobObject — @vertracloud/api-types */}
+
+Altera as configurações de um objeto sem tocar nos seus bytes. Envie somente os campos a alterar. Mudar `visibility` para `public` torna o objeto acessível pela sua `url` pública; mudar para `private` remove essa URL. Enviar `null` restaura o padrão de um campo.
+
+**Escopo:** `blob:write`.
+
+<ParamField path="object_id" type="string" required>
+  O ID do objeto.
+</ParamField>
+
+<ParamField body="visibility" type="string">
+  `public` ou `private`.
+</ParamField>
+
+<ParamField body="cache_control" type="string | null">
+  `immutable`, `max-age=<seconds>` ou `no-cache` (Enterprise-26 ou superior). `null` restaura o padrão.
+</ParamField>
+
+<ParamField body="content_disposition" type="string | null">
+  `inline` ou `attachment`. `null` restaura o padrão.
+</ParamField>
+
+<ParamField body="filename" type="string | null">
+  Nome sugerido no download. `null` usa o último segmento de `path`.
+</ParamField>
+
+<ParamField body="expires_at" type="string | null">
+  Timestamp ISO 8601 para a exclusão, com pelo menos o mínimo do plano a partir de agora. `null` remove a expiração.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Chaves a definir. Uma chave com o valor `null` é removida. Até 5 chaves no total, 512 bytes; Enterprise-12 ou superior.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X PATCH "https://blob.vertracloud.app/v1/objects/0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"visibility":"private","metadata":{"owner":"joao","old-key":null}}'
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O objeto de blob atualizado.
+  <Expandable title="propriedades">
+  <ResponseField name="id" type="string">ID estável do objeto. Nunca muda, mesmo quando o caminho, a visibilidade ou a expiração mudam.</ResponseField>
+  <ResponseField name="path" type="string">Caminho completo dentro da conta, por exemplo `images/avatars/joao.png`.</ResponseField>
+  <ResponseField name="size" type="number">Tamanho em bytes.</ResponseField>
+  <ResponseField name="content_type" type="string">Tipo MIME, derivado no servidor a partir da extensão do arquivo.</ResponseField>
+  <ResponseField name="etag" type="string">Entity tag do conteúdo armazenado.</ResponseField>
+  <ResponseField name="sha256" type="string | null">SHA-256 do conteúdo em hexadecimal, quando o upload enviou um checksum. `null` caso contrário.</ResponseField>
+  <ResponseField name="visibility" type="string">`public` (legível pela URL pública) ou `private` (precisa de um link temporário ou de um compartilhamento).</ResponseField>
+  <ResponseField name="url" type="string | null">URL pública. `null` enquanto o objeto é privado.</ResponseField>
+  <ResponseField name="cache_control" type="string | null">`immutable`, `max-age=<seconds>` ou `no-cache` (`no-cache` exige Enterprise-26 ou superior). `null` significa o padrão.</ResponseField>
+  <ResponseField name="content_disposition" type="string">`inline` (exibido pelo navegador) ou `attachment` (baixado). HTML, SVG e XML são sempre `attachment`.</ResponseField>
+  <ResponseField name="filename" type="string | null">Nome sugerido no download. `null` usa o último segmento de `path`.</ResponseField>
+  <ResponseField name="metadata" type="object">Até 5 chaves, cada uma `[a-z0-9-]{1,64}`, 512 bytes no total. Enterprise-12 ou superior; `{}` nos demais planos.</ResponseField>
+  <ResponseField name="expires_at" type="string | null">Quando o objeto é excluído, em timestamp ISO 8601. `null` significa sem expiração.</ResponseField>
+  <ResponseField name="created_at" type="string">Data de criação em ISO 8601.</ResponseField>
+  <ResponseField name="updated_at" type="string">Data da última alteração em ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+    "path": "images/logo.png",
+    "size": 48213,
+    "content_type": "image/png",
+    "etag": "9b2cf535f27731c974343645a3085d39",
+    "sha256": null,
+    "visibility": "public",
+    "url": "https://blob.vertracloud.dev/k7p2m9x4qa/images/logo.png",
+    "cache_control": null,
+    "content_disposition": "inline",
+    "filename": null,
+    "metadata": {},
+    "expires_at": null,
+    "created_at": "2026-10-14T12:00:00.000Z",
+    "updated_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): o armazenamento de blob da conta está suspenso, ou o plano expirou. Uploads e outras gravações são recusados desde o início do período de carência de 72 horas.
+  - `VALIDATION_ERROR` (`400`): um parâmetro ou campo do corpo falhou na validação. `details.path` informa o campo.
+  - `BLOB_OBJECT_NOT_FOUND` (`404`): não existe objeto com esse ID nesta conta (ou no blob do workspace).
+  - `PLAN_RESTRICTED_FEATURE` (`403`): o plano não inclui a configuração enviada, como `metadata` abaixo do Enterprise-12 ou `no-cache` abaixo do Enterprise-26.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

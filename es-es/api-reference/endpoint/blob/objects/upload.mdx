@@ -1,0 +1,209 @@
+---
+title: "Subir un objeto blob en una sola petición"
+sidebarTitle: "Subir objeto"
+api: "POST https://blob.vertracloud.app/v1/objects"
+authMethod: bearer
+description: "Sube un archivo de hasta 100 MB en una sola petición multipart y lo guarda en una ruta. Acepta un token de subida."
+---
+
+{/* @see RESTPostAPIBlobObjectQuery, RESTPostAPIBlobObjectResponse, APIBlobObject — @vertracloud/api-types */}
+
+Sube un archivo de hasta 100 MB en una sola petición `multipart/form-data` y lo guarda en `path`. Para archivos más grandes,
+usa [Iniciar una subida directa](/es-es/api-reference/endpoint/blob/uploads/create). Responde con `201` y el objeto nuevo.
+
+**Ámbito:** `blob:write`. Acepta un token de subida.
+
+**Token de subida:** esta ruta también acepta un token de subida (`Authorization: Bearer vcup_...`) en lugar de una clave de API.
+
+<ParamField query="path" type="string" required>
+  Ruta de destino en la cuenta. De 1 a 1024 caracteres, hasta 16 segmentos de `[A-Za-z0-9._ -]` (de 1 a 255 caracteres
+  cada uno), sin `/` al principio ni al final, sin `//` ni `..`, y con una extensión obligatoria. Las rutas rechazadas
+  devuelven `VALIDATION_ERROR`; nunca se cambian en silencio.
+</ParamField>
+
+<ParamField query="visibility" type="string">
+  `public` o `private`. Por defecto `private`.
+</ParamField>
+
+<ParamField query="overwrite" type="boolean">
+  Reemplaza un objeto que ya esté en `path`. Por defecto `false`: una ruta ocupada devuelve `BLOB_OBJECT_ALREADY_EXISTS`.
+</ParamField>
+
+<ParamField query="rename_on_conflict" type="boolean">
+  Cuando `path` está ocupada, guarda el archivo como `nombre-1.ext`, `nombre-2.ext` y así sucesivamente (el primer nombre
+  libre) en lugar de devolver `BLOB_OBJECT_ALREADY_EXISTS`. La respuesta incluye el `path` final. Por defecto `false`. No
+  se puede combinar con `overwrite`, y no tiene efecto con un token de subida que fija el `path`.
+</ParamField>
+
+<ParamField query="random_suffix" type="boolean">
+  Inserta `-` seguido de 10 caracteres aleatorios en base 36 antes de la extensión. Por defecto `false`. Se fuerza a
+  `true` para un token de subida sin `path` fijo.
+</ParamField>
+
+<ParamField query="cache_control" type="string">
+  `immutable`, `max-age=<seconds>` o `no-cache` (Enterprise-26 o superior). Por defecto: sin valor definido.
+</ParamField>
+
+<ParamField query="content_disposition" type="string">
+  `inline` o `attachment`. Por defecto: `inline`. Los archivos que terminan en `.html`, `.htm`, `.svg`, `.xml` o `.xhtml`
+  se sirven siempre como `attachment`.
+</ParamField>
+
+<ParamField query="filename" type="string">
+  Nombre sugerido al descargar el archivo. Por defecto: el último segmento de `path`.
+</ParamField>
+
+<ParamField query="expires_at" type="string">
+  Marca de tiempo ISO 8601 de cuándo se elimina el objeto. Debe ser como mínimo el plazo mínimo del plan desde ahora (7 días,
+  o 1 hora en Enterprise-26 o superior).
+</ParamField>
+
+<ParamField query="metadata" type="string">
+  Objeto JSON, codificado en URL: hasta 5 claves, cada una `[a-z0-9-]{1,64}`, 512 bytes en total. Enterprise-12 o superior.
+</ParamField>
+
+<ParamField query="checksum_sha256" type="string">
+  SHA-256 del archivo en hexadecimal. Si no coincide, devuelve `BLOB_CHECKSUM_MISMATCH` y no se guarda nada.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  El archivo, como única parte de `multipart/form-data`. Hasta 100 MB; se aplica el límite del plan.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/objects?path=images/logo.png&visibility=public" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -F "file=@./logo.png"
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El objeto guardado. Responde con `201`.
+  <Expandable title="propiedades">
+  <ResponseField name="id" type="string">ID estable del objeto. Nunca cambia, aunque cambien la ruta, la visibilidad o la caducidad.</ResponseField>
+  <ResponseField name="path" type="string">Ruta completa dentro de la cuenta, por ejemplo `images/avatars/joao.png`.</ResponseField>
+  <ResponseField name="size" type="number">Tamaño en bytes.</ResponseField>
+  <ResponseField name="content_type" type="string">Tipo MIME, derivado en el servidor a partir de la extensión del archivo.</ResponseField>
+  <ResponseField name="etag" type="string">Etiqueta de entidad del contenido almacenado.</ResponseField>
+  <ResponseField name="sha256" type="string | null">SHA-256 del contenido en hexadecimal, cuando la subida envió un checksum. `null` en otro caso.</ResponseField>
+  <ResponseField name="visibility" type="string">`public` (se puede leer mediante su URL pública) o `private` (necesita un enlace temporal o un enlace para compartir).</ResponseField>
+  <ResponseField name="url" type="string | null">URL pública. `null` mientras el objeto sea privado.</ResponseField>
+  <ResponseField name="cache_control" type="string | null">`immutable`, `max-age=<seconds>` o `no-cache` (`no-cache` requiere Enterprise-26 o superior). `null` significa el valor por defecto.</ResponseField>
+  <ResponseField name="content_disposition" type="string">`inline` (lo muestra el navegador) o `attachment` (se descarga). HTML, SVG y XML siempre son `attachment`.</ResponseField>
+  <ResponseField name="filename" type="string | null">Nombre sugerido al descargar. `null` usa el último segmento de `path`.</ResponseField>
+  <ResponseField name="metadata" type="object">Hasta 5 claves, cada una `[a-z0-9-]{1,64}`, 512 bytes en total. Enterprise-12 o superior; `{}` en otros planes.</ResponseField>
+  <ResponseField name="expires_at" type="string | null">Cuándo se elimina el objeto, como marca de tiempo ISO 8601. `null` significa que no caduca.</ResponseField>
+  <ResponseField name="created_at" type="string">Fecha de creación en ISO 8601.</ResponseField>
+  <ResponseField name="updated_at" type="string">Fecha en ISO 8601 del último cambio.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+    "path": "images/logo.png",
+    "size": 48213,
+    "content_type": "image/png",
+    "etag": "9b2cf535f27731c974343645a3085d39",
+    "sha256": null,
+    "visibility": "public",
+    "url": "https://blob.vertracloud.dev/k7p2m9x4qa/images/logo.png",
+    "cache_control": null,
+    "content_disposition": "inline",
+    "filename": null,
+    "metadata": {},
+    "expires_at": null,
+    "created_at": "2026-10-14T12:00:00.000Z",
+    "updated_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): El token de subida no existe, caducó o fue revocado (solo con un token de subida).
+  - `BLOB_CHECKSUM_MISMATCH` (`400`): El `checksum_sha256` no coincide con el archivo. No se guardó nada.
+  - `VALIDATION_ERROR` (`400`): Un parámetro de la consulta no superó la validación, por ejemplo un `path` no válido. `details.path` lo indica.
+  - `BLOB_OBJECT_ALREADY_EXISTS` (`409`): `path` está ocupada y `overwrite` no es `true`.
+  - `BLOB_FILE_TOO_LARGE` (`413`): El archivo supera los 100 MB, el límite del plan para esta ruta, o el `max_size` de la regla o del token.
+  - `STORAGE_QUOTA_EXCEEDED` (`403`): Guardar el archivo superaría la cuota de blob del plan.
+  - `BLOCKED_FILE_TYPE` (`422`): La extensión está bloqueada, no la permite la regla de carpeta o el token, o el archivo es un ejecutable.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): El almacenamiento de blob de la cuenta está suspendido, o su plan expiró. Las subidas y otras escrituras se rechazan desde el inicio del periodo de gracia de 72 horas.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` (por debajo de Enterprise-12) o `cache_control: no-cache` (por debajo de Enterprise-26) no está incluido en el plan.
+  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Solo con un token de subida: la ruta, la carpeta u otra opción que fija el token no coincide con la petición.
+  - `BLOB_UPLOAD_TOKEN_EXHAUSTED` (`401`): Solo con un token de subida: ya usó todas sus subidas.
+  - `RATE_LIMIT_EXCEEDED` (`429`): Por debajo de Enterprise-12, las subidas están limitadas a 1 por segundo. `details.retry_after` indica la espera.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "BLOB_CHECKSUM_MISMATCH"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_OBJECT_ALREADY_EXISTS"
+}
+```
+
+```json Error Response (413)
+{
+  "code": "BLOB_FILE_TOO_LARGE"
+}
+```
+
+```json Error Response (422)
+{
+  "code": "BLOCKED_FILE_TYPE"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RATE_LIMIT_EXCEEDED"
+}
+```
+
+</ResponseExample>

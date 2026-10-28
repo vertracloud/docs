@@ -1,0 +1,78 @@
+---
+title: 'JSON Schema do manifesto de template: valide o vertracloud.template.yaml no editor'
+sidebarTitle: 'Schema do manifesto'
+description: 'O JSON Schema versionado do manifesto de template da Vertra Cloud: validação e autocompletar no editor, o que ele verifica e o que só a API verifica.'
+icon: 'code'
+---
+
+O manifesto tem um JSON Schema público e versionado em [`/templates/schema/v1.json`](/templates/schema/v1.json). Aponte o seu editor para ele e o `vertracloud.template.yaml` é validado e autocompletado enquanto você digita, sem nenhuma ferramenta para instalar além de uma extensão de YAML. O schema é gerado a partir da mesma definição que a API usa para validar manifestos, então não se descola da plataforma.
+
+## Use no seu editor
+
+Adicione este comentário como a **primeira linha** do manifesto:
+
+```yaml
+# yaml-language-server: $schema=https://docs.vertracloud.app/templates/schema/v1.json
+id: my-template
+version: 1.0.0
+```
+
+Editores que rodam o YAML language server o reconhecem, como o Visual Studio Code com a extensão YAML da Red Hat e as IDEs da JetBrains. Você ganha:
+
+- autocompletar para todo campo e enum (`category`, `language`, `web`, `database`, ...);
+- sublinhado de erro para campos desconhecidos, tipos errados, valores fora do intervalo e padrões que não correspondem (por exemplo, um `id` com letras maiúsculas).
+
+Você também pode associar o schema ao nome do arquivo uma única vez nas configurações do editor, em vez de usar o comentário.
+
+## Use no CI
+
+Qualquer validador de JSON Schema pode verificar um manifesto depois que você converte o YAML em JSON. Por exemplo, com o `ajv-cli`:
+
+```bash
+npx ajv-cli validate -s v1.json -d manifest.json --spec=draft7
+```
+
+O schema é JSON Schema draft-07. Para a verificação completa, incluindo as regras que cruzam campos, use `vertra template validate`.
+
+## O que o schema verifica
+
+O schema verifica a **forma** do manifesto: quais campos existem, seus tipos e enums, padrões de string, intervalos numéricos e comprimentos, tamanhos de array e quais campos cada tipo de serviço exige.
+
+| Verificado pelo schema | Exemplo |
+|---|---|
+| Campos obrigatórios | `id`, `version`, `name`, `description`, `category`, `services`; `source`, `ram` e `web` em um app; `database` e `ram` em um banco de dados |
+| Enums | `category`, `language`, `web`, `source.type`, `database`, padrão de `generate` |
+| Padrões | `id`, `version`, ids de serviço e de pergunta, nomes de variável, caminho de `icon` |
+| Limites | 40 perguntas, 25 opções, 16 saídas, 10 tags, 256 variáveis, 3.072 caracteres por valor |
+| Campos desconhecidos | Todo objeto rejeita campos que ele não define |
+
+## O que só a API verifica
+
+Algumas regras não podem ser escritas em JSON Schema porque olham vários campos ao mesmo tempo ou o estado da plataforma. A CLI, o editor, a API e o CI do repositório público as executam com o mesmo código:
+
+- placeholders que apontam para serviços, perguntas ou secrets que existem;
+- `when` que se refere a uma pergunta anterior, com um `equals` do tipo certo;
+- uma pergunta `select` com opções, e um `default` que seja uma delas;
+- `recommended` não abaixo de `min`, e `max` não abaixo de `recommended`;
+- campos de imagem em serviços code e campos de code em serviços image;
+- `min_plan` que seja o id de um plano real, e uma `version` de banco de dados que esteja disponível;
+- expressões regulares inseguras em `validation.regex`;
+- nomes de variável controlados pela plataforma, e valores literais que parecem secrets;
+- combinações de permissões, e campos reservados a templates privados ou a templates públicos.
+
+Um manifesto que passa no schema ainda pode falhar nessas. Os achados e como corrigi-los estão em [Validar e testar](/pt-br/templates/create/validate-and-test#códigos-de-validação).
+
+## Versionamento
+
+O nome do arquivo carrega a versão: `v1.json` descreve o formato v1 do manifesto. Uma mudança de formato incompatível seria publicada sob um novo nome de arquivo em vez de substituir o `v1.json`. Aponte o seu editor para a versão com a qual você escreveu o manifesto.
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Referência do manifesto" icon="file-code" href="/pt-br/templates/create/manifest-reference">
+    Todos os campos em texto corrido, com exemplos.
+  </Card>
+  <Card title="Validar e testar" icon="circle-check" href="/pt-br/templates/create/validate-and-test">
+    A CLI, a API e os códigos de validação.
+  </Card>
+</CardGroup>

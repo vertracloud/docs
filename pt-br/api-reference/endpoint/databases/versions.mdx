@@ -1,0 +1,60 @@
+---
+title: Listar versões de banco de dados
+sidebarTitle: Versões
+api: GET https://api.vertracloud.app/v1/databases/versions
+authMethod: bearer
+description: Retorna as versões disponíveis para novos bancos de dados de cada motor e a recomendada, para uso na criação de um banco de dados.
+---
+{/* @see RESTGetAPIDatabaseVersionsResponse — @vertracloud/api-types */}
+### Resposta
+
+<ResponseField name="response" type="object">
+  Um mapa do `type` do motor de banco de dados (`1` PostgreSQL, `2` MongoDB, `3` Redis, `4` MySQL) para a sua entrada de versões.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="recommended" type="string">
+    A versão recomendada, usada quando `version` é omitido na criação.
+  </ResponseField>
+
+  <ResponseField name="available" type="array">
+    Todas as versões que podem ser escolhidas para um novo banco de dados deste motor.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "1": { "recommended": "18", "available": ["18", "17"] },
+    "2": { "recommended": "8.0", "available": ["9.0", "8.0"] },
+    "3": { "recommended": "8.2", "available": ["8.2", "7.2"] },
+    "4": { "recommended": "9.7", "available": ["9.7", "8.4"] }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: O header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: A chave de API é usada a partir de um IP fora da sua lista de IPs permitidos, ou não tem o escopo que a rota exige (`403`).
+  - `RATE_LIMIT_EXCEEDED`: Muitas requisições; tente novamente após o tempo indicado em `retry_after`.
+  - `INTERNAL_SERVER_ERROR`: Ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,141 @@
+---
+title: Reconstruir imagem
+sidebarTitle: Reconstruir imagem
+api: PUT https://api.vertracloud.app/v1/images/{image_id}
+authMethod: bearer
+description: Reconstrói uma imagem substituindo todo o contexto de build por um novo arquivo ZIP.
+---
+
+{/* @see APICustomImage, RESTPutAPICustomImageBody, RESTPutAPICustomImageResult — @vertracloud/api-types */}
+A requisição é `multipart/form-data`. A reconstrução mantém o mesmo ID da imagem e, quando dá certo, adiciona uma nova [versão](/pt-br/api-reference/endpoint/images/versions). **Uma reconstrução nunca reinicia apps**: cada app passa para a nova versão no próximo restart ou deploy que você pedir. Uma reconstrução que falha mantém a versão atual. Reconstruções não contam no limite de imagens. Planos sem imagens personalizadas não podem reconstruir, mas ainda podem apagar.
+
+Precisa do escopo `images:write` quando chamado com uma chave de API.
+
+<ParamField path="image_id" type="string" required>
+  O ID da imagem.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a imagem pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma imagem que não é deles.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  O novo contexto de build: um arquivo ZIP, de até 100 MB, com um `Dockerfile` na raiz.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A imagem. A resposta é `202 Accepted` com `status: "building"`.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID da imagem.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    O nome da imagem.
+  </ResponseField>
+
+  <ResponseField name="description" type="string | null">
+    A descrição da imagem (texto livre, até 128 caracteres), ou `null` quando ela não tem uma.
+  </ResponseField>
+
+  <ResponseField name="owner" type="string">
+    `account` para as suas imagens, `system` para imagens fornecidas pela plataforma (estas não podem ser alteradas nem apagadas).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Estado do build mais recente: `building`, `success` ou `failed`. Uma reconstrução que falha não muda a versão atual: os apps continuam rodando a última versão que deu certo.
+  </ResponseField>
+
+  <ResponseField name="error" type="string | null">
+    Motivo legível do último build que falhou, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string | null">
+    Digest (`sha256:...`) da versão atual, ou `null` enquanto nenhum build tiver dado certo.
+  </ResponseField>
+
+  <ResponseField name="uncompressed_bytes" type="integer | null">
+    Tamanho da versão atual, descompactada, em bytes.
+  </ResponseField>
+
+  <ResponseField name="layer_count" type="integer | null">
+    Número de camadas da versão atual.
+  </ResponseField>
+
+  <ResponseField name="apps" type="object[]">
+    Os apps criados a partir desta imagem. Cada um tem `id`, `name`, `version_id` (a versão da imagem que ele executa, ou `null`) e `outdated` (`true` quando a imagem tem uma versão mais nova; o app passa para ela no próximo restart ou deploy que você pedir).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    O repositório e a branch do GitHub vinculados (`repository` no formato `owner/name`, `branch`), ou `null` quando a imagem não está vinculada.
+  </ResponseField>
+
+  <ResponseField name="current_version_id" type="string | null">
+    A versão atual da imagem, ou `null` enquanto nenhum build tiver dado certo.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando a imagem foi criada.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Quando a imagem foi atualizada pela última vez.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "img-abc123def456",
+    "name": "my-api",
+    "description": null,
+    "owner": "account",
+    "status": "building",
+    "error": null,
+    "digest": null,
+    "uncompressed_bytes": null,
+    "layer_count": null,
+    "apps": [],
+    "github": null,
+    "current_version_id": null,
+    "created_at": "2026-10-23T14:02:00Z",
+    "updated_at": "2026-10-23T14:02:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo necessário (`403`).
+  - `IMAGE_NOT_FOUND`: A imagem não existe ou você não tem acesso a ela (`404`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: O plano não inclui imagens Docker personalizadas (`403`).
+  - `IMAGE_BUILD_IN_PROGRESS`: A imagem já tem um build em execução (`409`).
+  - `DOCKERFILE_NOT_FOUND`: Não existe um arquivo com o nome exato `Dockerfile` na raiz do contexto (`400`).
+  - `DOCKERFILE_REFUSED`: O `Dockerfile` tem uma instrução recusada; `details` lista os achados (`400`).
+  - `IMAGE_CONTEXT_TOO_LARGE`: O contexto de build passou de um limite: mais de 100 MB compactado, mais de 512 MB descompactado, mais de 50.000 entradas, ou um `Dockerfile` maior que 1 MB (`413`).
+  - `IMAGE_BUILDER_UNAVAILABLE`: Nenhum host consegue construir imagens agora; tente de novo mais tarde (`503`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_BUILD_IN_PROGRESS"
+}
+```
+
+</ResponseExample>

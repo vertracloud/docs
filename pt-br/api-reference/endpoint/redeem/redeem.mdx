@@ -1,0 +1,58 @@
+---
+title: Resgatar código
+sidebarTitle: Resgatar código
+api: POST https://api.vertracloud.app/v1/redeem/{code}
+authMethod: bearer
+description: Resgata um código de plano, aplicando o plano à conta autenticada.
+---
+<ParamField path="code" type="string" required>
+  O código de resgate.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="plan" type="object">
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="name" type="string">O slug do plano aplicado.</ResponseField>
+    <ResponseField name="duration" type="integer">Duração concedida, em dias.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "plan": { "name": "pro", "duration": 30 }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: O header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: A chave de API é usada de um IP fora da sua lista de IPs permitidos, ou não tem o escopo que a rota exige (`403`).
+  - `INVALID_OR_EXPIRED_CODE`: O código não existe, já foi usado ou expirou.
+  - `INVALID_PLAN_NAME`: O código aponta para um plano que não existe mais.
+  - `INTERNAL_SERVER_ERROR`: Ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "INVALID_OR_EXPIRED_CODE"
+}
+```
+
+</ResponseExample>

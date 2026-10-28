@@ -1,0 +1,58 @@
+---
+title: Delete Stack Connection
+sidebarTitle: Delete Connection
+api: DELETE https://api.vertracloud.app/v1/stacks/{stack_id}/bindings/{binding_id}
+authMethod: bearer
+description: Removes a connection of a stack, keeping or deleting the variables it created.
+---
+
+{/* @see RESTDeleteAPIStackBindingQuery, RESTDeleteAPIStackBindingResponse — @vertracloud/api-types */}
+Removes a connection. The members stay in the stack. Needs the `stacks:write` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField path="binding_id" type="string" required>
+  The connection ID.
+</ParamField>
+
+<ParamField query="variables" type="string" default="keep_connection">
+  What happens to the variables the connection created:
+
+  - `keep_connection`: they become ordinary variables and the certificates stay, so the application keeps connecting.
+  - `remove_variables`: the variables and the certificates copied to the application are deleted.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to, when you act on it as the workspace owner.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="restart_required" type="boolean">`true` when variables were removed from an application (`variables=remove_variables`): it must restart to stop reading them.</ResponseField>
+  <ResponseField name="apps_to_restart" type="string[]">The applications that need a restart.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": { "restart_required": true, "apps_to_restart": ["app-abc123def456"] }
+}
+```
+
+</ResponseExample>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 404 | `STACK_BINDING_NOT_FOUND` | The stack has no connection with that ID. |

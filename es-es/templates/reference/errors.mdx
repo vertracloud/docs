@@ -1,0 +1,127 @@
+---
+title: 'Errores de plantillas en Vertra Cloud: validación del manifiesto y códigos de despliegue'
+sidebarTitle: 'Errores'
+description: 'Causa y solución de cada error de plantilla: validación del manifiesto, fallos de despliegue y actualización, plantillas cerradas, enlaces y stacks.'
+icon: 'triangle-exclamation'
+---
+
+Los errores de plantillas se dividen en dos grupos: los **hallazgos de validación**, que señalan una ruta dentro del manifiesto y te dicen qué corregir antes de crear o validar una plantilla, y los **códigos de error de la API**, que se devuelven al desplegar, actualizar, compartir o gestionar una plantilla o un stack. Todo fallo de despliegue incluye además el paso que falló. Esta página lista cada código con su causa y su solución. El catálogo general de códigos está en [errores de la API](/es-es/api-reference/errors).
+
+## Hallazgos de validación del manifiesto
+
+`POST /v1/templates/validate` (y `vertra template validate`) nunca crea nada y siempre responde con una lista de hallazgos. Cada hallazgo tiene un `path` (por ejemplo `services.app.ram.recommended`), un `code` y un mensaje. Cuando creas una plantilla con un manifiesto no válido, la llamada falla con `TEMPLATE_MANIFEST_INVALID` y la misma lista en `details.issues`. La lista de campos está en el [esquema del manifiesto](/es-es/templates/reference/manifest-schema); esta página cubre los hallazgos.
+
+| Código | Causa | Solución |
+|---|---|---|
+| `invalid_type` | Un valor tiene el tipo incorrecto, un servicio define ninguno o más de uno de `source`, `database` y `blob`, una clave no es válida o se superó un límite: 40 preguntas, 16 salidas, 10 etiquetas. | Usa el tipo que pide el esquema. Un servicio es exactamente una de estas cosas: una aplicación (`source`), una base de datos o una carpeta de Blob. |
+| `required` | Falta un campo obligatorio, o un servicio de código no tiene `language`, o la plantilla no tiene ningún servicio de aplicación. | Añade el campo. Una plantilla necesita al menos un servicio de aplicación. |
+| `unknown_field` | Un campo que el esquema no conoce, `landing` en una plantilla privada, o un nombre en `env_hidden` que no está en `env`. | Quítalo o renómbralo. Revisa si hay erratas respecto al esquema. |
+| `invalid_slug` | Un id (de plantilla o de servicio) no está formado por letras minúsculas, dígitos, `_` o `-`. | Reescribe el id. |
+| `invalid_version` | La `version` no es una versión semántica válida. | Usa `MAJOR.MINOR.PATCH`. Una versión nueva debe ser mayor que la actual. |
+| `invalid_category` | La categoría no es una de las permitidas. | Elige una categoría de la lista del esquema. |
+| `invalid_text` | A un nombre, descripción, etiqueta o texto de ayuda le falta un idioma, está vacío o es demasiado largo (el nombre de la plantilla admite hasta 50 caracteres y la descripción hasta 128). | Rellena todos los idiomas y respeta los límites. |
+| `invalid_ram` | `ram.recommended` está por debajo de `ram.min`, `ram.max` está por debajo de `recommended`, o un servicio Blob tiene memoria. | Ordena los valores `min`, `recommended`, `max`. |
+| `invalid_plan` | `min_plan` no es el id de un plan existente. | Usa el id del plan (por ejemplo `enterprise-28`), no su nombre visible. |
+| `unknown_placeholder` | Un placeholder `{{...}}` está mal formado, nombra un campo que no existe, usa un secreto que no está declarado en `secrets`, o está fuera de `env` y `outputs`. | Corrige el placeholder; declara el secreto; usa placeholders solo en `env` y `outputs`. |
+| `unknown_service` | Un placeholder, una conexión, una opción o una condición nombra un servicio que no existe, o un ajuste solo de aplicaciones apunta a una base de datos. | Usa el id de un servicio del manifiesto. |
+| `unknown_input` | Un placeholder o una condición nombra una pregunta que no existe. | Usa el id de una pregunta del manifiesto. |
+| `invalid_when` | Una condición se refiere a una pregunta que viene después (o a sí misma), o su `equals` no encaja con el tipo de la pregunta. | Reordena las preguntas: una condición solo puede mirar a las anteriores. |
+| `invalid_option` | Una pregunta `select` no tiene opciones, su valor por defecto no es una opción, hay `options` en una pregunta que no es `select`, o una versión de base de datos no está disponible para el motor. | Da a la pregunta opciones válidas y un valor por defecto que sea una de ellas. |
+| `invalid_source` | Un servicio de imagen no tiene `source.image`, o una imagen pública no está fijada por digest (`@sha256:...`), o hay campos solo de código en un servicio de imagen (o al revés), o `source.path` es absoluta o sale de la carpeta. | Fija la imagen por digest y mantén cada campo en el tipo de servicio correcto. |
+| `invalid_permissions` | Una combinación de permisos no permitida, por ejemplo una plantilla cerrada que deja a los usuarios editar el código o los comandos, o añadir variables, un `below_min` sin `change`, o `env_hidden` en una plantilla que no está cerrada. | Quita el permiso en conflicto. Consulta [Permisos](/es-es/templates/create/permissions). |
+| `forbidden_env` | `env` define una variable que controla la plataforma (como `NODE_OPTIONS`, `LD_PRELOAD`, `LD_LIBRARY_PATH` o `LD_AUDIT`). | Quítala del manifiesto. |
+| `forbidden_in_public` | Un campo que es solo para plantillas privadas (`env_hidden`, código cerrado, compartir con copia completa) en una plantilla pública. | Quítalo, o mantén la plantilla privada. |
+| `secret_in_manifest` | Una variable que parece un secreto lleva un valor literal. | Usa una pregunta de tipo secreto, un secreto generado (`{{secrets.<name>}}`) o, en una plantilla cerrada, `env_hidden`. |
+| `invalid_deploy` | Un ajuste de despliegue bloqueado tiene el valor por defecto `auto`, o hay placeholders en un lugar que no los admite (como la ruta del health check). | Bloquea el ajuste en `on` o `off`. |
+| `invalid_connection` | Un servicio está conectado consigo mismo. | Quita la conexión. |
+| `duplicate_id` | Dos preguntas, servicios o salidas comparten un id. | Haz que los ids sean únicos. |
+| `too_many_services` | La plantilla tiene más de 8 servicios. | Divídelo en dos plantillas. |
+
+Un hallazgo con el código `private_network_unavailable` es una advertencia, no un error: un enlace marcado como `private: required` queda fuera de la galería pública.
+
+## Errores de despliegue y actualización
+
+Los devuelven `POST /v1/templates/{template_id}/deploy`, el despliegue desde un enlace para compartir y las rutas de actualización. La mayoría se comprueban antes del `202`, así que no existe ningún job; los fallos durante el job llegan en el campo `error` del job con el `step` que falló y los cambios se deshacen.
+
+| Código | Estado | Causa | Solución |
+|---|---|---|---|
+| `TEMPLATE_NOT_FOUND` | 404 | La plantilla no existe, fue retirada o no es visible para ti. | Comprueba el slug o el id, y el workspace. |
+| `TEMPLATE_DEPRECATED` | 409 | El autor marcó la plantilla como obsoleta; no se puede usar para aplicaciones nuevas. | Elige otra plantilla. Lo que ya se ejecuta sigue ejecutándose. |
+| `TEMPLATE_INPUT_INVALID` | 400 | Falta una respuesta o no es válida, o la memoria está fuera de lo que permite la plantilla. `details.issues` lista cada pregunta. | Corrige las respuestas indicadas y envía de nuevo. |
+| `TEMPLATE_VERSION_NOT_SELECTABLE` | 400 | Enviaste `version` para una plantilla que no admite versiones anteriores. | Omite `version` para obtener la última. |
+| `TEMPLATE_PLAN_REQUIRED` | 403 | Tu plan no cumple un requisito. `details.reason` es uno de `no_plan`, `web_publish`, `image_plan`, `private_network`, `blob_plan` o `min_plan`. | Mejora tu plan, o elige una plantilla que encaje. Consulta [Planes y límites](/es-es/plans-and-limits). |
+| `TEMPLATE_RAM_INSUFFICIENT` | 400 | La suma de la memoria mínima de los servicios no cabe en tu memoria libre. `details` indica la memoria necesaria y la libre. | Libera memoria (detén o redimensiona una aplicación) o mejora tu plan. |
+| `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | 403 | La plantilla ejecuta una imagen y todos los cupos de imagen están en uso. | Elimina una imagen que ya no uses, o mejora tu plan. Consulta [Cupos de imagen](/es-es/templates/overview#cupos-de-imagen). |
+| `MAX_APPS_REACHED` | 403 | Se superaría el límite de aplicaciones del plan. | Elimina una aplicación o mejora tu plan. |
+| `MAX_DATABASES_REACHED` | 403 | Se superaría el límite de bases de datos del plan. | Elimina una base de datos o mejora tu plan. |
+| `DEPLOY_RATE_LIMITED` | 429 | Se alcanzó el límite horario de despliegues. | Espera e inténtalo de nuevo. |
+| `TEMPLATE_DEPLOY_IN_PROGRESS` | 409 | Ya hay un despliegue o una actualización de tu cuenta en ejecución. | Espera a que termine. Solo se ejecuta uno a la vez. |
+| `IDEMPOTENCY_KEY_CONFLICT` | 409 | El `Idempotency-Key` se usó antes con una petición distinta. | Usa una clave nueva, o repite la misma petición. |
+| `WORKSPACE_OWNER_ONLY` | 403 | Solo el propietario de un workspace usa plantillas en él. | Usa tu cuenta personal o pídeselo al propietario. |
+| `SUBDOMAIN_TAKEN` | en el job | El subdominio que elegiste ya está ocupado. | Elige otro o déjalo aleatorio. |
+| `TEMPLATE_UPDATE_BLOCKED` | 409 | La actualización no puede continuar. `details.reason` es uno de: `no_new_version`, `detached`, `template_removed`, `link_revoked`, `ram`, `plan`, `image_slots`, `app_building`, `deploy_in_progress`. | Consulta la tabla siguiente. |
+| `TEMPLATE_DEPLOY_NOT_FOUND` | 404 | El job no existe o pertenece a otra cuenta. | Comprueba el id. |
+| `TEMPLATE_DEPLOY_FAILED` | en el job | Un paso falló sin un código más específico. | Lee `error.step` e inténtalo de nuevo; contacta con soporte si se repite. |
+
+Pueden aparecer otros códigos dentro del `error` de un job cuando falla un paso, como `BUILD_FAILED`, `BUILD_TIMEOUT`, `IMAGE_NOT_READY`, `IMAGE_BUILDER_UNAVAILABLE`, `BLOB_NAMESPACE_SUSPENDED`, `PLAN_RESTRICTED_FEATURE` y `STACK_BLOB_PREFIX_TAKEN`. El mensaje es siempre una frase fija y nunca incluye la salida de tu aplicación ni valores de tus variables.
+
+### Pasos de un job
+
+Un job lista solo los pasos que le corresponden, en este orden: `validate`, `snapshot` (actualizaciones), `network`, `databases`, `blob`, `images`, `apps`, `variables`, `certificates`, `start`, `healthcheck`, `outputs`. Un job fallido añade `rollback`. El `step` del error te dice dónde mirar: un fallo en `healthcheck` significa que la aplicación arrancó pero nunca llegó a estar sana, así que revisa los logs de la aplicación; un fallo en `images` tiene que ver con la imagen o con tus cupos; un fallo en `databases` tiene que ver con el límite o con la memoria de las bases de datos.
+
+### Motivos de bloqueo de una actualización
+
+| `details.reason` | Significado | Qué hacer |
+|---|---|---|
+| `no_new_version` | La aplicación ya ejecuta la última versión. | Nada. |
+| `detached` | La aplicación fue desvinculada y ya no recibe versiones. | Crea una aplicación nueva a partir de la plantilla si quieres una que se actualice. |
+| `template_removed` | El autor retiró la plantilla. | La aplicación sigue funcionando; no recibirá más actualizaciones. |
+| `link_revoked` | El autor revocó el enlace para compartir del que vino la aplicación. | Pide un enlace nuevo al autor. |
+| `ram` | La nueva versión necesita más memoria de la que tienes libre. | Libera memoria o mejora tu plan, y luego actualiza. |
+| `plan` | La nueva versión necesita un plan superior. | Mejora tu plan. |
+| `image_slots` | La nueva versión necesita un cupo de imagen que no tienes. | Libera un cupo o mejora tu plan. |
+| `app_building` | La aplicación todavía se está construyendo. | Espera al build. |
+| `deploy_in_progress` | Hay otro despliegue o actualización de la cuenta en ejecución. | Espera a que termine. |
+
+## Plantillas cerradas y rollback
+
+| Código | Estado | Causa | Solución |
+|---|---|---|---|
+| `TEMPLATE_CLOSED` | 403 | La ruta lee o cambia código, archivos, comandos o variables de una aplicación de una [plantilla cerrada](/es-es/templates/use/closed-templates), o intenta desvincularla o guardarla. | Usa las acciones permitidas: logs, snapshots, restauración, rollback, actualización. |
+| `TEMPLATE_ROLLBACK_REQUIRES_DATA` | 409 | El software migra sus datos al actualizarse, por lo que se bloquea el rollback solo del código. | Restaura el snapshot de seguridad tomado antes de la actualización. Consulta [Actualizar y hacer rollback](/es-es/templates/use/updates-and-rollback). |
+| `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | 409 | El cambio (editar archivos, subir código, vincular un repositorio, hacer commit del contenedor) desvincula la aplicación de su plantilla. | Repite con `confirm_detach` para confirmar, o deja la aplicación en la plantilla. |
+| `MANAGED_ENV_READONLY` | 403 | La variable la inyecta la plantilla y no se puede leer ni cambiar. | Usa en su lugar las variables propias de la aplicación. |
+| `IMAGE_TEMPLATE_ONLY` | 403 o 409 | La imagen pertenece a una plantilla y solo se puede usar a través de ella. | Crea la aplicación con la plantilla. |
+
+## Plantillas privadas y enlaces para compartir
+
+| Código | Estado | Causa | Solución |
+|---|---|---|---|
+| `TEMPLATE_PRIVATE_LIMIT_REACHED` | 403 | Tienes 5 plantillas privadas, el límite de una cuenta. | Elimina una. |
+| `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | 403 | Tu plan no puede crear imágenes, por lo que no puede crear plantillas. | Usa un plan que incluya imágenes. |
+| `TEMPLATE_SLUG_TAKEN` | 409 | El slug lo usa otra plantilla tuya. | Elige otro. |
+| `TEMPLATE_SOURCE_REQUIRED` | 400 | Se envió un servicio de código sin su ZIP. | Envía un ZIP por cada servicio de código. |
+| `TEMPLATE_SECRET_IN_SOURCE` | 400 | El código tiene un archivo `.env`, una clave privada o un token. `details.files` los lista. | Quita el secreto y envía de nuevo. |
+| `TEMPLATE_SAVE_NOT_ALLOWED` | 403 | Una aplicación que vino de un enlace para compartir no se puede guardar como plantilla ni compartir. | Crea tu propia aplicación y guarda esa. |
+| `SHARE_LINK_NOT_FOUND` | 404 | El enlace no existe o su plantilla fue retirada. | Pide un enlace nuevo. |
+| `SHARE_LINK_REVOKED` | 410 | El autor revocó el enlace. | Pide un enlace nuevo. |
+| `SHARE_LINK_EXPIRED` | 410 | El enlace superó su validez. | Pide un enlace nuevo. |
+| `SHARE_LINK_EXHAUSTED` | 410 | El enlace alcanzó su número máximo de usos. | Pide un enlace nuevo. |
+
+Consulta [Recibir un enlace](/es-es/templates/use/receive-a-link) y [Crear plantillas](/es-es/templates/create/overview).
+
+## Stacks
+
+| Código | Estado | Causa | Solución |
+|---|---|---|---|
+| `STACK_NOT_FOUND` | 404 | El stack no existe o pertenece a otra cuenta. | Comprueba el id y el workspace. |
+| `STACK_MEMBER_CONFLICT` | 409 | El recurso está en otro stack, o no está en la misma cuenta o workspace que el stack. | Sácalo primero del otro stack. |
+| `STACK_MEMBER_NOT_FOUND` | 404 | El recurso no es miembro del stack. | Comprueba el id. |
+| `STACK_BINDING_NOT_FOUND` | 404 | El stack no tiene ninguna conexión con ese id. | Lista las conexiones. |
+| `STACK_NETWORK_MODE_UNAVAILABLE` | 400 | Pediste un modo de red distinto de `public`. | Usa `public`. |
+| `STACK_SERVICE_LOCKED` | 403 | La aplicación viene de una plantilla cerrada y no puede salir del stack. | Mantenla en el stack. |
+| `STACK_NAME_MISMATCH` | 400 | `confirm_name` no es el nombre del stack. | Escribe el nombre exacto. |
+| `STACK_TRANSFORM_EMPTY` | 400 | La carpeta no tiene aplicación, o no tiene base de datos. | Pon una aplicación y una base de datos en la carpeta. |
+| `STACK_BLOB_PREFIX_TAKEN` | 409 | La carpeta de Blob la usa otro stack o ya tiene archivos. | Elige otra carpeta. |
+
+Consulta [Stacks](/es-es/templates/use/stacks).

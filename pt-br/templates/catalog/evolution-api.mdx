@@ -1,0 +1,76 @@
+---
+title: 'Template Evolution API na Vertra Cloud: API de WhatsApp com Postgres'
+sidebarTitle: 'Evolution API'
+description: 'Crie a Evolution API na Vertra Cloud: uma API REST de WhatsApp com instâncias, webhooks e manager, com Postgres gerenciado. Passos, variáveis e licença.'
+icon: 'message'
+---
+
+Uma API de WhatsApp com instâncias, webhooks e integrações. O template executa a Evolution API v2.3.7 (a versão estável) com Postgres gerenciado incluído.
+
+## O que ele cria
+
+Uma [stack](/pt-br/templates/use/stacks) com o app da Evolution API e um banco de dados Postgres gerenciado, conectados com um certificado de cliente. Se você escolher Redis gerenciado para o cache, ele também cria o Redis.
+
+| | |
+|---|---|
+| Memória | App 512 MB (1024 MB recomendado) mais Postgres 1024 MB: **1,5 GB no mínimo**. Com Redis, 2 GB. |
+| Plano | Um plano com imagens Docker e uma [vaga de imagem](/pt-br/templates/overview#vagas-de-imagem) livre. Veja [Planos e limites](/pt-br/plans-and-limits). |
+
+## O que o assistente pergunta
+
+| Pergunta | O que faz |
+|---|---|
+| Evolution API cache | **Local cache** (padrão, sem Redis) ou **managed Redis**, que mantém o cache fora do processo e usa 512 MB a mais. |
+
+## O que você recebe
+
+O endereço do manager (`<address>/manager`) e a **chave de API global, mostrada uma única vez**. Guarde-a: ela dá acesso a todas as instâncias. Se você a perder, altere o segredo `AUTHENTICATION_API_KEY` nas variáveis do app e reinicie.
+
+## Primeiros passos
+
+<Steps>
+  <Step title="Abra o manager">
+    Abra `<address>/manager` e entre com a chave de API global.
+  </Step>
+  <Step title="Crie uma instância">
+    Escolha qualquer nome e a integração `WHATSAPP-BAILEYS`. O manager mostra um QR code: no celular, abra **WhatsApp > Linked devices > Link a device** e escaneie-o.
+  </Step>
+  <Step title="Envie uma mensagem de teste">
+    ```bash
+    curl -X POST "<address>/message/sendText/<instance>" \
+      -H "apikey: <key>" -H "Content-Type: application/json" \
+      -d '{"number":"5511999999999","text":"Hello from Evolution API"}'
+    ```
+  </Step>
+  <Step title="Receba eventos">
+    No **Webhook** da instância, informe a URL do seu serviço e marque os eventos (`MESSAGES_UPSERT`, `CONNECTION_UPDATE` e outros).
+  </Step>
+</Steps>
+
+## Variáveis
+
+| Variável | O que faz |
+|---|---|
+| `SERVER_URL` | O endereço público do app (links e webhooks). |
+| `AUTHENTICATION_API_KEY` | A chave de API global, gerada para você. |
+| `DATABASE_CONNECTION_URI` | O Postgres da stack, com certificado de cliente. |
+| `CACHE_REDIS_ENABLED`, `CACHE_LOCAL_ENABLED` | Qual cache está ligado. |
+| `LOG_LEVEL` | Reduz o ruído do log, por exemplo `ERROR,WARN`. |
+
+## Limites e boas práticas
+
+- O deploy sem downtime está desligado: duas cópias poderiam abrir duas sessões do mesmo WhatsApp e a conexão cairia.
+- Um rollback volta **com os dados**, porque a Evolution aplica migrações de banco de dados a cada inicialização.
+- Os dados ficam no Postgres e em `/app/instances` e `/app/store`, e fazem parte dos snapshots.
+- A conexão Baileys é o WhatsApp Web não oficial: o WhatsApp pode bloqueá-la se usada para spam. Use-a apenas com pessoas que aceitaram receber suas mensagens.
+
+## Problemas comuns
+
+- **O QR code não aparece.** Confira se a instância usa `WHATSAPP-BAILEYS` e leia o log do app.
+- **401 nas chamadas.** O cabeçalho `apikey` deve ser a chave global ou a chave da instância.
+
+## Licença
+
+A Evolution API é distribuída sob Apache 2.0 **com condições adicionais** ([licença](https://github.com/evolution-foundation/evolution-api/blob/main/LICENSE)): não remova o logo e o copyright do manager e, se a Evolution fizer parte de um projeto seu, exiba um aviso claro de que ela é usada. Leia-a antes de oferecer a Evolution a terceiros. Este template é um empacotamento da Vertra Cloud e não é afiliado ao projeto.
+
+Veja também os [outros templates oficiais](/pt-br/templates/catalog) e [Conectar apps a bancos de dados em uma stack](/pt-br/templates/use/connect-databases).

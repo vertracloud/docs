@@ -1,0 +1,44 @@
+---
+title: Adicionar membro à stack
+sidebarTitle: Adicionar membro
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/members
+authMethod: bearer
+description: Coloca um app ou banco de dados que você já tem em uma stack, com conexões opcionais.
+---
+
+{/* @see RESTPostAPIStackMemberBody, RESTPostAPIStackMemberResponse — @vertracloud/api-types */}
+Adiciona um app ou um banco de dados à stack. Ele precisa pertencer à mesma conta ou workspace da stack e não estar em outra stack. Precisa do escopo `stacks:write` quando chamado com uma chave de API.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence, quando você age sobre ela como dono do workspace.
+</ParamField>
+
+<ParamField body="resource_type" type="string" required>
+  `application` ou `database`.
+</ParamField>
+
+<ParamField body="resource_id" type="string" required>
+  O ID do app ou do banco de dados.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Conexões a criar entre o novo membro e os apps da stack. Pode ser vazio. Cada item tem `app_id`, exatamente um entre `database_id` ou `target_app_id`, e um `env_map` opcional (veja [Criar conexão da stack](/pt-br/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+### Resposta
+
+A stack atualizada, com `restart_required` e `apps_to_restart`, como em [Criar stack](/pt-br/api-reference/endpoint/stacks/create). Reinicie os apps listados para que eles leiam as novas variáveis.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 409 | `STACK_MEMBER_CONFLICT` | O recurso já está em outra stack, ou não está na mesma conta ou workspace. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |
+| 404 | `APP_NOT_FOUND` | O app não existe ou não é seu. |
+| 404 | `DATABASE_NOT_FOUND` | O banco de dados não existe ou não é seu. |

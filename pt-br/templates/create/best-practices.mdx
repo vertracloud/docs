@@ -1,0 +1,92 @@
+---
+title: 'Boas práticas de template: dados, disco, porta, healthcheck e segredos'
+sidebarTitle: 'Boas práticas'
+description: 'Escreva templates que rodam no sandbox da Vertra Cloud: dados em bancos da stack, /app como único disco, uid 1000, porta certa, healthcheck, sem segredos.'
+icon: 'list-check'
+---
+
+Um template roda dentro do mesmo sandbox de qualquer outro app, então precisa respeitar as mesmas regras: um único disco gravável, sem root, a porta certa e um healthcheck que diga a verdade. Um template que ignora essas regras funciona no seu notebook e falha no primeiro boot.
+
+## Guarde os dados nos bancos de dados da stack
+
+Coloque os dados importantes nos bancos de dados da stack (Postgres, MySQL, MongoDB ou Redis), não em arquivos sob `/app`. Os bancos de dados são salvos em snapshot, restaurados, revertidos e atualizados pela plataforma, e nunca são fechados, então se comportam da mesma forma em um [template fechado](/pt-br/templates/create/permissions#templates-fechados). Um arquivo em `/app` de um template fechado é invisível para o usuário e é responsabilidade sua.
+
+Quando o software oferece uma escolha, exponha-a: o n8n deixa o usuário escolher entre o Postgres gerenciado ou o SQLite embutido por meio de uma pergunta, e usa `sets` para ligar ou desligar o banco de dados. Veja [Placeholders e inputs](/pt-br/templates/create/placeholders-and-inputs#opções-e-sets).
+
+## `/app` é o único disco persistente
+
+O sistema de arquivos raiz é **somente leitura**. `/app` é o diretório de trabalho do app e o `HOME`, e o único lugar onde os arquivos sobrevivem a um restart, a um deploy e a um snapshot. Aponte tudo o que o software grava para lá com uma variável:
+
+```yaml
+env:
+  N8N_USER_FOLDER: /app
+  OPENCLAW_HOME: /app
+```
+
+Não existe propriedade de persistência no manifesto, e uma instrução `VOLUME` em um Dockerfile é ignorada. Não dependa de nenhum outro caminho para guardar estado: o resto do sistema de arquivos é somente leitura.
+
+`/app/.vertra/` é reservado para a plataforma (certificados de banco de dados). Nunca grave lá e nunca envie arquivos para lá.
+
+## Rode como uid 1000
+
+Os processos rodam como o usuário sem privilégios de uid 1000, sem novos privilégios e com raiz somente leitura. Um software que precisa iniciar como root, trocar de usuário no boot (`usermod`, `chown` de caminhos do sistema), usar um sistema init como PID 1 ou gravar em `/opt` ou `/var` não roda como está. Adapte-o:
+
+- Use uma imagem ou um Dockerfile que inicie como usuário comum e mantenha seus dados em `/app`.
+- Remova etapas de boot que precisam de root.
+- Teste com raiz somente leitura e uid 1000 antes de publicar; veja [Validar e testar](/pt-br/templates/create/validate-and-test).
+
+## Defina a porta
+
+Para um serviço de imagem, defina `port` com a porta em que o software escuta (o `EXPOSE` da imagem). Um serviço de código segue as mesmas regras de qualquer app (veja [Aplicações](/pt-br/applications)) e não pode definir `port`. Não defina `PORT` em `env`: a plataforma a controla, e o manifesto é recusado com `forbidden_env` se você tentar.
+
+## Escreva um healthcheck honesto
+
+O healthcheck decide quando o assistente diz "pronto". Escolha um caminho que só responda quando o software realmente consegue atender:
+
+- Prefira um caminho de readiness a um de liveness. O `/healthz` do n8n abre antes de as migrações terminarem, então o template dele usa `/healthz/readiness`, que espera o banco de dados.
+- Defina `timeout` com o primeiro boot mais lento que você mediu, com margem. Migrações e pulls de imagem deixam o primeiro boot mais lento que os seguintes.
+- Um serviço sem HTTP (um bot, um worker) omite `path`: vale a verificação de pronto habitual, e um processo que encerra aparece como deploy com falha.
+
+```yaml
+healthcheck: { path: /healthz/readiness, timeout: 240 }
+```
+
+## Nunca coloque um segredo no template
+
+Um template é copiado, compartilhado e, no catálogo público, lido por todos.
+
+- **Gere** o que o usuário não precisa saber: `{{secret:48}}`, um nome de `secrets` declarado ou uma pergunta com `generate`.
+- **Pergunte** o que só o usuário tem, como o token de um bot, com uma pergunta `secret`. O valor vai criptografado para o app e não fica guardado no template.
+- **Oculte** o que pertence a você (uma chave de licença) com `env_hidden`, em um template privado fechado.
+- Não deixe arquivos `.env*`, chaves privadas ou tokens no código. A plataforma recusa um upload de código que os contenha (`TEMPLATE_SECRET_IN_SOURCE`), e o validador recusa uma variável cujo nome parece de segredo (`*_KEY`, `*_TOKEN`, `*_SECRET`, `PASSWORD`...) com um valor literal (`secret_in_manifest`).
+
+```yaml
+env:
+  N8N_ENCRYPTION_KEY: "{{secrets.encryption_key}}"   # generated once, the same in every service
+  DISCORD_TOKEN: "{{inputs.discord_token}}"          # typed by the user
+```
+
+## Variáveis que a plataforma controla
+
+Alguns nomes pertencem à plataforma, e um manifesto que os define é recusado com `forbidden_env`: `PORT`, `HOST`, `NODE_ENV`, `RACK_ENV`, `RAILS_ENV`, `APP_ID`, `PATH`, `HOME`, `USER`, `SHELL`, além de `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT`, `NODE_OPTIONS` e qualquer nome que comece com `DYLD_`. A comparação ignora maiúsculas e minúsculas. Passe as configurações ao software pelas variáveis próprias dele.
+
+## Fixe o que você entrega
+
+- Fixe uma imagem por digest (`name@sha256:...`). Um template público apenas com tag é recusado com `invalid_source`, e uma versão fixada significa que todos que usam determinada versão do seu template recebem o mesmo software.
+- Fixe as versões de runtime e de dependências em templates de código, e faça commit do lock file.
+- Mantenha a memória honesta: `ram.min` é o que o software precisa para iniciar com as respostas padrão, e `recommended` é o que você rodaria em produção.
+
+## Escreva a documentação de que o usuário precisa
+
+O `README.md` e a pasta opcional `docs/` são exibidos na página do template. Diga o que o template cria, o que o usuário deve fazer depois do deploy (criar a primeira conta, convidar um bot) e onde ficam os dados. Coloque também os primeiros passos nos `outputs`, onde o usuário os vê quando o deploy termina.
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Permissões" icon="user-lock" href="/pt-br/templates/create/permissions">
+    O que o usuário pode alterar depois.
+  </Card>
+  <Card title="Configurações de deploy" icon="arrows-rotate" href="/pt-br/templates/create/deploy-settings">
+    Quando travar o blue-green como desligado.
+  </Card>
+</CardGroup>

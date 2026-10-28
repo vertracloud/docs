@@ -1,0 +1,78 @@
+---
+title: Copiar um template a partir de um link de cópia completa
+sidebarTitle: Copiar pelo link
+api: POST https://api.vertracloud.app/v1/share/templates/{token}/copy
+authMethod: bearer
+description: Cria um template privado seu, independente do autor, a partir de um link de cópia completa, contando no seu limite de 5.
+---
+
+{/* @see RESTPostAPITemplateShareCopyBody, RESTPostAPITemplateShareCopyResponse — @vertracloud/api-types */}
+Esta chamada transforma um link `full_copy` em um template privado que pertence a você e responde `201` com ele. Depois disso, nada liga a cópia ao autor: se o autor excluir o template, a imagem ou a conta, a sua cópia não muda, e você não recebe atualizações do original. O código e qualquer imagem são copiados para a sua conta; segredos que o autor ocultou nunca vêm junto, e o nome do autor continua como crédito. A cópia conta no seu limite de 5 templates privados e, para um template com imagens, ocupa uma vaga de imagem para cada imagem distinta.
+
+Exige uma conta (uma sessão ou uma chave de API com o escopo `templates:write`). As regras de plano de [Criar um template privado](/pt-br/api-reference/endpoint/templates/create) se aplicam a você, e, em um workspace, só o dono pode receber uma cópia. A permissão é verificada no momento da chamada: se o autor removeu `share.full_copy` depois de criar o link, a chamada falha com `SHARE_LINK_REVOKED` e nenhum uso é gasto. Um link `use` é recusado aqui com `400`: use [Fazer deploy a partir de um link de uso](/pt-br/api-reference/endpoint/templates/share-links/deploy).
+
+<ParamField path="token" type="string" required>
+  O token do link.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O workspace que será dono da cópia. Sem ele, a cópia é sua.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/share/templates/vtpl_EXAMPLE_TOKEN/copy \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+</RequestExample>
+
+### Resposta
+
+O template privado de [Criar um template privado](/pt-br/api-reference/endpoint/templates/create), com `201 Created`. Seu `slug` é o original, ou o primeiro livre entre `<slug>-copy`, `<slug>-copy-2` e assim por diante; `author_display` dá crédito ao autor original.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-999888777666",
+    "slug": "support-bot-copy",
+    "origin": "private",
+    "name": { "pt-br": "Bot de suporte", "en": "Support bot" },
+    "author_display": "Ana",
+    "current_version": { "id": "tplv-444333222111", "version": "1.0.0", "security": false, "created_at": "2026-10-27T17:00:00Z" },
+    "github": null,
+    "owner": { "user_id": "9876543210987654321", "workspace_id": null }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `SHARE_LINK_NOT_FOUND`: O token tem formato inválido, não existe, ou o template foi excluído (`404`).
+  - `SHARE_LINK_REVOKED`: O link foi revogado, ou o autor não permite mais cópias completas (`410`).
+  - `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED`: O link expirou ou atingiu `max_uses` (`410`).
+  - `TEMPLATE_PRIVATE_LIMIT_REACHED`: Você já tem 5 templates privados.
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: Seu plano não pode criar templates.
+  - `TEMPLATE_IMAGE_SLOTS_EXHAUSTED`: A cópia precisa de mais vagas de imagem do que você tem livres.
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace recebe uma cópia nele.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_PRIVATE_LIMIT_REACHED"
+}
+```
+
+</ResponseExample>

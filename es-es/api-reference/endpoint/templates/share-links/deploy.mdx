@@ -1,0 +1,190 @@
+---
+title: Usar un enlace para compartir plantilla para crear aplicaciones
+sidebarTitle: Usar enlace
+api: POST https://api.vertracloud.app/v1/share/templates/{token}/deploy
+authMethod: bearer
+description: Crea las aplicaciones, bases de datos y el stack de un enlace de uso como un trabajo asíncrono, seguro de repetir con una Idempotency-Key.
+---
+
+{/* @see RESTPostAPITemplateShareDeployBody, RESTPostAPITemplateShareDeployResponse — @vertracloud/api-types */}
+Esta llamada crea, como una sola operación, todo lo que describe la plantilla detrás de un enlace `use`, y responde `202` con un trabajo en `status: "queued"`. Si algún paso falla, se elimina todo lo que creó el trabajo. Sigue el trabajo con [Obtener trabajo de despliegue](/es-es/api-reference/endpoint/templates/deploy-status) o con su [flujo de eventos](/es-es/api-reference/endpoint/templates/deploy-events). El cuerpo es el mismo que [usar una plantilla del catálogo](/es-es/api-reference/endpoint/templates/deploy), sin la elección de versión: el enlace da una sola versión.
+
+Necesita una cuenta (una sesión o una clave de API con el ámbito `templates:deploy`), y solo el propietario de un workspace puede usar una plantilla en él; un miembro recibe `WORKSPACE_OWNER_ONLY`. Un enlace `full_copy` se rechaza aquí con `400`: usa [Copiar plantilla desde un enlace](/es-es/api-reference/endpoint/templates/share-links/copy). Cada llamada usa uno de los usos del enlace; una llamada que no termina en un trabajo nuevo devuelve el uso, y también lo devuelve un trabajo que se deshace. Previsualiza primero el enlace con [Previsualizar enlace](/es-es/api-reference/endpoint/templates/share-links/preview). Las aplicaciones creadas desde un enlace pueden ser reportadas después por su propietario, y solo ofrecen actualizaciones mientras el enlace siga vigente.
+
+<ParamField path="token" type="string" required>
+  El token del enlace.
+</ParamField>
+
+<ParamField header="Idempotency-Key" type="string">
+  Hace la llamada segura de repetir: la misma clave con la misma petición devuelve el mismo trabajo (`200`) y no gasta un segundo uso, y la misma clave con una petición distinta devuelve `IDEMPOTENCY_KEY_CONFLICT`. Se recomienda en cada llamada.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  El nombre de la aplicación, o del stack cuando la plantilla tiene más de un servicio.
+</ParamField>
+
+<ParamField body="description" type="string">
+  La descripción.
+</ParamField>
+
+<ParamField body="inputs" type="object">
+  Las respuestas a las preguntas de la plantilla, por ID de pregunta. Un valor es un string, un número o un booleano.
+</ParamField>
+
+<ParamField body="services" type="object">
+  Elecciones por servicio, por ID de servicio. Cada una puede tener `name`, `ram` (MB, dentro de lo que permite la plantilla) y `subdomain` (`"random"` o el que quieras, para una aplicación con web).
+</ParamField>
+
+<ParamField body="network_mode" type="string">
+  Solo se acepta `public`. Cualquier otro valor falla con `STACK_NETWORK_MODE_UNAVAILABLE`.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  El workspace que será propietario de lo creado.
+</ParamField>
+
+<ParamField body="folder_id" type="string">
+  La carpeta donde poner la aplicación o el stack.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/share/templates/vtpl_EXAMPLE_TOKEN/deploy \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Idempotency-Key: 6f1c2d3e-0000-4000-8000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "support-bot", "inputs": { "discord_token": "..." } }'
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El trabajo.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID del trabajo.
+  </ResponseField>
+
+  <ResponseField name="kind" type="string">
+    `deploy` aquí.
+  </ResponseField>
+
+  <ResponseField name="template_id" type="string">
+    La plantilla.
+  </ResponseField>
+
+  <ResponseField name="version_id" type="string">
+    La versión que se despliega.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    Ese número de versión.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `queued`, `running`, `undoing`, `succeeded` o `failed`.
+  </ResponseField>
+
+  <ResponseField name="current_step" type="string | null">
+    El paso que se ejecuta ahora, o `null` cuando el trabajo está en cola o ya terminó.
+  </ResponseField>
+
+  <ResponseField name="steps" type="object[]">
+    Cada paso con su `step`, `status` (`pending`, `running`, `done`, `skipped` o `failed`), `started_at` y `finished_at`.
+  </ResponseField>
+
+  <ResponseField name="error" type="object | null">
+    Se define cuando el trabajo falló: `code`, `message`, `step` y `details` opcional.
+  </ResponseField>
+
+  <ResponseField name="resources" type="object[]">
+    Lo que creó el trabajo, cada uno con `resource_type`, `resource_id`, `service_id` y `name`. Vacío tras un fallo.
+  </ResponseField>
+
+  <ResponseField name="stack_id" type="string | null">
+    El stack, cuando la plantilla tiene dos o más servicios.
+  </ResponseField>
+
+  <ResponseField name="application_id" type="string | null">
+    La aplicación, cuando la plantilla tiene una sola aplicación.
+  </ResponseField>
+
+  <ResponseField name="outputs" type="object[]">
+    Lo que la plantilla muestra al final, cada una con `label`, `value`, `secret` y `once`. Un valor `once` vuelve solo en la primera lectura del trabajo terminado.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó el trabajo.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Cuándo cambió el trabajo por última vez.
+  </ResponseField>
+
+  <ResponseField name="finished_at" type="string | null" format="date-time">
+    Cuándo terminó el trabajo, o `null`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "dep-abc123def456",
+    "kind": "deploy",
+    "template_id": "tpl-abc123def456",
+    "version_id": "tplv-111222333444",
+    "version": "1.0.0",
+    "status": "queued",
+    "current_step": null,
+    "steps": [],
+    "error": null,
+    "resources": [],
+    "stack_id": null,
+    "application_id": null,
+    "outputs": [],
+    "created_at": "2026-10-27T14:02:00Z",
+    "updated_at": "2026-10-27T14:02:00Z",
+    "finished_at": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:deploy` (`403`).
+  - `SHARE_LINK_NOT_FOUND`: El token tiene un formato no válido, no existe, o su plantilla fue eliminada (`404`).
+  - `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED`: El enlace fue revocado, caducó o alcanzó su `max_uses` (`410`).
+  - `TEMPLATE_INPUT_INVALID`: Falta una respuesta o no es válida.
+  - `TEMPLATE_PLAN_REQUIRED`: El plan de la cuenta no cubre la plantilla (`403`); `details.reason` indica por qué.
+  - `TEMPLATE_RAM_INSUFFICIENT`: No hay memoria libre suficiente para la plantilla (`400`).
+  - `TEMPLATE_IMAGE_SLOTS_EXHAUSTED`: La plantilla necesita más slots de imagen personalizados de los que la cuenta tiene libres (`403`).
+  - `TEMPLATE_DEPLOY_IN_PROGRESS`: Otro despliegue de la cuenta está en curso (`409`).
+  - `IDEMPOTENCY_KEY_CONFLICT`: La clave se usó con una petición distinta.
+  - `MAX_APPS_REACHED`, `MAX_DATABASES_REACHED`: Se superaría el límite del plan.
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario de un workspace usa plantillas en él.
+  - `DEPLOY_RATE_LIMITED`: Demasiados despliegues en la última hora.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_RAM_INSUFFICIENT",
+  "details": { "reason": "ram", "required": 512, "available": 256 }
+}
+```
+
+</ResponseExample>

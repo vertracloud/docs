@@ -1,0 +1,97 @@
+---
+title: Obtener snapshots de la aplicación
+sidebarTitle: Obtener snapshots
+api: GET https://api.vertracloud.app/v1/users/{id}/snapshots
+authMethod: bearer
+description: Devuelve la lista de snapshots de una aplicación o base de datos concreta.
+---
+
+{/* @see APIResourceSnapshot[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación o de la base de datos de la que quieres obtener los snapshots.
+</ParamField>
+
+<ParamField query="scope" type="string" required>
+  El tipo de recurso por el que filtrar los snapshots. Valores posibles: `applications`, `databases`.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="array">
+  Un array de objetos de snapshot.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID del snapshot.
+  </ResponseField>
+
+  <ResponseField name="resource_id" type="string">
+    El ID del recurso al que pertenece este snapshot.
+  </ResponseField>
+
+  <ResponseField name="closed" type="boolean">
+    `true` para un snapshot de una aplicación que procede de una plantilla cerrada. No se puede descargar, solo se restaura en una aplicación de la misma plantilla, y cualquier otro caso responde `TEMPLATE_CLOSED`. Ausente o `false` en los demás casos.
+  </ResponseField>
+
+  <ResponseField name="size" type="string">
+    El tamaño del snapshot con formato (por ejemplo, `"1.23 MB"`).
+  </ResponseField>
+
+  <ResponseField name="date" type="string">
+    La marca de tiempo de cuándo se creó el snapshot.
+  </ResponseField>
+
+  <ResponseField name="resource_name" type="string | null">
+    El nombre que tenía el recurso en el momento en que se tomó este snapshot. Queda congelado: no sigue
+    los renombrados posteriores y sobrevive a que el recurso se elimine. `null` en los snapshots tomados antes
+    de que existiera este campo: no se rellenó retroactivamente, porque poner el nombre de hoy en una fecha antigua
+    registraría algo que entonces no era cierto.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "resource_id": "550e8400-e29b-41d4-a716-446655440001",
+      "size": "1.23 MB",
+      "date": "2026-03-14T21:00:00.000Z",
+      "resource_name": "api-staging"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "USER_NOT_FOUND"
+}
+```
+
+</ResponseExample>

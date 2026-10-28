@@ -1,0 +1,128 @@
+---
+title: Revisar o rascunho de um template a partir de uma aplicação ou stack
+sidebarTitle: Revisar rascunho
+api: GET https://api.vertracloud.app/v1/templates/from-app/{app_id}/draft
+authMethod: bearer
+description: Lista as variáveis e os arquivos que a plataforma sugere ao salvar uma aplicação ou stack como template, sem nunca incluir valores.
+---
+
+{/* @see APITemplateDraft, RESTGetAPITemplateDraftResponse — @vertracloud/api-types */}
+Esta chamada retorna o que a plataforma propõe colocar em um template feito a partir de uma aplicação ou de uma stack: para cada membro, as variáveis dele com um tratamento sugerido e os arquivos do `/app` com o que vem selecionado por padrão. Ela nunca retorna um valor e não cria nada. Use-a para montar a revisão que vem antes de [Criar template a partir de aplicação](/pt-br/api-reference/endpoint/templates/create-from-app) ou [Criar template a partir de stack](/pt-br/api-reference/endpoint/templates/create-from-stack).
+
+São duas rotas com a mesma resposta: `GET /v1/templates/from-app/{app_id}/draft` para uma aplicação e `GET /v1/templates/from-stack/{stack_id}/draft` para uma stack. Precisa do escopo `templates:write` quando chamada com uma chave de API. A aplicação de um [template fechado](/pt-br/templates/use/closed-templates) e a que veio de um link de compartilhamento não podem ser salvas, então o rascunho é recusado para elas, assim como o salvamento. O rascunho de uma stack não oferece as variáveis de conexão: elas são reescritas como placeholders por conta própria.
+
+<ParamField path="app_id" type="string" required>
+  O ID da aplicação, na rota `from-app`.
+</ParamField>
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack, na rota `from-stack`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação ou a stack pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/from-app/app-abc123def456/draft \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O rascunho.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="members" type="object[]">
+    Uma entrada por aplicação ou banco de dados. Um rascunho de aplicação tem um único membro.
+
+    <Expandable title="Objeto member">
+
+    <ResponseField name="resource_id" type="string">
+      O ID da aplicação ou do banco de dados.
+    </ResponseField>
+
+    <ResponseField name="resource_type" type="string">
+      `application` ou `database`.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      O nome do membro.
+    </ResponseField>
+
+    <ResponseField name="ram" type="object">
+      A memória do membro, um bom ponto de partida para o template: `min`, `recommended` e `max` opcional, em MB.
+    </ResponseField>
+
+    <ResponseField name="env" type="object[]">
+      As variáveis de uma aplicação, sem valores. Cada uma tem `key`, `looks_secret` (`true` quando o nome parece um segredo, como `*_KEY`, `*_TOKEN`, `*_SECRET` ou `PASSWORD`, ou quando o valor tem formato de credencial) e `suggested_mode`. A sugestão é `question` para uma variável que parece um segredo, `omit` para uma variável que a plataforma controla (como `PORT`) e `keep` para as demais. Variáveis ocultadas por um template nunca aparecem. Os modos estão listados em [Criar template a partir de aplicação](/pt-br/api-reference/endpoint/templates/create-from-app).
+    </ResponseField>
+
+    <ResponseField name="paths" type="object[]">
+      Os arquivos e pastas do `/app` de uma aplicação com código, até 3 níveis de profundidade. Vazio para uma imagem e para um banco de dados. Cada item tem `path`, `type` (`file` ou `directory`), `selected` (se entra no template por padrão) e `reason`. O motivo de um caminho não estar selecionado é `env_file` (arquivos `.env*`), `platform_folder` (a pasta `.vertra`), `dependencies` (`node_modules`, `.venv`, `vendor`), `database_file` (arquivos SQLite) ou `uploads` (pastas de upload); ele é `null` quando o caminho está selecionado. Uma pasta excluída aparece como uma única entrada. Arquivos `.env*`, a pasta da plataforma e as dependências nunca podem ser incluídos, mesmo que você os liste.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "members": [
+      {
+        "resource_id": "app-abc123def456",
+        "resource_type": "application",
+        "name": "support-bot",
+        "ram": { "min": 256, "recommended": 512 },
+        "env": [
+          { "key": "DISCORD_TOKEN", "looks_secret": true, "suggested_mode": "question" },
+          { "key": "LOG_LEVEL", "looks_secret": false, "suggested_mode": "keep" },
+          { "key": "PORT", "looks_secret": false, "suggested_mode": "omit" }
+        ],
+        "paths": [
+          { "path": "src", "type": "directory", "selected": true, "reason": null },
+          { "path": "package.json", "type": "file", "selected": true, "reason": null },
+          { "path": ".env", "type": "file", "selected": false, "reason": "env_file" },
+          { "path": "node_modules", "type": "directory", "selected": false, "reason": "dependencies" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `APP_NOT_FOUND`: A aplicação não existe ou não é sua.
+  - `STACK_NOT_FOUND`: A stack não existe ou não é sua.
+  - `TEMPLATE_SAVE_NOT_ALLOWED`: A aplicação veio de um link de compartilhamento ou executa uma imagem da plataforma (`403`).
+  - `TEMPLATE_CLOSED`: A aplicação vem de um template fechado (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: O plano não pode criar templates.
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace trabalha com templates nele.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_CLOSED"
+}
+```
+
+</ResponseExample>

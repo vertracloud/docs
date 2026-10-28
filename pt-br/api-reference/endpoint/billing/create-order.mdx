@@ -1,0 +1,131 @@
+---
+title: Criar pedido
+sidebarTitle: Criar pedido
+api: POST https://api.vertracloud.app/v1/orders
+authMethod: bearer
+description: Cria um pedido para comprar, renovar ou fazer upgrade de um plano.
+---
+<ParamField body="type" type="string" default="purchase">
+  Para que serve o pedido. Valores possíveis: `purchase`, `renew`, `upgrade`.
+</ParamField>
+
+<ParamField body="plan" type="string" required>
+  O slug do plano que está sendo comprado, renovado ou para o qual se faz upgrade.
+</ParamField>
+
+<ParamField body="months" type="integer" required>
+  Quantos meses comprar: `1`, `3` ou `12`. O plano Economy aceita apenas `1`. Qualquer outro valor
+  retorna `INVALID_MONTHS`. Um pedido de 3 meses tem 5% de desconto e um pedido de 12 meses tem 15% de desconto sobre o
+  preço mensal; `price` e `discount` já incluem isso.
+</ParamField>
+
+<ParamField body="coupon" type="string">
+  Um código de cupom de desconto opcional.
+</ParamField>
+
+<Note>
+  O pedido precisa de dados de cobrança completos: verifique `complete` em [Obter dados de cobrança](/pt-br/api-reference/endpoint/billing/get-billing-details).
+</Note>
+
+<Note>
+  Um pedido `renew` exige que o plano de destino seja igual ao plano atual da conta; um pedido
+  `upgrade` exige que ele seja estritamente maior. Use `type: "purchase"` quando ainda não houver um plano ativo
+  desse tipo.
+</Note>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do pedido.
+  </ResponseField>
+
+  <ResponseField name="code" type="string | null">
+    O código de resgate, quando o pedido foi criado fluxo baseado em código; `null` nos demais casos.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Sempre `unpaid` logo após a criação.
+  </ResponseField>
+
+  <ResponseField name="plan" type="string">
+    O nome do plano.
+  </ResponseField>
+
+  <ResponseField name="duration" type="integer">
+    Duração em meses.
+  </ResponseField>
+
+  <ResponseField name="discount" type="object">
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="percent" type="number | null">Porcentagem de desconto aplicada, se houver.</ResponseField>
+    <ResponseField name="coupon" type="string | null">O código do cupom aplicado, se houver.</ResponseField>
+    <ResponseField name="price" type="number">O preço antes do desconto.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="price" type="number">
+    O preço final, depois do desconto.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null" format="date-time">
+    Quando o pedido (e a sua cobrança PIX, depois de gerada) expira sem pagamento.
+  </ResponseField>
+
+  <ResponseField name="allowed_payment_methods" type="string[]">
+    Os meios de pagamento que o pedido aceita. O plano Economy retorna `["pix"]`; um cupom restrito a
+    um meio também reduz a lista.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "order-abc123",
+    "code": null,
+    "status": "unpaid",
+    "plan": "PRO",
+    "duration": 1,
+    "discount": { "percent": null, "coupon": null, "price": 24.9 },
+    "price": 24.9,
+    "expires_at": "2026-09-22T12:00:00.000Z",
+    "allowed_payment_methods": ["pix"]
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
+  - `USER_NOT_FOUND`: o usuário autenticado não foi encontrado.
+  - `INVALID_PAYLOAD`: o body da requisição falhou na validação.
+  - `BILLING_DETAILS_INCOMPLETE`: os dados de cobrança não estão completos (nome, endereço e, no Brasil, CPF/CNPJ). Salve-os com [Atualizar dados de cobrança](/pt-br/api-reference/endpoint/billing/update-billing-details) e tente de novo.
+  - `MISSING_PLAN_OR_MONTHS`: `plan` ou `months` está ausente.
+  - `INVALID_MONTHS`: `months` não é `1`, `3` ou `12`, ou não é `1` para o plano Economy.
+  - `INVALID_PLAN`: o slug do plano não existe.
+  - `NOT_AN_UPGRADE`: para `type: "upgrade"`, o plano de destino não é maior que o atual.
+  - `PLAN_MISMATCH_FOR_RENEWAL`: para `type: "renew"`, o plano de destino não corresponde ao atual.
+  - `PENDING_ORDER_LIMIT_REACHED`: há pedidos não pagos em aberto em quantidade excessiva.
+  - `INTERNAL_SERVER_ERROR`: ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "INVALID_PLAN"
+}
+```
+
+</ResponseExample>

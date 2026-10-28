@@ -1,0 +1,195 @@
+---
+title: "Iniciar una subida directa de Blob"
+sidebarTitle: "Iniciar subida directa"
+api: "POST https://blob.vertracloud.app/v1/uploads"
+authMethod: bearer
+description: "Inicia una subida de hasta 10 GB que va directamente al almacenamiento. Devuelve las URL a las que enviar los bytes. Acepta un token de subida."
+---
+
+{/* @see RESTPostAPIBlobUploadBody, RESTPostAPIBlobUploadResponse, APIBlobUpload — @vertracloud/api-types */}
+
+Inicia una subida directa: los bytes van desde tu cliente directamente al almacenamiento, no a través de la API. Los archivos de hasta el límite de una sola parte de tu plan se devuelven en modo `single`, con una `url`. Los archivos más grandes se devuelven en modo `multipart`, con un tamaño de parte y un número de partes. Después envía los bytes y llama a [Completar una subida directa](/es-es/api-reference/endpoint/blob/uploads/complete). El almacenamiento reservado cuenta para la cuota hasta que la subida se complete, se cancele o caduque.
+
+**Ámbito:** `blob:write`. Acepta un token de subida.
+
+**Token de subida:** esta ruta también acepta un token de subida (`Authorization: Bearer vcup_...`) en lugar de una clave de API.
+
+<ParamField body="path" type="string" required>
+  Ruta de destino, con las mismas reglas que [Subir en una sola petición](/es-es/api-reference/endpoint/blob/objects/upload).
+</ParamField>
+
+<ParamField body="size" type="number" required>
+  Tamaño exacto del archivo en bytes, de 0 a 10 GB. Los bytes almacenados deben coincidir con él.
+</ParamField>
+
+<ParamField body="visibility" type="string">
+  `public` o `private`. Por defecto, `private`.
+</ParamField>
+
+<ParamField body="overwrite" type="boolean">
+  Reemplaza un objeto que ya existe en `path`. Por defecto, `false`.
+</ParamField>
+
+<ParamField body="rename_on_conflict" type="boolean">
+  Cuando `path` está ocupada, guarda el archivo como `nombre-1.ext`, `nombre-2.ext` y así sucesivamente (el primer nombre libre) en lugar de devolver `BLOB_OBJECT_ALREADY_EXISTS`. La subida lleva el `path` final. Por defecto, `false`. No se puede combinar con `overwrite` y no tiene efecto con un token de subida que fija el `path`.
+</ParamField>
+
+<ParamField body="random_suffix" type="boolean">
+  Inserta un sufijo aleatorio antes de la extensión. Por defecto, `false`; se fuerza a `true` con un token de subida sin `path` fijo.
+</ParamField>
+
+<ParamField body="cache_control" type="string">
+  `immutable`, `max-age=<seconds>` o `no-cache` (Enterprise-26 o superior).
+</ParamField>
+
+<ParamField body="content_disposition" type="string">
+  `inline` o `attachment`. HTML, SVG, XML, XHTML y HTM siempre son `attachment`.
+</ParamField>
+
+<ParamField body="filename" type="string">
+  Nombre sugerido al descargar.
+</ParamField>
+
+<ParamField body="expires_at" type="string">
+  Marca de tiempo ISO 8601 para la eliminación, como mínimo el mínimo del plan a partir de ahora.
+</ParamField>
+
+<ParamField body="checksum_sha256" type="string">
+  SHA-256 en hexadecimal de todo el archivo. Se comprueba al completar la subida. Solo es válido para una subida directa enviada en una sola parte; una subida multiparte lo rechaza con `VALIDATION_ERROR`.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Hasta 5 claves, cada una `[a-z0-9-]{1,64}`, 512 bytes en total. Enterprise-12 o superior.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La llamada actúa sobre el blob del propietario del workspace y necesita el permiso de workspace `blob:read` (`blob:manage` en las rutas que modifican datos). Omítelo para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/uploads" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"path":"videos/demo.mp4","size":2147483648,"visibility":"private"}'
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La subida, con las URL a las que enviar los bytes.
+  <Expandable title="propiedades">
+  <ResponseField name="id" type="string">ID de la subida. Úsalo para consultar el estado, las partes, completar o cancelar.</ResponseField>
+  <ResponseField name="path" type="string">Ruta final, incluido el sufijo aleatorio si se pidió.</ResponseField>
+  <ResponseField name="mode" type="string">`single` (un `PUT` de todo el archivo a `url`) o `multipart` (varias partes, cada una con su propia URL).</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `completed`, `aborted` o `expired`.</ResponseField>
+  <ResponseField name="size" type="number">Tamaño declarado en bytes. Los bytes almacenados deben coincidir con él al completar.</ResponseField>
+  <ResponseField name="expires_at" type="string">Momento en que caducan las URL y el almacenamiento reservado, como marca de tiempo ISO 8601.</ResponseField>
+  <ResponseField name="url" type="string">Solo en modo `single`: la URL a la que hacer `PUT` de todo el archivo.</ResponseField>
+  <ResponseField name="headers" type="object">Cabeceras que el `PUT` debe enviar exactamente como se indican, porque forman parte de la firma.</ResponseField>
+  <ResponseField name="part_size" type="number">Solo en modo `multipart`: el tamaño fijo de cada parte en bytes. La última parte puede ser más pequeña.</ResponseField>
+  <ResponseField name="part_count" type="number">Solo en modo `multipart`: cuántas partes tiene el archivo.</ResponseField>
+  <ResponseField name="uploaded_parts" type="number[]">Números de parte ya almacenados. Úsalos para reanudar una subida interrumpida.</ResponseField>
+  <ResponseField name="created_at" type="string">Fecha de creación en ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f",
+    "path": "videos/demo.mp4",
+    "mode": "multipart",
+    "status": "pending",
+    "size": 2147483648,
+    "expires_at": "2026-10-14T13:00:00.000Z",
+    "headers": {
+      "content-type": "video/mp4"
+    },
+    "part_size": 67108864,
+    "part_count": 32,
+    "uploaded_parts": [],
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe ningún workspace con ese ID o no eres miembro.
+  - `BLOB_UPLOAD_TOKEN_INVALID` (`401`): El token de subida no existe, ha caducado o fue revocado (solo con un token de subida).
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): El almacenamiento blob de la cuenta está suspendido o su plan ha caducado. Las subidas y demás escrituras se rechazan desde el inicio del periodo de gracia de 72 horas.
+  - `VALIDATION_ERROR` (`400`): Un parámetro o campo del cuerpo no superó la validación. `details.path` indica el campo.
+  - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Solo con un token de subida: la ruta, la carpeta u otra opción que fija el token no coincide con la petición.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): No está incluido en el plan `metadata` (por debajo de Enterprise-12) ni `cache_control: no-cache` (por debajo de Enterprise-26).
+  - `BLOB_UPLOAD_LIMIT` (`409`): La cuenta ya tiene tantas subidas en curso como permite su plan (`max_open_uploads`).
+  - `BLOB_OBJECT_ALREADY_EXISTS` (`409`): `path` está ocupada y `overwrite` no es `true`.
+  - `BLOB_FILE_TOO_LARGE` (`413`): `size` supera los 10 GB, el `max_size` de la regla de la carpeta o el `max_size` del token.
+  - `STORAGE_QUOTA_EXCEEDED` (`403`): El tamaño reservado más lo ya usado superaría la cuota de blob del plan.
+  - `BLOCKED_FILE_TYPE` (`422`): La extensión está bloqueada o no está permitida por la regla de la carpeta o por el token.
+  - `BLOB_UPLOAD_TOKEN_EXHAUSTED` (`401`): Solo con un token de subida: ha agotado todos sus usos.
+  - `RATE_LIMIT_EXCEEDED` (`429`): Por debajo de Enterprise-12, las subidas están limitadas a 1 por segundo. `details.retry_after` indica la espera.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_UPLOAD_LIMIT"
+}
+```
+
+```json Error Response (413)
+{
+  "code": "BLOB_FILE_TOO_LARGE"
+}
+```
+
+```json Error Response (422)
+{
+  "code": "BLOCKED_FILE_TYPE"
+}
+```
+
+```json Error Response (429)
+{
+  "code": "RATE_LIMIT_EXCEEDED"
+}
+```
+
+</ResponseExample>

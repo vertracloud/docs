@@ -1,0 +1,190 @@
+---
+title: 'Como rodar o n8n na Vertra Cloud: do zero ao primeiro fluxo'
+sidebarTitle: 'n8n'
+description: 'Guia do n8n na Vertra Cloud: escolha o modo, crie o dono, webhooks, código Python e JavaScript, SMTP, backups e atualizações.'
+icon: 'diagram-project'
+---
+
+O n8n é uma ferramenta visual de automação de fluxos de trabalho: você conecta apps e serviços com nós, inicia um fluxo por agendamento ou webhook, e o n8n o executa. Este guia leva você do assistente até um fluxo funcionando e cobre o que é específico de rodar o n8n na Vertra Cloud. O [template do n8n](/pt-br/templates/catalog/n8n) empacota o n8n 2.44.7 com o **nó Code em JavaScript e em Python** no mesmo container, um worker opcional para cargas pesadas e nós da comunidade.
+
+<Note>
+  O n8n é distribuído sob a Sustainable Use License: uso interno de negócios ou pessoal. Leia a [licença](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) antes de oferecer o n8n a terceiros. Este template é um empacotamento da Vertra Cloud e não é afiliado ao n8n.
+</Note>
+
+## Requisitos e plano
+
+| | |
+|---|---|
+| Origem | Imagem Docker (usa uma [vaga de imagem](/pt-br/templates/overview#vagas-de-imagem)). |
+| Memória | **1 GB** com SQLite, **2 GB** com Postgres gerenciado, **3,5 GB** com workers. Precisa caber na sua memória livre. |
+| Plano | Um plano que inclua imagens Docker. O card da galeria mostra se o template cabe na sua conta e, quando não cabe, o motivo. Veja [Planos e limites](/pt-br/plans-and-limits) e [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images). |
+| Web | O app é publicado em um endereço da Vertra Cloud (editor e webhooks). |
+
+O primeiro boot leva de 25 a 60 segundos, porque o n8n cria o próprio banco de dados.
+
+## Escolha como o n8n roda
+
+O assistente pergunta **How will n8n run?** A escolha define o que é criado e quanta memória é usada.
+
+| Modo | O que é criado | Memória | Use quando |
+|---|---|---|---|
+| **Managed Postgres** (padrão) | O n8n e um banco de dados Postgres gerenciado. | 2 GB | Quase sempre: fluxos de produção, muitas execuções, histórico que você quer manter. |
+| **Built-in SQLite** | Só o n8n; o banco de dados é um arquivo no disco do app. | 1 GB | Você está testando, ou roda poucos fluxos leves sozinho. |
+| **Scale with workers** | O n8n, um worker, Postgres e Redis. O editor entrega cada execução ao worker por uma fila. | 3,5 GB | Fluxos pesados ou muitos ao mesmo tempo, e você quer manter o editor leve. |
+
+O Postgres é o padrão seguro: lida melhor com concorrência que o SQLite e mantém o histórico fora do disco do app.
+
+No modo com workers aparece uma segunda pergunta, **Parallel executions on the worker** (5 por padrão). Mais paralelismo exige mais memória no worker.
+
+## Crie o n8n
+
+<Steps>
+  <Step title="Abra o template">
+    No dashboard, abra **Templates**, escolha **n8n** e clique em **Use template**. Na CLI: `vertra template deploy n8n --name my-n8n --set mode=postgres`.
+  </Step>
+  <Step title="Responda ao assistente">
+    Escolha o modo, o **time zone for schedules** (America/Sao_Paulo, UTC, America/New_York ou Europe/Lisbon) e os **modules allowed in the Code node**. **Safe** (padrão) permite apenas módulos de dados e texto; **All** permite também arquivos, processos e rede dentro do seu próprio container.
+
+    Opcionalmente, ative já o e-mail (SMTP): veja [E-mail para convites](#e-mail-para-convites-e-redefinição-de-senha).
+  </Step>
+  <Step title="Dê um nome e crie">
+    Dê um nome ao app, escolha o workspace e a pasta e clique em **Create**. Quando terminar, você recebe o **endereço** do app e o próximo passo. O n8n gera os próprios segredos; você não digita nenhum.
+  </Step>
+</Steps>
+
+## Primeiro acesso: crie o dono
+
+<Warning>
+  Abra o endereço **logo depois do deploy** e crie a conta de dono. O n8n pede e-mail, nome e senha na primeira visita, e quem abrir o endereço primeiro vira o dono.
+</Warning>
+
+A partir daí, cada pessoa que precisar de acesso é convidada em **Settings > Users**.
+
+## Seu primeiro fluxo com um webhook
+
+<Steps>
+  <Step title="Crie o fluxo">
+    Clique em **Create workflow** e adicione um nó **Webhook**. Defina o método (por exemplo `POST`) e um caminho.
+  </Step>
+  <Step title="Adicione um nó Code">
+    Adicione um nó **Code** depois do webhook e escolha a linguagem (próxima seção).
+  </Step>
+  <Step title="Teste e depois ative">
+    A **Test URL** funciona enquanto você escuta um evento de teste no editor. Para receber chamadas reais, **ative** o fluxo: a **Production URL** só responde enquanto o fluxo está ativo.
+  </Step>
+</Steps>
+
+### URLs de webhook
+
+O n8n monta os endereços de webhook a partir do endereço público do app: a URL de produção é `<address>/webhook/<path>` e a de teste, `<address>/webhook-test/<path>`. Copie sempre a URL do nó Webhook em vez de digitá-la. Se o nó mostrar um endereço que você não reconhece, abra as variáveis do app e confira se `N8N_WEBHOOK_URL` é o endereço mostrado nas saídas.
+
+Os webhooks são atendidos pelo editor, em todos os modos. As chamadas vindas da internet chegam ao n8n por HTTPS; o corpo da requisição pode ter até 16 MiB.
+
+## Código em JavaScript e Python
+
+O nó **Code** roda em qualquer das duas linguagens, no mesmo container, sem serviço extra.
+
+<CodeGroup>
+
+```python Python (Native)
+import json
+return [{"json": {"ok": True, "n": len(_items)}}]
+```
+
+```javascript JavaScript
+return [{ json: { ok: true } }];
+```
+
+</CodeGroup>
+
+Escolha **Python (Native)** ou **JavaScript** no seletor de linguagem do nó. A primeira chamada depois de um período parado leva alguns segundos, porque o executor de código inicia sob demanda e encerra após 15 segundos ocioso; as chamadas seguintes levam menos de um segundo.
+
+### O que você pode importar
+
+Com módulos **Safe** (o padrão), só módulos de dados e texto são permitidos:
+
+- **Python:** `json`, `re`, `datetime`, `math`, `random`, `statistics`, `collections`, `itertools`, `functools`, `string`, `time`, `uuid`, `base64`, `hashlib`, `hmac`, `decimal`, `fractions`, `textwrap`, `csv`, `io`, `copy`, `typing`, `html`, `zoneinfo`, `calendar`, `operator`, `bisect`, `heapq`, `secrets`.
+- **JavaScript:** `crypto`, `url`, `path`, `util`, `zlib`, `buffer`, `querystring`, `string_decoder`, `events`, `stream`, `assert` e `moment`.
+
+Importar qualquer outro falha com `Import of standard library module ... is disallowed`. Para permitir tudo, mude `VERTRA_CODE_MODULES` para `all` nas variáveis do app e reinicie. **All** também deixa o código tocar arquivos, processos e a rede do seu próprio container, então escolha-o apenas quando confiar em todos os fluxos que rodam ali.
+
+## Nós da comunidade
+
+Abra **Settings > Community nodes > Install** e informe o nome do pacote npm. Os nós instalados ficam em `/app/.n8n/nodes` e sobrevivem a reinícios e atualizações; no modo com workers, o worker os reinstala quando inicia. A instalação exige que o app alcance o registry do npm.
+
+<Warning>
+  Um nó da comunidade roda **dentro** do processo do n8n, com acesso a tudo o que o n8n alcança, inclusive suas credenciais. Instale apenas pacotes em que você confia.
+</Warning>
+
+## E-mail para convites e redefinição de senha
+
+Sem SMTP, o n8n não consegue enviar convites nem e-mails de redefinição. No assistente, responda **Yes, use my SMTP server** e preencha:
+
+| Campo | O que informar |
+|---|---|
+| Servidor SMTP | O host do seu provedor de e-mail. |
+| Segurança da conexão | **STARTTLS** (porta 587, padrão), **SSL/TLS direto** (porta 465) ou nenhuma (não recomendado). |
+| Porta, usuário e senha | Do seu provedor. Use uma senha de app quando o provedor oferecer. |
+| E-mail do remetente | O endereço de onde os convites saem. |
+
+Com o SMTP configurado, **Settings > Users > Invite** envia o convite por e-mail. O nó **Send Email** não usa essa configuração: ele tem a própria credencial em cada fluxo.
+
+## Credenciais e a chave de criptografia
+
+O n8n guarda as credenciais dos seus fluxos (chaves de API, tokens OAuth) criptografadas com uma chave. O template a gera uma vez e a mantém nas variáveis do app como `N8N_ENCRYPTION_KEY`; o editor e o worker usam a mesma.
+
+<Warning>
+  Guarde uma cópia de `N8N_ENCRYPTION_KEY` em um lugar seguro. Sem ela, as credenciais de um backup não podem ser lidas. Nunca a altere em um app em execução: uma chave diferente faz o n8n recusar o boot.
+</Warning>
+
+## Backups, atualizações e rollback
+
+- **Backups.** Os dados ficam no banco de dados Postgres (ou em `/app/.n8n` com SQLite) e nos arquivos em `/app/.n8n`. Use [snapshots](/pt-br/guides/backups-snapshots) do app e do banco de dados. Para uma cópia portátil dos seus fluxos, exporte-os também pelo n8n.
+- **Atualizações.** As novas versões do n8n chegam como novas versões do template. Você vê **New version available** e clica em **Update**; antes, é feito um [snapshot de segurança](/pt-br/templates/use/updates-and-rollback).
+- **Rollback.** O n8n migra o próprio banco de dados ao atualizar, então voltar sempre devolve **os dados também**: restaure o snapshot de segurança feito antes da atualização. O rollback só do código é bloqueado por esse motivo.
+- O histórico de execuções é apagado após 7 dias ou 5.000 execuções, o que vier primeiro.
+
+## Limites que você precisa conhecer
+
+- O modo com workers cria **um worker**. O worker não tem endereço público e fala apenas com o Postgres e o Redis.
+- Não há processadores de webhook dedicados: o editor atende os webhooks.
+- O **deploy sem downtime está desligado** e não pode ser ligado: duas cópias do n8n em modo fila agiriam ambas como líder e os gatilhos por polling rodariam duas vezes. Mantenha uma única cópia do app.
+- O uso de memória do editor é de cerca de 300 a 540 MiB; o do worker, de 330 a 560 MiB.
+- Os nós **Execute Command** e **Local File Trigger** vêm desativados pelo n8n. O `ffmpeg` não está na imagem.
+
+## Problemas comuns
+
+<AccordionGroup>
+  <Accordion title="Import of standard library module ... is disallowed">
+    O módulo não está na lista segura. Mude `VERTRA_CODE_MODULES` para `all` e reinicie, ou evite esse módulo.
+  </Accordion>
+  <Accordion title="A primeira chamada do Code é lenta">
+    Normal: o executor inicia sob demanda e para após 15 segundos ocioso. As chamadas seguintes são rápidas.
+  </Accordion>
+  <Accordion title="O app nunca termina de iniciar">
+    Confira se `N8N_ENCRYPTION_KEY` nas variáveis do app é a chave que o n8n guardou na primeira vez. Uma chave diferente interrompe o boot.
+  </Accordion>
+  <Accordion title="Um nó da comunidade não instala">
+    O app não tem acesso de saída ao registry do npm, ou não sobrou espaço em `/app`. Verifique o log do app e o disco.
+  </Accordion>
+  <Accordion title="Outra pessoa criou a conta de dono">
+    Outra pessoa abriu o endereço antes de você. Apague o app, crie-o de novo e abra o endereço assim que o deploy terminar.
+  </Accordion>
+</AccordionGroup>
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="n8n no catálogo" icon="store" href="/pt-br/templates/catalog/n8n">
+    O que o template cria e suas variáveis.
+  </Card>
+  <Card title="Atualizar e fazer rollback" icon="rotate-left" href="/pt-br/templates/use/updates-and-rollback">
+    O snapshot de segurança e o rollback com dados.
+  </Card>
+  <Card title="Página pública" icon="up-right-from-square" href="https://vertracloud.app/templates/n8n">
+    O template na galeria pública.
+  </Card>
+  <Card title="Stacks" icon="layer-group" href="/pt-br/templates/use/stacks">
+    Como o app, o Postgres e o Redis convivem.
+  </Card>
+</CardGroup>

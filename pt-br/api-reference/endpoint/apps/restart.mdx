@@ -1,0 +1,78 @@
+---
+title: Reiniciar aplicação
+sidebarTitle: Reiniciar aplicação
+api: POST https://api.vertracloud.app/v1/apps/{id}/restart
+authMethod: bearer
+description: Reinicia uma aplicação pelo seu ID.
+---
+
+{/* @see RESTPostAPIApplicationStartResponse — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID da aplicação a reiniciar. Se a aplicação pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma aplicação que não lhes pertence.
+</ParamField>
+
+Quando a linguagem da aplicação foi alterada, as dependências da linguagem anterior são removidas automaticamente no restart.
+
+<ParamField body="reinstall_dependencies" type="boolean">
+  Opcional. Reinstala as dependências da aplicação do zero, ignorando o cache de instalação — equivalente a "Reinstalar Dependências" no gerenciador de arquivos do painel. Use quando uma pasta de dependências estiver corrompida ou quando um pacote foi instalado manualmente e precisa sair. Conta no limite horário de deploy do seu plano.
+</ParamField>
+
+<ParamField body="force_build" type="boolean">
+  Opcional. Roda o comando de build da aplicação de novo, mesmo que nenhum arquivo de código tenha mudado desde o último build — equivalente a "Forçar build" no painel. Só faz sentido quando a aplicação tem um comando de build. Conta no limite horário de deploy do seu plano.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A resposta com o status da operação.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="status" type="string">
+    O status da operação (`success`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "status": "success"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `APP_NOT_FOUND`: a aplicação informada não existe.
+  - `ACCESS_DENIED`: o usuário não tem permissão para agir sobre a aplicação.
+  - `DEPLOY_RATE_LIMITED`: `reinstall_dependencies` ou `force_build` foi enviado e o limite horário de deploy do plano se esgotou (`429`); `details` traz `limit`, `window_seconds` e `retry_after`.
+  - `PLAN_REQUIRED`: a conta dona da aplicação não tem um plano ativo (`403`). Assine um plano para continuar.
+  - `APP_SHIELD_COOLDOWN`: a Vertra Shield pausou a aplicação; esta ação fica bloqueada até a pausa terminar (`403`). `details.until` informa quando.
+  - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida na mesma aplicação já está em execução (`409`). O container não foi tocado — aguarde alguns segundos e tente de novo. Veja [Códigos de erro comuns](/pt-br/api-reference/introduction#quais-códigos-de-erro-a-api-pode-retornar).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta rota compartilha com `start` e `stop` um orçamento de 10 requisições por minuto por aplicação. Com `reinstall_dependencies` ou `force_build`, ela também consome um slot do limite horário de deploy do seu plano. Veja [Limite de requisições](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa).
+</Note>

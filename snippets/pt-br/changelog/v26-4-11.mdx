@@ -1,0 +1,42 @@
+### Templates: software pronto no ar com um clique
+
+Escolha um template, responda a algumas perguntas e a Vertra Cloud cria tudo o que ele precisa, em uma única operação: a aplicação, os bancos de dados e as variáveis que ligam um ao outro. Se qualquer etapa falhar, tudo o que o deploy criou é removido, então você nunca fica com uma configuração pela metade.
+
+- **Catálogo:** n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI, Uptime Kuma e bots de Discord iniciais em JavaScript e Python. Navegue pelo painel, com busca, categorias e o filtro "cabe no meu plano", ou com `vertra template list`.
+- **Segredos gerados:** chaves de criptografia e tokens são gerados para você. Um segredo que uma saída precisa é mostrado uma única vez, no fim do deploy.
+- **O plano exigido é calculado** a partir do que o template precisa (memória, publicação web, imagens Docker). O assistente diz o que falta e por quê.
+- **Vagas de imagem Docker:** um template de imagem ocupa uma vaga por imagem distinta em uso, não uma por app. Três apps do mesmo template usam uma vaga. Templates de código não usam nenhuma. `POST /v1/apps/image` recusa imagens que pertencem a um template, com `IMAGE_TEMPLATE_ONLY`.
+- **Atualizações nunca são automáticas.** Uma versão nova mostra "Nova versão disponível"; atualizar tira um snapshot de segurança antes e volta atrás se falhar.
+- **Em todo lugar:** painel, `vertra template` e `vertra stack` na CLI, o servidor MCP e os SDKs de JavaScript, Python e Go. Novos escopos de chave de API: `templates:read`, `templates:write`, `templates:deploy`, `stacks:read`, `stacks:write` e `stacks:delete`. Veja o [guia de Templates](/pt-br/templates/overview) e a [referência da API](/pt-br/api-reference/endpoint/templates/list).
+
+### Stacks
+
+Um template com mais de um serviço cria uma **stack**: aplicações, bancos de dados e pastas do Blob que pertencem ao mesmo conjunto. Você também pode montar uma à mão: adicione um banco a uma aplicação, ou transforme os apps e bancos de uma pasta em uma stack.
+
+- As variáveis de conexão e os certificados de cliente são injetados no app e mantidos atualizados quando a senha ou o certificado de um banco muda. As variáveis gerenciadas por uma stack aparecem marcadas no painel.
+- Os apps de uma stack alcançam os bancos pelo endereço público, com certificados de cliente que a plataforma cuida.
+- Um painel **Conectar** mostra o código de conexão na linguagem do seu app, com os nomes reais das variáveis.
+- Faça snapshot e rollback da stack inteira de uma vez e atualize-a para uma versão mais nova do template.
+- Excluir uma stack pergunta se você quer só desfazê-la (os recursos ficam soltos) ou excluir tudo.
+- **Blob nas stacks:** uma stack pode ter uma pasta própria no Blob com uma chave restrita. Desfazer a stack mantém os arquivos.
+
+### Seus templates e links de compartilhamento
+
+- **Salve como template** a partir de um app ou de uma stack, de um repositório do GitHub, ou escreva o manifesto (`vertracloud.template.yaml`) no editor. Segredos nunca entram: cada variável vira uma pergunta, e você revisa o que é copiado.
+- Disponível nos planos que podem criar imagens Docker, até 5 templates privados por conta. Em um workspace, só o dono cria e gerencia templates.
+- **Links de compartilhamento** deixam outra conta usar o seu template (link de uso) ou levar uma cópia completa (link de cópia). Os dois mostram uma prévia com o autor e o que será criado, e levam o selo "Não verificado pela Vertra". Você pode revogar um link a qualquer momento; o que já foi criado continua rodando. Use **Denunciar** em uma prévia ou em um app criado para sinalizar abuso.
+- **Templates fechados** escondem o código de quem os usa: sem gerenciador de arquivos, downloads ou terminal, em todas as rotas. Bancos de dados nunca são fechados.
+- `vertra template validate` confere um manifesto localmente contra o [JSON Schema](/pt-br/templates/reference/manifest-schema) público.
+
+### Blob: chaves restritas a uma pasta
+
+Uma chave de API com escopos `blob:*` agora pode ser limitada a uma pasta com `blob_prefix`. As credenciais S3 derivadas da chave herdam o limite. Operações fora da pasta, e as de nível de conta como regras, domínios e estatísticas, falham com `BLOB_PREFIX_DENIED`. Veja [Autenticação do Blob](/pt-br/blob/authentication).
+
+### Bancos de dados
+
+- A seção [Como me conecto a cada motor?](/pt-br/databases#como-me-conecto-a-cada-motor) agora cobre o Prisma com certificados de cliente e o Python 3.13.
+- Redefinir o certificado de um banco regrava os arquivos dos apps conectados por uma stack. Reinicie esses apps para que passem a usá-los.
+
+### Pastas
+
+As pastas do painel têm anotações e uma posição no canvas do Flow, e os grupos do Flow viraram pastas.

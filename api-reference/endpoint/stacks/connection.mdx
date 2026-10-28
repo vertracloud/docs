@@ -1,0 +1,50 @@
+---
+title: Get Stack Connection Code
+sidebarTitle: Connection Code
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/connection
+authMethod: bearer
+description: Returns ready-to-use code that connects an application of a stack to its databases and Blob folders, with the real variable names.
+---
+
+{/* @see RESTGetAPIStackConnectionQuery, RESTGetAPIStackConnectionResponse, APIStackConnectionInfo — @vertracloud/api-types */}
+Returns code snippets in the language of the application, using the variable names the platform injected. Needs the `stacks:read` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField query="app_id" type="string" required>
+  The application of the stack to connect.
+</ParamField>
+
+<ParamField query="language" type="string">
+  The language of the code. Default: the language of the application.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to. Required for a workspace member acting on a stack they do not own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="app_id" type="string">The application ID.</ResponseField>
+  <ResponseField name="language" type="string">The language of the application.</ResponseField>
+
+  <ResponseField name="snippets" type="object[]">
+    One item per connection. Each has `language`, `driver` (the client library the code uses), `database_type` (`null` for a Blob folder), `blob` (`true` for an S3-compatible Blob client), `title`, `code` and `env_vars` (the names of the variables the code reads).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+For more on connecting, see [Connect a database](/guides/connect-database).
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | The application is not a member of the stack. |

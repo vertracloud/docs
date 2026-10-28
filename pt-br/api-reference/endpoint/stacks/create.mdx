@@ -1,0 +1,100 @@
+---
+title: Criar stack
+sidebarTitle: Criar stack
+api: POST https://api.vertracloud.app/v1/stacks
+authMethod: bearer
+description: Cria uma stack com apps e bancos de dados que você já tem e, opcionalmente, conecta um ao outro.
+---
+
+{/* @see RESTPostAPIStackBody, RESTPostAPIStackResponse, APIStackChange — @vertracloud/api-types */}
+Agrupa apps e bancos de dados que já existem em uma única stack. Todos os membros precisam pertencer à mesma conta ou workspace, e nenhum pode estar em outra stack. Para criar uma stack a partir de uma pasta em um único passo, veja [Transformar pasta em stack](/pt-br/api-reference/endpoint/stacks/transform). Precisa do escopo `stacks:write` quando chamado com uma chave de API. Só o dono de um workspace pode criar stacks nele.
+
+<ParamField body="name" type="string" required>
+  O nome da stack.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  Descrição opcional.
+</ParamField>
+
+<ParamField body="network_mode" type="string" default="public">
+  Só `public` é aceito. Qualquer outro valor falha com `STACK_NETWORK_MODE_UNAVAILABLE`.
+</ParamField>
+
+<ParamField body="members" type="object[]">
+  Os recursos a colocar na stack. Cada item tem `resource_type` (`application` ou `database`) e `resource_id`. Uma pasta do Blob é adicionada depois, com [Adicionar pasta do Blob](/pt-br/api-reference/endpoint/stacks/blob/create).
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Conexões a criar entre os membros. Cada item tem `app_id` (o app que recebe as variáveis), exatamente um entre `database_id` ou `target_app_id`, e um `env_map` opcional (nome da variável para o que ela recebe; veja [Criar conexão](/pt-br/api-reference/endpoint/stacks/bindings/create)). Sem `env_map`, usam-se os nomes padrão do engine.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O workspace que será dono da stack.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A stack criada (`201`), com os mesmos campos de [Obter stack](/pt-br/api-reference/endpoint/stacks/get), mais:
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="restart_required" type="boolean">
+    `true` quando pelo menos um app precisa reiniciar para ler as variáveis ou os certificados que as novas conexões criaram. Um app lê esses dados só quando inicia, então a plataforma não o reinicia por você.
+  </ResponseField>
+
+  <ResponseField name="apps_to_restart" type="string[]">
+    Os apps que precisam reiniciar. Vazio quando `restart_required` é `false`. Reinicie-os com [Reiniciar app](/pt-br/api-reference/endpoint/apps/restart).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+Os mesmos dois campos voltam em toda alteração que possa mudar variáveis ou certificados de um app: transformar, adicionar ou remover um membro, criar ou alterar uma conexão, adicionar um banco de dados ou uma pasta do Blob.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "stk-abc123def456",
+    "name": "shop",
+    "network_mode": "public",
+    "members": [],
+    "bindings": [],
+    "restart_required": true,
+    "apps_to_restart": ["app-abc123def456"]
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/stacks \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "shop",
+    "members": [
+      { "resource_type": "application", "resource_id": "app-abc123def456" },
+      { "resource_type": "database", "resource_id": "db-abc123def456" }
+    ],
+    "bindings": [{ "app_id": "app-abc123def456", "database_id": "db-abc123def456" }]
+  }'
+```
+
+</RequestExample>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | `network_mode` é `private`. |
+| 409 | `STACK_MEMBER_CONFLICT` | Um recurso já está em outra stack, ou não está na mesma conta ou workspace que a stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
+| 404 | `APP_NOT_FOUND` | Um app não existe ou não é seu. |
+| 404 | `DATABASE_NOT_FOUND` | Um banco de dados não existe ou não é seu. |

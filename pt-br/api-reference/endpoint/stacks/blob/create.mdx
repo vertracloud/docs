@@ -1,0 +1,58 @@
+---
+title: Adicionar pasta do Blob à stack
+sidebarTitle: Adicionar pasta do Blob
+api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/blob
+authMethod: bearer
+description: Adiciona uma pasta do seu Blob Storage a uma stack, com uma chave gerenciada restrita a ela e variáveis injetadas nas suas aplicações.
+---
+
+{/* @see RESTPostAPIStackBlobBody, RESTPostAPIStackBlobResponse, APIStackBlobAdded — @vertracloud/api-types */}
+Adiciona uma pasta do seu [Blob Storage](/pt-br/blob/overview) à stack. A plataforma cria uma chave de API **restrita a essa pasta**, mantém essa chave na stack e injeta as variáveis de conexão S3 nos apps que você escolher. A chave é gerenciada pela plataforma: ela nunca mostra o segredo, e é revogada quando a pasta do Blob sai da stack ou quando a stack é desfeita ou apagada. Os arquivos são mantidos, a menos que você peça para apagá-los (veja [Remover membro da stack](/pt-br/api-reference/endpoint/stacks/members/remove) e [Excluir stack](/pt-br/api-reference/endpoint/stacks/delete)).
+
+O plano precisa incluir o Blob Storage. Precisa dos escopos `stacks:write` e `blob:write` quando chamado com uma chave de API.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence, quando você age sobre ela como dono do workspace.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  A pasta do Blob, terminando em `/`. Sem ela, a plataforma escolhe uma pasta com o nome da stack, dentro de `stacks/`. Não pode ser escolhida uma pasta com arquivos seus, nem uma que já esteja em uso por uma stack.
+</ParamField>
+
+<ParamField body="visibility" type="string" default="private">
+  `private` ou `public`.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Os apps aos quais conectar a pasta. Cada item tem `app_id` e um `env_map` opcional (veja [Criar conexão da stack](/pt-br/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  `201`.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="stack" type="object">A stack, como em [Obter stack](/pt-br/api-reference/endpoint/stacks/get).</ResponseField>
+  <ResponseField name="blob" type="object">O novo membro, com `blob.prefix`, `blob.visibility`, `blob.used_bytes` e `blob.api_key_id`.</ResponseField>
+  <ResponseField name="restart_required" type="boolean">`true` quando um app precisa reiniciar para ler as novas variáveis.</ResponseField>
+  <ResponseField name="apps_to_restart" type="string[]">Os apps que precisam reiniciar.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 409 | `STACK_BLOB_PREFIX_TAKEN` | A pasta já é usada por uma pasta do Blob de uma stack, ou tem arquivos. |
+| 400 | `VALIDATION_ERROR` | O prefixo não é válido. |
+| 403 | `BLOB_NAMESPACE_SUSPENDED` | O Blob Storage está suspenso para a conta. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | O plano não inclui o Blob Storage. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |

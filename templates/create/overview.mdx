@@ -1,0 +1,65 @@
+---
+title: 'Create a Vertra Cloud Template: Code or Image, Public or Private'
+sidebarTitle: 'Overview'
+description: 'What a template is made of, when to ship code or a Docker image, and how public, private and shared templates differ for the people who author them.'
+icon: 'wand-magic-sparkles'
+---
+
+A template is a manifest file, `vertracloud.template.yaml`, plus the sources it points to. Vertra Cloud reads the manifest and creates the apps and databases it describes, asks the person who uses it only the questions you declared, and undoes everything if any step fails. You write the template once; everyone who uses it gets the same result in one click.
+
+## What a template contains
+
+| Part | What it is |
+|---|---|
+| **Manifest** | `vertracloud.template.yaml`: identity, questions, services, variables, permissions, deploy behavior and outputs. See the [manifest reference](/templates/create/manifest-reference). |
+| **Sources** | The code of each `code` service, or the image of each `image` service. |
+| **Docs** | A `README.md` (and an optional `docs/` folder) shown next to the template. |
+| **Icon** | An SVG or PNG file referenced by `icon`. |
+
+A template with **one app and no database** creates just the app. A template with **two or more services** (apps, databases, Blob folders) creates a [stack](/templates/create/stacks): one resource that groups them and keeps them connected.
+
+## Code or image
+
+Every app service picks one source type. The choice decides the plan the user needs and whether they spend an image slot.
+
+| | `code` | `image` |
+|---|---|---|
+| How it runs | The code is extracted into the app's `/app` and runs on one of the language runtimes (`language`, `main`, `build`, `start`). | A Docker image runs with the same sandbox as any other app. |
+| Best for | Starter projects, bots and APIs the user will read and edit. | Ready-made software (n8n, a database admin tool) or anything the runtimes do not cover. |
+| Image slot | Does not use one. | Uses **1 slot per distinct image** the user runs, never per app. |
+| Plan | Only what the services need (RAM, web publishing). | A plan that includes [custom Docker images](/guides/custom-docker-images), with a free slot. |
+| Editable by the user | Yes by default (`code.edit`). | No by default. |
+
+Three apps created from the same image template use one slot, and a newer version of the same template reuses it. A template of code never uses a slot. Limits per plan are in [Plans and limits](/plans-and-limits).
+
+In both cases, **`/app` is the only persistent disk** and the rest of the file system is read-only. Read [Best practices](/templates/create/best-practices) before you write the first manifest.
+
+## Public, private or shared
+
+| | Public (catalog) | Private | Shared by link |
+|---|---|---|---|
+| Who owns it | Vertra Cloud | Your account or your workspace | The author; the receiver gets a copy of what they use |
+| How it is published | A reviewed pull request to the public templates repository | You create it in the dashboard, from GitHub, or with the CLI | You create a share link for a private template |
+| Who can use it | Any account that meets the requirements | You; in a workspace, only the owner uses and manages it, and members see it | Any account that has the link |
+| Badge | **Vertra** or **Community** | **Private** or **From the workspace** | **Not verified by Vertra** |
+| Code | Always open | Open or [closed](/templates/create/permissions#closed-templates) | Open or closed, as you set it |
+| Plan to create | Not applicable | A plan that can create custom images | Same as private |
+
+You cannot publish to the public catalog from the dashboard. A community template goes through a pull request, a review and a test run; see [Contribute to the public catalog](/templates/create/contribute).
+
+## Pick your path
+
+<CardGroup cols={2}>
+  <Card title="Write the manifest" icon="file-code" href="/templates/create/manifest-reference">
+    Every field, with an example of each.
+  </Card>
+  <Card title="Questions and placeholders" icon="sliders" href="/templates/create/placeholders-and-inputs">
+    Ask the user for values and wire services together.
+  </Card>
+  <Card title="Private templates" icon="lock" href="/templates/create/private-templates">
+    Save an app as a template, link a GitHub repository, or use the editor.
+  </Card>
+  <Card title="Validate and test" icon="circle-check" href="/templates/create/validate-and-test">
+    Check the manifest from the CLI and try it as a private template.
+  </Card>
+</CardGroup>

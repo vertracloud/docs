@@ -1,0 +1,64 @@
+---
+title: Eliminar una plantilla privada
+sidebarTitle: Eliminar plantilla
+api: DELETE https://api.vertracloud.app/v1/templates/{template_id}
+authMethod: bearer
+description: Elimina una plantilla privada y revoca todos sus enlaces para compartir, mientras lo que ya se creó a partir de ella sigue funcionando.
+---
+
+{/* @see RESTDeleteAPITemplateResponse — @vertracloud/api-types */}
+Esta llamada elimina una plantilla privada. Sus enlaces para compartir dejan de funcionar de inmediato, su slug queda libre y deja de contar para tu límite de 5 plantillas privadas. Las aplicaciones y los stacks que ya se crearon a partir de ella siguen funcionando y se les avisa de que la plantilla se eliminó; ya no reciben más actualizaciones. Las copias que otros hicieron con un enlace de copia completa son independientes y no se ven afectadas.
+
+Necesita el ámbito `templates:write` cuando se llama con una clave de API. Solo el propietario de la plantilla puede eliminarla; en un workspace, su propietario. Una plantilla del catálogo o de otra cuenta responde `404`, como si no existiera. Una imagen que es el origen de la versión actual de una plantilla privada no puede eliminarse antes que la plantilla (`IMAGE_IN_USE`).
+
+<ParamField path="template_id" type="string" required>
+  El ID de la plantilla.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la plantilla pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.vertracloud.app/v1/templates/tpl-abc123def456 \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="null">
+  Siempre `null`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: La plantilla no existe, ya se eliminó o no es tuya (`404`).
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace elimina sus plantillas.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

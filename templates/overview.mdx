@@ -1,0 +1,84 @@
+---
+title: 'What Are Templates on Vertra Cloud and Which Plan Do You Need'
+sidebarTitle: 'Overview'
+description: 'Templates create a ready-made app or a stack of apps and databases in one step. Learn the three origins, how the required plan is computed and image slots.'
+icon: 'cubes'
+---
+
+A template is a ready-made recipe that creates an app, or a group of connected apps and databases, in one step. You pick it, answer a few questions and Vertra Cloud builds everything, wires the connections and hands you the address and the credentials. If any step fails, everything the template created is removed.
+
+Any plan can use templates, as long as the account meets the template's requirements: free memory, web publishing, and, for templates that run a Docker image, a plan with images and a free image slot. See [Plans and limits](/plans-and-limits) for what each plan includes.
+
+## What a template creates
+
+| The template has | What you get |
+|---|---|
+| One app and no database | Just the app. |
+| Two or more services (apps, databases, a Blob folder) | A [stack](/templates/use/stacks): the services created together and already connected. |
+
+Everything a template creates is an ordinary resource of your account. The app's `/app` folder is its persistent disk, and the rest of the file system is read-only, the same as any other app on the platform.
+
+## Code templates and image templates
+
+Each app in a template comes from one of two sources, and the source decides what the template costs your plan.
+
+| Source | How it runs | Plan requirement | Image slot |
+|---|---|---|---|
+| `code` | A ZIP of the template's code, extracted into `/app` and run by one of the platform's language runtimes. | Only memory and, for web apps, web publishing. | Not used. |
+| `image` | A Docker image pinned to an exact version. | A plan that includes Docker images. | One slot per distinct image. |
+
+The Discord bot templates are code templates. n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI and Uptime Kuma run an image. See the [catalog](/templates/catalog).
+
+## The three origins
+
+Every template carries a badge that says where it comes from.
+
+| Origin | Who publishes it | What to know |
+|---|---|---|
+| **Vertra** | Vertra Cloud. | Tested before each version is released. The code is open. |
+| **Community** | Authors who contributed the template to the public catalog by pull request. | Reviewed before it enters the catalog. The code is open. |
+| **Private** | You, your workspace, or someone who sent you a [share link](/templates/use/receive-a-link). | Not listed publicly. A link template shows **Not verified by Vertra**. The author may [close the code](/templates/use/closed-templates). |
+
+Public templates (Vertra and Community) never contain secrets: anything sensitive is asked of you or generated for you when you use the template. To publish your own, see [Create templates](/templates/create/overview).
+
+## How the required plan is computed
+
+The platform works out the plan a template needs from what it will create, with your answers to the wizard included, and compares it with your account. The required plan is the higher of two things:
+
+- **Computed requirements:** the sum of the minimum memory of every service must fit in your **free** memory; a service with web needs web publishing; an image service needs a plan with images and a free image slot; a Blob folder needs a plan with Blob Storage; the plan's limits of apps and databases and its hourly limit of deploys must leave room.
+- **Declared minimum plan:** an author may also require a minimum plan for commercial reasons.
+
+A template can restrict what your plan allows (for example, turning off deploys without downtime), but it never unlocks anything your plan does not include.
+
+When the account does not fit, the gallery card and the template page say why ("needs 2 GB of free memory", "needs a plan with images") and the button leads to the upgrade. The wizard shows "needs X, you have Y free" for memory. Plan numbers are on [Plans and limits](/plans-and-limits).
+
+## Image slots
+
+A template that runs an image uses **one image slot per distinct image**, never one per app.
+
+| Where the image comes from | Whose slot it uses |
+|---|---|
+| Your own image | Yours, as before. |
+| Your own private template | Yours. The image already occupies it. |
+| A public template (Vertra or Community) | Yours: one slot per image template in use. |
+| A share link | Yours: one slot for the copy of the image. The author keeps theirs. |
+| A code template | None. |
+
+Three apps created from the same template use one slot, and a new version of that template uses the same slot. The slot is released when the last app that uses the image is gone. In your images list, the slot appears as "n8n (template)" with no rebuild or edit actions. Slots count toward the same limit as [custom Docker images](/guides/custom-docker-images).
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Use a template" icon="rocket" href="/templates/use/using-a-template">
+    The gallery, the wizard, what is created and the outputs.
+  </Card>
+  <Card title="Stacks" icon="layer-group" href="/templates/use/stacks">
+    How apps, databases and Blob folders live together.
+  </Card>
+  <Card title="Update and roll back" icon="rotate-left" href="/templates/use/updates-and-rollback">
+    New versions, the safety snapshot and rollback with data.
+  </Card>
+  <Card title="Catalog" icon="store" href="/templates/catalog">
+    The official templates.
+  </Card>
+</CardGroup>

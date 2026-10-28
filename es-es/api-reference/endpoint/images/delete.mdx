@@ -1,0 +1,71 @@
+---
+title: Eliminar una imagen
+sidebarTitle: Eliminar imagen
+api: DELETE https://api.vertracloud.app/v1/images/{image_id}
+authMethod: bearer
+description: Elimina una imagen, sus versiones, su contexto y todas las aplicaciones creadas a partir de ella.
+---
+
+{/* @see RESTDeleteAPICustomImageBody, RESTDeleteAPICustomImageResult — @vertracloud/api-types */}
+<Warning>
+  Eliminar una imagen **también elimina todas las aplicaciones creadas a partir de ella**. Cada aplicación sigue las reglas habituales para eliminar una aplicación, incluido el snapshot de seguridad en los planes que lo tienen.
+</Warning>
+
+Necesita el ámbito `images:delete` cuando se llama con una clave de API; `images:write` no lo cubre. Cuando la imagen tiene aplicaciones, la clave también necesita el ámbito `apps:delete`, porque también se eliminan. Sin él, la llamada falla con `API_KEY_SCOPE_DENIED` y `details.required` con el valor `apps:delete`. No se permite eliminar mientras hay un build en curso, y sí está permitido en planes que ya no pueden crear imágenes.
+
+<ParamField path="image_id" type="string" required>
+  El ID de la imagen.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la imagen pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúan sobre una imagen que no les pertenece.
+</ParamField>
+
+<ParamField body="confirm_name" type="string" required>
+  Debe ser igual al nombre de la imagen.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="deleted_apps" type="string[]">
+    Los IDs de las aplicaciones eliminadas junto con la imagen.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "deleted_apps": ["app-abc123def456"]
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `images:delete`, o la imagen tiene aplicaciones y la clave no tiene el ámbito `apps:delete`. `details.required` indica el ámbito que falta (`403`).
+  - `IMAGE_NOT_FOUND`: La imagen no existe o no puedes acceder a ella (`404`).
+  - `IMAGE_NAME_MISMATCH`: `confirm_name` no es el nombre de la imagen (`400`).
+  - `IMAGE_BUILD_IN_PROGRESS`: Hay un build en curso; espera a que termine (`409`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_NAME_MISMATCH"
+}
+```
+
+</ResponseExample>

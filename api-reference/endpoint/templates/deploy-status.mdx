@@ -1,0 +1,232 @@
+---
+title: Get Template Deploy Job
+sidebarTitle: Get Deploy Job
+api: GET https://api.vertracloud.app/v1/template-deploys/{deploy_id}
+authMethod: bearer
+description: Returns the state of a template deploy or update job, with its steps, the resources it created, the error if it failed and the outputs of a finished job.
+---
+
+{/* @see APITemplateDeploy, RESTGetAPITemplateDeployResponse — @vertracloud/api-types */}
+Returns a deploy or update job started by [Deploy Template](/api-reference/endpoint/templates/deploy) or [Update from Template](/api-reference/endpoint/templates/update). With an API key the scope is `templates:deploy`. Only the account that started the job can read it; any other job ID is `TEMPLATE_DEPLOY_NOT_FOUND`. The response is never cached. For live progress without polling, use the [event stream](/api-reference/endpoint/templates/deploy-events).
+
+<ParamField path="deploy_id" type="string" required>
+  The ID of the job, returned when the deploy or update was accepted.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The job.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The job ID.
+  </ResponseField>
+
+  <ResponseField name="kind" type="string">
+    `deploy` when the job created resources from a template, `update` when it moved existing ones to a newer version.
+  </ResponseField>
+
+  <ResponseField name="template_id" type="string">
+    The template ID.
+  </ResponseField>
+
+  <ResponseField name="version_id" type="string">
+    The ID of the version being deployed.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    The version number being deployed.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `queued`, `running`, `undoing` (a step failed and what the job created is being removed), `succeeded` or `failed`. A job that is `failed` has already undone everything it created. `succeeded` and `failed` are final.
+  </ResponseField>
+
+  <ResponseField name="current_step" type="string | null">
+    The step running now, or `null` when the job is queued or finished.
+  </ResponseField>
+
+  <ResponseField name="steps" type="object[]">
+    The steps that apply to the job, in execution order. Each has `step`, `status`, `started_at` and `finished_at` (`null` until they happen). A step is `pending`, `running`, `done`, `skipped` (it does not apply, for example when there is no database) or `failed`. Steps: `validate`, `snapshot` (updates only: a safety snapshot before anything changes), `network`, `databases`, `blob`, `images`, `apps`, `variables`, `certificates`, `start`, `healthcheck`, `outputs` and `rollback` (updates only, when a failed update goes back to the snapshot).
+  </ResponseField>
+
+  <ResponseField name="error" type="object | null">
+    Set when `status` is `failed`.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="code" type="string">
+      An error code, such as `TEMPLATE_DEPLOY_FAILED`, `BUILD_FAILED`, `MAX_APPS_REACHED` or `TEMPLATE_PLAN_REQUIRED`.
+    </ResponseField>
+
+    <ResponseField name="message" type="string">
+      A fixed, readable sentence in English. It never carries values from your variables.
+    </ResponseField>
+
+    <ResponseField name="step" type="string | null">
+      The step that failed.
+    </ResponseField>
+
+    <ResponseField name="details" type="object">
+      Optional context. For an update that could not go back to the snapshot it holds `rollback_failed`.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="resources" type="object[]">
+    What the job created, in order. Each has `resource_type`, `resource_id`, `service_id` (the service in the manifest, `null` for the stack and images) and `name`. It is empty after a failure, since the job undoes what it created.
+  </ResponseField>
+
+  <ResponseField name="stack_id" type="string | null">
+    The stack, when the template has two or more services.
+  </ResponseField>
+
+  <ResponseField name="application_id" type="string | null">
+    The application, when the template has a single application.
+  </ResponseField>
+
+  <ResponseField name="outputs" type="object[]">
+    The outputs of a succeeded job; empty before that.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="label" type="object">
+      The label in the three languages.
+    </ResponseField>
+
+    <ResponseField name="value" type="string | object | null">
+      The value: a text, or a text per language. For an output with `once`, the value comes back **only on the first read** of the finished job and is `null` afterwards.
+    </ResponseField>
+
+    <ResponseField name="secret" type="boolean">
+      `true` when the value is a secret.
+    </ResponseField>
+
+    <ResponseField name="once" type="boolean">
+      `true` when the value is shown only once.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    When the job was accepted.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    When the job last changed.
+  </ResponseField>
+
+  <ResponseField name="finished_at" type="string | null" format="date-time">
+    When the job ended, or `null`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/template-deploys/3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63 \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response (succeeded)
+{
+  "response": {
+    "id": "3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63",
+    "kind": "deploy",
+    "template_id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "version_id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+    "version": "1.0.0",
+    "status": "succeeded",
+    "current_step": null,
+    "steps": [
+      { "step": "validate", "status": "done", "started_at": "2026-10-28T14:00:01Z", "finished_at": "2026-10-28T14:00:02Z" },
+      { "step": "apps", "status": "done", "started_at": "2026-10-28T14:00:02Z", "finished_at": "2026-10-28T14:00:20Z" },
+      { "step": "variables", "status": "done", "started_at": "2026-10-28T14:00:20Z", "finished_at": "2026-10-28T14:00:21Z" },
+      { "step": "start", "status": "done", "started_at": "2026-10-28T14:00:21Z", "finished_at": "2026-10-28T14:00:30Z" },
+      { "step": "healthcheck", "status": "done", "started_at": "2026-10-28T14:00:30Z", "finished_at": "2026-10-28T14:00:41Z" },
+      { "step": "outputs", "status": "done", "started_at": "2026-10-28T14:00:41Z", "finished_at": "2026-10-28T14:00:41Z" }
+    ],
+    "error": null,
+    "resources": [
+      { "resource_type": "application", "resource_id": "9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26", "service_id": "app", "name": "my-discord-bot" }
+    ],
+    "stack_id": null,
+    "application_id": "9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26",
+    "outputs": [
+      {
+        "label": { "pt-br": "Próximo passo", "en": "Next step" },
+        "value": { "en": "Invite the bot to your server and type /ping." },
+        "secret": false,
+        "once": false
+      }
+    ],
+    "created_at": "2026-10-28T14:00:00Z",
+    "updated_at": "2026-10-28T14:00:41Z",
+    "finished_at": "2026-10-28T14:00:41Z"
+  }
+}
+```
+
+```json Response (failed)
+{
+  "response": {
+    "id": "3f6a9c12-7e4b-4d58-a1c0-5b8e2d9f7a63",
+    "kind": "deploy",
+    "template_id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "version_id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+    "version": "1.0.0",
+    "status": "failed",
+    "current_step": null,
+    "steps": [
+      { "step": "validate", "status": "done", "started_at": "2026-10-28T14:00:01Z", "finished_at": "2026-10-28T14:00:02Z" },
+      { "step": "apps", "status": "failed", "started_at": "2026-10-28T14:00:02Z", "finished_at": "2026-10-28T14:00:50Z" },
+      { "step": "variables", "status": "pending", "started_at": null, "finished_at": null }
+    ],
+    "error": {
+      "code": "BUILD_FAILED",
+      "message": "An application of the template failed to build.",
+      "step": "apps"
+    },
+    "resources": [],
+    "stack_id": null,
+    "application_id": null,
+    "outputs": [],
+    "created_at": "2026-10-28T14:00:00Z",
+    "updated_at": "2026-10-28T14:01:05Z",
+    "finished_at": "2026-10-28T14:01:05Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `VALIDATION_ERROR`: `deploy_id` is not a valid ID (`400`).
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:deploy` scope (`403`).
+  - `TEMPLATE_DEPLOY_NOT_FOUND`: The job does not exist or belongs to another account (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Too many requests (`429`).
+  - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_DEPLOY_NOT_FOUND"
+}
+```
+
+</ResponseExample>

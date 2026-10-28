@@ -1,0 +1,98 @@
+---
+title: Vincular una plantilla privada a GitHub
+sidebarTitle: Vincular GitHub
+api: PUT https://api.vertracloud.app/v1/templates/{template_id}/github
+authMethod: bearer
+description: Vincula una plantilla privada a un repositorio de GitHub con el manifiesto en su raíz, para que cada push a la rama publique una versión.
+---
+
+{/* @see RESTPutAPITemplateGithubBody, RESTPutAPITemplateGithubResponse — @vertracloud/api-types */}
+Esta llamada vincula una plantilla privada a un repositorio de GitHub y responde con la plantilla. El repositorio debe tener `vertracloud.template.yaml` en la raíz de la rama y estar en una de tus instalaciones de GitHub App; no puede vincularse a una plantilla de otro propietario. Cada push a la rama publica entonces una versión, con el mensaje del commit como changelog y el `README.md` de la raíz como documentación. El código de un servicio viene de la carpeta de su `source.path`, o del repositorio sin el manifiesto.
+
+Un push no sube la versión por sí solo: sube la `version` del manifiesto en el commit. Un push que no puede convertirse en versión se omite (el manifiesto tiene una versión anterior, no es válido o el código contiene un secreto). Corrígelo y haz push de nuevo. Los pushes a otras ramas se ignoran.
+
+Necesita el ámbito `templates:write` cuando se llama con una clave de API. Solo el propietario de la plantilla puede vincularla, porque el enlace usa las instalaciones de GitHub App del propietario; en un workspace, un miembro recibe `403`.
+
+<ParamField path="template_id" type="string" required>
+  El ID de la plantilla.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la plantilla pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<ParamField body="repository" type="string" required>
+  El repositorio, como `owner/name`.
+</ParamField>
+
+<ParamField body="branch" type="string">
+  La rama que publica versiones. Si no se indica, la rama por defecto del repositorio.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X PUT https://api.vertracloud.app/v1/templates/tpl-abc123def456/github \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "repository": "acme/support-bot-template", "branch": "main" }'
+```
+
+</RequestExample>
+
+### Respuesta
+
+El objeto de plantilla de [Crear una plantilla privada](/es-es/api-reference/endpoint/templates/create), ahora con `github` apuntando al repositorio vinculado.
+
+<ResponseField name="response" type="object">
+  La plantilla.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="github" type="object | null">
+    El enlace: `repository` (`owner/name`) y `branch`.
+  </ResponseField>
+
+  <ResponseField name="id" type="string">
+    El ID de la plantilla. Los demás campos son los que se listan en [Crear una plantilla privada](/es-es/api-reference/endpoint/templates/create).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "support-bot",
+    "origin": "private",
+    "github": { "repository": "acme/support-bot-template", "branch": "main" }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: La plantilla no existe o no es tuya (`404`).
+  - `INSTALLATION_NOT_FOUND`: El repositorio o la rama no están en tus instalaciones de GitHub App (`404`).
+  - `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND`: No hay `vertracloud.template.yaml` en la raíz de la rama.
+  - `REPO_ALREADY_LINKED`: El repositorio ya está vinculado a una plantilla de otro propietario, a una imagen o a una aplicación (`409`).
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace vincula sus plantillas.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_GITHUB_MANIFEST_NOT_FOUND"
+}
+```
+
+</ResponseExample>

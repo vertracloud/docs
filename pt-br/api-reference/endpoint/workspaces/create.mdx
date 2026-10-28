@@ -1,0 +1,42 @@
+---
+title: Criar workspace
+sidebarTitle: Criar
+api: POST https://api.vertracloud.app/v1/workspaces
+authMethod: bearer
+description: Cria um workspace com os quatro papéis iniciais (Admin, Developer, Operator, Viewer). Exige o plano Enterprise.
+---
+
+{/* @see APIWorkspace, RESTPostAPIWorkspaceCreateBody — @vertracloud/api-types */}
+Qualquer conta logada pode chamar isto — a criação em si não é controlada por uma permissão, e sim
+pelo **plano**. Uma chave de API precisa do escopo `workspaces:write`.
+
+<Note>
+  Quatro papéis iniciais são criados com o workspace: **Admin** (todas as permissões exceto
+  `snapshots:manage` — restaurar ou apagar um snapshot é destrutivo demais para conceder por padrão — e
+  `blob:read`/`blob:manage`, já que os arquivos do Blob Storage são dados do dono),
+  **Developer**, **Operator** e **Viewer**. Eles são papéis comuns desde o momento em que são
+  criados — podem ser renomeados, editados e apagados — e contam para o teto de papéis do plano como qualquer outro.
+</Note>
+
+### Corpo
+
+<ParamField body="name" type="string" required>
+  De 1 a 50 caracteres. Único por dono entre os seus workspaces ativos (não apagados). O nome é guardado em minúsculas, então `Production` é salvo como `production` (e conflita com um `production` existente).
+</ParamField>
+
+<ParamField body="description" type="string">
+  Até 200 caracteres.
+</ParamField>
+
+
+
+### Resposta
+
+Mesmo formato de [Obter workspace](/pt-br/api-reference/endpoint/workspaces/get), incluindo os membros, os quatro papéis iniciais, `permissions` e `is_owner`.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `PLAN_RESTRICTED_FEATURE` | Seu plano não inclui workspaces (abaixo de Enterprise). |
+| 409 | `WORKSPACE_NAME_ALREADY_EXISTS` | Você já tem um workspace ativo com este nome. |

@@ -1,0 +1,42 @@
+---
+title: Convertir carpeta en stack
+sidebarTitle: Convertir en stack
+api: POST https://api.vertracloud.app/v1/stacks/transform
+authMethod: bearer
+description: Convierte las aplicaciones y bases de datos de una carpeta en un stack, inyectando opcionalmente las variables de conexión.
+---
+
+{/* @see RESTPostAPIStackTransformBody, RESTPostAPIStackTransformResponse — @vertracloud/api-types */}
+Crea un stack a partir de cada aplicación y base de datos de una carpeta. La carpeta se conserva. Con `inject_variables: true` la plataforma añade a las aplicaciones las variables de conexión y los certificados; con `false` se asume que las aplicaciones se conectan por su cuenta. Requiere el scope `stacks:write` cuando se llama con una clave de API.
+
+<ParamField body="folder_id" type="string" required>
+  La carpeta de la que tomar los recursos.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  El workspace de la carpeta. Si no se indica, es una carpeta tuya.
+</ParamField>
+
+<ParamField body="name" type="string">
+  El nombre del stack. Opcional.
+</ParamField>
+
+<ParamField body="inject_variables" type="boolean" required>
+  Si la plataforma crea las conexiones e inyecta las variables y los certificados.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Conexiones que se crean cuando `inject_variables` es `true`. Cada elemento tiene `app_id`, `database_id` y un `env_map` opcional (consulta [Crear conexión](/es-es/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+### Response
+
+`201` con el stack, igual que en [Crear stack](/es-es/api-reference/endpoint/stacks/create), incluidos `restart_required` y `apps_to_restart`.
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 400 | `STACK_TRANSFORM_EMPTY` | La carpeta no tiene ninguna aplicación, ni ninguna base de datos, que meter en un stack. |
+| 409 | `STACK_MEMBER_CONFLICT` | Un recurso de la carpeta ya está en otro stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |

@@ -1,0 +1,58 @@
+---
+title: Listar miembros
+sidebarTitle: Listar
+api: GET https://api.vertracloud.app/v1/workspaces/{id}/members
+authMethod: bearer
+description: Lista los miembros del workspace. Requiere el permiso `members:read`.
+---
+
+{/* @see APIWorkspaceMember, RESTGetAPIWorkspaceMembersResponse — @vertracloud/api-types */}
+Requiere el permiso `members:read` (el propietario siempre pasa). Una clave de API necesita el scope
+`workspaces:read`.
+
+### Ruta
+
+<ParamField path="id" type="string" required>
+  ID del workspace.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="APIWorkspaceMember[]">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="user_id" type="string" />
+  <ResponseField name="role_id" type="string" />
+  <ResponseField name="role_name" type="string" />
+  <ResponseField name="joined_at" type="string" format="date-time" />
+  <ResponseField name="expires_at" type="string | null" format="date-time">Vencimiento del acceso. `null` = sin vencimiento. Un miembro que pasa esta fecha se trata como no miembro en cada lectura: la limpieza semanal solo elimina la fila después; no es la barrera.</ResponseField>
+  <ResponseField name="user" type="object">`{ display_name, email }`.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "user_id": "123456789012345678",
+      "role_id": "c1a2...",
+      "role_name": "Developer",
+      "joined_at": "2026-09-01T12:00:00Z",
+      "expires_at": null,
+      "user": { "display_name": "Bob", "email": "bob@example.com" }
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Quien llama no tiene `members:read`. |
+| 404 | `WORKSPACE_NOT_FOUND` | El workspace no existe, está eliminado o no eres miembro. |

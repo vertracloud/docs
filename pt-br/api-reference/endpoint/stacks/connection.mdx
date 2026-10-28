@@ -1,0 +1,50 @@
+---
+title: Obter código de conexão da stack
+sidebarTitle: Código de conexão
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/connection
+authMethod: bearer
+description: Retorna código pronto para uso que conecta um app de uma stack aos seus bancos de dados e pastas do Blob, com os nomes reais das variáveis.
+---
+
+{/* @see RESTGetAPIStackConnectionQuery, RESTGetAPIStackConnectionResponse, APIStackConnectionInfo — @vertracloud/api-types */}
+Retorna trechos de código na linguagem da aplicação, usando os nomes de variáveis que a plataforma injetou. Precisa do escopo `stacks:read` quando chamado com uma chave de API.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField query="app_id" type="string" required>
+  O app da stack a conectar.
+</ParamField>
+
+<ParamField query="language" type="string">
+  A linguagem do código. Padrão: a linguagem do app.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence. Obrigatório para um membro do workspace que age sobre uma stack que não é dele.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="app_id" type="string">O ID do app.</ResponseField>
+  <ResponseField name="language" type="string">A linguagem do app.</ResponseField>
+
+  <ResponseField name="snippets" type="object[]">
+    Um item por conexão. Cada um tem `language`, `driver` (a biblioteca cliente que o código usa), `database_type` (`null` para uma pasta do Blob), `blob` (`true` para um cliente Blob compatível com S3), `title`, `code` e `env_vars` (os nomes das variáveis que o código lê).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+Para saber mais sobre como conectar, veja [Conectar um banco de dados](/pt-br/guides/connect-database).
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | O app não é membro da stack. |

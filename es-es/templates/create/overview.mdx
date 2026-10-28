@@ -1,0 +1,65 @@
+---
+title: 'Crear una plantilla de Vertra Cloud: código o imagen, pública o privada'
+sidebarTitle: 'Resumen'
+description: 'De qué se compone una plantilla, cuándo usar código o imagen Docker y en qué se diferencian las plantillas públicas, privadas y compartidas.'
+icon: 'wand-magic-sparkles'
+---
+
+Una plantilla es un archivo de manifiesto, `vertracloud.template.yaml`, más las fuentes a las que apunta. Vertra Cloud lee el manifiesto y crea las aplicaciones y bases de datos que describe, hace a quien lo usa solo las preguntas que declaraste y deshace todo si algún paso falla. Escribes la plantilla una vez; todos los que lo usan obtienen el mismo resultado con un clic.
+
+## Qué contiene una plantilla
+
+| Parte | Qué es |
+|---|---|
+| **Manifiesto** | `vertracloud.template.yaml`: identidad, preguntas, servicios, variables, permisos, comportamiento de despliegue y salidas. Consulta la [referencia del manifiesto](/es-es/templates/create/manifest-reference). |
+| **Fuentes** | El código de cada servicio `code`, o la imagen de cada servicio `image`. |
+| **Docs** | Un `README.md` (y una carpeta `docs/` opcional) que se muestra junto a la plantilla. |
+| **Icono** | Un archivo SVG o PNG referenciado por `icon`. |
+
+Una plantilla con **una aplicación y sin base de datos** crea solo la aplicación. Una plantilla con **dos o más servicios** (aplicaciones, bases de datos, carpetas de Blob) crea un [stack](/es-es/templates/create/stacks): un recurso que los agrupa y los mantiene conectados.
+
+## Código o imagen
+
+Cada servicio de aplicación elige un tipo de fuente. La elección decide el plan que necesita el usuario y si consume un cupo de imagen.
+
+| | `code` | `image` |
+|---|---|---|
+| Cómo se ejecuta | El código se extrae en el `/app` de la aplicación y se ejecuta en uno de los runtimes de lenguaje (`language`, `main`, `build`, `start`). | Una imagen Docker se ejecuta con el mismo sandbox que cualquier otra aplicación. |
+| Ideal para | Proyectos de inicio, bots y APIs que el usuario va a leer y editar. | Software ya hecho (n8n, una herramienta de administración de bases de datos) o cualquier cosa que los runtimes no cubran. |
+| Cupo de imagen | No usa ninguno. | Usa **1 cupo por imagen distinta** que ejecuta el usuario, nunca por aplicación. |
+| Plan | Solo lo que necesiten los servicios (RAM, publicación web). | Un plan que incluya [imágenes Docker propias](/es-es/guides/custom-docker-images), con un cupo libre. |
+| Editable por el usuario | Sí por defecto (`code.edit`). | No por defecto. |
+
+Tres aplicaciones creadas desde la misma plantilla de imagen usan un cupo, y una versión más reciente de la misma plantilla lo reutiliza. Una plantilla de código nunca usa un cupo. Los límites por plan están en [Planes y límites](/es-es/plans-and-limits).
+
+En ambos casos, **`/app` es el único disco persistente** y el resto del sistema de archivos es de solo lectura. Lee las [Buenas prácticas](/es-es/templates/create/best-practices) antes de escribir el primer manifiesto.
+
+## Público, privado o compartido
+
+| | Público (catálogo) | Privado | Compartido por enlace |
+|---|---|---|---|
+| Quién es el propietario | Vertra Cloud | Tu cuenta o tu workspace | El autor; quien lo recibe obtiene una copia de lo que usa |
+| Cómo se publica | Un pull request revisado al repositorio público de plantillas | Lo creas en el panel, desde GitHub o con la CLI | Creas un enlace para compartir de una plantilla privada |
+| Quién puede usarlo | Cualquier cuenta que cumpla los requisitos | Tú; en un workspace, solo el propietario la usa y la gestiona, y los miembros la ven | Cualquier cuenta que tenga el enlace |
+| Insignia | **Vertra** o **Community** | **Private** o **From the workspace** | **Not verified by Vertra** |
+| Código | Siempre abierto | Abierto o [cerrado](/es-es/templates/create/permissions#plantillas-cerradas) | Abierto o cerrado, según lo configures |
+| Plan para crear | No aplica | Un plan que pueda crear imágenes propias | Igual que el privado |
+
+No puedes publicar en el catálogo público desde el panel. Una plantilla de la comunidad pasa por un pull request, una revisión y una ejecución de prueba; consulta [Contribuir al catálogo público](/es-es/templates/create/contribute).
+
+## Elige tu camino
+
+<CardGroup cols={2}>
+  <Card title="Escribe el manifiesto" icon="file-code" href="/es-es/templates/create/manifest-reference">
+    Todos los campos, con un ejemplo de cada uno.
+  </Card>
+  <Card title="Preguntas y placeholders" icon="sliders" href="/es-es/templates/create/placeholders-and-inputs">
+    Pide valores al usuario y conecta los servicios entre sí.
+  </Card>
+  <Card title="Plantillas privadas" icon="lock" href="/es-es/templates/create/private-templates">
+    Guarda una aplicación como plantilla, vincula un repositorio de GitHub o usa el editor.
+  </Card>
+  <Card title="Validar y probar" icon="circle-check" href="/es-es/templates/create/validate-and-test">
+    Comprueba el manifiesto desde la CLI y pruébalo como plantilla privada.
+  </Card>
+</CardGroup>

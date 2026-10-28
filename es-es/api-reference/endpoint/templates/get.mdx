@@ -1,0 +1,196 @@
+---
+title: Obtener plantilla
+sidebarTitle: Obtener plantilla
+api: GET https://api.vertracloud.app/v1/templates/{template_id}
+authMethod: bearer
+description: Devuelve una plantilla por ID o slug con sus preguntas, permisos, salidas, documentación y changelog, que es lo que necesita un asistente de despliegue.
+---
+
+{/* @see APITemplateDetail, RESTGetAPITemplateQuery, RESTGetAPITemplateResponse — @vertracloud/api-types */}
+Devuelve una plantilla, con todo lo necesario para pedir al usuario sus respuestas y mostrarle qué pasa después. Las plantillas públicas **no requieren autenticación**. Una plantilla privada solo es visible para su propietario o, cuando pertenece a un workspace, para los miembros que pueden leer las aplicaciones del workspace; para cualquier otra persona es el mismo `404` que una plantilla inexistente. Con una sesión o una clave de API (ámbito `templates:read`), la respuesta también incluye el bloque `account`. Una plantilla cerrada nunca incluye código. Las lecturas están limitadas a 60 peticiones por minuto por cliente.
+
+<ParamField path="template_id" type="string" required>
+  El ID o el slug de la plantilla. Las plantillas ocultas y obsoletas se sirven aquí aunque la galería no las liste (consulta `visibility`).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace de una plantilla privada. Es necesario para resolver una plantilla de workspace por **slug**; por ID es opcional.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La plantilla. Tiene **todos los campos de los elementos que devuelve [Listar plantillas](/es-es/api-reference/endpoint/templates/list)** (`id`, `slug`, `origin`, `visibility`, `name`, `description`, `category`, `tags`, `icon_url`, `author_display`, `links`, `landing`, `featured`, `current_version`, `services`, `creates_stack`, `ram_min_total`, `byok`, `required_plan`, `code_view`, `uses_count`, `owner`, `github`, `created_at`, `updated_at` y, cuando estás autenticado, `account`), más los que siguen.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="inputs" type="object[]">
+    Las preguntas que responde el usuario al usar la plantilla. Envía las respuestas en `inputs` de [Desplegar plantilla](/es-es/api-reference/endpoint/templates/deploy), por `id` de pregunta.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="id" type="string">
+      El ID de la pregunta, único en la plantilla.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      `text`, `secret`, `select`, `boolean`, `number`, `url` o `email`.
+    </ResponseField>
+
+    <ResponseField name="label" type="object">
+      La pregunta en los tres idiomas.
+    </ResponseField>
+
+    <ResponseField name="help" type="object">
+      Explicación opcional, en los tres idiomas.
+    </ResponseField>
+
+    <ResponseField name="required" type="boolean">
+      Opcional; `false` cuando no aparece.
+    </ResponseField>
+
+    <ResponseField name="default" type="string | number | boolean">
+      Respuesta por defecto opcional.
+    </ResponseField>
+
+    <ResponseField name="validation" type="object">
+      Límites opcionales de la respuesta: `regex`, `min`, `max`, `min_length` y `max_length`.
+    </ResponseField>
+
+    <ResponseField name="generate" type="string">
+      Para preguntas `secret`: `random:<n>` o `uuid`. La plataforma genera el valor cuando la respuesta se deja vacía.
+    </ResponseField>
+
+    <ResponseField name="editable" type="boolean">
+      `false` junto con `generate` significa que el valor generado no puede reemplazarse.
+    </ResponseField>
+
+    <ResponseField name="when" type="object">
+      La pregunta solo aplica cuando la respuesta a otra coincide: `input` (el ID de la otra pregunta) y `equals`.
+    </ResponseField>
+
+    <ResponseField name="options" type="object[]">
+      Para preguntas `select`. Cada opción tiene `value`, un `label` opcional y `sets` opcionales, que son lo que cambia al elegirla: `services` (un ID de servicio a `on` u `off`), `env` (variables por servicio) y `ram_extra` (memoria extra en MB por servicio).
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="permissions" type="object">
+    Lo que puedes hacer con una aplicación creada desde la plantilla. Todos los valores son booleanos: `code_view`, `code_edit`, `ram_change`, `ram_below_min`, `ram_above_max`, `env_add`, `commands_edit`, `terminal`, `save_as_template` y `detach` (`true` cuando editar el código desvincula la aplicación de la plantilla; solo en plantillas abiertas). Consulta [Plantillas cerradas](/es-es/templates/use/closed-templates).
+  </ResponseField>
+
+  <ResponseField name="outputs" type="object[]">
+    Lo que se muestra al final de un despliegue. Cada una tiene `label`, `value` (un texto o un texto por idioma, que puede ser un marcador de posición), `secret` y `once` (el valor se muestra una vez y nunca más).
+  </ResponseField>
+
+  <ResponseField name="readme" type="object | null">
+    La documentación de la plantilla en Markdown, por idioma, o `null`.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    El changelog de la última versión, por idioma, o `null`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/discord-bot-js \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "slug": "discord-bot-js",
+    "origin": "vertra",
+    "visibility": "public",
+    "name": { "pt-br": "Bot de Discord (JavaScript)", "en": "Discord bot (JavaScript)", "es": "Bot de Discord (JavaScript)" },
+    "description": { "pt-br": "Bot de Discord com discord.js e o comando /ping. Ponto de partida para o seu bot.", "en": "Discord bot with discord.js and a /ping command. A starting point for your bot." },
+    "category": "bots",
+    "tags": ["discord", "bot", "javascript", "discordjs"],
+    "icon_url": null,
+    "author_display": null,
+    "links": { "website": "https://discord.js.org", "docs": "https://discordjs.guide" },
+    "landing": null,
+    "featured": true,
+    "current_version": { "id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10", "version": "1.0.0", "security": false, "created_at": "2026-10-26T13:05:00Z" },
+    "services": [
+      { "id": "app", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null, "ram": { "min": 256, "recommended": 256 }, "web": "none", "conditional": false }
+    ],
+    "creates_stack": false,
+    "ram_min_total": 256,
+    "byok": false,
+    "required_plan": "economy",
+    "code_view": true,
+    "uses_count": 87,
+    "owner": null,
+    "github": null,
+    "created_at": "2026-10-26T09:00:00Z",
+    "updated_at": "2026-10-26T13:05:00Z",
+    "inputs": [
+      {
+        "id": "discord_token",
+        "type": "secret",
+        "label": { "pt-br": "Token do bot", "en": "Bot token" },
+        "required": true,
+        "validation": { "min_length": 50, "max_length": 100 }
+      }
+    ],
+    "permissions": {
+      "code_view": true,
+      "code_edit": true,
+      "ram_change": true,
+      "ram_below_min": false,
+      "ram_above_max": true,
+      "env_add": true,
+      "commands_edit": true,
+      "terminal": false,
+      "save_as_template": true,
+      "detach": true
+    },
+    "outputs": [
+      {
+        "label": { "pt-br": "Próximo passo", "en": "Next step" },
+        "value": { "en": "Invite the bot to your server and type /ping." },
+        "secret": false,
+        "once": false
+      }
+    ],
+    "readme": null,
+    "changelog": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: Un parámetro no es válido (`400`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:read` (`403`).
+  - `TEMPLATE_NOT_FOUND`: La plantilla no existe, fue eliminada o no es visible para ti (`404`).
+  - `WORKSPACE_NOT_FOUND`: El workspace de `workspace_id` no existe o no formas parte de él (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Demasiadas peticiones (`429`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

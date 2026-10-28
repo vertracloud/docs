@@ -1,0 +1,77 @@
+---
+title: 'Contribute a Template to the Public Vertra Cloud Catalog'
+sidebarTitle: 'Contribute'
+description: 'Add a community template to the public catalog by pull request: folder layout, validation, review and the Community badge.'
+icon: 'code-pull-request'
+---
+
+You contribute a template to the public catalog with a pull request to the public templates repository on GitHub. There is no submission form in the dashboard. A contribution can be a code template or an image template, and the template stays open: a public template can never be closed.
+
+## Steps
+
+<Steps>
+  <Step title="Fork and add a folder">
+    Fork the repository and add one folder named after your template, for example `discord-bot-tickets/`, with:
+
+    ```text
+    discord-bot-tickets/
+      vertracloud.template.yaml   # the manifest
+      src/                        # the code (code template), or a Dockerfile and its context (image template)
+      README.md                   # shown on the template's page
+      docs/                       # optional extra pages
+      icon.svg                    # the icon
+    ```
+  </Step>
+  <Step title="Validate the manifest">
+    Run the check from the folder. It compares the manifest with the schema and the platform rules and creates nothing:
+
+    ```bash
+    vertra template validate discord-bot-tickets
+    ```
+
+    Add the schema line to the top of the manifest for editor help: see the [manifest schema](/templates/reference/manifest-schema). Public templates have a few extra rules, below.
+  </Step>
+  <Step title="Try it as a private template">
+    Create it as a private template in your own account and use it for real; it is the same engine as the public catalog. See [Validate and test](/templates/create/validate-and-test#test-it-as-a-private-template).
+  </Step>
+  <Step title="Open the pull request">
+    The CI validates the manifest, builds the image if there is a Dockerfile, checks it for file capabilities (a binary with one cannot run on the platform) and checks the declared license.
+  </Step>
+  <Step title="Review">
+    Vertra Cloud runs the template on the platform and reviews the change for security (no miner, hidden telemetry or secret in the code), a license that allows public distribution, and the quality of the README. Fix what is asked and push again.
+  </Step>
+  <Step title="Merge and publish">
+    On merge, the folder at that commit is packaged as a version of the template and published with the **Community** badge and your name as author. Nobody depends on your account: the code lives with Vertra Cloud, and an image template becomes an image maintained by the platform.
+  </Step>
+</Steps>
+
+New versions are new pull requests, reviewed again.
+
+## Extra rules for public templates
+
+| Rule | Why | Finding if broken |
+|---|---|---|
+| Pin every image by digest (`name@sha256:...`) | Everyone who uses a version gets the same software | `invalid_source` |
+| Code services need `source.path` | The code lives in the repository | `invalid_source` |
+| No `env_hidden` | Public values are visible by definition | `forbidden_in_public` |
+| No `code.view: false` | Public code is always open | `forbidden_in_public` |
+| No `share.full_copy` | Share links are for private templates | `forbidden_in_public` |
+| `min_plan` must be a real plan id | A renamed plan cannot leave a template wrong | `invalid_plan` |
+
+Template ids are unique across the whole catalog. Write the `README.md` in the way a user needs it: what the template creates, what to do after the deploy, and where the data lives. Declare the license of the original software in `links.license`.
+
+## After the merge
+
+- Vertra Cloud maintains the template. Software updates arrive through new versions; people who use the template see **New version available** and decide when to update.
+- A template that is no longer maintained is marked **deprecated** and leaves the gallery. Apps already created keep running and are told. An image that a template still uses is removed only with notice and a migration path for the people who use it.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Tutorial: private to public" icon="code-pull-request" href="/templates/tutorials/private-to-public-pr">
+    The whole path, from a private template to a pull request.
+  </Card>
+  <Card title="Best practices" icon="list-check" href="/templates/create/best-practices">
+    Read it before you open the PR.
+  </Card>
+</CardGroup>

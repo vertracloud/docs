@@ -1,0 +1,166 @@
+---
+title: "Copiar o mover un objeto blob"
+sidebarTitle: "Copiar o mover objeto"
+api: "POST https://blob.vertracloud.app/v1/objects/copy"
+authMethod: bearer
+description: "Copia un objeto blob a una nueva ruta, o lo mueve. Al mover se conserva el ID; una copia crea un objeto nuevo que cuenta para el almacenamiento."
+---
+
+{/* @see RESTPostAPIBlobObjectCopyBody, RESTPostAPIBlobObjectCopyResponse, APIBlobObject — @vertracloud/api-types */}
+
+Copia un objeto blob a una nueva `path` dentro de la misma cuenta, o lo mueve cuando `move` es `true`. Un movimiento
+conserva el `id` del objeto y cambia solo `path`, así que no suma al almacenamiento. Una copia crea un objeto nuevo con un
+`id` nuevo, y sus bytes cuentan para la cuota.
+
+**Ámbito:** `blob:write`.
+
+<ParamField body="source" type="string" required>
+  ID del objeto que se va a copiar o mover.
+</ParamField>
+
+<ParamField body="path" type="string" required>
+  Ruta de destino, con las mismas reglas que [Subir un objeto en una sola petición](/es-es/api-reference/endpoint/blob/objects/upload).
+</ParamField>
+
+<ParamField body="move" type="boolean">
+  `true` mueve el objeto y conserva su ID. Por defecto `false`: copia.
+</ParamField>
+
+<ParamField body="overwrite" type="boolean">
+  Reemplaza un objeto que ya esté en `path`. Por defecto `false`.
+</ParamField>
+
+<ParamField body="random_suffix" type="boolean">
+  Inserta un sufijo aleatorio antes de la extensión. Por defecto `false`.
+</ParamField>
+
+<ParamField body="rename_on_conflict" type="boolean">
+  Solo en copia: cuando `path` está ocupada, incluso por el propio origen, guarda la copia como `nombre-1.ext`,
+  `nombre-2.ext` y así sucesivamente, en lugar de devolver `BLOB_OBJECT_ALREADY_EXISTS`. Por defecto `false`. No se puede
+  combinar con `overwrite`, y se ignora en un movimiento.
+</ParamField>
+
+<ParamField body="visibility" type="string">
+  `public` o `private` para el objeto nuevo. Por defecto: la visibilidad del objeto de origen.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/objects/copy" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"source":"0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c","path":"backup/logo.png"}'
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El objeto en su nueva ruta.
+  <Expandable title="propiedades">
+  <ResponseField name="id" type="string">ID estable del objeto. Nunca cambia, aunque cambien la ruta, la visibilidad o la caducidad.</ResponseField>
+  <ResponseField name="path" type="string">Ruta completa dentro de la cuenta, por ejemplo `images/avatars/joao.png`.</ResponseField>
+  <ResponseField name="size" type="number">Tamaño en bytes.</ResponseField>
+  <ResponseField name="content_type" type="string">Tipo MIME, derivado en el servidor a partir de la extensión del archivo.</ResponseField>
+  <ResponseField name="etag" type="string">Etiqueta de entidad del contenido almacenado.</ResponseField>
+  <ResponseField name="sha256" type="string | null">SHA-256 del contenido en hexadecimal, cuando la subida envió un checksum. `null` en otro caso.</ResponseField>
+  <ResponseField name="visibility" type="string">`public` (se puede leer mediante su URL pública) o `private` (necesita un enlace temporal o un enlace para compartir).</ResponseField>
+  <ResponseField name="url" type="string | null">URL pública. `null` mientras el objeto sea privado.</ResponseField>
+  <ResponseField name="cache_control" type="string | null">`immutable`, `max-age=<seconds>` o `no-cache` (`no-cache` requiere Enterprise-26 o superior). `null` significa el valor por defecto.</ResponseField>
+  <ResponseField name="content_disposition" type="string">`inline` (lo muestra el navegador) o `attachment` (se descarga). HTML, SVG y XML siempre son `attachment`.</ResponseField>
+  <ResponseField name="filename" type="string | null">Nombre sugerido al descargar. `null` usa el último segmento de `path`.</ResponseField>
+  <ResponseField name="metadata" type="object">Hasta 5 claves, cada una `[a-z0-9-]{1,64}`, 512 bytes en total. Enterprise-12 o superior; `{}` en otros planes.</ResponseField>
+  <ResponseField name="expires_at" type="string | null">Cuándo se elimina el objeto, como marca de tiempo ISO 8601. `null` significa que no caduca.</ResponseField>
+  <ResponseField name="created_at" type="string">Fecha de creación en ISO 8601.</ResponseField>
+  <ResponseField name="updated_at" type="string">Fecha en ISO 8601 del último cambio.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+    "path": "images/logo.png",
+    "size": 48213,
+    "content_type": "image/png",
+    "etag": "9b2cf535f27731c974343645a3085d39",
+    "sha256": null,
+    "visibility": "public",
+    "url": "https://blob.vertracloud.dev/k7p2m9x4qa/images/logo.png",
+    "cache_control": null,
+    "content_disposition": "inline",
+    "filename": null,
+    "metadata": {},
+    "expires_at": null,
+    "created_at": "2026-10-14T12:00:00.000Z",
+    "updated_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): El almacenamiento de blob de la cuenta está suspendido, o su plan expiró. Las subidas y otras escrituras se rechazan desde el inicio del periodo de gracia de 72 horas.
+  - `VALIDATION_ERROR` (`400`): Un parámetro o un campo del cuerpo no superó la validación. `details.path` indica el campo.
+  - `BLOB_OBJECT_NOT_FOUND` (`404`): El `source` no existe en esta cuenta.
+  - `BLOB_OBJECT_ALREADY_EXISTS` (`409`): `path` está ocupada y `overwrite` no es `true`.
+  - `STORAGE_QUOTA_EXCEEDED` (`403`): Una copia superaría la cuota de blob del plan. Los movimientos no suman almacenamiento, así que este límite no los bloquea.
+  - `BLOCKED_FILE_TYPE` (`422`): La extensión de destino está bloqueada o no la permite la regla de carpeta.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_OBJECT_ALREADY_EXISTS"
+}
+```
+
+```json Error Response (422)
+{
+  "code": "BLOCKED_FILE_TYPE"
+}
+```
+
+</ResponseExample>

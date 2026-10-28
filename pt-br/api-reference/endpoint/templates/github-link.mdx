@@ -1,0 +1,98 @@
+---
+title: Vincular um template privado ao GitHub
+sidebarTitle: Vincular GitHub
+api: PUT https://api.vertracloud.app/v1/templates/{template_id}/github
+authMethod: bearer
+description: Vincula um template privado a um repositório do GitHub com o manifesto na raiz, para que cada push na branch publique uma versão.
+---
+
+{/* @see RESTPutAPITemplateGithubBody, RESTPutAPITemplateGithubResponse — @vertracloud/api-types */}
+Esta chamada vincula um template privado a um repositório do GitHub e responde com o template. O repositório precisa ter `vertracloud.template.yaml` na raiz da branch e estar em uma das suas instalações do GitHub App; ele não pode ser vinculado ao template de outro dono. Cada push na branch publica então uma versão, com a mensagem do commit como changelog e o `README.md` da raiz como documentação. O código de um serviço vem da pasta em `source.path`, ou do próprio repositório, sem o manifesto.
+
+Um push não aumenta a versão sozinho: aumente o `version` do manifesto no commit. Um push que não pode virar versão é ignorado (o manifesto tem uma versão mais antiga, é inválido ou o código contém um segredo). Corrija e faça o push de novo. Pushes para outras branches são ignorados.
+
+Precisa do escopo `templates:write` quando chamada com uma chave de API. Só o dono do template pode vinculá-lo, porque o vínculo usa as instalações do GitHub App do dono; em um workspace, um membro recebe `403`.
+
+<ParamField path="template_id" type="string" required>
+  O ID do template.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o template pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<ParamField body="repository" type="string" required>
+  O repositório, no formato `owner/name`.
+</ParamField>
+
+<ParamField body="branch" type="string">
+  A branch que publica as versões. Sem ela, a branch padrão do repositório.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X PUT https://api.vertracloud.app/v1/templates/tpl-abc123def456/github \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "repository": "acme/support-bot-template", "branch": "main" }'
+```
+
+</RequestExample>
+
+### Resposta
+
+O objeto template de [Criar um template privado](/pt-br/api-reference/endpoint/templates/create), agora com `github` definido como o repositório vinculado.
+
+<ResponseField name="response" type="object">
+  O template.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="github" type="object | null">
+    O vínculo: `repository` (`owner/name`) e `branch`.
+  </ResponseField>
+
+  <ResponseField name="id" type="string">
+    O ID do template. Os demais campos são os listados em [Criar um template privado](/pt-br/api-reference/endpoint/templates/create).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "support-bot",
+    "origin": "private",
+    "github": { "repository": "acme/support-bot-template", "branch": "main" }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: O template não existe ou não é seu (`404`).
+  - `INSTALLATION_NOT_FOUND`: O repositório ou a branch não está nas suas instalações do GitHub App (`404`).
+  - `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND`: Não há `vertracloud.template.yaml` na raiz da branch.
+  - `REPO_ALREADY_LINKED`: O repositório já está vinculado ao template de outro dono, a uma imagem ou a uma aplicação (`409`).
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace vincula os templates dele.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_GITHUB_MANIFEST_NOT_FOUND"
+}
+```
+
+</ResponseExample>

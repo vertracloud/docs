@@ -1,0 +1,138 @@
+---
+title: Atualizar um template ou mover uma aplicação para a versão mais recente
+sidebarTitle: Atualizar template
+api: POST https://api.vertracloud.app/v1/apps/{id}/template/update
+authMethod: bearer
+description: Inicia um job de atualização que move uma aplicação ou stack para a versão mais recente do seu template, tira um snapshot de segurança antes e volta atrás se um passo falhar.
+---
+
+{/* @see RESTPostAPITemplateUpdateBody, RESTPostAPITemplateUpdateResponse — @vertracloud/api-types */}
+Move uma aplicação ou uma stack para a versão mais recente do seu template, como uma operação assíncrona, e responde `202 Accepted` com um job de `kind: "update"`. Há duas rotas com o mesmo corpo e a mesma resposta: `POST /v1/apps/{id}/template/update` e `POST /v1/stacks/{stack_id}/template/update`. O escopo necessário é `templates:deploy`. Só o **dono** da conta ou do workspace pode atualizar; um membro do workspace recebe `WORKSPACE_OWNER_ONLY`. Confira antes o que vai acontecer com [Obter informações de atualização do template](/pt-br/api-reference/endpoint/templates/update-info). A atualização nunca roda sozinha.
+
+O job tira um snapshot de segurança, atualiza os serviços um após o outro e, se algum passo falhar, volta ao snapshot e remove o que criou, para que tudo volte ao estado anterior. Uma aplicação de uma stack criada a partir de um template é atualizada junto com a stack inteira. O job usa o mesmo bloqueio de um deploy por vez de [Deploy de template](/pt-br/api-reference/endpoint/templates/deploy). Os passos são os de [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status), mais `snapshot`, e `rollback` quando uma atualização que falhou volta atrás. Acompanhe com essa página ou com o [stream de eventos](/pt-br/api-reference/endpoint/templates/deploy-events). Mais sobre o comportamento em [Atualizações e rollback](/pt-br/templates/use/updates-and-rollback).
+
+O que uma atualização muda: a versão do código ou da imagem dos serviços, a memória que eles precisam, as novas variáveis que o template introduziu e os novos serviços. Variáveis que você alterou, variáveis que você apagou e seus arquivos continuam como estão. Permissões nunca são tornadas mais restritas. Um serviço que a nova versão remove sai do template, mas não é apagado. Serviços novos na versão são criados com os mesmos passos de um deploy.
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação (na rota `/v1/apps/{id}/template/update`).
+</ParamField>
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack (na rota `/v1/stacks/{stack_id}/template/update`).
+</ParamField>
+
+<ParamField body="inputs" type="object">
+  Suas respostas às perguntas obrigatórias que a nova versão acrescenta (`new_inputs` em [Obter informações de atualização do template](/pt-br/api-reference/endpoint/templates/update-info)), por ID da pergunta. Perguntas da versão anterior não são feitas de novo. Uma resposta inválida ou ausente falha com `TEMPLATE_INPUT_INVALID`.
+</ParamField>
+
+<ParamField body="ram" type="object">
+  A nova memória em MB, por ID do serviço, para os serviços cuja memória mínima subiu (`ram_changes`). Um serviço que subiu e não recebe valor aqui vai para o novo mínimo, nunca abaixo dele.
+</ParamField>
+
+Um corpo vazio é válido.
+
+### Resposta
+
+Status `202` com o job no status `queued`.
+
+<ResponseField name="response" type="object">
+  O job, com os campos descritos em [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status). Aqui `kind` é `update`, e `stack_id` ou `application_id` apontam para o recurso que está sendo atualizado.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/apps/9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26/template/update \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "ram": { "app": 384 } }'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "c8a15d73-2f90-4e6b-b7d4-0e9a6c3f1b58",
+    "kind": "update",
+    "template_id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "version_id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+    "version": "1.1.0",
+    "status": "queued",
+    "current_step": null,
+    "steps": [
+      { "step": "validate", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "snapshot", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "apps", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "start", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "healthcheck", "status": "pending", "started_at": null, "finished_at": null }
+    ],
+    "error": null,
+    "resources": [],
+    "stack_id": null,
+    "application_id": "9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26",
+    "outputs": [],
+    "created_at": "2026-10-29T09:00:00Z",
+    "updated_at": "2026-10-29T09:00:00Z",
+    "finished_at": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: O ID ou o corpo não é válido (`400`).
+  - `TEMPLATE_INPUT_INVALID`: Uma resposta é inválida, ou um valor de memória está fora do que a nova versão pede; `details.issues` lista os casos (`400`).
+  - `TEMPLATE_RAM_INSUFFICIENT`: Memória livre insuficiente para a nova versão (`400`).
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:deploy` (`403`).
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace pode atualizar (`403`).
+  - `TEMPLATE_PLAN_REQUIRED`: A nova versão exige um plano acima do seu; `details.reason` diz o motivo (`403`).
+  - `TEMPLATE_IMAGE_SLOTS_EXHAUSTED`: A nova versão precisa de um slot de imagem e nenhum está livre (`403`).
+  - `APP_NOT_FOUND`, `STACK_NOT_FOUND`: A aplicação ou a stack não existe ou não é sua (`404`).
+  - `TEMPLATE_NOT_FOUND`: A aplicação ou a stack não veio de um template (`404`).
+  - `TEMPLATE_UPDATE_BLOCKED`: A atualização não pode seguir. `details.reason` é um de `no_new_version`, `detached`, `template_removed`, `link_revoked` ou `app_building` (`409`).
+  - `TEMPLATE_DEPLOY_IN_PROGRESS`: Outro deploy ou atualização da sua conta está rodando (`409`).
+  - `RATE_LIMIT_EXCEEDED`: Requisições demais (`429`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+
+  Uma falha depois do `202` não é retornada aqui: o job volta ao snapshot e termina como `failed`, com o código em `error.code`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_UPDATE_BLOCKED",
+  "details": { "reason": "no_new_version" }
+}
+```
+
+</ResponseExample>
+
+## Editar um template privado
+
+`PATCH https://api.vertracloud.app/v1/templates/{template_id}` altera os detalhes de um dos seus templates privados: o nome, a descrição, a categoria e as tags. Exige o escopo `templates:write` e pelo menos um campo. Um novo manifesto não é uma edição: é uma nova versão, criada com [Criar versão do template](/pt-br/api-reference/endpoint/templates/new-version).
+
+<ParamField body="name" type="object">
+  O nome em cada idioma: `pt-br`, `en` e `es` (até 50 caracteres cada).
+</ParamField>
+
+<ParamField body="description" type="object">
+  A descrição em cada idioma (até 128 caracteres cada).
+</ParamField>
+
+<ParamField body="category" type="string">
+  Uma das categorias retornadas por [Listar categorias de template](/pt-br/api-reference/endpoint/templates/categories).
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Até 10 tags.
+</ParamField>
+
+A resposta é o template, no mesmo formato de [Obter template](/pt-br/api-reference/endpoint/templates/get). Um template que não é seu responde `TEMPLATE_NOT_FOUND` (`404`).

@@ -1,0 +1,71 @@
+---
+title: 'Compartilhar um template privado por link: uso, cópia completa e revogação'
+sidebarTitle: 'Compartilhar por link'
+description: 'Crie um link de compartilhamento para um template privado, escolha entre link de uso e de cópia completa, defina limites, revogue e veja o que o destinatário vê.'
+icon: 'link'
+---
+
+Um link de compartilhamento deixa outra conta usar o seu template privado sem que você precise adicioná-la em lugar nenhum. O link não é listado: quem tiver o token pode abrir a pré-visualização e usar o template. Você o cria pela página do template ou pela CLI, e pode revogá-lo a qualquer momento.
+
+```bash
+vertra template share my-template --mode use --max-uses 20 --expires-days 30
+vertra template share list my-template
+vertra template share revoke my-template <link-id>
+```
+
+O token começa com `vtpl_` e é exibido **uma única vez**, quando o link é criado. Apenas um hash é armazenado, então ele não pode ser lido de novo; se você o perder, revogue o link e crie outro. Mantenha-o fora de logs e de posts públicos.
+
+## Link de uso ou cópia completa
+
+Você escolhe o modo ao criar o link.
+
+| | **Link de uso** (padrão) | **Link de cópia completa** |
+|---|---|---|
+| O que o destinatário recebe | Apps ou uma stack criados a partir do seu template, rodando a partir da **cópia própria** dele da imagem | Um template privado só dele: manifesto, código, Dockerfile e imagem |
+| Código | Aberto ou fechado, como você definir | Sempre aberto |
+| Suas atualizações | Sim: ele clica em **Atualizar** e a nova versão é copiada para ele | Não: a cópia é independente |
+| Vaga de imagem do destinatário | 1 | 1 |
+| O que exige no seu manifesto | Nada | `permissions.share.full_copy: true` |
+| Conta para o destinatário | Os limites habituais do plano | O limite dele de 5 templates privados |
+
+Um link de cópia completa é recusado para um template fechado e para um template cuja versão usa `env_hidden`: seus valores ocultos nunca chegam a uma cópia, e uma cópia sempre os remove. A permissão é verificada quando o destinatário copia, então desligar `full_copy` depois interrompe os links já criados.
+
+### O que acontece com a imagem
+
+Quando o destinatário usa o seu template, a plataforma cria uma imagem **na conta dele**, marcada como cópia da sua, então para ele é uma imagem própria: sem rebuild e sem Dockerfile. Se você excluir a imagem, o template ou a sua conta, nada muda para ele. O link deixa de funcionar, mas os apps dele continuam rodando.
+
+## Limites e expiração
+
+| Opção | Efeito |
+|---|---|
+| `max_uses` | O link para de funcionar depois desse número de usos. Um uso que falha devolve o uso. |
+| `expires_in_days` | O link expira depois desse número de dias. |
+
+Sem elas, o link não tem limite e não expira. Uma requisição em um link responde `SHARE_LINK_NOT_FOUND` quando o token é desconhecido e, depois, `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED` ou `SHARE_LINK_EXHAUSTED`.
+
+## O que o destinatário vê
+
+Antes de criar qualquer coisa, o destinatário vê uma pré-visualização: o nome e a descrição, o nome de exibição do autor, o que será criado (serviços e memória total), o plano necessário, as vagas de imagem que ocupará e o rótulo **Não verificado pela Vertra**. Se o template for fechado, a pré-visualização também avisa que os valores que ele preencher vão para um código que não pode ler, e que ele está confiando em você.
+
+A pré-visualização nunca mostra o manifesto, a origem, o id da sua conta nem o seu e-mail.
+
+## Revogação
+
+Revogar um link bloqueia novos usos e deixa de oferecer atualizações por ele. O que já foi criado pertence ao destinatário e continua rodando. A revogação é idempotente. Excluir o template revoga todos os seus links.
+
+Você nunca pode parar, excluir ou ler nada em outra conta por meio de um link.
+
+## Abuso
+
+Um link distribui código que ninguém na Vertra Cloud revisou, por isso o destinatário vê um botão **Denunciar** na pré-visualização e no app criado. As denúncias vão para a plataforma. Em casos graves, como malware, a equipe da plataforma pode revogar um link ou um template e parar todas as cópias, como aplicação dos termos de serviço, não como ação de autor. Não use um link para distribuir código que você não tem o direito de compartilhar.
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Receber um link" icon="link" href="/pt-br/templates/use/receive-a-link">
+    O que a pessoa do outro lado faz.
+  </Card>
+  <Card title="Permissões" icon="user-lock" href="/pt-br/templates/create/permissions">
+    `share.full_copy` e templates fechados.
+  </Card>
+</CardGroup>

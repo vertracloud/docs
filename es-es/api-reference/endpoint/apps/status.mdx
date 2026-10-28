@@ -1,0 +1,138 @@
+---
+title: Estado de la aplicación
+sidebarTitle: Obtener estado de la aplicación
+api: GET https://api.vertracloud.app/v1/apps/{id}/status
+authMethod: bearer
+description: Devuelve el estado actual y el uso de recursos de una aplicación a partir de su ID.
+---
+
+{/* @see APIApplicationStatus — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación cuyo estado quieres obtener. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de consulta `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúen sobre una aplicación que no les pertenece.
+</ParamField>
+
+<Note>
+  **Una aplicación detenida responde `200`, no un error.** El contenedor de una aplicación detenida no existe: se elimina al detenerla, y eso es un estado normal, no un fallo. La API devuelve `200` con `running: false` y todas las métricas a cero. Solo un fallo real al leer el estado devuelve `500`.
+</Note>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  El estado de la aplicación y el detalle de uso de recursos.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="cpu" type="string">
+    Porcentaje de uso de CPU (por ejemplo, `25.5%`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    Uso de RAM (por ejemplo, `512 MB`).
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    Uso de almacenamiento (por ejemplo, `1024 MB`).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    El estado de la aplicación (por ejemplo, `running`).
+  </ResponseField>
+
+  <ResponseField name="running" type="boolean">
+    Indica si la aplicación está en ejecución.
+  </ResponseField>
+
+  <ResponseField name="installing" type="boolean">
+    Presente y `true` mientras se instalan las dependencias o la aplicación se reconstruye. Durante este tiempo, `running` puede ser `false` aunque haya trabajo en curso. Trátalo como un estado en progreso, no como "detenida", y no envíes un start mientras sea `true`. Un [reinicio](/es-es/api-reference/endpoint/apps/restart) con `reinstall_dependencies` o `force_build` es una de las operaciones que abre esta ventana.
+  </ResponseField>
+
+  <ResponseField name="network" type="object">
+    Detalles del uso de red.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="total" type="string">
+      Tráfico de red total.
+    </ResponseField>
+
+    <ResponseField name="now" type="string">
+      Tráfico de red actual.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="uptime" type="number">
+    El tiempo de actividad de la aplicación, en segundos.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "cpu": "25.50%",
+    "ram": "512.00 MB",
+    "storage": "1024.00 MB",
+    "status": "running",
+    "running": true,
+    "network": {
+      "total": "569.90KB ↓ 36.41KB ↑",
+      "now": "18.78KB ↑ 1.20KB ↓"
+    },
+    "uptime": 3600
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+  - `FORBIDDEN`: El usuario no tiene permiso para acceder a la aplicación.
+  - `INTERNAL_SERVER_ERROR`: No se pudo leer el estado. Una aplicación detenida **no** es este caso; consulta la nota de arriba.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Un mensaje descriptivo con más detalles sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

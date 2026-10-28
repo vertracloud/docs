@@ -1,0 +1,189 @@
+---
+title: Criar banco de dados
+sidebarTitle: Criar banco de dados
+api: POST https://api.vertracloud.app/v1/databases
+authMethod: bearer
+description: Cria um novo banco de dados com o motor informado, RAM e um snapshot de origem opcional.
+---
+
+{/* @see APIDatabase, RESTPostAPIDatabaseCreateBody — @vertracloud/api-types */}
+O body é **JSON**, não multipart — diferente de `POST /v1/apps`. Por padrão, o banco de dados é criado **vazio**; para criá-lo a partir de um snapshot existente, envie `snapshot_id`.
+
+<ParamField body="name" type="string" required>
+  O nome de exibição do banco de dados. Máximo de 50 caracteres.
+</ParamField>
+
+<ParamField body="description" type="string">
+  A descrição do banco de dados. Máximo de 128 caracteres.
+</ParamField>
+
+<ParamField body="type" type="integer">
+  O motor do banco de dados: `1` (PostgreSQL), `2` (MongoDB), `3` (Redis) ou `4` (MySQL).
+
+  **Obrigatório quando `snapshot_id` é omitido.** Quando `snapshot_id` está presente, este campo é opcional; o motor vem do `resource_type` do snapshot. Se informado, precisa coincidir ou a criação falha com `SNAPSHOT_TYPE_MISMATCH`.
+</ParamField>
+
+<ParamField body="version" type="string">
+  A versão major do motor, por exemplo `"18"` ou `"8.4"`. O padrão é a versão recomendada do motor.
+  Os valores válidos por motor são retornados por [Listar versões de banco de dados](/pt-br/api-reference/endpoint/databases/versions). Um valor fora dessa lista falha com `INVALID_DATABASE_VERSION`. Com `snapshot_id`, o banco de dados nasce na versão major do snapshot; `version` pode ser igual ou mais nova, e uma mais antiga falha com `SNAPSHOT_VERSION_NEWER`.
+</ParamField>
+
+<ParamField body="ram" type="integer" required>
+  A quantidade de RAM a alocar para o banco de dados, em MB. Mínimo de 1.024 MB (512 MB para Redis, `type: 3`).
+  O armazenamento provisionado é de 6 GB + 1 GB a cada 512 MB de RAM (arredondado para cima em GB inteiros), ou `ram × 3` se esse valor for maior (por exemplo, 1.024 MB → 8 GB; 2.048 MB → 10 GB; 4.096 MB → 14 GB).
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O ID do workspace a associar ao banco de dados, se aplicável.
+</ParamField>
+
+<ParamField body="snapshot_id" type="string">
+  Cria o banco de dados a partir de um **snapshot de banco de dados** existente. O motor vem do `resource_type` do snapshot, e o volume dele é restaurado após o provisionamento. Se a restauração falhar depois que o banco de dados for criado, o novo banco é excluído, em vez de deixar um banco vazio que poderia ser confundido com a cópia restaurada.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  Detalhes do banco de dados criado.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="type" type="number">
+    O motor do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    O nome do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    A descrição do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    O ID do dono do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="owner_plan" type="string | null">
+    O nome do plano do dono (por exemplo, `pro` ou `enterprise-8`), ou `null` quando o dono não tem plano.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    O status do banco de dados (por exemplo, `up`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    A quantidade de RAM alocada ao banco de dados, em MB.
+  </ResponseField>
+
+  <ResponseField name="host" type="string">
+    O endereço do host do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="port" type="number">
+    A porta do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    A versão major em que o banco de dados foi criado, por exemplo `"18"` ou `"8.0"`. Atualizações de segurança são aplicadas no restart sem alterá-la.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    A data e hora de criação do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    A data e hora da última atualização do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="offline_since" type="string | null" format="date-time">
+    A data e hora em que o banco de dados ficou offline, se aplicável.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    A data e hora do snapshot mais recente, se disponível.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "00000000000000000000000000000001",
+    "cluster": 1,
+    "type": 1,
+    "name": "MyDatabase",
+    "description": "I have a description :)",
+    "owner_id": "123456789012345678",
+    "owner_plan": "pro",
+    "status": "up",
+    "ram": 1024,
+    "host": "database.example.com",
+    "port": 5432,
+    "username": "vertracloud",
+    "version": "18",
+    "offline_since": null,
+    "last_snapshot": null,
+    "created_at": "2026-03-20T19:58:00Z",
+    "updated_at": "2026-03-20T19:58:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: O body falhou na validação (`400`), incluindo um `type` ausente quando `snapshot_id` é omitido.
+  - `USER_NOT_FOUND`: A requisição não está autenticada (`401`).
+  - `PLAN_REQUIRED`: O dono não tem um plano ativo, então um novo banco de dados não pode ser criado (`403`).
+  - `MAX_DATABASES_REACHED`: O limite de bancos de dados do plano foi atingido (`403`).
+  - `INVALID_RAM_LIMIT`: `ram` está abaixo do mínimo para este tipo de banco de dados — 1.024 MB, ou 512 MB para Redis (`400`).
+  - `USER_LIMITS_NOT_FOUND`: Não foi possível carregar os limites do dono (`404`).
+  - `MEMORY_LIMIT_EXCEEDED`: A RAM solicitada excede a memória restante no plano (`400`).
+  - `SNAPSHOT_NOT_FOUND`: O `snapshot_id` não existe ou não pertence a quem fez a chamada (`404`).
+  - `SNAPSHOT_TYPE_MISMATCH`: O snapshot é de uma aplicação, e não de um banco de dados, ou o `type` informado não coincide com o motor dele (`400`).
+  - `INVALID_DATABASE_VERSION`: `version` não está disponível para este motor (`400`).
+  - `SNAPSHOT_VERSION_NEWER`: `version` é mais antiga que a versão major do snapshot (`400`).
+  - `SNAPSHOT_TOO_LARGE`: O snapshot excede o mesmo limite de tamanho da criação de banco de dados (`400`).
+  - `DB_CREATION_FAILED`: A plataforma não conseguiu provisionar o banco de dados (`500`).
+  - `DATABASE_PERSISTENCE_FAILED`: O banco de dados foi criado, mas não pôde ser lido de volta (`500`).
+  - `INTERNAL_SERVER_ERROR`: Ocorreu uma falha inesperada (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais do erro. Presente em `VALIDATION_ERROR` e `INVALID_RAM_LIMIT`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "INVALID_RAM_LIMIT",
+  "message": "Minimum RAM for this database type is 1024MB"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "SNAPSHOT_TYPE_MISMATCH"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "MAX_DATABASES_REACHED",
+  "message": "Your plan allows a maximum of 1 database(s)"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,138 @@
+---
+title: Criar um link de compartilhamento para um template
+sidebarTitle: Criar link
+api: POST https://api.vertracloud.app/v1/templates/{template_id}/share-links
+authMethod: bearer
+description: Cria um link de compartilhamento para um template privado, no modo de uso ou de cópia completa, com limite de usos e validade opcionais.
+---
+
+{/* @see RESTPostAPITemplateShareLinkBody, RESTPostAPITemplateShareLinkResponse — @vertracloud/api-types */}
+Esta chamada cria um link de compartilhamento para um template privado e responde `201` com o link e o token dele. **O token é mostrado somente nesta resposta e não pode ser recuperado**: guarde-o agora. Só um hash dele é mantido, e a resposta não é armazenada em cache. Um token começa com `vtpl_`.
+
+Um link pode ter um de dois modos. Um link `use` permite que quem o abrir crie as próprias aplicações a partir do template, sem copiá-lo. Um link `full_copy` dá a essa pessoa um template privado próprio, independente do seu, que conta no limite dela de 5 templates privados. `full_copy` exige que `share.full_copy` esteja `true` no template, e não está disponível para um [template fechado](/pt-br/templates/use/closed-templates) nem para uma versão que tenha variáveis `env_hidden`. Leia [Links de compartilhamento](/pt-br/templates/create/share-links) antes de escolher.
+
+Precisa do escopo `templates:write` quando chamada com uma chave de API. Só o dono do template pode criar links; em um workspace, um membro nem consegue listá-los. Quem recebe o link vê o aviso "Não verificado pela Vertra" na prévia.
+
+<ParamField path="template_id" type="string" required>
+  O ID do template.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o template pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<ParamField body="mode" type="string">
+  `use` ou `full_copy`. Padrão `use`.
+</ParamField>
+
+<ParamField body="max_uses" type="integer">
+  O número máximo de usos. Sem ele, não há limite. Um uso é contado quando alguém começa a criar a partir do link; um uso recusado ou desfeito é devolvido.
+</ParamField>
+
+<ParamField body="expires_in_days" type="integer">
+  O número de dias até o link expirar. Sem ele, o link não expira.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/tpl-abc123def456/share-links \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "mode": "use", "max_uses": 10, "expires_in_days": 7 }'
+```
+
+</RequestExample>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O link.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do link.
+  </ResponseField>
+
+  <ResponseField name="template_id" type="string">
+    O template ao qual o link pertence.
+  </ResponseField>
+
+  <ResponseField name="mode" type="string">
+    `use` ou `full_copy`.
+  </ResponseField>
+
+  <ResponseField name="last4" type="string">
+    Os últimos 4 caracteres do token, para diferenciar os links.
+  </ResponseField>
+
+  <ResponseField name="uses" type="integer">
+    Quantas vezes o link foi usado.
+  </ResponseField>
+
+  <ResponseField name="max_uses" type="integer | null">
+    O número máximo de usos, ou `null` para sem limite.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null" format="date-time">
+    Quando o link expira, ou `null` quando não expira.
+  </ResponseField>
+
+  <ResponseField name="revoked_at" type="string | null" format="date-time">
+    Quando o autor revogou o link, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando o link foi criado.
+  </ResponseField>
+
+  <ResponseField name="token" type="string">
+    O token completo. Mostrado uma vez.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "lnk-abc123def456",
+    "template_id": "tpl-abc123def456",
+    "mode": "use",
+    "last4": "x9Qa",
+    "uses": 0,
+    "max_uses": 10,
+    "expires_at": "2026-11-03T14:02:00Z",
+    "revoked_at": null,
+    "created_at": "2026-10-27T14:02:00Z",
+    "token": "vtpl_EXAMPLE_TOKEN_SHOWN_ONLY_ONCE_x9Qa"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: O template não existe, foi excluído ou não é seu (`404`).
+  - `TEMPLATE_SAVE_NOT_ALLOWED`: `full_copy` foi pedido e o template não permite (`share.full_copy` não é `true`) (`403`).
+  - `TEMPLATE_CLOSED`: `full_copy` foi pedido para um template fechado (`403`).
+  - `VALIDATION_ERROR`: `max_uses` ou `expires_in_days` não é um inteiro positivo (`400`).
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace cria links dos templates dele.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_CLOSED"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,179 @@
+---
+title: Publicar aplicação na web
+sidebarTitle: Publicar / Despublicar
+api: POST https://api.vertracloud.app/v1/apps/{id}/network/publish
+authMethod: bearer
+description: Liga a publicação na web de uma aplicação criada sem ela, e depois a desliga.
+---
+
+{/* @see RESTPostAPIApplicationWebPublishResponse / RESTDeleteAPIApplicationWebPublishResponse — @vertracloud/api-types */}
+Uma aplicação criada sem `subdomain` é privada: ela roda, mas nada a roteia a partir da
+internet. Estas duas rotas ligam e desligam a publicação na web a qualquer momento, sem recriar a
+aplicação.
+
+<Warning>
+  **As duas rotas recriam o container, então a aplicação reinicia.** A configuração de roteamento e a
+  porta exposta só existem desde a criação do container, então o estado de publicação não pode mudar no lugar.
+  Espere uma indisponibilidade curta em cada chamada.
+</Warning>
+
+<Warning>
+  **Despublicar libera o subdomínio.** Ele não fica reservado para você — qualquer pessoa pode registrá-lo logo
+  depois, e você pode não consegui-lo de volta. Todos os domínios personalizados da aplicação também são removidos, mas
+  os seus registros de DNS não são tocados: apague o `CNAME` e o registro `TXT` de validação de cada domínio no seu
+  provedor de DNS, ou os nomes continuam apontando para a Vertra Cloud e outro cliente pode reivindicá-los. Para usar um domínio
+  de novo, adicione-o outra vez e crie os registros mostrados para ele.
+</Warning>
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação. Somente o dono da aplicação pode chamar este endpoint; membros do workspace ainda não são aceitos aqui.
+</ParamField>
+
+<ParamField body="subdomain" type="string">
+  O subdomínio em que publicar, sem o sufixo `.vertraweb.app` (por exemplo, `myapp`). Entre 3 e
+  50 caracteres, seguindo `^[a-z0-9][a-z0-9-]*[a-z0-9]$`.
+
+  Opcional. Se omitir, a plataforma escolhe um subdomínio para você. **Enviar um valor exige um plano
+  com subdomínios personalizados**; escolher um aleatório não exige.
+</ParamField>
+
+<ParamField body="port" type="integer">
+  Somente para uma aplicação que roda uma [imagem Docker personalizada](/pt-br/guides/custom-docker-images): a porta em que a imagem escuta, de 1 a 65535. Ela é salva como a porta da aplicação. **Obrigatória quando a aplicação foi criada sem web**; caso contrário a chamada falha com `IMAGE_APP_PORT_REQUIRED`. Ignorada em qualquer outra aplicação.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="subdomain" type="string | null">
+    O subdomínio completo que agora serve a aplicação, ou `null` quando a publicação está desligada.
+  </ResponseField>
+
+  <ResponseField name="domains" type="string[]">
+    Os hostnames dos domínios personalizados. Sempre vazio depois de publicar ou despublicar — adicione domínios com
+    [Adicionar domínio da aplicação](/pt-br/api-reference/endpoint/apps/domains/create).
+  </ResponseField>
+
+  <ResponseField name="type" type="integer">
+    O tipo da aplicação após a mudança: `2` (site) quando publicada, `1` (bot) quando não está.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (POST)
+{
+  "response": {
+    "subdomain": "myapp.vertraweb.app",
+    "domains": [],
+    "type": 2
+  }
+}
+```
+
+```json Response (DELETE)
+{
+  "response": {
+    "subdomain": null,
+    "domains": [],
+    "type": 1
+  }
+}
+```
+
+</ResponseExample>
+
+## Despublicar
+
+```http
+DELETE https://api.vertracloud.app/v1/apps/{id}/network/publish
+```
+
+Não recebe body. Libera o subdomínio, remove todos os domínios personalizados (os registros de DNS no seu provedor continuam até
+você apagá-los) e transforma a aplicação de volta em uma aplicação privada, depois recria o container. A resposta tem o mesmo formato, com `subdomain`
+em `null`, `domains` vazio e `type` de volta para `1`.
+
+### Piso de memória
+
+Uma aplicação publicada precisa de no mínimo **512 MB** de RAM. A memória nunca é aumentada automaticamente aqui: se
+a aplicação tiver menos, a requisição falha com `MEMORY_BELOW_MINIMUM` e os valores atual e exigido voltam em `details`. Aumente-a com
+[Atualizar configuração da aplicação](/pt-br/api-reference/endpoint/apps/updateconfig) e tente de novo.
+
+```json Error Response (400)
+{
+  "code": "MEMORY_BELOW_MINIMUM",
+  "details": {
+    "current_mb": 256,
+    "minimum_mb": 512
+  }
+}
+```
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: o path parameter ou o body falhou na validação (`400`). É o que retorna um
+    `subdomain` malformado — de 3 a 50 caracteres, `^[a-z0-9][a-z0-9-]*[a-z0-9]$`. A resposta
+    também traz `message` e `path`.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
+  - `USER_NOT_FOUND`: o usuário autenticado não pôde ser identificado (`401`).
+  - `ACCESS_DENIED`: o usuário não tem permissão para agir sobre a aplicação (`403`).
+  - `PLAN_REQUIRED`: a conta dona da aplicação não tem um plano ativo (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH`: o plano do dono não inclui a publicação na web (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN`: um `subdomain` foi enviado, mas o plano do dono não
+    permite escolher o nome (`403`). Omita o campo para receber um aleatório.
+  - `APP_NOT_FOUND`: a aplicação informada não existe (`404`).
+  - `IMAGE_APP_PORT_REQUIRED`: a aplicação roda uma imagem Docker personalizada, ainda não tem porta e o body não tem `port` (`400`).
+  - `APP_ALREADY_PUBLISHED`: a aplicação já tem um subdomínio ou um domínio personalizado (`400`).
+  - `APP_NOT_PUBLISHED`: `DELETE` em uma aplicação que não está publicada (`400`).
+  - `MEMORY_BELOW_MINIMUM`: a aplicação tem menos RAM do que uma aplicação publicada exige
+    (`400`), com `details: { current_mb, minimum_mb }`.
+  - `SUBDOMAIN_FORBIDDEN`: o subdomínio pedido está na lista de nomes reservados da plataforma (`400`).
+  - `SUBDOMAIN_TAKEN`: outra aplicação já usa esse subdomínio (`409`).
+  - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida na mesma aplicação está em execução; o
+    container não foi tocado (`409`). Aguarde alguns segundos e tente de novo.
+  - `INTERNAL_SERVER_ERROR`: falha inesperada (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "APP_ALREADY_PUBLISHED"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "SUBDOMAIN_TAKEN"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  **Dois limites se aplicam, e eles são propositalmente rígidos.** Publicar e despublicar recriam o
+  container, então dividem o orçamento de ciclo de vida por aplicação com `start`, `stop`, `restart` e
+  instalações de dependências: **10 requisições por minuto para todas elas juntas**, por aplicação — não
+  um orçamento por rota. Além disso, uma publicação bem-sucedida inicia um **cooldown de 5 minutos no endereço público
+  da aplicação**, compartilhado com a
+  [Alterar subdomínio](/pt-br/api-reference/endpoint/apps/network/subdomain): publicar de novo dentro dessa
+  janela retorna `429 SUBDOMAIN_CHANGE_RATE_LIMITED`. Despublicar e publicar com um novo nome é uma troca de endereço como qualquer outra e não contorna o limite. Recusas não consomem o cooldown —
+  só uma publicação que de fato aconteceu consome. Veja [Limite de requisições](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa).
+</Note>

@@ -1,0 +1,190 @@
+---
+title: 'How to Run n8n on Vertra Cloud: From Zero to Your First Workflow'
+sidebarTitle: 'n8n'
+description: 'Step-by-step guide to n8n on Vertra Cloud: pick the mode, create the owner, set up webhooks, Python and JavaScript code, SMTP, backups and updates.'
+icon: 'diagram-project'
+---
+
+n8n is a visual workflow automation tool: you connect apps and services with nodes, start a flow from a schedule or a webhook, and n8n runs it. This guide takes you from the wizard to a working flow, and covers what is specific to running n8n on Vertra Cloud. The [n8n template](/templates/catalog/n8n) packages n8n 2.44.7 with the **Code node in JavaScript and in Python** in the same container, an optional worker for heavy loads and community nodes.
+
+<Note>
+  n8n is distributed under the Sustainable Use License: internal business or personal use. Read the [license](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) before offering n8n to third parties. This template is a Vertra Cloud packaging and is not affiliated with n8n.
+</Note>
+
+## Requirements and plan
+
+| | |
+|---|---|
+| Source | Docker image (uses one [image slot](/templates/overview#image-slots)). |
+| Memory | **1 GB** with SQLite, **2 GB** with managed Postgres, **3.5 GB** with workers. It must fit in your free memory. |
+| Plan | A plan that includes Docker images. The gallery card shows whether the template fits your account and why not when it does not. See [Plans and limits](/plans-and-limits) and [Custom Docker images](/guides/custom-docker-images). |
+| Web | The app is published at a Vertra Cloud address (editor and webhooks). |
+
+The first boot takes 25 to 60 seconds, because n8n creates its database.
+
+## Choose how n8n runs
+
+The wizard asks **How will n8n run?** The choice decides what is created and how much memory it uses.
+
+| Mode | What is created | Memory | Use it when |
+|---|---|---|---|
+| **Managed Postgres** (default) | n8n and a managed Postgres database. | 2 GB | Almost always: production flows, many executions, history you want to keep. |
+| **Built-in SQLite** | n8n only; the database is a file on the app's disk. | 1 GB | You are testing, or you run a few light flows alone. |
+| **Scale with workers** | n8n, one worker, Postgres and Redis. The editor hands each execution to the worker through a queue. | 3.5 GB | Heavy flows or many at once, and you want the editor to stay light. |
+
+Postgres is the safe default: it handles concurrency better than SQLite and keeps the history out of the app's disk.
+
+In the workers mode a second question appears, **Parallel executions on the worker** (5 by default). More parallelism needs more worker memory.
+
+## Create n8n
+
+<Steps>
+  <Step title="Open the template">
+    In the dashboard open **Templates**, pick **n8n** and click **Use template**. In the CLI: `vertra template deploy n8n --name my-n8n --set mode=postgres`.
+  </Step>
+  <Step title="Answer the wizard">
+    Choose the mode, the **time zone for schedules** (America/Sao_Paulo, UTC, America/New_York or Europe/Lisbon) and the **modules allowed in the Code node**. **Safe** (default) allows only data and text modules; **All** also allows files, processes and network inside your own container.
+
+    Optionally turn on email (SMTP) now: see [Email for invitations](#email-for-invitations-and-password-reset).
+  </Step>
+  <Step title="Name it and create">
+    Name the app, choose the workspace and folder, and click **Create**. When it finishes you get the app **address** and the next step. n8n generates its own secrets; you do not type any.
+  </Step>
+</Steps>
+
+## First access: create the owner
+
+<Warning>
+  Open the address **right after the deploy** and create the owner account. n8n asks for an email, a name and a password on the first visit, and whoever opens the address first becomes the owner.
+</Warning>
+
+From then on, every other person who needs access is invited from **Settings > Users**.
+
+## Your first workflow with a webhook
+
+<Steps>
+  <Step title="Create the flow">
+    Click **Create workflow** and add a **Webhook** node. Set the method (for example `POST`) and a path.
+  </Step>
+  <Step title="Add a Code node">
+    Add a **Code** node after the webhook and choose the language (next section).
+  </Step>
+  <Step title="Test, then activate">
+    The **Test URL** works while you listen for a test event in the editor. To receive real calls, **activate** the workflow: the **Production URL** only answers while the workflow is active.
+  </Step>
+</Steps>
+
+### Webhook URLs
+
+n8n builds the webhook addresses from the app's public address: the production URL looks like `<address>/webhook/<path>` and the test URL `<address>/webhook-test/<path>`. Always copy the URL from the Webhook node instead of typing it. If the node shows an address you do not recognize, open the app's variables and check that `N8N_WEBHOOK_URL` is the address shown in the outputs.
+
+Webhooks are served by the editor, in every mode. Calls from the internet reach n8n over HTTPS; the request body can have up to 16 MiB.
+
+## Code in JavaScript and Python
+
+The **Code** node runs in either language, in the same container, with no extra service.
+
+<CodeGroup>
+
+```python Python (Native)
+import json
+return [{"json": {"ok": True, "n": len(_items)}}]
+```
+
+```javascript JavaScript
+return [{ json: { ok: true } }];
+```
+
+</CodeGroup>
+
+Choose **Python (Native)** or **JavaScript** in the node's language selector. The first call after a quiet period takes a few seconds, because the code runner starts on demand and exits after 15 seconds idle; the next calls take under a second.
+
+### What you can import
+
+With **Safe** modules (the default), only data and text modules are allowed:
+
+- **Python:** `json`, `re`, `datetime`, `math`, `random`, `statistics`, `collections`, `itertools`, `functools`, `string`, `time`, `uuid`, `base64`, `hashlib`, `hmac`, `decimal`, `fractions`, `textwrap`, `csv`, `io`, `copy`, `typing`, `html`, `zoneinfo`, `calendar`, `operator`, `bisect`, `heapq`, `secrets`.
+- **JavaScript:** `crypto`, `url`, `path`, `util`, `zlib`, `buffer`, `querystring`, `string_decoder`, `events`, `stream`, `assert` and `moment`.
+
+Importing anything else fails with `Import of standard library module ... is disallowed`. To allow everything, change `VERTRA_CODE_MODULES` to `all` in the app's variables and restart. **All** also lets the code touch files, processes and the network of your own container, so choose it only when you trust every flow that runs there.
+
+## Community nodes
+
+Open **Settings > Community nodes > Install** and enter the npm package name. Installed nodes live in `/app/.n8n/nodes` and survive restarts and updates; in the workers mode the worker reinstalls them when it boots. Installing needs the app to reach the npm registry.
+
+<Warning>
+  A community node runs **inside** the n8n process, with access to everything n8n can reach, including your credentials. Install only packages you trust.
+</Warning>
+
+## Email for invitations and password reset
+
+Without SMTP, n8n cannot send invitations or reset emails. In the wizard, answer **Yes, use my SMTP server** and fill in:
+
+| Field | What to enter |
+|---|---|
+| SMTP server | The host from your email provider. |
+| Connection security | **STARTTLS** (port 587, default), **direct SSL/TLS** (port 465) or none (not recommended). |
+| Port, user and password | From your provider. Use an app password when the provider offers one. |
+| Sender email | The address invitations come from. |
+
+With SMTP set up, **Settings > Users > Invite** sends the invitation by email. The **Send Email** node does not use this setting: it has its own credential in each flow.
+
+## Credentials and the encryption key
+
+n8n stores the credentials of your flows (API keys, OAuth tokens) encrypted with a key. The template generates it once and keeps it in the app's variables as `N8N_ENCRYPTION_KEY`; the editor and the worker use the same one.
+
+<Warning>
+  Keep a copy of `N8N_ENCRYPTION_KEY` somewhere safe. Without it, credentials from a backup cannot be read. Never change it on a running app: a different key makes n8n refuse to boot.
+</Warning>
+
+## Backups, updates and rollback
+
+- **Backups.** The data is in the Postgres database (or in `/app/.n8n` with SQLite) and in the files under `/app/.n8n`. Use [snapshots](/guides/backups-snapshots) of the app and the database. For a portable copy of your flows, also export them from n8n.
+- **Updates.** New n8n versions arrive as new versions of the template. You see **New version available** and click **Update**; a [safety snapshot](/templates/use/updates-and-rollback) is taken first.
+- **Rollback.** n8n migrates its database when it updates, so going back always returns **the data too**: restore the safety snapshot taken before the update. Code-only rollback is blocked for this reason.
+- Execution history is deleted after 7 days or 5,000 executions, whichever comes first.
+
+## Limits to know
+
+- The workers mode creates **one worker**. The worker has no public address and talks only to Postgres and Redis.
+- There are no dedicated webhook processors: the editor answers webhooks.
+- **Zero-downtime deploy is off** and cannot be turned on: two copies of n8n in queue mode would both act as leader and polling triggers would run twice. Keep a single copy of the app.
+- Editor memory use is about 300 to 540 MiB; the worker, 330 to 560 MiB.
+- The **Execute Command** and **Local File Trigger** nodes ship disabled by n8n. `ffmpeg` is not in the image.
+
+## Common problems
+
+<AccordionGroup>
+  <Accordion title="Import of standard library module ... is disallowed">
+    The module is not on the safe list. Set `VERTRA_CODE_MODULES` to `all` and restart, or avoid that module.
+  </Accordion>
+  <Accordion title="The first Code call is slow">
+    Normal: the runner starts on demand and stops after 15 seconds idle. The next calls are fast.
+  </Accordion>
+  <Accordion title="The app never finishes booting">
+    Check that `N8N_ENCRYPTION_KEY` in the app's variables is the key n8n stored the first time. A different key stops the boot.
+  </Accordion>
+  <Accordion title="A community node does not install">
+    The app has no outbound access to the npm registry, or there is no room left in `/app`. Check the app log and the disk.
+  </Accordion>
+  <Accordion title="Someone else created the owner account">
+    Another person opened the address before you. Delete the app, create it again and open the address as soon as the deploy ends.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="n8n in the catalog" icon="store" href="/templates/catalog/n8n">
+    What the template creates and its variables.
+  </Card>
+  <Card title="Update and roll back" icon="rotate-left" href="/templates/use/updates-and-rollback">
+    The safety snapshot and rollback with data.
+  </Card>
+  <Card title="Public page" icon="up-right-from-square" href="https://vertracloud.app/templates/n8n">
+    The template in the public gallery.
+  </Card>
+  <Card title="Stacks" icon="layer-group" href="/templates/use/stacks">
+    How the app, Postgres and Redis live together.
+  </Card>
+</CardGroup>

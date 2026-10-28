@@ -1,0 +1,42 @@
+### Plantillas: software listo para usar con un clic
+
+Elige una plantilla, responde unas preguntas y Vertra Cloud crea todo lo que necesita, en una sola operación: la aplicación, sus bases de datos y las variables que las conectan. Si algún paso falla, se elimina todo lo que creó el despliegue, así que nunca te quedas con una configuración a medias.
+
+- **Catálogo:** n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI, Uptime Kuma y bots de Discord iniciales en JavaScript y Python. Explóralo en el panel, con búsqueda, categorías y el filtro "cabe en mi plan", o con `vertra template list`.
+- **Secretos generados:** las claves de cifrado y los tokens se generan por ti. Un secreto que necesita una salida se muestra una sola vez, al final del despliegue.
+- **El plan requerido se calcula** a partir de lo que necesita la plantilla (memoria, publicación web, imágenes Docker). El asistente te dice qué falta y por qué.
+- **Cupos de imágenes Docker:** una plantilla de imagen ocupa un cupo por imagen distinta en uso, no uno por app. Tres apps de la misma plantilla usan un cupo. Las plantillas de código no usan ninguno. `POST /v1/apps/image` rechaza las imágenes que pertenecen a una plantilla, con `IMAGE_TEMPLATE_ONLY`.
+- **Las actualizaciones nunca son automáticas.** Una versión nueva muestra "Nueva versión disponible"; actualizar toma antes un snapshot de seguridad y vuelve atrás si falla.
+- **En todas partes:** panel, `vertra template` y `vertra stack` en la CLI, el servidor MCP y los SDK de JavaScript, Python y Go. Nuevos scopes de clave de API: `templates:read`, `templates:write`, `templates:deploy`, `stacks:read`, `stacks:write` y `stacks:delete`. Consulta la [guía de Plantillas](/es-es/templates/overview) y la [referencia de la API](/es-es/api-reference/endpoint/templates/list).
+
+### Stacks
+
+Una plantilla con más de un servicio crea una **stack**: aplicaciones, bases de datos y carpetas de Blob que van juntas. También puedes montar una a mano: añade una base de datos a una aplicación, o convierte las apps y bases de datos de una carpeta en una stack.
+
+- Las variables de conexión y los certificados de cliente se inyectan en la app y se mantienen al día cuando cambia la contraseña o el certificado de una base de datos. Las variables gestionadas por una stack aparecen marcadas en el panel.
+- Las apps de un stack llegan a las bases de datos por su dirección pública, con certificados de cliente que gestiona la plataforma.
+- Un panel **Conectar** muestra el código de conexión en el lenguaje de tu app, con los nombres reales de las variables.
+- Haz snapshot y rollback de toda la stack a la vez, y actualízala a una versión más nueva de la plantilla.
+- Al eliminar una stack se pregunta si solo quieres deshacerla (los recursos quedan sueltos) o eliminar todo.
+- **Blob en las stacks:** una stack puede tener su propia carpeta de Blob con una clave restringida. Deshacer la stack conserva los archivos.
+
+### Tus plantillas y enlaces para compartir
+
+- **Guarda como plantilla** desde una app o una stack, desde un repositorio de GitHub, o escribe el manifiesto (`vertracloud.template.yaml`) en el editor. Los secretos nunca entran: cada variable se convierte en una pregunta y revisas lo que se copia.
+- Disponible en los planes que pueden crear imágenes Docker, hasta 5 plantillas privadas por cuenta. En un workspace, solo el propietario crea y gestiona plantillas.
+- Los **enlaces para compartir** permiten que otra cuenta use tu plantilla (enlace de uso) o se lleve una copia completa (enlace de copia). Ambos muestran una vista previa con el autor y lo que se creará, y llevan la etiqueta "No verificado por Vertra". Puedes revocar un enlace en cualquier momento; lo que ya se creó sigue funcionando. Usa **Denunciar** en una vista previa o en una app creada para señalar abusos.
+- Las **plantillas cerradas** ocultan el código a quien las usa: sin gestor de archivos, descargas ni terminal, en todas las rutas. Las bases de datos nunca se cierran.
+- `vertra template validate` comprueba un manifiesto en local con el [JSON Schema](/es-es/templates/reference/manifest-schema) público.
+
+### Blob: claves restringidas a una carpeta
+
+Una clave de API con scopes `blob:*` ahora puede limitarse a una carpeta con `blob_prefix`. Las credenciales S3 derivadas de la clave heredan el límite. Las operaciones fuera de la carpeta, y las de nivel de cuenta como reglas, dominios y estadísticas, fallan con `BLOB_PREFIX_DENIED`. Consulta [Autenticación de Blob](/es-es/blob/authentication).
+
+### Bases de datos
+
+- La sección [¿Cómo me conecto a cada motor?](/es-es/databases#cómo-me-conecto-a-cada-motor) ahora cubre Prisma con certificados de cliente y Python 3.13.
+- Restablecer el certificado de una base de datos reescribe los archivos de las apps conectadas mediante una stack. Reinicia esas apps para que los usen.
+
+### Carpetas
+
+Las carpetas del panel tienen notas y una posición en el canvas de Flow, y los grupos de Flow pasaron a ser carpetas.

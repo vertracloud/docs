@@ -1,0 +1,58 @@
+---
+title: Logs de build de la imagen
+sidebarTitle: Logs de build
+api: GET https://api.vertracloud.app/v1/images/{image_id}/logs
+authMethod: bearer
+description: Transmite el log de build de una imagen como un flujo de eventos de texto.
+---
+
+{/* @see RESTGetAPICustomImageLogsQuery, RESTGetAPICustomImageLogsResult — @vertracloud/api-types */}
+Requiere el scope `images:read` cuando se llama con una clave de API.
+
+<ParamField path="image_id" type="string" required>
+  El ID de la imagen.
+</ParamField>
+
+<ParamField query="version_id" type="string">
+  La versión cuyo log de build quieres leer. Si no se indica, se lee el build más reciente.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la imagen pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúen sobre una imagen que no les pertenece.
+</ParamField>
+
+### Response
+
+La respuesta es un flujo de **Server-Sent Events** (`text/event-stream`), no JSON. Primero repite el log que ya se había generado y después sigue el build en directo, con heartbeats de keep-alive. Cada evento `log` contiene una línea del log de build en texto plano. Se pueden tener abiertos hasta 2 flujos por imagen al mismo tiempo. Una vez terminado el build, el log del último build y el de cada versión siguen disponibles.
+
+<ResponseExample>
+
+```text Response
+event: log
+data: Step 1/6 : FROM node:22-slim
+
+event: log
+data: Step 2/6 : WORKDIR /srv
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope necesario (`403`).
+  - `IMAGE_NOT_FOUND`: La imagen no existe o no puedes acceder a ella (`404`).
+  - `IMAGE_VERSION_NOT_FOUND`: La imagen no tiene ninguna versión con ese `version_id` (`404`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_VERSION_NOT_FOUND"
+}
+```
+
+</ResponseExample>

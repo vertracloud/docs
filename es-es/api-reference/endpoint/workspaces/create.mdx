@@ -1,0 +1,41 @@
+---
+title: Crear workspace
+sidebarTitle: Crear
+api: POST https://api.vertracloud.app/v1/workspaces
+authMethod: bearer
+description: Crea un workspace con los cuatro roles iniciales (Admin, Developer, Operator, Viewer). Requiere el plan Enterprise.
+---
+
+{/* @see APIWorkspace, RESTPostAPIWorkspaceCreateBody — @vertracloud/api-types */}
+Cualquier cuenta con sesión iniciada puede llamar a esto: la creación en sí no está protegida por un permiso, sino
+por el **plan**. Una clave de API necesita el scope `workspaces:write`.
+
+<Note>
+  Con el workspace se crean cuatro roles iniciales: **Admin** (todos los permisos excepto `snapshots:manage` —restaurar
+  o eliminar un snapshot es demasiado destructivo para concederlo por defecto— y `blob:read`/`blob:manage`, ya que los
+  archivos de Blob Storage son datos del propietario), **Developer**, **Operator** y **Viewer**. Desde que se crean son
+  roles normales —se pueden renombrar, editar y eliminar— y cuentan para el límite de roles del plan como cualquier otro.
+</Note>
+
+### Body
+
+<ParamField body="name" type="string" required>
+  De 1 a 50 caracteres. Único por propietario entre tus workspaces activos (no eliminados). El nombre se guarda en minúsculas, así que `Production` se guarda como `production` (y entra en conflicto con un `production` existente).
+</ParamField>
+
+<ParamField body="description" type="string">
+  Hasta 200 caracteres.
+</ParamField>
+
+
+
+### Respuesta
+
+Igual que [Obtener workspace](/es-es/api-reference/endpoint/workspaces/get), incluidos los miembros, los cuatro roles iniciales, `permissions` e `is_owner`.
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `PLAN_RESTRICTED_FEATURE` | Tu plan no incluye workspaces (por debajo de Enterprise). |
+| 409 | `WORKSPACE_NAME_ALREADY_EXISTS` | Ya eres propietario de un workspace activo con este nombre. |

@@ -1,0 +1,69 @@
+---
+title: Obter workspace
+sidebarTitle: Obter
+api: GET https://api.vertracloud.app/v1/workspaces/{id}
+authMethod: bearer
+description: Retorna os detalhes completos do workspace, as permissões de quem chama e a organização individual dele.
+---
+
+{/* @see APIWorkspaceInfoResponse, RESTGetAPIWorkspaceInfoResponse — @vertracloud/api-types */}
+Qualquer membro pode chamar isto (não há barreira de permissão de leitura no próprio workspace — você
+ou faz parte dele, ou recebe `404`). Uma chave de API precisa do escopo `workspaces:read`.
+
+<Note>
+  Um workspace que não existe e um do qual você não faz parte respondem da mesma forma:
+  `404 WORKSPACE_NOT_FOUND`. Isso é intencional — diferenciar os dois vazaria quais IDs de workspace existem.
+</Note>
+
+### Caminho
+
+<ParamField path="id" type="string" required>
+  ID do workspace.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="APIWorkspaceInfoResponse">
+  Tudo de [Listar workspaces](/pt-br/api-reference/endpoint/workspaces/get-all), mais:
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="members" type="APIWorkspaceMember[]">Lista completa de membros, no mesmo formato de [Listar membros](/pt-br/api-reference/endpoint/workspaces/members/list).</ResponseField>
+  <ResponseField name="roles" type="APIWorkspaceRole[]">Lista completa de papéis, no mesmo formato de [Listar papéis](/pt-br/api-reference/endpoint/workspaces/roles/list).</ResponseField>
+  <ResponseField name="applications" type="APIApplication[]">Aplicações vinculadas a este workspace.</ResponseField>
+  <ResponseField name="databases" type="APIDatabase[]">Bancos de dados vinculados a este workspace.</ResponseField>
+  <ResponseField name="permissions" type="WorkspacePermission[]">As permissões resolvidas de quem chama. O dono recebe o catálogo completo de 20 permissões sem precisar de uma linha de papel.</ResponseField>
+  <ResponseField name="is_owner" type="boolean" />
+  <ResponseField name="owner_plan" type="string | null">
+    O nome do plano do dono do workspace (por exemplo, `pro` ou `enterprise-8`), ou `null` quando o dono não tem plano. Ele determina quais recursos o workspace tem.
+  </ResponseField>
+  <ResponseField name="resource_organization" type="APIWorkspaceResourceOrganization">
+    Organização pessoal do membro que fez esta requisição neste workspace. Tem `scope` definido como
+    `workspace`, `user_id`, `workspace_id`, `folders` e `favorites`; não é uma configuração
+    compartilhada com os outros membros. Veja as [alterações de pastas e favoritos](/pt-br/api-reference/endpoint/workspaces/resource-organization).
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="scope" type="string">Sempre `workspace` nesta resposta.</ResponseField>
+    <ResponseField name="user_id" type="string">ID do membro que fez a requisição.</ResponseField>
+    <ResponseField name="workspace_id" type="string">ID deste workspace.</ResponseField>
+    <ResponseField name="folders" type="APIWorkspaceResourceFolder[]">
+      Pastas pessoais com `id`, `name`, `color`, `position`, `resources`, `created_at` e
+      `updated_at`. `color` é `neutral`, `red`, `orange`, `yellow`, `green`, `blue` ou `purple`.
+    </ResponseField>
+    <ResponseField name="favorites" type="APIWorkspaceFavorite[]">
+      Favoritos individuais com `resource_type` (`application` ou `database`), `resource_id`,
+      `position` e `created_at`.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 404 | `WORKSPACE_NOT_FOUND` | O workspace não existe, foi apagado de forma lógica ou você não é membro. |

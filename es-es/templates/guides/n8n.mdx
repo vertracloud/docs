@@ -1,0 +1,190 @@
+---
+title: 'Cómo ejecutar n8n en Vertra Cloud: de cero a tu primer workflow'
+sidebarTitle: 'n8n'
+description: 'Guía paso a paso de n8n en Vertra Cloud: modo, propietario, webhooks, código Python y JavaScript, SMTP, copias de seguridad y actualizaciones.'
+icon: 'diagram-project'
+---
+
+n8n es una herramienta visual de automatización de workflows: conectas aplicaciones y servicios con nodos, inicias un flujo desde una programación o un webhook, y n8n lo ejecuta. Esta guía te lleva del asistente a un flujo en marcha y cubre lo que es específico de ejecutar n8n en Vertra Cloud. La [plantilla de n8n](/es-es/templates/catalog/n8n) empaqueta n8n 2.44.7 con el **nodo Code en JavaScript y en Python** en el mismo contenedor, un worker opcional para cargas pesadas y nodos de la comunidad.
+
+<Note>
+  n8n se distribuye bajo la Sustainable Use License: uso empresarial interno o personal. Lee la [licencia](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) antes de ofrecer n8n a terceros. Esta plantilla es un empaquetado de Vertra Cloud y no está afiliada a n8n.
+</Note>
+
+## Requisitos y plan
+
+| | |
+|---|---|
+| Origen | Imagen Docker (usa un [cupo de imagen](/es-es/templates/overview#cupos-de-imagen)). |
+| Memoria | **1 GB** con SQLite, **2 GB** con Postgres gestionado, **3,5 GB** con workers. Debe caber en tu memoria libre. |
+| Plan | Un plan que incluya imágenes Docker. La tarjeta de la galería muestra si la plantilla encaja en tu cuenta y, si no, por qué. Consulta [Planes y límites](/es-es/plans-and-limits) e [Imágenes Docker personalizadas](/es-es/guides/custom-docker-images). |
+| Web | La aplicación se publica en una dirección de Vertra Cloud (editor y webhooks). |
+
+El primer arranque tarda de 25 a 60 segundos, porque n8n crea su base de datos.
+
+## Elige cómo se ejecuta n8n
+
+El asistente pregunta **How will n8n run?** La elección decide qué se crea y cuánta memoria usa.
+
+| Modo | Qué se crea | Memoria | Úsalo cuando |
+|---|---|---|---|
+| **Managed Postgres** (predeterminado) | n8n y una base de datos Postgres gestionada. | 2 GB | Casi siempre: flujos de producción, muchas ejecuciones, historial que quieres conservar. |
+| **Built-in SQLite** | Solo n8n; la base de datos es un archivo en el disco de la aplicación. | 1 GB | Estás probando, o ejecutas unos pocos flujos ligeros en solitario. |
+| **Scale with workers** | n8n, un worker, Postgres y Redis. El editor entrega cada ejecución al worker mediante una cola. | 3,5 GB | Flujos pesados o muchos a la vez, y quieres que el editor siga ligero. |
+
+Postgres es la opción segura por defecto: gestiona mejor la concurrencia que SQLite y mantiene el historial fuera del disco de la aplicación.
+
+En el modo con workers aparece una segunda pregunta, **Parallel executions on the worker** (5 por defecto). Más paralelismo requiere más memoria en el worker.
+
+## Crea n8n
+
+<Steps>
+  <Step title="Abre la plantilla">
+    En el panel abre **Plantillas**, elige **n8n** y haz clic en **Usar plantilla**. En la CLI: `vertra template deploy n8n --name my-n8n --set mode=postgres`.
+  </Step>
+  <Step title="Responde al asistente">
+    Elige el modo, la **zona horaria de las programaciones** (America/Sao_Paulo, UTC, America/New_York o Europe/Lisbon) y los **módulos permitidos en el nodo Code**. **Safe** (predeterminado) permite solo módulos de datos y texto; **All** permite además archivos, procesos y red dentro de tu propio contenedor.
+
+    Si quieres, activa ya el correo (SMTP): consulta [Correo para invitaciones](#correo-para-invitaciones-y-restablecimiento-de-contraseña).
+  </Step>
+  <Step title="Ponle nombre y créala">
+    Ponle nombre a la aplicación, elige el workspace y la carpeta, y haz clic en **Crear**. Al terminar recibes la **dirección** de la aplicación y el siguiente paso. n8n genera sus propios secretos; no escribes ninguno.
+  </Step>
+</Steps>
+
+## Primer acceso: crea el propietario
+
+<Warning>
+  Abre la dirección **justo después del despliegue** y crea la cuenta de propietario. n8n pide un correo, un nombre y una contraseña en la primera visita, y quien abra primero la dirección se convierte en el propietario.
+</Warning>
+
+A partir de ahí, cualquier otra persona que necesite acceso se invita desde **Settings > Users**.
+
+## Tu primer workflow con un webhook
+
+<Steps>
+  <Step title="Crea el flujo">
+    Haz clic en **Create workflow** y añade un nodo **Webhook**. Define el método (por ejemplo `POST`) y una ruta.
+  </Step>
+  <Step title="Añade un nodo Code">
+    Añade un nodo **Code** después del webhook y elige el lenguaje (siguiente sección).
+  </Step>
+  <Step title="Prueba y luego activa">
+    La **Test URL** funciona mientras escuchas un evento de prueba en el editor. Para recibir llamadas reales, **activa** el workflow: la **Production URL** solo responde mientras el workflow está activo.
+  </Step>
+</Steps>
+
+### URLs del webhook
+
+n8n construye las direcciones de los webhooks a partir de la dirección pública de la aplicación: la URL de producción tiene la forma `<address>/webhook/<path>` y la de prueba `<address>/webhook-test/<path>`. Copia siempre la URL desde el nodo Webhook en lugar de escribirla. Si el nodo muestra una dirección que no reconoces, abre las variables de la aplicación y comprueba que `N8N_WEBHOOK_URL` es la dirección que aparece en las salidas.
+
+Los webhooks los sirve el editor, en todos los modos. Las llamadas desde internet llegan a n8n por HTTPS; el cuerpo de la petición puede tener hasta 16 MiB.
+
+## Código en JavaScript y Python
+
+El nodo **Code** se ejecuta en cualquiera de los dos lenguajes, en el mismo contenedor, sin servicio adicional.
+
+<CodeGroup>
+
+```python Python (Native)
+import json
+return [{"json": {"ok": True, "n": len(_items)}}]
+```
+
+```javascript JavaScript
+return [{ json: { ok: true } }];
+```
+
+</CodeGroup>
+
+Elige **Python (Native)** o **JavaScript** en el selector de lenguaje del nodo. La primera llamada tras un periodo de inactividad tarda unos segundos, porque el ejecutor de código arranca bajo demanda y se cierra tras 15 segundos de inactividad; las siguientes llamadas tardan menos de un segundo.
+
+### Qué puedes importar
+
+Con los módulos **Safe** (el valor predeterminado), solo se permiten módulos de datos y texto:
+
+- **Python:** `json`, `re`, `datetime`, `math`, `random`, `statistics`, `collections`, `itertools`, `functools`, `string`, `time`, `uuid`, `base64`, `hashlib`, `hmac`, `decimal`, `fractions`, `textwrap`, `csv`, `io`, `copy`, `typing`, `html`, `zoneinfo`, `calendar`, `operator`, `bisect`, `heapq`, `secrets`.
+- **JavaScript:** `crypto`, `url`, `path`, `util`, `zlib`, `buffer`, `querystring`, `string_decoder`, `events`, `stream`, `assert` y `moment`.
+
+Importar cualquier otro módulo falla con `Import of standard library module ... is disallowed`. Para permitirlo todo, cambia `VERTRA_CODE_MODULES` a `all` en las variables de la aplicación y reinicia. **All** también deja que el código toque archivos, procesos y la red de tu propio contenedor, así que elígelo solo cuando confíes en todos los flujos que se ejecutan allí.
+
+## Nodos de la comunidad
+
+Abre **Settings > Community nodes > Install** e introduce el nombre del paquete de npm. Los nodos instalados viven en `/app/.n8n/nodes` y sobreviven a reinicios y actualizaciones; en el modo con workers, el worker los reinstala cuando arranca. Instalar requiere que la aplicación pueda acceder al registro de npm.
+
+<Warning>
+  Un nodo de la comunidad se ejecuta **dentro** del proceso de n8n, con acceso a todo lo que n8n puede alcanzar, incluidas tus credenciales. Instala solo paquetes en los que confíes.
+</Warning>
+
+## Correo para invitaciones y restablecimiento de contraseña
+
+Sin SMTP, n8n no puede enviar invitaciones ni correos de restablecimiento. En el asistente, responde **Yes, use my SMTP server** y rellena:
+
+| Campo | Qué introducir |
+|---|---|
+| Servidor SMTP | El host de tu proveedor de correo. |
+| Seguridad de la conexión | **STARTTLS** (puerto 587, predeterminado), **SSL/TLS directo** (puerto 465) o ninguna (no recomendado). |
+| Puerto, usuario y contraseña | Los de tu proveedor. Usa una contraseña de aplicación cuando el proveedor la ofrezca. |
+| Correo del remitente | La dirección desde la que salen las invitaciones. |
+
+Con SMTP configurado, **Settings > Users > Invite** envía la invitación por correo. El nodo **Send Email** no usa este ajuste: tiene su propia credencial en cada flujo.
+
+## Credenciales y clave de cifrado
+
+n8n guarda las credenciales de tus flujos (claves de API, tokens OAuth) cifradas con una clave. La plantilla la genera una vez y la mantiene en las variables de la aplicación como `N8N_ENCRYPTION_KEY`; el editor y el worker usan la misma.
+
+<Warning>
+  Guarda una copia de `N8N_ENCRYPTION_KEY` en un lugar seguro. Sin ella, las credenciales de una copia de seguridad no se pueden leer. No la cambies nunca en una aplicación en ejecución: una clave distinta hace que n8n se niegue a arrancar.
+</Warning>
+
+## Copias de seguridad, actualizaciones y rollback
+
+- **Copias de seguridad.** Los datos están en la base de datos Postgres (o en `/app/.n8n` con SQLite) y en los archivos de `/app/.n8n`. Usa [snapshots](/es-es/guides/backups-snapshots) de la aplicación y de la base de datos. Para una copia portable de tus flujos, expórtalos también desde n8n.
+- **Actualizaciones.** Las nuevas versiones de n8n llegan como nuevas versiones de la plantilla. Ves **Nueva versión disponible** y haces clic en **Actualizar**; antes se toma un [snapshot de seguridad](/es-es/templates/use/updates-and-rollback).
+- **Rollback.** n8n migra su base de datos al actualizarse, así que volver atrás devuelve siempre **también los datos**: restaura el snapshot de seguridad tomado antes de la actualización. Por este motivo el rollback solo de código está bloqueado.
+- El historial de ejecuciones se borra a los 7 días o a las 5.000 ejecuciones, lo que ocurra primero.
+
+## Límites que debes conocer
+
+- El modo con workers crea **un worker**. El worker no tiene dirección pública y habla solo con Postgres y Redis.
+- No hay procesadores de webhooks dedicados: el editor responde a los webhooks.
+- **El despliegue sin caída está desactivado** y no se puede activar: dos copias de n8n en modo cola actuarían ambas como líder y los disparadores por sondeo se ejecutarían dos veces. Mantén una sola copia de la aplicación.
+- El uso de memoria del editor ronda los 300 a 540 MiB; el del worker, de 330 a 560 MiB.
+- Los nodos **Execute Command** y **Local File Trigger** vienen desactivados de fábrica en n8n. `ffmpeg` no está en la imagen.
+
+## Problemas comunes
+
+<AccordionGroup>
+  <Accordion title="Import of standard library module ... is disallowed">
+    El módulo no está en la lista segura. Cambia `VERTRA_CODE_MODULES` a `all` y reinicia, o evita ese módulo.
+  </Accordion>
+  <Accordion title="La primera llamada a Code es lenta">
+    Es normal: el ejecutor arranca bajo demanda y se detiene tras 15 segundos de inactividad. Las siguientes llamadas son rápidas.
+  </Accordion>
+  <Accordion title="La aplicación nunca termina de arrancar">
+    Comprueba que `N8N_ENCRYPTION_KEY` en las variables de la aplicación es la clave que n8n guardó la primera vez. Una clave distinta detiene el arranque.
+  </Accordion>
+  <Accordion title="Un nodo de la comunidad no se instala">
+    La aplicación no tiene acceso de salida al registro de npm, o no queda espacio en `/app`. Revisa el log de la aplicación y el disco.
+  </Accordion>
+  <Accordion title="Otra persona creó la cuenta de propietario">
+    Otra persona abrió la dirección antes que tú. Elimina la aplicación, créala de nuevo y abre la dirección en cuanto termine el despliegue.
+  </Accordion>
+</AccordionGroup>
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="n8n en el catálogo" icon="store" href="/es-es/templates/catalog/n8n">
+    Qué crea la plantilla y sus variables.
+  </Card>
+  <Card title="Actualizar y revertir" icon="rotate-left" href="/es-es/templates/use/updates-and-rollback">
+    El snapshot de seguridad y el rollback con datos.
+  </Card>
+  <Card title="Página pública" icon="up-right-from-square" href="https://vertracloud.app/templates/n8n">
+    La plantilla en la galería pública.
+  </Card>
+  <Card title="Stacks" icon="layer-group" href="/es-es/templates/use/stacks">
+    Cómo conviven la aplicación, Postgres y Redis.
+  </Card>
+</CardGroup>

@@ -1,0 +1,144 @@
+---
+title: Actualizar una base de datos
+sidebarTitle: Actualizar base de datos
+api: PUT https://api.vertracloud.app/v1/databases/{id}
+authMethod: bearer
+description: Actualiza el nombre, la descripción o la RAM de una base de datos por su ID.
+---
+
+{/* @see APIDatabase — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la base de datos que se va a actualizar.
+</ParamField>
+
+
+<ParamField query="workspace_id" type="string">
+  Si la base de datos pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<ParamField body="name" type="string">
+  El nuevo nombre de la base de datos. De 1 a 50 caracteres.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  La nueva descripción, de hasta 128 caracteres. Una cadena vacía o `null` la borra.
+</ParamField>
+
+<ParamField body="ram" type="number">
+  La nueva RAM en MB, un entero positivo. Debe caber en la memoria libre del plan y respetar el mínimo del motor (512 MB para Redis, 1024 MB para los demás).
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Los detalles actualizados de la base de datos.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la base de datos.
+  </ResponseField>
+
+  <ResponseField name="cluster" type="number">
+    El ID del clúster de la base de datos.
+  </ResponseField>
+
+  <ResponseField name="type" type="number">
+    El tipo de la base de datos.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    El nombre de la base de datos.
+  </ResponseField>
+
+  <ResponseField name="description" type="string">
+    La descripción de la base de datos.
+  </ResponseField>
+
+  <ResponseField name="owner_id" type="string">
+    El ID del propietario de la base de datos.
+  </ResponseField>
+
+  <ResponseField name="owner_plan" type="string | null">
+    El nombre del plan del propietario (por ejemplo, `pro` o `enterprise-8`), o `null` cuando el propietario no tiene plan.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    El estado de la base de datos (por ejemplo, `up`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    La RAM asignada a la base de datos, en MB.
+  </ResponseField>
+
+  <ResponseField name="host" type="string">
+    La dirección del host de la base de datos.
+  </ResponseField>
+
+  <ResponseField name="port" type="number">
+    El puerto que usa la base de datos.
+  </ResponseField>
+
+  <ResponseField name="last_snapshot" type="string | null" format="date-time">
+    La marca de tiempo del último snapshot, si está disponible.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    La marca de tiempo en que se creó la base de datos.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    La marca de tiempo de la última actualización de la base de datos.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "00000000000000000000000000000001",
+    "cluster": 1,
+    "type": 1,
+    "name": "UpdatedDatabase",
+    "description": "Updated description",
+    "owner_id": "123456789012345678",
+    "owner_plan": "pro",
+    "status": "up",
+    "ram": 256,
+    "host": "database.example.com",
+    "port": 5432,
+    "username": "vertracloud",
+    "version": "18",
+    "last_snapshot": "2026-03-14T19:58:00Z",
+    "created_at": "2026-03-14T19:58:00Z",
+    "updated_at": "2026-03-14T20:00:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: Un campo del cuerpo o de la consulta no superó la validación (`400`).
+  - `INVALID_RAM_LIMIT`: La RAM solicitada está fuera de lo que permiten el motor y el plan (`400`).
+  - `MEMORY_LIMIT_EXCEEDED`: El plan no tiene suficiente memoria libre para la nueva RAM (`400`).
+  - `ACCESS_DENIED`: Tu cuenta no puede actuar sobre esta base de datos (`403`).
+  - `DATABASE_NOT_FOUND`: La base de datos no existe (`404`).
+  - `OPERATION_IN_PROGRESS`: Hay otra operación del ciclo de vida en curso sobre esta base de datos (`409`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DATABASE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

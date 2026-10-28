@@ -1,0 +1,170 @@
+---
+title: Previsualizar un enlace para compartir plantilla
+sidebarTitle: Previsualizar enlace
+api: GET https://api.vertracloud.app/v1/share/templates/{token}
+authMethod: bearer
+description: "Muestra lo que daría un enlace para compartir una plantilla antes de usarlo: servicios, memoria, plan, preguntas y permisos, con el aviso de no verificada."
+---
+
+{/* @see RESTGetAPITemplateSharePreviewResponse, APITemplateSharePreview — @vertracloud/api-types */}
+Esta llamada devuelve lo que crearía un enlace para compartir, para que una persona pueda decidir antes de usarlo. Funciona sin autenticación; cuando estás autenticado, la respuesta también trae un objeto `account` que indica si la plantilla encaja en tu cuenta. Está limitada por IP (20 peticiones por minuto).
+
+La vista previa nunca muestra IDs, correos electrónicos, el manifiesto ni el código fuente. `verified` siempre es `false`: Vertra Cloud no revisa las plantillas privadas, y el panel muestra "No verificado por Vertra" junto a cada una. Revisa el autor y lo que hace la plantilla antes de usarla. En una plantilla cerrada (`code_view` es `false`) no puedes ver el código, y los valores que rellenas van a un código que no puedes leer. Si algo parece mal, [reporta la plantilla](/es-es/api-reference/endpoint/templates/share-links/report).
+
+Una clave de API necesita el ámbito `templates:read` cuando se envía.
+
+<ParamField path="token" type="string" required>
+  El token del enlace, que empieza por `vtpl_`.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/share/templates/vtpl_EXAMPLE_TOKEN
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La vista previa.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="mode" type="string">
+    `use` (creas tus propias aplicaciones desde ella) o `full_copy` (obtienes una plantilla privada propia).
+  </ResponseField>
+
+  <ResponseField name="name" type="object">
+    El nombre de la plantilla por idioma (`pt-br`, `en`, `es`).
+  </ResponseField>
+
+  <ResponseField name="description" type="object">
+    La descripción por idioma.
+  </ResponseField>
+
+  <ResponseField name="category" type="string">
+    La categoría.
+  </ResponseField>
+
+  <ResponseField name="icon_url" type="string | null">
+    URL del icono, o `null`.
+  </ResponseField>
+
+  <ResponseField name="author_display" type="string | null">
+    El nombre que el autor eligió mostrar.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    La versión que da el enlace.
+  </ResponseField>
+
+  <ResponseField name="services" type="object[]">
+    Lo que se crearía. Cada servicio tiene `id`, `kind` (`app`, `database` o `blob`), `source_type`, `database`, `blob_visibility`, `ram` (`min`, `recommended` y `max` opcional, en MB), `web` y `conditional`.
+  </ResponseField>
+
+  <ResponseField name="creates_stack" type="boolean">
+    `true` cuando crea un stack.
+  </ResponseField>
+
+  <ResponseField name="ram_min_total" type="integer">
+    La suma de la memoria mínima de los servicios, en MB.
+  </ResponseField>
+
+  <ResponseField name="required_plan" type="string">
+    El plan más bajo que puede usarla.
+  </ResponseField>
+
+  <ResponseField name="image_slots_needed" type="integer">
+    Los slots de imagen personalizados que usarías: uno por cada imagen distinta de la plantilla, así que puede ser más de 1. Una plantilla solo con código no usa ninguno.
+  </ResponseField>
+
+  <ResponseField name="verified" type="boolean">
+    Siempre `false`.
+  </ResponseField>
+
+  <ResponseField name="code_view" type="boolean">
+    `false` para una [plantilla cerrada](/es-es/templates/use/closed-templates).
+  </ResponseField>
+
+  <ResponseField name="byok" type="boolean">
+    `true` cuando traes tu propia clave para un modelo de IA.
+  </ResponseField>
+
+  <ResponseField name="inputs" type="object[]">
+    Las preguntas que respondes al usarla.
+  </ResponseField>
+
+  <ResponseField name="permissions" type="object">
+    Lo que puedes hacer con las aplicaciones creadas desde ella: `code_view`, `code_edit`, `ram_change`, `ram_below_min`, `ram_above_max`, `env_add`, `commands_edit`, `terminal`, `save_as_template` y `detach`.
+  </ResponseField>
+
+  <ResponseField name="account" type="object">
+    Solo cuando estás autenticado: `fits`, `reasons`, `required_ram`, `free_ram`, `needs_image_slot`, `image_slots_free`, `in_use` e `in_use_count`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "mode": "use",
+    "name": { "pt-br": "Bot de suporte", "en": "Support bot" },
+    "description": { "pt-br": "Bot que responde o suporte." },
+    "category": "bots",
+    "icon_url": null,
+    "author_display": "Ana",
+    "version": "1.0.0",
+    "services": [
+      { "id": "bot", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null, "ram": { "min": 256, "recommended": 512 }, "web": "none", "conditional": false }
+    ],
+    "creates_stack": false,
+    "ram_min_total": 256,
+    "required_plan": "economy",
+    "image_slots_needed": 0,
+    "verified": false,
+    "code_view": true,
+    "byok": false,
+    "inputs": [],
+    "permissions": {
+      "code_view": true,
+      "code_edit": true,
+      "ram_change": true,
+      "ram_below_min": false,
+      "ram_above_max": true,
+      "env_add": true,
+      "commands_edit": true,
+      "terminal": false,
+      "save_as_template": false,
+      "detach": true
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `SHARE_LINK_NOT_FOUND`: El token tiene un formato no válido, no existe, o su plantilla fue eliminada (`404`).
+  - `SHARE_LINK_REVOKED`: El autor revocó el enlace (`410`).
+  - `SHARE_LINK_EXPIRED`: El enlace superó su `expires_at` (`410`).
+  - `SHARE_LINK_EXHAUSTED`: El enlace alcanzó su `max_uses` (`410`).
+  - `API_KEY_SCOPE_DENIED`: Se envió una clave de API sin el ámbito `templates:read` (`403`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "SHARE_LINK_EXPIRED"
+}
+```
+
+</ResponseExample>

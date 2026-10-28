@@ -1,0 +1,391 @@
+---
+title: 'Códigos de erro da API da Vertra Cloud'
+sidebarTitle: 'Códigos de erro'
+description: 'Catálogo completo dos códigos de erro estáveis que a API pública da Vertra Cloud retorna, agrupados por área, com status HTTP e como resolver cada um.'
+---
+
+## Como é um erro?
+
+Todo erro usa o mesmo envelope, descrito na [introdução da API](/pt-br/api-reference/introduction#como-é-uma-resposta). O status HTTP indica a categoria, `code` é uma string estável, segura para usar em condicionais, e `details` — quando presente — traz os números necessários para agir (um limite, um tempo de espera, o escopo que falta).
+
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Optional descriptive message",
+  "details": { "retry_after": 30 }
+}
+```
+
+`message` é para humanos e pode mudar; nunca tome decisões no seu código com base nela. Para problemas de deploy e de execução que não vêm da própria API (loops de falha, dependências ausentes, OOMKilled), veja [Erros comuns](/pt-br/common-errors) — esta página cobre apenas os valores `code` estáveis com que a API responde.
+
+<Note>
+  `VALIDATION_ERROR` (`400`) cobre problemas de formato da requisição em todas as rotas — um campo obrigatório ausente, o tipo errado, um valor fora da faixa. `details.path` indica o campo com problema, por exemplo
+  `"memory"` ou `"user.name"`.
+</Note>
+
+## Autenticação e chaves de API
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 401 | `AUTH_TOKEN_MISSING` | Nenhum cabeçalho `Authorization` foi enviado. Adicione `Authorization: Bearer <key>`. |
+| 401 | `API_KEY_INVALID` | A chave não existe ou o segredo não confere. Verifique o valor da chave ou crie uma nova no dashboard. |
+| 401 | `SESSION_REVOKED` | A sessão do dashboard por trás do token expirou ou foi revogada (saiu da conta ou foi encerrada na lista de sessões). Entre de novo. |
+| 401 | `USER_NOT_FOUND` | O usuário autenticado não existe mais (raro — geralmente uma conta excluída). |
+| 403 | `API_KEY_IP_DENIED` | O IP da requisição não está nos `allowed_ips` da chave. Adicione o IP/CIDR de quem chama à chave, ou limpe a lista para permitir qualquer IP. |
+| 403 | `API_KEY_MANAGED` | A chave foi criada pela plataforma para uma stack. Ela não pode ser editada; é revogada junto com a stack. |
+| 403 | `API_KEY_SCOPE_DENIED` | A chave não tem o escopo que a rota exige (`details.required`), ou a rota é apenas por sessão do dashboard. Veja [Escopos](/pt-br/api-reference/introduction#escopos). |
+| 403 | `WEBSITE_ONLY` | A rota aceita apenas uma sessão do dashboard. Chaves de API normalmente recebem `API_KEY_SCOPE_DENIED` primeiro nessas rotas; `WEBSITE_ONLY` é a segunda verificação, depois dela. Nenhum escopo libera a ação — use o dashboard. |
+| 403 | `ACCESS_DENIED` | O recurso existe, mas sua conta não pode agir sobre ele. Confirme que você é o dono do recurso ou que tem a permissão de workspace correta. |
+| 403 | `ACCOUNT_BANNED` | A conta foi banida. Entre em contato com o suporte. |
+| 403 | `APP_BANNED` | A aplicação foi banida. Entre em contato com o suporte. |
+| 403 | `DATABASE_BANNED` | O banco de dados foi banido. Entre em contato com o suporte. |
+| 403 | `APP_SHIELD_COOLDOWN` | O Vertra Shield pausou a aplicação após tráfego abusivo; `details` indica o motivo e o fim do cooldown. Aguarde o fim da pausa e corrija a origem do tráfego; start, restart, deploy, configuração e exclusão continuam bloqueados até lá. Veja [Erros comuns](/pt-br/common-errors#proteções-da-plataforma). |
+| 404 | `USER_LIMITS_NOT_FOUND` | Não foi possível determinar os limites do plano da conta. Entre em contato com o suporte. |
+
+## Planos e cobrança
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 400 | `INVALID_PLAN` / `INVALID_PLAN_NAME` | O slug do plano não é reconhecido. Use um dos listados em [Planos e limites](/pt-br/plans-and-limits). |
+| 400 | `MISSING_PLAN_OR_MONTHS` | `plan` ou `months` está ausente no corpo do pedido. |
+| 400 | `INVALID_MONTHS` | `months` não é 1, 3 ou 12 (o plano Economy aceita apenas 1). |
+| 400 | `NOT_AN_UPGRADE` | O plano de destino não é um aumento de memória em relação ao atual. |
+| 400 | `PLAN_MISMATCH_FOR_RENEWAL` | O plano de um pedido de renovação não corresponde ao plano atual do recurso. |
+| 400 | `BILLING_DETAILS_INCOMPLETE` | O pedido exige dados de cobrança completos (nome, endereço e, no Brasil, CPF/CNPJ). Salve-os com `PUT /v1/users/me/billing` e depois crie o pedido de novo. |
+| 400 | `BILLING_DETAILS_INVALID` | Um campo dos dados de cobrança falhou na validação; o campo está em `details.path`. |
+| 400 | `TAX_ID_INVALID` | O CPF ou CNPJ não é válido. |
+| 400 | `ORDER_NOT_PAID` | O pedido ainda não foi pago — aguarde a confirmação do PIX. |
+| 400 | `ORDER_NOT_PAYABLE` | O pedido não está em um estado pagável (já pago, expirado ou cancelado), ou um pagamento com cartão do pedido ainda está sendo confirmado (409). |
+| 400 | `COUPON_PAYMENT_METHOD` | O cupom do pedido não permite esta forma de pagamento. Pague com um método listado em `allowed_payment_methods`. |
+| 400 | `PAYMENT_METHOD_UNAVAILABLE` | O pagamento online está temporariamente indisponível. Tente novamente mais tarde. |
+| 400 | `ORDER_NOT_REFUNDED` | Foi pedida uma ação que exige um pedido reembolsado, mas este não foi reembolsado. |
+| 400 | `REFUND_AMOUNT_EXCEEDS_PRICE` | O reembolso solicitado é maior que o preço do pedido. |
+| 400 | `PENDING_ORDER_LIMIT_REACHED` | A conta já tem o número máximo de pedidos não pagos em aberto. Pague um deles ou deixe-o expirar primeiro. |
+| 404 | `ORDER_NOT_FOUND` | Nenhum pedido com esse ID nesta conta. |
+| 404 | `INVALID_OR_EXPIRED_CODE` | O código de resgate não existe, já foi usado ou expirou. |
+| 403 | `PLAN_NOT_ALLOWED` | O plano atual não permite esta ação (ex.: snapshots manuais). Faça upgrade para usá-la. |
+| 403 | `PLAN_RESTRICTED_FEATURE` | O recurso não está disponível no plano do dono do recurso. |
+| 403 | `PLAN_REQUIRED` | A conta não tem plano ativo, então não pode criar aplicações ou bancos de dados, iniciá-los ou reiniciá-los, fazer deploy ou publicar um site. Assine um plano para continuar. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH` | O tier do plano atual não inclui publicação web. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN` | Domínios personalizados exigem Intermediary ou superior. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | Escolher um subdomínio personalizado exige um plano superior; veja [Planos e limites](/pt-br/plans-and-limits). |
+| 403 | `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | O rollback automático exige Intermediary ou superior. Desligá-lo é sempre permitido. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | Forçar deploys sem downtime (`zero_downtime: "on"`) exige Enterprise. `auto` e `off` são sempre permitidos. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_ROLLBACK` | Fazer rollback para uma release anterior exige Pro ou superior; veja [Limites de histórico de deploy e rollback](/pt-br/plans-and-limits#limites-do-histórico-de-deploys-e-do-rollback). |
+
+## Aplicações
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `APP_NOT_FOUND` | Nenhuma aplicação com esse ID (ou que não pertence a esta conta/workspace). |
+| 404 | `RELEASE_NOT_FOUND` | Nenhuma release com esse ID para esta aplicação. Veja [Listar releases da aplicação](/pt-br/api-reference/endpoint/apps/releases/list). |
+| 404 | `OWNER_APP_WITHOUT_LIMITS` | O dono da aplicação não tem limites de plano determináveis. Entre em contato com o suporte. |
+| 409 | `RELEASE_ALREADY_ACTIVE` | A release já é a que a aplicação executa, ou tem o mesmo código e não há variáveis de ambiente diferentes para restaurar. Escolha outra release. |
+| 410 | `RELEASE_EXPIRED` | O código dessa release não é mais mantido: expirou, ou é mais antigo que o número de releases que seu plano mantém. Escolha uma release mais recente. |
+| 400 | `INVALID_CONFIG` | A configuração da aplicação (comando de build/start, linguagem) falhou na validação. |
+| 400 | `MEMORY_REQUIRED` | `memory` é obrigatório e não foi enviado, ou não é um número. |
+| 400 | `MEMORY_BELOW_MINIMUM` | A memória pedida está abaixo do mínimo do plano; `details` traz os números. |
+| 400 | `MEMORY_LIMIT_EXCEEDED` | A memória pedida excede o que o plano permite para esta conta. |
+| 400 | `INVALID_MEMORY_FORMAT` | `memory` não é um inteiro válido. |
+| 422 | `INSUFFICIENT_MEMORY` | O build ficou sem memória durante a instalação de dependências. |
+| 400 | `INVALID_RAM_LIMIT` | O valor de RAM está abaixo do mínimo para o motor de banco de dados selecionado. |
+| 403 | `MAX_APPS_REACHED` | O limite de quantidade de aplicações do plano foi atingido. Exclua uma ou faça upgrade. |
+| 400 | `INVALID_LANGUAGE` | A linguagem de runtime selecionada não é suportada. |
+| 400 | `INVALID_DATABASE_VERSION` | A `version` do banco de dados não está disponível para o motor. Use uma listada em [Listar versões de banco de dados](/pt-br/api-reference/endpoint/databases/versions). |
+| 400 | `INVALID_VERSION` | A versão do runtime não existe para a linguagem da aplicação. Use `recommended`, `latest` ou uma versão listada em [Listar runtimes](/pt-br/api-reference/endpoint/apps/runtimes). |
+| 409 | `APP_BUILDING` | A aplicação ainda está em build após a criação. Start, stop, restart, deploys de arquivos, rollback, snapshots, restaurações e alterações de configuração aguardam o fim do build (`up` ou `down`); excluir é permitido. Consulte [Detalhes da aplicação](/pt-br/api-reference/endpoint/apps/get) e tente de novo. |
+| 409 | `CONTAINER_ALREADY_RUNNING` | Foi pedido start em uma aplicação que já está em execução. |
+| 409 | `OPERATION_IN_PROGRESS` | Outra operação de ciclo de vida no mesmo recurso já está em execução. Isso é disputa, não falha — aguarde alguns segundos e tente de novo. |
+| 400 | `NO_FIELDS_TO_UPDATE` / `NO_CHANGES_PROVIDED` | O corpo da atualização não tem nada a alterar. |
+| 409 | `STORAGE_ABOVE_NEW_LIMIT` | Uma alteração de configuração foi recusada porque o volume já ocupa mais que o novo teto de disco; `details` traz os números. |
+| 400 | `SOURCE_REQUIRED` / `SOURCE_CONFLICT` | A criação de aplicação exige exatamente uma origem (`file` XOR `snapshot_id`); uma está faltando, ou as duas foram enviadas. |
+| 400 | `INVALID_ZIP` / `INVALID_ZIP_STRUCTURE` | O ZIP não pode ser lido, ou seus arquivos estão dentro de uma pasta extra no topo — os arquivos devem ficar na raiz do ZIP. Um ZIP danificado também é recusado ao restaurar um snapshot ou uma release, antes de qualquer alteração. |
+| 413 | `ARCHIVE_TOO_LARGE` / `ARCHIVE_TOO_MANY_ENTRIES` | O ZIP tem mais conteúdo do que cabe descompactado, ou mais arquivos do que o permitido. Envie um projeto menor. |
+| 400 | `ZIP_TOO_SMALL` | O ZIP enviado é pequeno demais para ser um projeto real. |
+| 400 | `ZIP_TOO_LARGE` | O ZIP enviado excede o limite de 100 MB. |
+| 400 | `MAIN_FILE_NOT_FOUND` | O scanner não encontrou um ponto de entrada no projeto enviado. |
+| 422 | `BUILD_FAILED` | O `build_command` terminou com erro no start ou no restart. Verifique o log de build e corrija o comando. Na criação isso não é um erro: a aplicação termina o build parada (`status: "down"`), com a saída nos logs. |
+| 422 | `BUILD_TIMEOUT` | O `build_command` passou do limite de 10 minutos. Simplifique o build. Na criação, a aplicação é criada parada. |
+| — | `BUILD_INTERRUPTED` | O build não terminou (foi interrompido). A aplicação fica `down` e este erro aparece no log dela. Inicie de novo ou faça deploy de novo. |
+| 422 | `INSTALL_TIMEOUT` | A instalação de dependências passou do limite de 15 minutos. Na criação, a aplicação é criada parada. |
+| 422 | `INSTALL_FAILED` | A instalação de dependências falhou. Verifique o manifesto de dependências. Na criação, a aplicação é criada parada. |
+| 422 | `INSTALL_OUT_OF_MEMORY` | A instalação de dependências ficou sem memória. Aumente a memória da aplicação. Na criação, a aplicação é criada parada. |
+| 422 | `INSTALL_CANCELLED` | A instalação foi cancelada (ex.: por um novo deploy que a substituiu). |
+| 422 | `INSTALL_SHIELD_BLOCKED` | O Vertra Shield interrompeu o deploy porque o tráfego excedeu a cota do plano. Na criação, a aplicação é criada parada. |
+| 429 | `DEPLOY_RATE_LIMITED` | O orçamento horário de deploys da conta ou o seu próprio orçamento horário de rollback foi atingido; `details.retry_after` indica quanto esperar. Veja [limites de taxa](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa) abaixo. |
+
+### Códigos de falha de build
+
+Quando um build ou uma instalação falha, `GET /v1/apps/{id}` retorna o código em `last_build_error` (`null` após um build bem-sucedido); o detalhe está nos logs da aplicação.
+
+| `last_build_error` | O que fazer |
+|---|---|
+| `INSTALL_OUT_OF_MEMORY` | Aumente a memória da aplicação e tente de novo. |
+| `BUILD_FAILED` / `INSTALL_FAILED` | Leia os logs e corrija o projeto. |
+| `BUILD_TIMEOUT` / `INSTALL_TIMEOUT` | Deixe o build ou a instalação mais curtos. |
+| `BUILD_INTERRUPTED` | Tente de novo. |
+| `INSTALL_SHIELD_BLOCKED` | A proteção de rede bloqueou o tráfego durante o build; reduza o tráfego que o build gera. |
+
+## Deploy e GitHub
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `DEPLOYMENT_NOT_FOUND` | Nenhum deploy com esse ID para esta aplicação. |
+| 500 | `DEPLOY_FAILED` | O deploy disparado pelo GitHub falhou ao buscar ou aplicar o commit. Verifique a aba Atividades. |
+| 409 | `REPO_ALREADY_LINKED` | Esse repositório já está vinculado a outra aplicação. Desvincule-o primeiro. |
+| 404 | `INSTALLATION_NOT_FOUND` | A instalação do GitHub App para esta conta/repositório não foi encontrada. Reconecte o GitHub. Ao criar uma imagem Docker a partir do GitHub, isso também significa que o repositório é privado ou não existe (ou que a branch não existe) e não está nas suas instalações; repositórios públicos fora delas são construídos uma única vez, sem vínculo. |
+| 413 | `FILE_TOO_LARGE` | Um único arquivo do repositório excede o tamanho permitido pelo endpoint de arquivos do GitHub. |
+| 502 | `FETCH_ZIP_ERROR` | O GitHub não pôde ser acessado, ou estava limitando requisições, enquanto o repositório era baixado ou verificado. Tente de novo em alguns minutos. |
+| 400 / 403 | `FORBIDDEN_PATH` | O caminho do repositório pedido está fora do que a aplicação pode ler (400 como rejeição genérica; 403 quando é especificamente um caminho proibido). |
+
+## Arquivos
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `FILE_NOT_FOUND` | Nenhum arquivo nesse caminho. |
+| 404 | `FILE_OR_FOLDER_NOT_FOUND` | Nenhum arquivo ou pasta nesse caminho. |
+| 400 | `INVALID_PATH` | O caminho está malformado ou sai da raiz de arquivos da aplicação. |
+| 403 | `FORBIDDEN_PATH` | O caminho está em um diretório que a API não permite alterar (ex.: caminhos reservados do sistema). |
+| 400 | `MISSING_CONTENT` | Uma gravação de arquivo foi enviada sem conteúdo. |
+| 400 | `TARGET_IS_DIRECTORY` | Foi pedida uma operação de arquivo em um caminho que, na verdade, é um diretório. |
+| 409 | `FILE_MODIFIED` | O arquivo mudou no disco desde a última leitura (conflito de optimistic lock). Leia de novo e tente novamente. |
+| 409 | `PATH_IS_FILE` | Uma pasta do caminho é um arquivo existente (por exemplo, gravar `app/index.js` quando `app` é um arquivo). Renomeie ou exclua esse arquivo e tente de novo. |
+| 400 | `NO_FILE_UPLOADED` | A requisição de upload não tinha nenhum arquivo anexado. |
+| 413 | `PAYLOAD_TOO_LARGE` | O corpo da requisição (upload) é maior que o limite da rota. |
+| 400 | `STORAGE_FULL` | O volume da aplicação não tem mais espaço para esta gravação. |
+
+## Blob Storage
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 403 | `BLOB_PREFIX_DENIED` | A chave de API está restrita a uma pasta do Blob e a operação está fora dela, ou é uma operação em nível de conta (regras, domínios, estatísticas). Use uma chave sem essa restrição. |
+| 404 | `BLOB_OBJECT_NOT_FOUND` | Nenhum objeto com esse ID nesta conta (ou ele pertence a outra conta). Confira o ID. |
+| 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Outro objeto já tem esse `path`. Envie `overwrite: true` para substituí-lo, ou escolha outro caminho. |
+| 404 | `BLOB_UPLOAD_NOT_FOUND` | O upload não existe, pertence a outra conta, ou já foi concluído ou cancelado. Inicie um novo upload. |
+| 410 | `BLOB_UPLOAD_EXPIRED` | O prazo do upload passou. Inicie um novo upload. |
+| 409 | `BLOB_UPLOAD_INCOMPLETE` | Em `complete`, faltam partes, ou o tamanho armazenado difere do `size` declarado. Envie as partes que faltam (veja `uploaded_parts`) e tente de novo. |
+| 409 | `BLOB_UPLOAD_LIMIT` | A conta tem mais uploads em andamento do que o plano permite. Conclua ou cancele alguns e tente de novo. |
+| 400 | `BLOB_CHECKSUM_MISMATCH` | O `checksum_sha256` enviado não corresponde ao conteúdo. Calcule-o de novo a partir do arquivo que você está enviando. |
+| 413 | `BLOB_FILE_TOO_LARGE` | O arquivo está acima do limite aplicável: 100 MB em `POST /v1/objects`, 10 GB por objeto, ou o `max_size` de uma regra de pasta ou de um token de upload. |
+| 403 | `STORAGE_QUOTA_EXCEEDED` | Armazenar o arquivo ultrapassaria a cota de blob do plano. Exclua objetos ou mude para um plano com mais armazenamento. |
+| 422 | `BLOCKED_FILE_TYPE` | A extensão está bloqueada, não é permitida pela regra de pasta ou pelo token de upload, ou o conteúdo é um executável. |
+| 403 | `BLOB_NAMESPACE_SUSPENDED` | O Blob Storage está suspenso, ou o plano expirou. As gravações são recusadas desde o início do período de carência de 72 horas (os arquivos continuam sendo servidos até o fim dele, a menos que a conta esteja suspensa por abuso). Renove o plano ou, se a conta estiver suspensa, entre em contato com o suporte. |
+| 401 | `BLOB_UPLOAD_TOKEN_INVALID` | O token de upload não existe, expirou ou foi revogado. Crie um novo token. |
+| 401 | `BLOB_UPLOAD_TOKEN_EXHAUSTED` | O token de upload já usou todos os seus usos. Crie um novo token com um `max_uses` maior. |
+| 403 | `BLOB_UPLOAD_TOKEN_NOT_ALLOWED` | Um token de upload foi enviado para uma rota diferente das rotas de upload. Use uma chave de API nela. |
+| 403 | `BLOB_UPLOAD_TOKEN_CONSTRAINT` | O caminho, a pasta ou outra opção que o token de upload fixa (visibilidade, cache, disposição, expiração ou metadados) não confere com a requisição. Uma extensão fora do token responde `BLOCKED_FILE_TYPE`, e um tamanho acima do `max_size` dele responde `BLOB_FILE_TOO_LARGE`. |
+| 404 | `BLOB_SHARE_NOT_FOUND` | O compartilhamento não existe, foi revogado ou expirou. |
+| 410 | `BLOB_SHARE_EXHAUSTED` | O compartilhamento já usou todos os seus downloads. |
+| 401 | `BLOB_SHARE_PASSWORD_INVALID` | A senha está errada. Tentativas repetidas do mesmo IP têm limite de taxa. |
+| 409 | `BLOB_RULES_CONFLICT` | O etag de `If-Match` está desatualizado, porque as regras foram salvas depois que você as leu. Leia as regras de novo e tente novamente. |
+| 409 | `BLOB_RULE_LIMIT` | A conta tem mais regras de pasta do que o plano permite (5, 10 ou 20). Exclua uma regra primeiro. |
+| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | O plano inclui domínios personalizados e a conta já tem todos os que ele permite. Abaixo do Enterprise-4, a resposta é `PLAN_RESTRICTED_FEATURE`. |
+| 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | O hostname já está em uso. |
+| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | O domínio não existe ou pertence a outra conta. |
+
+Códigos reaproveitados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDED` (com `retry_after`; também usado para o limite de um upload por segundo abaixo do Enterprise-12), `API_KEY_SCOPE_DENIED`, `WORKSPACE_PERMISSION_DENIED` e `INVALID_CUSTOM_DOMAIN_FORMAT`.
+
+## Rede e domínios
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 400 | `APP_ALREADY_PUBLISHED` | A aplicação já tem um subdomínio ou um domínio personalizado. |
+| 400 | `APP_NOT_PUBLISHED` | A aplicação ainda não tem subdomínio nem domínio personalizado — publique-a primeiro. |
+| 400 | `APP_HAS_NO_SUBDOMAIN` | Uma operação que exige um subdomínio existente foi chamada antes de um ser definido. |
+| 409 | `SUBDOMAIN_TAKEN` | Outra aplicação já usa esse subdomínio. |
+| 400 | `INVALID_SUBDOMAIN_FORMAT` | O subdomínio não segue o conjunto de caracteres ou o tamanho permitidos. |
+| 400 | `SUBDOMAIN_FORBIDDEN` | O subdomínio pedido é reservado e não pode ser usado. |
+| 429 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | As trocas de subdomínio são limitadas a 5 por minuto, com cooldown de 5 minutos. |
+| 400 | `INVALID_CUSTOM_DOMAIN_FORMAT` | A string do domínio personalizado não é um hostname válido. |
+| 400 | `FORBIDDEN_DOMAIN` | O domínio é reservado e não pode ser adicionado a uma aplicação. |
+| 400 | `INVALID_DOMAIN_PORT` | O `port` de um domínio não é um inteiro de 1 a 65535. |
+| 400 | `INVALID_PATH_PREFIX` | O `path_prefix` de um domínio precisa começar com `/`, não pode terminar com `/` e só pode usar letras, dígitos e `. _ ~ -`. |
+| 400 | `INVALID_REDIRECT_TARGET` | `redirect_to` precisa ser outro domínio `active` da mesma aplicação, que não redirecione para si mesmo. |
+| 403 | `DOMAIN_LIMIT_REACHED` | A aplicação já tem tantos domínios personalizados quanto o plano permite; `details.limit` traz o limite. O `www` automático não conta. |
+| 403 | `DOMAIN_PORT_LIMIT_REACHED` | A aplicação já serve domínios em 5 portas além da `80`; `details.limit` traz o limite. |
+| 409 | `DOMAIN_ALREADY_IN_USE` | Esse domínio personalizado já está vinculado a uma aplicação. |
+| 404 | `DOMAIN_NOT_FOUND` | A aplicação não tem nenhum domínio com esse ID. |
+| 404 | `DOMAIN_CONNECT_UNAVAILABLE` | A configuração automática de DNS ainda não está disponível, então todas as chamadas respondem este código. Crie os registros manualmente. |
+| 404 | `CUSTOM_DOMAIN_RECORD_NOT_FOUND` | Os registros DNS do domínio não estão disponíveis; tente de novo em alguns minutos. |
+| 502 | `CUSTOM_DOMAIN_REGISTRATION_FAILED` | A plataforma não conseguiu registrar o domínio/certificado. Tente de novo ou entre em contato com o suporte se o problema persistir. |
+| 403 | `INVALID_HOSTNAME_FOR_APP` | O hostname usado por um caminho de rede autorizado não é permitido para esta aplicação. |
+| 400 | `NO_AUTHORIZED_PATHS` | A configuração de rede ficou sem caminhos autorizados válidos após a validação. |
+
+## Bancos de dados
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `DATABASE_NOT_FOUND` | Nenhum banco de dados com esse ID (ou que não pertence a esta conta/workspace). |
+| 409 | `DATABASE_NOT_RUNNING` | O banco de dados precisa estar iniciado para esta operação (ex.: um snapshot manual); o Redis não tem essa exigência. |
+| 500 | `DATABASE_PERSISTENCE_FAILED` | O banco de dados foi criado, mas não pôde ser lido de volta. Tente de novo ou entre em contato com o suporte. |
+| 403 | `MAX_DATABASES_REACHED` | O limite de quantidade de bancos de dados do plano foi atingido. |
+| 404 | `CERTIFICATE_NOT_FOUND` | Ainda não há certificado TLS disponível para este banco de dados. |
+| 429 | `FORCED_SNAPSHOT_RATE_LIMIT` | Muitos snapshots de segurança (antes de uma exclusão ou reset) em pouco tempo; nada foi alterado. |
+| 500 | `SNAPSHOT_FAILED` | O snapshot de segurança feito antes de uma exclusão ou reset falhou; a aplicação ou o banco de dados não foi alterado. Entre em contato com o suporte. |
+
+## Variáveis de ambiente
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `ENV_NOT_FOUND` | Nenhuma variável de ambiente com essa chave. |
+| 400 | `ENV_LIMIT_EXCEEDED` | A aplicação já tem o número máximo de variáveis de ambiente (256). |
+| 400 | `ENV_DUPLICATE_KEY` | O lote tem a mesma chave de variável mais de uma vez. |
+| 400 | `FORBIDDEN_KEY` | O nome da chave é reservado pela plataforma (ex.: `PORT`) e não pode ser definido. |
+
+## Snapshots
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `SNAPSHOT_NOT_FOUND` | Nenhum snapshot com esse ID, ou ele não pertence a esta conta. |
+| 400 | `SNAPSHOT_TYPE_MISMATCH` | O tipo de recurso do snapshot (aplicação/banco de dados) não corresponde ao que foi pedido. |
+| 400 | `SNAPSHOT_ENGINE_MISMATCH` | O motor de banco de dados do snapshot não corresponde ao banco de destino. |
+| 400 | `TYPE_MISMATCH` | Não é possível restaurar um snapshot em um recurso de tipo diferente. |
+| 400 | `SNAPSHOT_VERSION_NEWER` | O snapshot foi tirado de uma versão major mais nova que a do banco sendo criado ou restaurado; nada foi alterado. |
+| 400 | `SNAPSHOT_TOO_LARGE` | O snapshot excede o tamanho que o plano ou o recurso de destino permite. |
+| 500 | `SNAPSHOT_IMPORT_FAILED` | A restauração falhou ao carregar os dados; o banco fica em execução e vazio, e o snapshot continua disponível para nova tentativa. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | A criação manual de snapshots atingiu seu orçamento por recurso (1 a cada 5 min) ou por conta (10 por hora). |
+| 429 | `RESTORE_COOLDOWN` | Uma restauração ou rollback foi pedido cedo demais após outro no mesmo recurso. |
+
+## Imagens Docker personalizadas
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | O plano não inclui imagens Docker personalizadas. Elas estão disponíveis no Enterprise 28, Enterprise 30 e Enterprise 32. |
+| 403 | `MAX_IMAGES_REACHED` | O limite de 20 imagens do plano foi atingido; imagens em qualquer estado contam. Exclua uma. |
+| 404 | `IMAGE_NOT_FOUND` | A imagem não existe ou você não pode acessá-la. |
+| 404 | `IMAGE_VERSION_NOT_FOUND` | A imagem não tem nenhuma versão com esse ID. |
+| 400 | `DOCKERFILE_NOT_FOUND` | Não há arquivo com o nome exato `Dockerfile` na raiz do contexto de build. |
+| 400 | `DOCKERFILE_REFUSED` | O `Dockerfile` tem uma instrução recusada (`# syntax=` diferente do frontend oficial, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh` ou `--mount=type=secret`). `details` lista os achados; veja [Verificar Dockerfile](/pt-br/api-reference/endpoint/images/check). |
+| 413 | `IMAGE_CONTEXT_TOO_LARGE` | O contexto de build ultrapassa um dos seus quatro limites: 100 MB compactado, 512 MB descompactado, 50.000 entradas, ou um `Dockerfile` maior que 1 MB. Remova arquivos (por exemplo, com um `.dockerignore`) e envie de novo. |
+| 409 | `IMAGE_BUILD_IN_PROGRESS` | A imagem já tem um build em execução. Aguarde o fim. Também é retornado quando você tenta excluir a imagem durante um build. |
+| 409 | `IMAGE_NOT_READY` | A imagem ainda não tem um build bem-sucedido, então não é possível criar aplicações a partir dela. |
+| 400 | `IMAGE_NAME_MISMATCH` | `confirm_name` não é o nome da imagem. |
+| 403 / 409 | `IMAGE_TEMPLATE_ONLY` | A imagem pertence a um template e só pode ser usada por meio dele. Criar uma aplicação a partir dela responde 403; reconstruí-la, fazer commit nela, vincular um repositório a ela ou editar o contexto dela responde 409. |
+| 409 | `IMAGE_IN_USE` | A imagem é a origem da versão atual de um dos seus templates privados. `details.templates` lista quais. Remova-a ou substitua-a no template primeiro. |
+| 503 | `IMAGE_BUILDER_UNAVAILABLE` | Nenhum host consegue construir imagens agora. Tente de novo mais tarde. |
+| 400 | `IMAGE_APP_FIELD_NOT_APPLICABLE` | Você enviou `main_file`, `language`, `version`, `start_command` ou `build_command` para uma aplicação que roda uma imagem personalizada. Esses valores vêm da imagem; deixe-os de fora. |
+| 409 | `IMAGE_APP_CODE_NOT_APPLICABLE` | A aplicação roda uma imagem personalizada, então código não pode ser gravado em `/app` nem feito deploy a partir do GitHub nela. Atualize a imagem. |
+| 400 | `IMAGE_APP_PORT_REQUIRED` | A aplicação roda uma imagem personalizada e ainda não tem porta (foi criada sem web). Envie `port` ao publicá-la. Veja [Publicar aplicação](/pt-br/api-reference/endpoint/apps/network/publish). |
+| — | `IMAGE_LABEL_REFUSED` | Falha de build: a imagem define um label em um namespace reservado à plataforma (como `vertra.*`; o log de build indica o label recusado). Remova o label e refaça o build. |
+| — | `IMAGE_VOLUME_REFUSED` | Falha de build: a imagem declara um `VOLUME` em `/app` ou abaixo. `/app` já é o disco persistente da aplicação. Remova a instrução e refaça o build. |
+| — | `IMAGE_TOO_LARGE` | Falha de build: a imagem construída tem mais de 10 GB descompactada. Ela aparece no `error` da imagem e no log de build. Remova arquivos ou use uma imagem base menor. |
+
+Veja [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images).
+
+## Templates
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `TEMPLATE_NOT_FOUND` | O template não existe, foi removido ou não está visível para você. |
+| 404 | `TEMPLATE_VERSION_NOT_FOUND` | O template não tem nenhuma versão com esse número ou ID. |
+| 409 | `TEMPLATE_SLUG_TAKEN` | Outro template seu já usa o slug. Escolha outro. |
+| 400 | `TEMPLATE_MANIFEST_INVALID` | O manifesto não é válido. `details.issues` lista cada problema. |
+| 400 | `TEMPLATE_INPUT_INVALID` | Uma resposta a uma pergunta está faltando ou é inválida. `details.issues` lista as perguntas. |
+| 400 | `TEMPLATE_SOURCE_REQUIRED` | Foi enviado um serviço que executa código sem o arquivo de origem dele. |
+| 400 | `TEMPLATE_SECRET_IN_SOURCE` | O código enviado para virar template contém um segredo (um arquivo `.env`, uma chave privada ou um token). `details.files` lista os caminhos. Remova o segredo e envie de novo. |
+| 404 | `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND` | O repositório vinculado não tem um manifesto de template na raiz. |
+| 403 | `TEMPLATE_PLAN_REQUIRED` | Seu plano está abaixo do que o template exige. `details` indica o motivo e o plano necessário. |
+| 400 | `TEMPLATE_RAM_INSUFFICIENT` | Memória livre insuficiente para o template. `details` traz a memória necessária e a memória livre. |
+| 403 | `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | O template roda uma imagem e todos os slots de imagem personalizada da conta estão em uso. Exclua uma imagem que você não usa mais. |
+| 403 | `TEMPLATE_CLOSED` | A rota lê ou altera o código, os arquivos, os comandos ou as variáveis de uma aplicação que vem de um [template fechado](/pt-br/templates/use/closed-templates). |
+| 403 | `TEMPLATE_PRIVATE_LIMIT_REACHED` | O limite de 5 templates privados por conta foi atingido. Exclua um primeiro. |
+| 403 | `TEMPLATE_SAVE_NOT_ALLOWED` | Uma aplicação que veio de um link de compartilhamento não pode ser salva como template nem compartilhada. |
+| 503 | `TEMPLATE_STORAGE_UNAVAILABLE` | O catálogo de templates não pode ser atualizado agora. Tente de novo mais tarde. |
+| 409 | `TEMPLATE_DEPRECATED` | O template está obsoleto e não pode ser usado em novas aplicações. |
+| 400 | `TEMPLATE_VERSION_NOT_SELECTABLE` | O template não permite escolher versões anteriores. |
+| 403 | `MANAGED_ENV_READONLY` | A variável é injetada pelo template e não pode ser lida nem alterada. |
+| 409 | `TEMPLATE_DEPLOY_IN_PROGRESS` | Outro deploy ou atualização de template da conta está em execução. Aguarde o fim. |
+| — | `TEMPLATE_DEPLOY_FAILED` | O deploy falhou e tudo o que ele criou foi desfeito. `details.step` é a etapa que falhou. |
+| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | O job de deploy não existe ou pertence a outra conta. |
+| 409 | `IDEMPOTENCY_KEY_CONFLICT` | O `Idempotency-Key` já foi usado com outra requisição. Use uma nova chave. |
+| 409 | `TEMPLATE_UPDATE_BLOCKED` | A atualização não pode prosseguir. `details` informa o motivo (por exemplo, a aplicação ainda está em build ou não há uma versão mais nova). |
+| 409 | `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | A alteração desvincula a aplicação do seu template, então ela deixa de receber versões. Repita a requisição com `confirm_detach` definido como confirmação. `details.action` indica a alteração. |
+| 409 | `TEMPLATE_ROLLBACK_REQUIRES_DATA` | O template marca o serviço como migrando seus dados na atualização, então o rollback apenas do código é bloqueado. Restaure o snapshot que a atualização fez. |
+| 404 | `SHARE_LINK_NOT_FOUND` | O link de compartilhamento não existe. |
+| 410 | `SHARE_LINK_REVOKED` | O autor revogou o link de compartilhamento. |
+| 410 | `SHARE_LINK_EXPIRED` | O link de compartilhamento expirou. |
+| 410 | `SHARE_LINK_EXHAUSTED` | O link de compartilhamento atingiu seu limite de usos. |
+
+O deploy de um template é assíncrono; as falhas chegam no job de deploy e nos seus eventos. Veja [Erros de template](/pt-br/templates/reference/errors).
+
+## Stacks
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |
+| 409 | `STACK_MEMBER_CONFLICT` | O recurso já está em outra stack, ou não está na mesma conta ou workspace da stack. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | O recurso não é membro da stack. |
+| 404 | `STACK_BINDING_NOT_FOUND` | A stack não tem conexão com esse ID. |
+| 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | O modo de rede não é `public`. |
+| 403 | `STACK_SERVICE_LOCKED` | O membro vem de um template fechado e não pode sair da stack. |
+| 400 | `STACK_NAME_MISMATCH` | `confirm_name` não é o nome da stack. |
+| 400 | `STACK_TRANSFORM_EMPTY` | A pasta não tem aplicação, nem banco de dados, para colocar em uma stack. |
+| 409 | `STACK_BLOB_PREFIX_TAKEN` | A pasta do Blob já é usada por uma stack, ou tem arquivos. Escolha outro prefixo. |
+
+Alterações que podem mudar variáveis ou certificados retornam `restart_required` e `apps_to_restart`: veja [Criar stack](/pt-br/api-reference/endpoint/stacks/create).
+
+## Workspaces
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 404 | `WORKSPACE_NOT_FOUND` | Nenhum workspace com esse ID, ou você não é membro dele. |
+| 400 | `WORKSPACE_NAME_ALREADY_EXISTS` | Você já tem um workspace com esse nome. |
+| 400 | `WORKSPACE_MEMBER_LIMIT_REACHED` | O limite de membros do workspace, definido pelo plano, foi atingido; `details.limit`. |
+| 400 | `WORKSPACE_ROLE_LIMIT_REACHED` | O limite de papéis do workspace, definido pelo plano, foi atingido; `details.limit`. |
+| 404 | `WORKSPACE_ROLE_NOT_FOUND` | Nenhum papel com esse ID neste workspace. |
+| 400 | `WORKSPACE_ROLE_NAME_ALREADY_EXISTS` | Outro papel do workspace já tem esse nome (sem diferenciar maiúsculas de minúsculas). |
+| 400 | `WORKSPACE_ROLE_IN_USE` | Não é possível excluir um papel que ainda tem membros ou um convite pendente atribuído a ele. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Você não é membro, sua participação expirou, ou seu papel não tem a permissão necessária. |
+| 403 | `WORKSPACE_PERMISSION_ESCALATION` | Você tentou conceder ou editar uma permissão que não possui, ou editar o seu próprio papel ou participação. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Só o dono do workspace pode executar esta ação. |
+| 404 | `WORKSPACE_INVITE_NOT_FOUND` | O token do convite é inválido, foi revogado, já foi aceito ou esgotou seus usos. |
+| 410 | `WORKSPACE_INVITE_EXPIRED` | O convite existiu, mas sua validade passou. |
+| 403 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | O e-mail da conta logada não corresponde ao e-mail para o qual o convite foi enviado. |
+| 400 | `APP_ALREADY_IN_WORKSPACE` / `DATABASE_ALREADY_IN_WORKSPACE` | O recurso já está vinculado a um workspace. |
+| 404 | `APP_NOT_FOUND_IN_WORKSPACE` / `DATABASE_NOT_FOUND_IN_WORKSPACE` | O recurso não está vinculado a este workspace. |
+| 403 | `USER_NOT_IN_WORKSPACE` | O usuário-alvo não é membro do workspace. |
+| 404 | `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | Nenhuma solicitação de ação pendente com esse ID. |
+| 400 | `WORKSPACE_ACTION_NOT_NEEDED` | Você já tem a permissão para esta ação — execute-a diretamente, em vez de solicitá-la. |
+| 400 | `WORKSPACE_ACTION_INVALID_PARAMS` | Os `params` da solicitação de ação não correspondem ao que esse tipo de ação espera. |
+| 409 | `WORKSPACE_ACTION_REQUEST_PENDING` | Já existe uma solicitação pendente para a mesma ação e o mesmo recurso. |
+| 410 | `WORKSPACE_ACTION_REQUEST_EXPIRED` | A solicitação de ação expirou antes de alguém decidir. Abra uma nova. |
+| 409 | `WORKSPACE_ACTION_REQUEST_ALREADY_DECIDED` | A solicitação de ação já foi aprovada ou rejeitada. |
+| 400 | `WORKSPACE_INVITES_DISABLED` | A conta convidada desativou, nas configurações, os convites de workspace por e-mail. Peça a ela para reativar os convites, ou compartilhe um link de convite. |
+| 409 | `WORKSPACE_ALREADY_MEMBER` | Você já é membro deste workspace. |
+| 404 | `WORKSPACE_RESOURCE_FOLDER_NOT_FOUND` | Nenhuma pasta de recursos com esse ID. |
+| 409 | `WORKSPACE_RESOURCE_FOLDER_NAME_CONFLICT` | Outra pasta no mesmo nível já tem esse nome. |
+| 404 | `WORKSPACE_RESOURCE_NOT_FOUND` | O recurso referenciado em uma operação de pasta ou favorito não existe ou não é seu. |
+
+## Limites de taxa e cotas
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 429 | `RATE_LIMIT_EXCEEDED` | Um orçamento por rota ou por minuto foi atingido. `details` (quando por conta) traz `scope`, `limit`, `used` e `retry_after`. |
+| 429 | `DAILY_QUOTA_EXCEEDED` | A cota diária de requisições à API do plano da conta foi atingida; ela reinicia à meia-noite no fuso America/Fortaleza. |
+| 429 | `DEPLOY_RATE_LIMITED` | O orçamento horário de deploys da conta ou o seu próprio orçamento horário de rollback foi atingido. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | O orçamento de criação manual de snapshots foi atingido. |
+| 429 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | O orçamento de trocas de subdomínio foi atingido. |
+| 429 | `FORCED_SNAPSHOT_RATE_LIMIT` | O orçamento de snapshots forçados antes de uma operação foi atingido. |
+| 429 | `RESTORE_COOLDOWN` | O cooldown de restauração ou de rollback ainda não passou. |
+
+Veja [limites de taxa](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa) para o detalhamento completo dos orçamentos por plano.
+
+## Geral
+
+| Status | Código | Significado e correção |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Um parâmetro, query ou campo do corpo falhou na validação; `details.path` indica o campo. |
+| 400 | `INVALID_PARAMS` / `INVALID_PAYLOAD` / `INVALID_RANGE` | O formato da requisição ou um campo específico é inválido para esta rota. |
+| 403 | `FORBIDDEN` | A conta não tem permissão para executar esta ação neste recurso. |
+| 400 | `MISSING_HEADERS` | Um cabeçalho exigido pela rota não foi enviado. |
+| 400 | `INVALID_JSON` | O corpo não é um JSON válido (uma aspa ou vírgula faltando, uma vírgula sobrando, aspas simples). Valide o JSON e envie com `content-type: application/json`. |
+| 400 | `EMPTY_BODY` | A requisição tem `content-type: application/json`, mas nenhum corpo. Envie um corpo JSON (`{}` se a rota não tiver campos obrigatórios), ou remova o cabeçalho `content-type` das requisições sem corpo. |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | O `content-type` não é aceito pela rota. Envie JSON com `content-type: application/json`; as rotas de upload aceitam `multipart/form-data`. |
+| 400 | `BAD_REQUEST` | A própria requisição está malformada de um jeito que nenhum outro código cobre, por exemplo um `Content-Length` que não corresponde ao corpo. Corrija a requisição e tente de novo. |
+| 408 | `REQUEST_TIMEOUT` | O corpo da requisição não chegou a tempo. Tente de novo e verifique a conexão se isso se repetir. |
+| 500 | `INTERNAL_SERVER_ERROR` | Algo falhou do lado da plataforma. Tente de novo; se persistir, entre em contato com o suporte informando o horário da requisição. |
+
+<Note>
+  Este catálogo lista todos os códigos do contrato público da API. Uma rota ainda pode responder outros erros HTTP padrão
+  (como um `404` genérico para um caminho desconhecido) que não trazem nenhum destes valores de `code`.
+</Note>

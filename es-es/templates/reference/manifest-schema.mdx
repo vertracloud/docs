@@ -1,0 +1,78 @@
+---
+title: 'JSON Schema del manifiesto de plantilla: valida vertracloud.plantilla.yaml en tu editor'
+sidebarTitle: 'Schema del manifiesto'
+description: 'El JSON Schema versionado del manifiesto de plantilla de Vertra Cloud: validación y autocompletado en el editor, qué comprueba y qué solo comprueba la API.'
+icon: 'code'
+---
+
+El manifiesto tiene un JSON Schema público y versionado en [`/templates/schema/v1.json`](/templates/schema/v1.json). Apunta tu editor a él y `vertracloud.template.yaml` se valida y se autocompleta mientras escribes, sin más herramientas que instalar aparte de una extensión de YAML. El schema se genera a partir de la misma definición que usa la API para validar manifiestos, así que no se desincroniza de la plataforma.
+
+## Úsalo en tu editor
+
+Añade este comentario como **primera línea** del manifiesto:
+
+```yaml
+# yaml-language-server: $schema=https://docs.vertracloud.app/templates/schema/v1.json
+id: my-template
+version: 1.0.0
+```
+
+Los editores que ejecutan el YAML language server lo detectan, como Visual Studio Code con la extensión YAML de Red Hat y los IDE de JetBrains. Obtienes:
+
+- autocompletado de cada campo y enum (`category`, `language`, `web`, `database`, ...);
+- un subrayado de error para campos desconocidos, tipos incorrectos, valores fuera de rango y patrones que no coinciden (por ejemplo, un `id` con mayúsculas).
+
+También puedes asociar el schema al nombre del archivo una sola vez en los ajustes de tu editor en lugar de usar el comentario.
+
+## Úsalo en CI
+
+Cualquier validador de JSON Schema puede comprobar un manifiesto después de convertir el YAML a JSON. Por ejemplo, con `ajv-cli`:
+
+```bash
+npx ajv-cli validate -s v1.json -d manifest.json --spec=draft7
+```
+
+El schema es JSON Schema draft-07. Para la comprobación completa, incluidas las reglas que cruzan campos, usa `vertra template validate`.
+
+## Qué comprueba el schema
+
+El schema comprueba la **forma** del manifiesto: qué campos existen, sus tipos y enums, patrones de cadena, rangos numéricos y longitudes, tamaños de array y qué campos exige cada tipo de servicio.
+
+| Lo comprueba el schema | Ejemplo |
+|---|---|
+| Campos obligatorios | `id`, `version`, `name`, `description`, `category`, `services`; `source`, `ram` y `web` en una app; `database` y `ram` en una base de datos |
+| Enums | `category`, `language`, `web`, `source.type`, `database`, patrón de `generate` |
+| Patrones | `id`, `version`, ids de servicios y de preguntas, nombres de variables, ruta de `icon` |
+| Límites | 40 preguntas, 25 opciones, 16 salidas, 10 etiquetas, 256 variables, 3.072 caracteres por valor |
+| Campos desconocidos | Todos los objetos rechazan los campos que no definen |
+
+## Qué comprueba solo la API
+
+Algunas reglas no se pueden escribir en JSON Schema porque miran varios campos a la vez o el estado de la plataforma. La CLI, el editor, la API y el CI del repositorio público las ejecutan con el mismo código:
+
+- placeholders que apuntan a servicios, preguntas o secretos que existen;
+- `when` que se refiere a una pregunta anterior, con un `equals` del tipo correcto;
+- una pregunta `select` con opciones, y un `default` que es una de ellas;
+- `recommended` no inferior a `min`, y `max` no inferior a `recommended`;
+- campos de imagen en servicios code y campos de code en servicios image;
+- `min_plan` que es el id de un plan real, y una `version` de base de datos que está disponible;
+- expresiones regulares inseguras en `validation.regex`;
+- nombres de variables controlados por la plataforma, y valores literales que parecen secretos;
+- combinaciones de permisos, y campos reservados para plantillas privadas o para públicos.
+
+Un manifiesto que pasa el schema aún puede fallar en estas. Los hallazgos y cómo corregirlos están en [Validar y probar](/es-es/templates/create/validate-and-test#códigos-de-validación).
+
+## Versionado
+
+El nombre del archivo lleva la versión: `v1.json` describe el formato de manifiesto v1. Un cambio de formato que no sea compatible se publicaría con un nombre de archivo nuevo en lugar de sustituir a `v1.json`. Apunta tu editor a la versión con la que escribiste tu manifiesto.
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Referencia del manifiesto" icon="file-code" href="/es-es/templates/create/manifest-reference">
+    Todos los campos en prosa, con ejemplos.
+  </Card>
+  <Card title="Validar y probar" icon="circle-check" href="/es-es/templates/create/validate-and-test">
+    La CLI, la API y los códigos de validación.
+  </Card>
+</CardGroup>

@@ -1,0 +1,46 @@
+---
+title: Criar solicitação de ação
+sidebarTitle: Criar
+api: POST https://api.vertracloud.app/v1/workspaces/{id}/action-requests
+authMethod: bearer
+description: Pede uma ação sensível que você não tem permissão para executar sozinho. Qualquer membro; uma chave de API precisa do escopo `workspaces:write`.
+---
+
+{/* @see RESTPostAPIWorkspaceActionRequestBody, RESTPostAPIWorkspaceActionRequestResponse — @vertracloud/api-types */}
+<Note>
+  Uma chave de API precisa do escopo `workspaces:write`. A solicitação só é decidida no painel —
+  aprovar e rejeitar não estão disponíveis para chaves de API.
+</Note>
+
+Qualquer membro pode chamar isto — a verificação real é que quem chama **não** tenha já a
+permissão que a ação corresponde; se tiver, execute a ação diretamente.
+
+| `action` | exige a permissão |
+|---|---|
+| `app_delete` | `apps:delete` |
+| `database_delete` | `databases:delete` |
+| `snapshot_create` | `snapshots:manage` |
+| `snapshot_restore` | `snapshots:manage` |
+
+### Caminho
+
+<ParamField path="id" type="string" required>ID do workspace.</ParamField>
+
+### Corpo
+
+<ParamField body="action" type="string" required>Um de `app_delete`, `database_delete`, `snapshot_create`, `snapshot_restore`.</ParamField>
+<ParamField body="resource_id" type="string" required>A aplicação ou o banco de dados que esta ação alveja. Deve pertencer a este workspace.</ParamField>
+<ParamField body="params" type="object">Parâmetros específicos da ação, gravados como estão — são exatamente o que roda se for aprovado; nada enviado na aprovação é usado. `snapshot_restore` exige `{ "snapshot_id": "<uuid>" }` (um snapshot deste recurso); as outras ações não recebem nenhum (`{}` ou omitido). Qualquer outra chave retorna `WORKSPACE_ACTION_INVALID_PARAMS`.</ParamField>
+
+### Resposta
+
+Mesmo formato de uma linha de [Listar solicitações de ação](/pt-br/api-reference/endpoint/workspaces/action-requests/list), com `status: "pending"`.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `WORKSPACE_ACTION_NOT_NEEDED` | Quem chama já tem a permissão que a ação corresponde — execute a ação diretamente em vez de solicitá-la. |
+| 403 | `API_KEY_SCOPE_DENIED` | Chamada com uma chave de API que não tem o escopo `workspaces:write`. |
+| 404 | `WORKSPACE_NOT_FOUND` | O workspace não existe ou você não é membro. |
+| 404 | `APP_NOT_FOUND` / `DATABASE_NOT_FOUND` | `resource_id` não pertence a este workspace. |

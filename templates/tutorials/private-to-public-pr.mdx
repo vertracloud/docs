@@ -1,0 +1,221 @@
+---
+title: 'Tutorial: Take a Private Template to the Public Catalog'
+sidebarTitle: 'Private template to public PR'
+description: 'Test a template as private, validate it, assemble the catalog folder with manifest, README and icon, and open the pull request.'
+icon: 'code-pull-request'
+---
+
+You contribute to the public catalog with a **pull request** to the catalog repository: a folder with your manifest, your code or `Dockerfile`, a README and an icon. The catalog is built from that repository, so there is no submission form in the dashboard. This tutorial takes the bot from the [first tutorial](/templates/tutorials/discord-bot-code) from "works as a private template" to an open pull request, and the same path works for image templates.
+
+Templates in the catalog show a **Community** badge and your name, are always open code and are packaged by the Vertra build from the commit that was merged, so nobody depends on your account to keep them available.
+
+## Before you start
+
+<Check>A private template that you have already created and used, as in the [first](/templates/tutorials/discord-bot-code) or [second](/templates/tutorials/image-template) tutorial.</Check>
+<Check>The Vertra CLI and a GitHub account.</Check>
+<Check>Code that you are allowed to distribute publicly, under a license compatible with that. The reviewers check it.</Check>
+
+A catalog template cannot be closed and cannot hide variables: `code.view: false`, `env_hidden` and `share.full_copy` are refused for public templates with `forbidden_in_public`. If your template is a [closed template](/templates/tutorials/closed-template-for-client), it stays private.
+
+## Step by step
+
+<Steps>
+  <Step title="Test it as a private template first">
+    A private template and a public one run on the same engine, so the cheapest test is to use your template for real. In a clean state, check at least:
+
+    - **Fresh deploy** from the wizard or `vertra template deploy`, answering the questions with realistic values, then the first screen of the software.
+    - **The defaults.** Deploy again accepting every default: it must come up without extra steps.
+    - **The skipped paths.** If a `when` or an option turns services off, deploy each variant.
+    - **Restart and update.** Restart the app, publish version `1.0.1` and update an app, then roll back. Data must survive restarts.
+    - **Minimum RAM.** Deploy with the value of `ram.min` and watch the log for out-of-memory kills.
+
+    Fix problems in the private template and publish new private versions until it is boring. A pull request opened too early costs reviewers time and you the review cycle.
+  </Step>
+  <Step title="Check that the template is eligible">
+    The review looks for these, so look first:
+
+    - No miners, hidden telemetry, calls to unrelated servers or secrets in the code.
+    - A license that allows public distribution, linked in `links.license`.
+    - Open code: the template must be fully visible, with no `env_hidden`.
+    - A fixed software version, with its image pinned (see the manifest step).
+    - A README another person can follow without asking you anything.
+
+    Answers that the user must provide are questions (`secret` type for keys); a literal secret in the manifest is refused with `secret_in_manifest`.
+  </Step>
+  <Step title="Assemble the folder">
+    Fork the catalog repository, clone your fork and create a folder named after the template `id`, as the existing templates do:
+
+    ```text
+    discord-bot-ping/
+    ├── vertracloud.template.yaml
+    ├── README.md
+    ├── docs/
+    ├── icon.svg
+    └── src/
+        ├── index.js
+        ├── package.json
+        └── package-lock.json
+    ```
+
+    A code template brings its code (`src/`); an image template brings its `Dockerfile` and everything the build needs, with no `src/`. The `docs/` folder holds longer pages that feed the template page on the documentation site; the dashboard shows only the README.
+  </Step>
+  <Step title="Adapt the manifest to the catalog rules">
+    Copy the manifest from your private template and change what differs:
+
+    | In the private template | In the catalog |
+    |---|---|
+    | Names and descriptions in `pt-br` and optionally others | Fill in `pt-br`, `en` and `es`. |
+    | `icon` not needed | `icon: icon.svg` (or `.png`), a file in the folder. |
+    | `links` optional | `links` to the software's site, docs, source and license, when they exist. |
+    | Image service: `source.image` is the id of your image | `source.image` is the reference **pinned by digest** (`name@sha256:...`), and `source.context` points to the folder with the `Dockerfile` when the template builds its own image. |
+    | Code service: `source.path` optional when the code comes from elsewhere | `source.path` is required: the folder with the code. |
+    | `env_hidden`, `code.view: false`, `share.full_copy` allowed | Refused. |
+    | `landing` refused | Leave it out: it names a dedicated product page that Vertra maintains. |
+
+    For the bot, the catalog manifest looks like this:
+
+    ```yaml title="vertracloud.template.yaml (catalog)"
+    id: discord-bot-ping
+    version: 1.0.0
+    name:
+      pt-br: Bot de Discord com /ping
+      en: Discord bot with /ping
+      es: Bot de Discord con /ping
+    description:
+      pt-br: Bot de Discord com discord.js e o comando /ping. Ponto de partida para o seu bot.
+      en: Discord bot with discord.js and a /ping command. A starting point for your bot.
+      es: Bot de Discord con discord.js y el comando /ping. Punto de partida para tu bot.
+    category: bots
+    tags: [discord, bot, javascript, discordjs]
+    icon: icon.svg
+    links:
+      website: https://discord.js.org
+      docs: https://discordjs.guide
+      source: https://github.com/your-user/discord-bot-ping
+      license: https://github.com/your-user/discord-bot-ping/blob/main/LICENSE
+
+    inputs:
+      - id: discord_token
+        type: secret
+        required: true
+        label:
+          pt-br: Token do bot
+          en: Bot token
+          es: Token del bot
+        help:
+          pt-br: "No Discord Developer Portal: crie a aplicação, abra Bot e use Reset Token. Depois convide o bot ao servidor."
+          en: "In the Discord Developer Portal: create the application, open Bot and use Reset Token. Then invite the bot to your server."
+          es: "En el Discord Developer Portal: crea la aplicación, abre Bot y usa Reset Token. Luego invita al bot a tu servidor."
+        validation: { min_length: 50, max_length: 100 }
+
+    services:
+      app:
+        source: { type: code, path: src }
+        language: javascript
+        runtime_version: recommended
+        main: index.js
+        start: node index.js
+        ram: { min: 256, recommended: 256 }
+        web: none
+        env:
+          DISCORD_TOKEN: "{{inputs.discord_token}}"
+        healthcheck: { timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+
+    permissions:
+      code: { view: true, edit: true }
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+          es: Siguiente paso
+        value:
+          pt-br: "Convide o bot ao seu servidor e digite /ping. O comando global pode levar alguns minutos para aparecer."
+          en: "Invite the bot to your server and type /ping. The global command can take a few minutes to show up."
+          es: "Invita al bot a tu servidor y escribe /ping. El comando global puede tardar unos minutos en aparecer."
+    ```
+
+    <Note>For an image template, the catalog manifest has `source: { type: image, image: "docker.io/vendor/app@sha256:<64 hex digits>", context: . }`. The image is pinned by digest so every deploy runs the same bytes, and the `Dockerfile` in the folder is built by the catalog pipeline into an image that belongs to the platform, not to you.</Note>
+  </Step>
+  <Step title="Add the icon">
+    `icon.svg` is a plain vector file, for example 128 by 128. The catalog refuses an SVG that contains scripts, `foreignObject`, event attributes such as `onload=` or references to external resources:
+
+    ```xml title="icon.svg"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+      <rect width="128" height="128" rx="28" fill="#5865f2"/>
+      <path d="M36 44h56a8 8 0 0 1 8 8v28a8 8 0 0 1-8 8H68l-14 12V88H36a8 8 0 0 1-8-8V52a8 8 0 0 1 8-8z" fill="#ffffff"/>
+    </svg>
+    ```
+  </Step>
+  <Step title="Write the README">
+    The README is the page of the template. Existing catalog templates write it in three sections (Portuguese, English and Spanish) with the same structure. Cover what the template gives the user and what to know:
+
+    ```markdown title="README.md"
+    # Discord bot with /ping
+
+    ## English
+
+    ### What comes ready
+    - A discord.js bot that registers the `/ping` command and answers with the gateway latency.
+    - One question: the bot token.
+
+    ### Step by step
+    1. In the Discord Developer Portal, create the application, open **Bot** and use **Reset Token**.
+    2. Use the template and paste the token when the wizard asks.
+    3. Invite the bot to your server and type `/ping`.
+
+    ### Good to know
+    - The bot only makes outbound connections, so it has no address.
+    - Blue-green deploy is off: two copies with the same token would answer twice.
+    - License: MIT.
+    ```
+
+    Say the true things: memory the template needs, what is created, what the user must do after the deploy, what the template does not do and the license of the packaged software.
+  </Step>
+  <Step title="Validate before you push">
+    ```bash
+    cd discord-bot-ping
+    vertra template validate
+    ```
+
+    The command checks the manifest against the platform rules without creating anything. The catalog pipeline then applies the public-only rules on top (image digest, `source.path`, no closed code), so read the table in the manifest step once more before the push. See [Validate and test](/templates/create/validate-and-test) for how to read each finding.
+  </Step>
+  <Step title="Open the pull request">
+    Commit the folder on a branch of your fork and open a pull request to the catalog repository. On every pull request the pipeline:
+
+    1. Validates the manifest against the schema and the rules (placeholders, `when`, permissions, plan slugs).
+    2. Builds the image, when the template has a `Dockerfile`, or resolves the pinned image.
+    3. Checks the image for file capabilities: a binary with one cannot run with the platform's restrictions.
+    4. Checks the declared license.
+
+    Fix what it reports by pushing to the same branch.
+  </Step>
+  <Step title="Go through the review">
+    A person at Vertra runs the template on the platform with the minimum memory you declared and reviews security (no miners, no hidden telemetry, no secrets in the code), the license and the quality of the README. Expect comments and answer them in the pull request. When it is approved and merged, the pipeline packages the folder at that commit as a version of the template and publishes it with the **Community** badge and your name. Later versions are new pull requests, reviewed the same way. A community template that stops being maintained can be marked deprecated: it leaves the gallery, apps already created keep running and get a notice.
+  </Step>
+</Steps>
+
+<Note>The path to the public catalog is the pull request, by hand: there is no button in the dashboard. A closed template never goes to the catalog.</Note>
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| The pipeline reports `forbidden_in_public` | The manifest has `env_hidden`, `code.view: false` or `share.full_copy`. These are for private templates; remove them for the catalog. |
+| The pipeline reports `invalid_source` on an image | A public image has to be pinned by digest (`@sha256:` and 64 hex digits) and a code service needs `source.path`. |
+| `secret_in_manifest` | A variable named like a secret has a literal value. Ask for it with a `secret` question or generate it with `{{secret:32}}`. |
+| The template boots with more memory but fails in the review | The review runs it with a read-only root, user `1000` and the minimum memory. Test with `ram.min`, point every write to `/app`, `/tmp` or `/run`, and see [Best practices](/templates/create/best-practices). |
+| The review asks for changes | Push to the same branch; the pipeline runs again. Questions about the license usually need the license file of the packaged software linked in `links.license`. |
+
+## Next steps
+
+- [Contribute to the public catalog](/templates/create/contribute): the checklist and the review criteria in one page.
+- [Validate and test](/templates/create/validate-and-test): testing as private and reading validation findings.
+- [Manifest reference](/templates/create/manifest-reference): the fields the catalog requires.
+- [Manifest schema](/templates/reference/manifest-schema): the JSON Schema that editors and the CI use.
+- [Error reference](/templates/reference/errors): validation and deploy error codes.
+- [Private templates](/templates/create/private-templates): versions, workspaces and the limit of 5.

@@ -1,0 +1,170 @@
+---
+title: Preview a Template Share Link
+sidebarTitle: Preview Link
+api: GET https://api.vertracloud.app/v1/share/templates/{token}
+authMethod: bearer
+description: "Shows what a template share link gives before anyone uses it: services, memory, plan, questions and permissions, with the unverified notice."
+---
+
+{/* @see RESTGetAPITemplateSharePreviewResponse, APITemplateSharePreview — @vertracloud/api-types */}
+This call returns what a share link would create, so a person can decide before using it. It works without authentication; when you are authenticated, the answer also carries an `account` object that says whether the template fits your account. It is limited per IP (20 requests per minute).
+
+The preview never shows ids, e-mails, the manifest or the source. `verified` is always `false`: Vertra Cloud does not review private templates, and the dashboard shows "Not verified by Vertra" next to every one. Check the author and what the template does before you use it. For a closed template (`code_view` is `false`), you cannot see the code, and the values you fill in go to code you cannot read. If something looks wrong, [report the template](/api-reference/endpoint/templates/share-links/report).
+
+An API key needs the `templates:read` scope when it is sent.
+
+<ParamField path="token" type="string" required>
+  The token of the link, starting with `vtpl_`.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/share/templates/vtpl_EXAMPLE_TOKEN
+```
+
+</RequestExample>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The preview.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="mode" type="string">
+    `use` (you create your own applications from it) or `full_copy` (you get a private template of your own).
+  </ResponseField>
+
+  <ResponseField name="name" type="object">
+    The template name by language (`pt-br`, `en`, `es`).
+  </ResponseField>
+
+  <ResponseField name="description" type="object">
+    The description by language.
+  </ResponseField>
+
+  <ResponseField name="category" type="string">
+    The category.
+  </ResponseField>
+
+  <ResponseField name="icon_url" type="string | null">
+    URL of the icon, or `null`.
+  </ResponseField>
+
+  <ResponseField name="author_display" type="string | null">
+    The name the author chose to show.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    The version the link gives.
+  </ResponseField>
+
+  <ResponseField name="services" type="object[]">
+    What would be created. Each service has `id`, `kind` (`app`, `database` or `blob`), `source_type`, `database`, `blob_visibility`, `ram` (`min`, `recommended`, optional `max`, in MB), `web` and `conditional`.
+  </ResponseField>
+
+  <ResponseField name="creates_stack" type="boolean">
+    `true` when it creates a stack.
+  </ResponseField>
+
+  <ResponseField name="ram_min_total" type="integer">
+    The sum of the minimum memory of the services, in MB.
+  </ResponseField>
+
+  <ResponseField name="required_plan" type="string">
+    The lowest plan that can use it.
+  </ResponseField>
+
+  <ResponseField name="image_slots_needed" type="integer">
+    The custom image slots you would use: one per distinct image of the template, so it can be more than 1. A template with only code uses none.
+  </ResponseField>
+
+  <ResponseField name="verified" type="boolean">
+    Always `false`.
+  </ResponseField>
+
+  <ResponseField name="code_view" type="boolean">
+    `false` for a [closed template](/templates/use/closed-templates).
+  </ResponseField>
+
+  <ResponseField name="byok" type="boolean">
+    `true` when you bring your own key for an AI model.
+  </ResponseField>
+
+  <ResponseField name="inputs" type="object[]">
+    The questions you answer when using it.
+  </ResponseField>
+
+  <ResponseField name="permissions" type="object">
+    What you may do with the apps created from it: `code_view`, `code_edit`, `ram_change`, `ram_below_min`, `ram_above_max`, `env_add`, `commands_edit`, `terminal`, `save_as_template` and `detach`.
+  </ResponseField>
+
+  <ResponseField name="account" type="object">
+    Only when authenticated: `fits`, `reasons`, `required_ram`, `free_ram`, `needs_image_slot`, `image_slots_free`, `in_use` and `in_use_count`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "mode": "use",
+    "name": { "pt-br": "Bot de suporte", "en": "Support bot" },
+    "description": { "pt-br": "Bot que responde o suporte." },
+    "category": "bots",
+    "icon_url": null,
+    "author_display": "Ana",
+    "version": "1.0.0",
+    "services": [
+      { "id": "bot", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null, "ram": { "min": 256, "recommended": 512 }, "web": "none", "conditional": false }
+    ],
+    "creates_stack": false,
+    "ram_min_total": 256,
+    "required_plan": "economy",
+    "image_slots_needed": 0,
+    "verified": false,
+    "code_view": true,
+    "byok": false,
+    "inputs": [],
+    "permissions": {
+      "code_view": true,
+      "code_edit": true,
+      "ram_change": true,
+      "ram_below_min": false,
+      "ram_above_max": true,
+      "env_add": true,
+      "commands_edit": true,
+      "terminal": false,
+      "save_as_template": false,
+      "detach": true
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `SHARE_LINK_NOT_FOUND`: The token has the wrong form, does not exist, or its template was deleted (`404`).
+  - `SHARE_LINK_REVOKED`: The author revoked the link (`410`).
+  - `SHARE_LINK_EXPIRED`: The link passed its `expires_at` (`410`).
+  - `SHARE_LINK_EXHAUSTED`: The link reached its `max_uses` (`410`).
+  - `API_KEY_SCOPE_DENIED`: An API key was sent without the `templates:read` scope (`403`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "SHARE_LINK_EXPIRED"
+}
+```
+
+</ResponseExample>

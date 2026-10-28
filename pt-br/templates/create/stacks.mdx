@@ -1,0 +1,120 @@
+---
+title: 'Stacks de template: vários apps, bancos de dados e pastas Blob em um template'
+sidebarTitle: 'Stacks'
+description: 'Crie um template com vários serviços: apps, bancos de dados e pastas Blob criados juntos e ligados por placeholders, certificados e modo público.'
+icon: 'layer-group'
+---
+
+Um template com dois ou mais serviços cria uma **stack**: um único recurso que agrupa os apps, bancos de dados e pastas Blob, mantém todos conectados e é atualizado, salvo em snapshot e excluído como uma unidade. Você não declara a stack; ela existe porque `services` tem mais de uma entrada (até 8).
+
+Um template com um único app cria apenas esse app, sem stack.
+
+## Declare os serviços
+
+Cada serviço é uma entrada de `services`. Apps, bancos de dados e pastas Blob ficam lado a lado, e os placeholders conectam todos:
+
+```yaml
+services:
+  app:
+    source: { type: image, image: "docker.io/n8nio/n8n@sha256:942bc274709f27f99f7c6024a785d8e8f75ac06838cabcba448abb8d9127ec7b", context: . }
+    port: 5678
+    ram: { min: 1024, recommended: 2048 }
+    web: required
+    env:
+      DB_POSTGRESDB_HOST: "{{services.db.host}}"
+      DB_POSTGRESDB_PORT: "{{services.db.port}}"
+      DB_POSTGRESDB_DATABASE: "{{services.db.database}}"
+      DB_POSTGRESDB_USER: "{{services.db.user}}"
+      DB_POSTGRESDB_PASSWORD: "{{services.db.password}}"
+  db:
+    database: postgres
+    ram: { min: 1024, recommended: 1024 }
+```
+
+Tudo é criado em um único job. A ordem é: validação, a stack, os bancos de dados (o job espera que fiquem prontos), pastas Blob, imagens, apps, variáveis, certificados, início, healthcheck e outputs. Se qualquer etapa falhar, a plataforma exclui apenas o que esse job criou, sem snapshot de segurança, porque ainda nada guarda dados do usuário, e informa a etapa e o erro.
+
+### Serviços opcionais
+
+Torne um banco de dados opcional com `when`, ou ligue e desligue qualquer serviço com `sets.services` em uma opção de pergunta. Um serviço desligado não é criado e seus placeholders ficam vazios. É assim que um template oferece "Postgres ou SQLite" ou "adicionar workers"; veja [Opções e sets](/pt-br/templates/create/placeholders-and-inputs#opções-e-sets). A memória de um serviço desligado não conta para o plano necessário.
+
+### Vários bancos de dados do mesmo engine
+
+Você pode declarar mais de um banco de dados do mesmo engine, como um Redis para cache e outro para uma fila. Cada um é um banco de dados comum, com memória própria tirada do plano, e tem seu próprio id de serviço e placeholders. Um banco de dados pertence a uma única stack, e vários apps da stack podem usar o mesmo banco.
+
+### Pastas Blob
+
+Um serviço `blob` dá à stack a pasta `stacks/<stack-slug>/` e uma chave gerenciada pela plataforma, restrita a essa pasta. O app a lê pelos placeholders no estilo `S3_*`. Se o usuário desfizer a stack, a chave é revogada e **os arquivos são mantidos**. Veja o [serviço Blob](/pt-br/templates/create/manifest-reference#pasta-blob) para os campos.
+
+## Como os serviços se conectam
+
+Você nunca escreve um endereço. Use `{{services.<id>.host}}` ou `{{services.<id>.url}}`. O app alcança o banco pelo endereço público dele, com certificados de cliente. Um `network_mode` diferente de `public` é recusado com `STACK_NETWORK_MODE_UNAVAILABLE`.
+
+### Certificados
+
+Os bancos de dados exigem um certificado de cliente. A plataforma grava os arquivos no app em `/app/.vertra/certs/<database_id>/` a cada início, somente leitura, e `{{services.<id>.ssl.*_path}}` dá os caminhos absolutos:
+
+| Arquivo | Placeholder | Usado por |
+|---|---|---|
+| `ca.pem` | `ssl.ca_path` | Todos os engines |
+| `client.crt` | `ssl.cert_path` | Postgres, MySQL, Redis |
+| `client.key` | `ssl.key_path` | Postgres, MySQL, Redis |
+| `client.pem` | `ssl.pem_path` | MongoDB |
+| `client.p12` | `ssl.p12_path` | Prisma 6 (senha vazia) |
+
+A pasta é reservada pela plataforma: é ignorada por uploads de código, restaurações de snapshot, rollbacks, downloads e "Salvar como template", então uma chave privada nunca viaja junto com o código. Se o usuário redefinir os certificados do banco de dados, a plataforma reescreve os arquivos e pede que ele reinicie o app.
+
+Alguns drivers não aceitam certificados apenas por caminho. Quando o seu lê os certificados da URL de conexão, use `{{services.<id>.url}}`; para o Prisma 6, use `{{services.<id>.prisma_url}}`. Veja [Conectar um app a um banco de dados](/pt-br/templates/use/connect-databases) para saber como cada driver lê os certificados.
+
+### Conectando app a app
+
+Um app alcança outro pela URL pública dele, então o app chamado precisa de `web: required` ou `web: optional` e fica **exposto na internet**. A plataforma não autentica a chamada: se você quer que apenas o seu próprio app seja aceito, verifique um segredo compartilhado nos dois lados:
+
+```yaml
+secrets: [internal_token]
+
+services:
+  web:
+    # ...
+    env:
+      API_URL: "{{services.api.url}}"
+      API_TOKEN: "{{secrets.internal_token}}"
+  api:
+    # ...
+    env:
+      EXPECTED_TOKEN: "{{secrets.internal_token}}"
+```
+
+Seu `api` deve recusar uma requisição sem esse token.
+
+### Ligações que ficam fora da galeria
+
+Um serviço que fala um protocolo TCP puro, ou um software que não aceita certificado de cliente, não funciona pelo endereço público. Marcar a ligação assim tira o template da galeria pública (`private_network_unavailable`):
+
+```yaml
+services:
+  app:
+    # ...
+    connections:
+      queue: { private: required }
+```
+
+O destino deve ser outro serviço do manifesto, nunca o próprio serviço (`invalid_connection`, `unknown_service`).
+
+## Variáveis gerenciadas pela stack
+
+Variáveis que vêm de um placeholder de banco de dados, pasta Blob ou app são **gerenciadas**: ganham um selo "gerenciada pela stack" e se atualizam sozinhas quando uma senha, certificado ou endereço muda. A plataforma avisa o usuário de que o app precisa ser reiniciado. Editar uma delas à mão a transforma em uma variável comum.
+
+## Atualizações
+
+Uma stack que veio do seu template atualiza todos os serviços juntos: um snapshot de segurança de cada membro, depois os serviços um após o outro, e um retorno completo ao snapshot se um falhar. Recursos que o usuário adicionou à stack manualmente são ignorados pelas atualizações. Veja [Atualizações e rollback](/pt-br/templates/use/updates-and-rollback).
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Placeholders e inputs" icon="sliders" href="/pt-br/templates/create/placeholders-and-inputs">
+    Todos os placeholders de banco de dados e Blob.
+  </Card>
+  <Card title="Stacks para usuários" icon="layer-group" href="/pt-br/templates/use/stacks">
+    O que o usuário vê e pode fazer com uma stack.
+  </Card>
+</CardGroup>

@@ -1,0 +1,101 @@
+---
+title: 'Qué es un stack en Vertra Cloud: apps, bases de datos y Blob juntos'
+sidebarTitle: 'Stacks'
+description: 'Un stack agrupa apps, bases de datos y una carpeta de Blob que trabajan juntas. Cómo se crean, cómo añadir una base de datos y cómo eliminarlo.'
+icon: 'layer-group'
+---
+
+Un stack es un recurso de tu cuenta (o workspace) que agrupa apps, bases de datos gestionadas y, opcionalmente, una carpeta de Blob que trabajan juntas, con las conexiones entre ellas ya configuradas. Aparece como su propia tarjeta en tu lista de apps y como su propia caja en el Flow, con las líneas de las conexiones dibujadas entre sus miembros.
+
+Un stack no depende de una plantilla. Una plantilla con dos o más servicios crea uno por ti, pero también puedes montar uno a mano.
+
+## Carpeta o stack
+
+Las carpetas organizan y los stacks conectan.
+
+| | Carpeta | Stack |
+|---|---|---|
+| Finalidad | Ordenar tu lista. | Conectar recursos que trabajan juntos. |
+| En la lista | Una fila que se abre y se cierra. | Una tarjeta con el estado sumado («2 de 3 en línea»), la memoria total, el modo de red y la plantilla de origen. |
+| En el Flow | Una caja simple con un nombre y un color. | Una caja con su propio encabezado y las líneas de las conexiones. |
+| Acciones | Renombrar, color, mover elementos. | Añadir una base de datos, actualizar la versión de la plantilla, snapshot de todo, modo de red. |
+| Eliminación | Solo la carpeta; los recursos se quedan. | Pregunta qué hacer con los miembros (más abajo). |
+| Pertenece a | Cada persona, incluso en un workspace. | La cuenta o el workspace, igual para todos. |
+
+Una carpeta puede contener un stack, por ejemplo una carpeta por cliente con un stack cada una.
+
+## Cómo conecta el stack
+
+Las apps llegan a cada base de datos por su dirección pública. La plataforma crea los certificados de cliente y las variables de conexión. Consulta [Conectar apps a bases de datos en un stack](/es-es/templates/use/connect-databases).
+
+De una app a otra, la conexión es HTTP, por la dirección pública. La plataforma no protege esa dirección: para aceptar solo la otra app, comprueba un secreto compartido en las dos.
+
+## Cuatro formas de obtener un stack
+
+<Steps>
+  <Step title="Desde una plantilla">
+    Una plantilla con dos o más servicios crea el stack con sus miembros. Consulta [Usar una plantilla](/es-es/templates/use/using-a-template).
+  </Step>
+  <Step title="Añadir una base de datos a una app">
+    En la página de una app, **Añadir base de datos** crea una base de datos y la conecta a la app. Si la app todavía no está en un stack, el stack se crea en ese momento (toma el nombre que le des).
+  </Step>
+  <Step title="Convertir una carpeta en un stack">
+    En una carpeta con una app y una base de datos que ya existen, **Convertir en stack** crea el stack con esos miembros. La carpeta se queda. Una carpeta sin al menos una app y una base de datos no se puede transformar (`STACK_TRANSFORM_EMPTY`).
+  </Step>
+  <Step title="Desde recursos que ya tienes">
+    Crea un stack a partir de apps y bases de datos de la misma cuenta o workspace que no estén en otro stack.
+  </Step>
+</Steps>
+
+Todo lo que esté en un stack y se haya montado a mano se puede guardar después como plantilla. Consulta [Crear plantillas](/es-es/templates/create/overview).
+
+## Añadir y quitar miembros
+
+En la página de un stack, **Añadir base de datos** crea una nueva base de datos ya dentro del stack (motor, versión, memoria, a qué apps conectarla y los nombres de las variables). También puedes mover al stack una base de datos o una app sueltas que ya tengas:
+
+- Debe pertenecer al mismo propietario y ámbito (ambos personales, o ambos en el mismo workspace) y no estar en otro stack; de lo contrario la llamada devuelve `STACK_MEMBER_CONFLICT`.
+- Eliges a qué apps conectarla y con qué nombres de variable. Puedes no conectar ninguna.
+- A partir de ese momento forma parte del snapshot y de la restauración del stack.
+
+Cuando sacas un miembro del stack, si hay apps que lo usan mediante una conexión, eliges:
+
+| Opción | Qué ocurre |
+|---|---|
+| **Mantener la conexión** (por defecto) | Las variables pasan a ser variables normales y siguen funcionando, y los certificados se quedan. Dejan de actualizarse solas, así que un restablecimiento posterior de contraseña o certificado requiere una actualización manual. |
+| **Quitar las variables** | Se eliminan las variables y los certificados copiados. |
+
+Un stack que viene de una plantilla puede recibir recursos adicionales, que las actualizaciones de la plantilla ignoran. Sacar un recurso que creó la plantilla está permitido, con una advertencia: el stack se **desvincula de la plantilla** y deja de recibir nuevas versiones. La app de una [plantilla cerrada](/es-es/templates/use/closed-templates) no puede salir del stack (`STACK_SERVICE_LOCKED`); sus bases de datos sí.
+
+## Blob en un stack
+
+Un stack puede incluir una carpeta de tu [Blob Storage](/es-es/blob/folder-rules). La plataforma crea una clave de API restringida a esa carpeta, la guarda en el stack e inyecta las variables de conexión S3 en las apps que elijas. La carpeta es `stacks/<stack-slug>/`, fija desde que se crea el stack. El plan debe incluir Blob Storage.
+
+Deshacer el stack revoca esa clave y **conserva los archivos**. Cuando eliminas todo, eliges si conservar o eliminar los archivos, y por defecto se conservan. Consulta [Autenticación de Blob](/es-es/blob/authentication) para las claves restringidas.
+
+## Eliminar un stack
+
+Eliminar un stack te pide escribir su nombre y ofrece dos opciones:
+
+| Opción | Resultado |
+|---|---|
+| **Deshacer el stack** | Solo desaparece el stack. Las apps y las bases de datos se quedan como recursos sueltos, sin red y sin actualizaciones de la plantilla; sus variables gestionadas pasan a ser variables normales. |
+| **Eliminar todo** | También elimina cada miembro, cada uno con la regla de eliminación que ya tenía, incluido el snapshot de seguridad cuando lo hay. |
+
+Un nombre incorrecto devuelve `STACK_NAME_MISMATCH`. Las claves de API usadas para **Eliminar todo** necesitan permiso para eliminar apps y bases de datos (y acceso de escritura a Blob para eliminar archivos).
+
+## Snapshots
+
+Un snapshot de stack toma un snapshot de cada miembro que tiene datos, todos juntos, y una restauración los devuelve juntos. Consulta [Copias de seguridad y snapshots](/es-es/guides/backups-snapshots).
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Conectar bases de datos" icon="database" href="/es-es/templates/use/connect-databases">
+    Variables inyectadas, certificados y código por lenguaje.
+  </Card>
+  <Card title="Actualizar y revertir" icon="rotate-left" href="/es-es/templates/use/updates-and-rollback">
+    Actualiza todos los servicios del stack a la vez.
+  </Card>
+</CardGroup>
+
+Para la API, consulta [List stacks](/es-es/api-reference/endpoint/stacks/list), [Create stack](/es-es/api-reference/endpoint/stacks/create), [Delete stack](/es-es/api-reference/endpoint/stacks/delete) y [Add database](/es-es/api-reference/endpoint/stacks/databases/create).

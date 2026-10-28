@@ -1,0 +1,162 @@
+---
+title: Salvar uma stack como template
+sidebarTitle: Criar a partir de stack
+api: POST https://api.vertracloud.app/v1/templates/from-stack/{stack_id}
+authMethod: bearer
+description: Salva uma das suas stacks como template privado, com um serviço por membro, escolhendo variáveis e arquivos de cada app.
+---
+
+{/* @see RESTPostAPITemplateFromStackBody, RESTPostAPITemplateFromStackResponse — @vertracloud/api-types */}
+Esta chamada salva uma stack como template privado com uma primeira versão e responde `201` com o template, com um serviço por membro que você escolher. As variáveis de conexão da stack viram placeholders que apontam para os outros serviços (`{{services.db.url}}`, por exemplo), e cada pasta do Blob da stack vira um serviço Blob. Um membro deixado de fora do template também deixa de fora as variáveis que apontavam para ele. Os bancos de dados são recriados vazios: os dados deles nunca são copiados.
+
+Precisa do escopo `templates:write` quando chamado com uma chave de API. Valem o plano, o limite e as regras de workspace de [Criar template privado](/pt-br/api-reference/endpoint/templates/create), o template não é verificado pela Vertra Cloud, e as recusas de [Criar template a partir de app](/pt-br/api-reference/endpoint/templates/create-from-app) valem para cada membro que é app. Leia antes a proposta com [Revisar rascunho do template](/pt-br/api-reference/endpoint/templates/draft).
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a stack pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  O slug do template, com letras minúsculas, números e hífens.
+</ParamField>
+
+<ParamField body="name" type="object" required>
+  O nome por idioma: `pt-br` (obrigatório), `en` e `es`, de até 50 caracteres cada.
+</ParamField>
+
+<ParamField body="description" type="object" required>
+  A descrição por idioma, no mesmo formato de `name`, de até 128 caracteres cada.
+</ParamField>
+
+<ParamField body="category" type="string" required>
+  `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases` ou `other`.
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Até 10 tags.
+</ParamField>
+
+<ParamField body="version" type="string">
+  A primeira versão, como versão semântica. Padrão `1.0.0`.
+</ParamField>
+
+<ParamField body="permissions" type="object">
+  O que os usuários do template podem fazer, como nas [permissões](/pt-br/templates/create/permissions) do manifesto.
+</ParamField>
+
+<ParamField body="members" type="object[]" required>
+  O que salvar de cada membro da stack, um app ou um banco de dados.
+
+  <Expandable title="Objeto `member`">
+
+  <ResponseField name="resource_id" type="string" required>
+    O ID do app ou do banco de dados a salvar.
+  </ResponseField>
+
+  <ResponseField name="service_id" type="string" required>
+    O id que o serviço recebe no manifesto.
+  </ResponseField>
+
+  <ResponseField name="env" type="object[]">
+    Uma revisão por variável de um app. Uma variável sem revisão fica de fora do template. Cada revisão tem:
+
+    - `key`: o nome da variável.
+    - `mode`: `question` (vira uma pergunta que o usuário responde; o valor não é copiado), `keep` (o valor é copiado; recusado quando parece uma credencial), `generate` (vira um segredo que a plataforma gera para cada usuário, com `generate` definido como `random:<n>` ou `uuid`), `hidden` (copiado, mas oculto de quem usa o template; o valor fica fora de vista de quem usa o template) ou `omit` (fica de fora).
+    - `label` e `help`: textos por idioma (`pt-br`, `en`, `es`), usados por `question` e `generate`.
+    - `generate`: como o segredo é gerado, `random:<n>` ou `uuid`.
+
+    Leia antes as sugestões com [Revisar rascunho do template](/pt-br/api-reference/endpoint/templates/draft).
+  </ResponseField>
+
+  <ResponseField name="paths" type="string[]">
+    Os caminhos de `/app` do app que entram no template, para apps com código. Sem ele, entra tudo, exceto o que o rascunho deixa sem selecionar. Arquivos `.env*`, a pasta da plataforma e as pastas de dependências nunca podem ser incluídos.
+  </ResponseField>
+
+  <ResponseField name="ram" type="object">
+    A memória do serviço em MB: `min`, `recommended` e `max` opcional.
+  </ResponseField>
+
+  </Expandable>
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  O workspace que será dono do template. Sem ele, o template é seu.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/from-stack/stk-abc123def456 \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "api-with-postgres",
+    "name": { "pt-br": "API com Postgres", "en": "API with Postgres" },
+    "description": { "pt-br": "API e banco prontos." },
+    "category": "apis",
+    "members": [
+      { "resource_id": "app-abc123def456", "service_id": "api" },
+      { "resource_id": "db-abc123def456", "service_id": "db" }
+    ]
+  }'
+```
+
+</RequestExample>
+
+### Resposta
+
+O mesmo objeto de template retornado por [Criar template privado](/pt-br/api-reference/endpoint/templates/create), com `201 Created`. `creates_stack` é `true` e `services` tem uma entrada por membro.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "api-with-postgres",
+    "origin": "private",
+    "name": { "pt-br": "API com Postgres", "en": "API with Postgres" },
+    "category": "apis",
+    "creates_stack": true,
+    "services": [
+      { "id": "api", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null, "ram": { "min": 256, "recommended": 512 }, "web": "required", "conditional": false },
+      { "id": "db", "kind": "database", "source_type": null, "database": "postgres", "blob_visibility": null, "ram": { "min": 256, "recommended": 256 }, "web": null, "conditional": false }
+    ],
+    "ram_min_total": 512,
+    "created_at": "2026-10-27T14:02:00Z",
+    "updated_at": "2026-10-27T14:02:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `STACK_NOT_FOUND`: A stack não existe ou não é sua.
+  - `APP_NOT_FOUND`: Um app membro não existe.
+  - `TEMPLATE_SAVE_NOT_ALLOWED`: Um app membro veio de um link de compartilhamento, ou executa uma imagem da plataforma (`403`).
+  - `TEMPLATE_CLOSED`: Um membro vem de um template fechado (`403`).
+  - `TEMPLATE_MANIFEST_INVALID`: O resultado não é um manifesto válido; `details.issues` lista os achados.
+  - `TEMPLATE_SECRET_IN_SOURCE`: Um arquivo selecionado tem um segredo; `details.files` lista os caminhos (`400`).
+  - `TEMPLATE_SLUG_TAKEN`: O slug já está em uso entre os seus templates ou é reservado.
+  - `TEMPLATE_PRIVATE_LIMIT_REACHED`: A conta já tem 5 templates privados.
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: O plano não pode criar templates.
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace salva templates nele.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_CLOSED"
+}
+```
+
+</ResponseExample>

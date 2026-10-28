@@ -51,22 +51,22 @@ administradores, backups e restaurações) fica a cargo da plataforma.
 
 Bancos criados antes disso mantêm o usuário padrão do motor: `postgres` (banco `postgres`) no PostgreSQL,
 `default` no MongoDB e no Redis, e `root` (banco `default`) no MySQL. O campo `username` em
-[Obter banco de dados](/api-reference/endpoint/databases/get) sempre indica qual usar.
+[Obter banco de dados](/pt-br/api-reference/endpoint/databases/get) sempre indica qual usar.
 
 ## O que preciso para me conectar?
 
 São quatro itens, todos na página do banco no painel (ou pela API):
 
 - **Host** — `<id-do-banco-sem-hifens>.db.usa1.vertraweb.app`, mostrado na página do banco e em
-  [Obter banco de dados](/api-reference/endpoint/databases/get).
+  [Obter banco de dados](/pt-br/api-reference/endpoint/databases/get).
 - **Porta** — **única por banco**, não a porta padrão do motor (5432, 27017, 6379, 3306). Sempre copie-a da
   página do banco ou da resposta da API.
 - **Usuário** — `vertracloud` (ou o usuário do motor, em bancos mais antigos), mostrado na página do banco e
-  como `username` em [Obter banco de dados](/api-reference/endpoint/databases/get).
-- **Senha** — mostrada na página do banco; [redefina-a](/api-reference/endpoint/databases/credentials/resetpassword)
+  como `username` em [Obter banco de dados](/pt-br/api-reference/endpoint/databases/get).
+- **Senha** — mostrada na página do banco; [redefina-a](/pt-br/api-reference/endpoint/databases/credentials/resetpassword)
   se necessário.
 - **Certificados** — baixe-os na aba **Certificados** do banco ou pelo
-  [Obter certificado do banco de dados](/api-reference/endpoint/databases/credentials/get):
+  [Obter certificado do banco de dados](/pt-br/api-reference/endpoint/databases/credentials/get):
 
 | Arquivo | O que é | Use como |
 |---|---|---|
@@ -76,7 +76,7 @@ São quatro itens, todos na página do banco no painel (ou pela API):
 
 O certificado do servidor corresponde ao host do banco, então a verificação completa (`verify-full`,
 `VERIFY_IDENTITY`, `rejectUnauthorized: true`) funciona. Mantenha os arquivos `.key` e `.pem` privados — eles
-autenticam como você. [Redefinir os certificados](/api-reference/endpoint/databases/credentials/reset)
+autenticam como você. [Redefinir os certificados](/pt-br/api-reference/endpoint/databases/credentials/reset)
 emite novos certificados e invalida os arquivos antigos.
 
 ## Como me conecto a cada motor?
@@ -190,6 +190,28 @@ Nos exemplos, `<host>`, `<port>` e `<password>` vêm da página do banco; o usu�
   A maioria dos erros "connection refused" ou "handshake failed" vem de um `.crt`/`.key` ausente ou da porta
   padrão do motor usada no lugar da porta do próprio banco.
 </Warning>
+
+### Certificados em aplicações ligadas a uma stack
+
+Quando uma aplicação e um banco de dados são implantados juntos a partir de um [template](/pt-br/templates/use/stacks), a plataforma grava os certificados do banco na aplicação para você, em `/app/.vertra/certs/<database_id>/`: `ca.pem`, `client.crt`, `client.key`, `client.pem` (MongoDB) e `client.p12` (Prisma). Variáveis como a URL de conexão apontam para esses caminhos, então você não envia nada. Veja [Conectar bancos de dados](/pt-br/templates/use/connect-databases).
+
+### Como me conecto com o Prisma 6?
+
+O Prisma 6 só aceita certificado de cliente como identidade PKCS#12, então use o arquivo `client.p12` (criptografado com AES, senha vazia, portanto sem `sslpassword`) em `sslidentity` e a CA em `sslcert`:
+
+```ini
+DATABASE_URL=postgresql://vertracloud:<password>@<host>:<port>/vertracloud?sslmode=require&sslaccept=strict&sslcert=/app/.vertra/certs/<database_id>/ca.pem&sslidentity=/app/.vertra/certs/<database_id>/client.p12
+```
+
+Um template pode pedir essa URL pronta, mas ela nunca entra numa ligação por padrão, porque carrega a senha. O Prisma 7 lê os arquivos PEM pela URL padrão do PostgreSQL e dispensa o `.p12`.
+
+### O Python 3.13 conecta ao banco de dados?
+
+Conecta, mas o Python 3.13 em diante liga verificações X.509 estritas no contexto TLS padrão (`ssl.create_default_context()`), e bancos criados antes da correção dos certificados podem falhar com `Missing Authority Key Identifier`. Quem usa o contexto padrão é afetado, como redis-py e pg8000; psycopg, asyncpg, PyMySQL e pymongo não são. Bancos novos e bancos cujos certificados você redefiniu já emitem certificados compatíveis. Se não puder redefinir agora, o redis-py 6 ou superior aceita `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`.
+
+### O que acontece quando redefino os certificados?
+
+A redefinição emite uma nova CA, um novo certificado de servidor e um novo de cliente, e invalida os arquivos antigos. Nas aplicações ligadas a uma stack, os arquivos em `/app/.vertra/certs/` são regravados automaticamente, mas o processo em execução ainda guarda os antigos: a resposta indica `restart_required` e lista as aplicações a reiniciar. Arquivos que você baixou e colocou num projeto por conta própria precisam ser baixados e implantados de novo.
 
 ## Ciclo de vida
 

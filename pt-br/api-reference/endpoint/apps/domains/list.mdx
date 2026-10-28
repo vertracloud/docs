@@ -1,0 +1,154 @@
+---
+title: Listar domínios da aplicação
+sidebarTitle: Listar domínios
+api: GET https://api.vertracloud.app/v1/apps/{id}/domains
+authMethod: bearer
+description: Lista os domínios personalizados de uma aplicação com o status, o estado do certificado, a porta, o prefixo de caminho e o redirecionamento.
+---
+
+{/* @see RESTGetAPIApplicationDomainsResponse, APIApplicationDomain — @vertracloud/api-types */}
+Retorna todos os domínios personalizados da aplicação, incluindo o complementar automático `www` (ou raiz) que
+[Adicionar domínio à aplicação](/pt-br/api-reference/endpoint/apps/domains/create) cria ao lado do domínio que você
+adiciona. A lista fica vazia quando a aplicação não tem nenhum. Exige o escopo `apps:read` quando chamada com uma
+chave de API.
+
+Para entender como os domínios funcionam, veja o [guia de domínios personalizados](/pt-br/guides/custom-domain).
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que atuam em uma aplicação que não é deles.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="APIApplicationDomain[]">
+  Os domínios personalizados da aplicação, do mais antigo para o mais recente.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do domínio. Use-o nas demais rotas de domínio e em `redirect_to`.
+  </ResponseField>
+
+  <ResponseField name="hostname" type="string">
+    O hostname, em minúsculas (por exemplo `example.com`).
+  </ResponseField>
+
+  <ResponseField name="apex" type="boolean">
+    `true` quando o hostname é um domínio raiz (`example.com`, `example.com.br`) e não um subdomínio.
+    Um registro `CNAME` na raiz só funciona em provedores de DNS que o achatam; veja o
+    [guia](/pt-br/guides/custom-domain#domínios-raiz-e-www).
+  </ResponseField>
+
+  <ResponseField name="companion_of" type="string | null">
+    O ID do domínio principal quando este é o seu complementar automático `www` (ou raiz); `null` caso contrário.
+    Um complementar não conta no limite de domínios do plano.
+  </ResponseField>
+
+  <ResponseField name="redirect_to" type="string | null">
+    O ID de outro domínio da mesma aplicação para o qual este redireciona, ou `null` quando ele serve a aplicação.
+  </ResponseField>
+
+  <ResponseField name="redirect_status" type="integer">
+    O status HTTP do redirecionamento: `301`, `302`, `307` ou `308`. Sempre `308` quando `redirect_to` é `null`.
+  </ResponseField>
+
+  <ResponseField name="path_prefix" type="string | null">
+    Um caminho adicionado antes de cada requisição para a aplicação (por exemplo `/api`), ou `null` para nenhum.
+  </ResponseField>
+
+  <ResponseField name="port" type="integer">
+    A porta da aplicação que atende este domínio, de `1` a `65535`. `80` por padrão.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `pending` (aguardando os registros DNS), `active` (servindo a aplicação), `moved` (o domínio deixou de apontar
+    para a Vertra Cloud) ou `deleted` (não está mais registrado).
+  </ResponseField>
+
+  <ResponseField name="ssl_status" type="string">
+    O estado do certificado HTTPS: `pending`, `active` ou `failed`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando o domínio foi adicionado.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "hostname": "example.com",
+      "apex": true,
+      "companion_of": null,
+      "redirect_to": null,
+      "redirect_status": 308,
+      "path_prefix": null,
+      "port": 80,
+      "status": "active",
+      "ssl_status": "active",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    },
+    {
+      "id": "c2a9d4f1-86b0-4a37-b5e8-1f3d7a9c0e62",
+      "hostname": "www.example.com",
+      "apex": false,
+      "companion_of": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "redirect_to": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "redirect_status": 308,
+      "path_prefix": null,
+      "port": 80,
+      "status": "active",
+      "ssl_status": "active",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+<Note>
+  `status` e `ssl_status` são atualizados em segundo plano e sempre que você chama
+  [Registros DNS do domínio](/pt-br/api-reference/endpoint/apps/domains/dns), então um domínio pode mostrar `pending` por
+  alguns minutos depois que os seus registros resolvem. Um domínio que nunca fica `active` é removido automaticamente
+  após 14 dias; apague depois os seus registros DNS no provedor.
+</Note>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: o parâmetro de caminho ou a query falhou na validação (`400`). A resposta também traz `message` e `path`.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões (`403`).
+  - `USER_NOT_FOUND`: não foi possível identificar o usuário autenticado (`401`).
+  - `ACCESS_DENIED`: o usuário não tem permissão para ler a aplicação (`403`).
+  - `API_KEY_SCOPE_DENIED`: a chave de API não tem o escopo `apps:read` (`403`).
+  - `APP_NOT_FOUND`: a aplicação especificada não existe (`404`).
+  - `RATE_LIMIT_EXCEEDED`: foi atingido o orçamento de requisições da rota (`429`).
+  - `INTERNAL_SERVER_ERROR`: falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta rota tem um orçamento próprio de 30 requisições por minuto. Veja [Limite de requisições](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa).
+</Note>

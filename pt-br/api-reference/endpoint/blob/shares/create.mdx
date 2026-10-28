@@ -1,0 +1,122 @@
+---
+title: "Criar um link de compartilhamento para um objeto do Blob"
+sidebarTitle: "Criar compartilhamento"
+api: "POST https://blob.vertracloud.app/v1/shares"
+authMethod: bearer
+description: "Cria um link de página de compartilhamento para um objeto do blob, com expiração, limite de downloads e senha opcionais. Retorna 201."
+---
+
+{/* @see RESTPostAPIBlobShareBody, RESTPostAPIBlobShareResponse, APIBlobShare — @vertracloud/api-types */}
+
+Cria um link de compartilhamento para um objeto privado: uma página do site onde o destinatário baixa o arquivo. Os compartilhamentos expiram após `expires_in` segundos (padrão de 24 horas), podem parar após `max_downloads` e podem exigir senha no Enterprise-12 ou superior. Um compartilhamento não protege um objeto público, por isso `object_is_public` é `true` nesse caso.
+
+**Escopo:** `blob:write`.
+
+<ParamField body="object_id" type="string" required>
+  O objeto a ser compartilhado.
+</ParamField>
+
+<ParamField body="expires_in" type="number">
+  Segundos até o compartilhamento deixar de funcionar, de 60 a 2.592.000 (30 dias). Padrão `86400` (24 horas).
+</ParamField>
+
+<ParamField body="max_downloads" type="number">
+  Limite de downloads, de 1 a 10.000. Omita para não ter limite.
+</ParamField>
+
+<ParamField body="password" type="string">
+  Senha que o destinatário deve digitar, de 8 a 128 caracteres. Enterprise-12 ou superior.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do dono do workspace e precisa da permissão de workspace `blob:read` (`blob:manage` nas rotas que alteram dados). Omita para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/shares" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"object_id":"0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c","expires_in":3600,"max_downloads":10}'
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O link de compartilhamento. Responde com `201`.
+  <Expandable title="propriedades">
+  <ResponseField name="id" type="string">ID do compartilhamento. Use-o para revogar o compartilhamento.</ResponseField>
+  <ResponseField name="object_id" type="string">O objeto ao qual o compartilhamento dá acesso.</ResponseField>
+  <ResponseField name="url" type="string">URL da página de compartilhamento. Envie para quem deve baixar o arquivo.</ResponseField>
+  <ResponseField name="expires_at" type="string">Quando o compartilhamento deixa de funcionar, como timestamp ISO 8601.</ResponseField>
+  <ResponseField name="max_downloads" type="number | null">Limite de downloads. `null` significa sem limite.</ResponseField>
+  <ResponseField name="remaining_downloads" type="number | null">Downloads restantes. `null` quando não há limite.</ResponseField>
+  <ResponseField name="has_password" type="boolean">Se o compartilhamento pede senha.</ResponseField>
+  <ResponseField name="object_is_public" type="boolean">`true` quando o objeto é público. Um objeto público é acessível pela sua URL, então o compartilhamento não o protege.</ResponseField>
+  <ResponseField name="created_at" type="string">Data e hora de criação em ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "3e4f5a6b-7c8d-4e9f-a0b1-c2d3e4f5a6b7",
+    "object_id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+    "url": "https://vertracloud.app/share/xK3mP9qLwT2vN8rY",
+    "expires_at": "2026-10-15T12:00:00.000Z",
+    "max_downloads": 10,
+    "remaining_downloads": 10,
+    "has_password": false,
+    "object_is_public": false,
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): Nenhum header `Authorization` foi enviado.
+  - `API_KEY_INVALID` (`401`): A chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): A chave não tem o escopo que a rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Somente com `workspace_id`: você não é membro, ou seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): O armazenamento de blob da conta está suspenso, ou o plano expirou. Uploads e outras gravações são recusados desde o início do período de carência de 72 horas.
+  - `VALIDATION_ERROR` (`400`): Um parâmetro ou campo do body falhou na validação. `details.path` informa o campo.
+  - `BLOB_OBJECT_NOT_FOUND` (`404`): O `object_id` não existe nesta conta.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `password` foi enviado em um plano abaixo do Enterprise-12.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

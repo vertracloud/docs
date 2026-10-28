@@ -1,0 +1,89 @@
+---
+title: Configurar dominio automáticamente
+sidebarTitle: Configurar automáticamente
+api: POST https://api.vertracloud.app/v1/apps/{id}/domains/{domain_id}/connect
+authMethod: bearer
+description: "Reservada para la configuración automática del DNS. Todavía no está disponible: la ruta responde siempre 404 DOMAIN_CONNECT_UNAVAILABLE."
+---
+
+{/* @see RESTPostAPIApplicationDomainConnectResponse, APIApplicationDomainConnect — @vertracloud/api-types */}
+<Warning>
+  **Todavía no está disponible.** La configuración automática del DNS no se ha publicado, así que hoy esta ruta responde
+  `404 DOMAIN_CONNECT_UNAVAILABLE` en todas las llamadas. Crea los registros tú mismo con
+  [Registros DNS del dominio](/es-es/api-reference/endpoint/apps/domains/dns).
+</Warning>
+
+La ruta forma parte del contrato de la API para que los clientes puedan gestionarla. Requiere el scope `apps:write` cuando se llama con una
+clave de API. El resto de esta página describe la forma de la respuesta, que hoy ninguna llamada devuelve.
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación.
+</ParamField>
+
+<ParamField path="domain_id" type="string" required>
+  El ID del dominio, obtenido de [Listar dominios de la aplicación](/es-es/api-reference/endpoint/apps/domains/list).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Obligatorio para los miembros del workspace que actúan sobre una aplicación que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="APIApplicationDomainConnect">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="url" type="string">
+    El enlace que hay que abrir en el proveedor de DNS para aprobar los registros.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "url": "https://dns-provider.example/v2/domainTemplates/providers/..."
+  }
+}
+```
+
+</ResponseExample>
+
+<Note>
+  El enlace es para que lo abras tú, no para llamarlo. Después de aprobarlo, el dominio pasa a `active` cuando el DNS se propaga;
+  consulta su estado con [Listar dominios de la aplicación](/es-es/api-reference/endpoint/apps/domains/list).
+</Note>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: Los parámetros de ruta no superaron la validación (`400`). La respuesta incluye también `message` y `path`.
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas (`403`).
+  - `USER_NOT_FOUND`: No se pudo resolver el usuario autenticado (`401`).
+  - `ACCESS_DENIED`: El usuario no tiene permiso para actuar sobre la aplicación (`403`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `apps:write` (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe (`404`).
+  - `DOMAIN_NOT_FOUND`: La aplicación no tiene ningún dominio con ese ID (`404`).
+  - `DOMAIN_CONNECT_UNAVAILABLE`: La configuración automática todavía no está disponible, así que todas las llamadas responden este código (`404`). Usa los registros manuales.
+  - `RATE_LIMIT_EXCEEDED`: Se alcanzó el presupuesto de la ruta (`429`).
+  - `INTERNAL_SERVER_ERROR`: Error inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "DOMAIN_CONNECT_UNAVAILABLE"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta ruta tiene su propio presupuesto de 10 peticiones por minuto. Consulta [Límites de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
+</Note>

@@ -1,0 +1,202 @@
+---
+title: 'Perguntas e placeholders de template: inputs, when, sets e valores {{ }}'
+sidebarTitle: 'Placeholders e inputs'
+description: 'Peça valores ao usuário com inputs, ligue serviços e variáveis com when e sets e conecte apps a bancos e Blob com cada placeholder {{ }}.'
+icon: 'sliders'
+---
+
+Uma pergunta (`inputs`) é uma etapa do assistente, e um placeholder (`{{...}}`) é um valor que a plataforma preenche quando cria o template. As perguntas coletam o que só o usuário sabe; os placeholders conectam os serviços e geram o que ninguém deveria digitar.
+
+## Perguntas
+
+`inputs` é uma lista ordenada. Cada item vira uma etapa do assistente, exibida nessa ordem.
+
+| Campo | Obrigatório | Regra |
+|---|---|---|
+| `id` | sim | Letras minúsculas, dígitos, `_` e `-`, até 40 caracteres, único no template. Usado como `{{inputs.<id>}}`. |
+| `type` | sim | `text`, `secret`, `select`, `boolean`, `number`, `url` ou `email`. |
+| `label` | sim | Texto por idioma, até 128 caracteres. |
+| `help` | não | Texto por idioma, até 512 caracteres. |
+| `required` | não | Padrão `false`. |
+| `default` | não | Texto, número ou booleano compatível com o tipo, até 3.072 caracteres. Em `select`, um dos valores das opções. |
+| `validation` | não | `regex`, `min`, `max`, `min_length`, `max_length`. |
+| `generate` | não | Apenas `secret`: `random:<n>` com `n` de 8 a 128, ou `uuid`. |
+| `editable` | não | Com `false`, o valor é sempre gerado e o usuário não pode digitar um. Exige `generate`. |
+| `when` | não | `{ input, equals }`: pergunta só quando uma resposta anterior corresponde. |
+| `options` | select | Até 25 itens `{ value, label?, sets? }`. |
+
+Como cada tipo é verificado:
+
+| Tipo | Aceita | Validação aplicável |
+|---|---|---|
+| `text`, `secret` | Texto | `min_length`, `max_length`, `regex` |
+| `url` | Uma URL `http` ou `https` | `min_length`, `max_length`, `regex` |
+| `email` | Um endereço de e-mail | `min_length`, `max_length`, `regex` |
+| `number` | Um número | `min`, `max` |
+| `boolean` | `true` ou `false` | Nenhuma |
+| `select` | Um dos valores de `options` | Nenhuma |
+
+Uma pergunta `secret` é digitada sem eco. Quando `generate` está definido e o usuário a deixa vazia, a plataforma a gera no servidor e a mostra uma vez nas saídas. Um `regex` é limitado a 200 caracteres e não pode usar back-references, quantificadores aninhados nem alternância repetida, porque roda no servidor; só vale para os tipos de texto.
+
+Pergunta de token, do bot inicial:
+
+```yaml
+inputs:
+  - id: discord_token
+    type: secret
+    required: true
+    label: { pt-br: "Token do bot", en: "Bot token", es: "Token del bot" }
+    help:
+      en: "In the Discord Developer Portal: create the application, open Bot and use Reset Token."
+      pt-br: "No Discord Developer Portal: crie a aplicação, abra Bot e use Reset Token."
+    validation: { min_length: 50, max_length: 100 }
+```
+
+### Condições com `when`
+
+`when` é uma verificação de igualdade contra **uma pergunta anterior**, sem linguagem de expressões. `equals` precisa caber no tipo dessa pergunta: um booleano para `boolean`, um número para `number`, um dos valores das opções para `select`. Uma condição sobre uma pergunta posterior, sobre ela mesma ou sobre um id desconhecido é recusada (`invalid_when`, `unknown_input`). Uma pergunta cuja condição é falsa é pulada, e sua resposta não existe.
+
+```yaml
+  - id: email
+    type: select
+    label: { pt-br: "Enviar e-mails do n8n?", en: "Send n8n emails?" }
+    default: none
+    options:
+      - { value: none, label: { pt-br: "Não, configurar depois", en: "No, set it up later" } }
+      - { value: smtp, label: { pt-br: "Sim, usar meu servidor SMTP", en: "Yes, use my SMTP server" } }
+  - id: smtp_host
+    type: text
+    required: true
+    label: { pt-br: "Servidor SMTP", en: "SMTP server" }
+    when: { input: email, equals: smtp }
+```
+
+Um serviço de banco de dados ou Blob aceita o mesmo `when` para ser criado condicionalmente. Um serviço de app não; use `sets.services`.
+
+### Opções e `sets`
+
+O efeito de uma escolha vive na própria opção. `sets` pode fazer três coisas. Quando várias perguntas mexem no mesmo serviço ou variável, a última vence; a memória de `ram_extra` se soma:
+
+| Chave | Efeito |
+|---|---|
+| `services` | `{ <service-id>: "on" \| "off" }` cria ou pula um serviço. |
+| `env` | `{ <app-service-id>: { NAME: value } }` adiciona variáveis a um app. Os valores aceitam placeholders. |
+| `ram_extra` | `{ <service-id>: MB }` soma memória ao mínimo e ao valor recomendado de um serviço. |
+
+Um template não pode ficar sem app: se as opções escolhidas desligarem todos os apps, o deploy é recusado. Coloque `"on"` e `"off"` entre aspas no YAML para que continuem texto.
+
+É assim que o n8n oferece Postgres, SQLite ou workers sem nenhuma expressão:
+
+```yaml
+inputs:
+  - id: mode
+    type: select
+    label: { pt-br: "Como o n8n vai rodar?", en: "How will n8n run?", es: "¿Cómo va a correr n8n?" }
+    default: postgres
+    options:
+      - value: postgres
+        label: { pt-br: "Postgres gerenciado (recomendado)", en: "Managed Postgres (recommended)" }
+        sets:
+          services: { db: "on", queue: "off", worker: "off" }
+          env: { app: { DB_TYPE: postgresdb } }
+      - value: sqlite
+        label: { pt-br: "SQLite interno (no disco do app)", en: "Built-in SQLite (on the app disk)" }
+        sets:
+          services: { db: "off", queue: "off", worker: "off" }
+          env: { app: { DB_TYPE: sqlite } }
+```
+
+## Placeholders
+
+Um placeholder é escrito `{{ ... }}`. A plataforma o resolve quando cria o template e de novo quando um valor gerenciado muda (por exemplo, depois de um reset de senha do banco de dados). Ele nunca é resolvido no navegador.
+
+Placeholders funcionam em `env` (e em `sets.env`) e em `outputs`. Eles **não** funcionam em `main`, `build`, `start` nem `healthcheck.path`; ali geram `unknown_placeholder`. O texto fora de `{{ }}` nunca é interpretado, e o **valor** de um placeholder nunca é expandido de novo, então uma resposta que contém `{{secrets.x}}` continua como texto simples.
+
+### Apps e a stack
+
+| Placeholder | Valor |
+|---|---|
+| `{{app.url}}` | URL pública do app dono da variável (vazia se ele não tem web). Nas saídas, o app principal. |
+| `{{app.domain}}` | Nome de host público desse app, sem o esquema. |
+| `{{services.<id>.url}}` | URL pública de outro serviço de app. |
+| `{{services.<id>.domain}}` | Nome de host público de outro serviço de app. |
+| `{{stack.name}}`, `{{stack.id}}` | Nome e id da stack. Vazio quando o template cria um único app. |
+
+A URL acompanha o app: ela é atualizada quando o subdomínio muda ou quando o usuário adiciona um domínio personalizado.
+
+### Bancos de dados
+
+O app alcança o banco pelo endereço público, com certificados de cliente. Veja [Stacks](/pt-br/templates/create/stacks#como-os-serviços-se-conectam).
+
+| Placeholder | Valor |
+|---|---|
+| `{{services.<id>.url}}` | URL de conexão completa do banco de dados, com a senha. |
+| `{{services.<id>.host}}` | Host do banco de dados. |
+| `{{services.<id>.port}}` | Porta. |
+| `{{services.<id>.user}}` | Usuário (o usuário `vertracloud` em um banco de dados novo). |
+| `{{services.<id>.password}}` | Senha. |
+| `{{services.<id>.database}}` | Nome do banco de dados. |
+| `{{services.<id>.ssl.ca_path}}` | Caminho do certificado da CA. |
+| `{{services.<id>.ssl.cert_path}}` | Caminho do certificado de cliente. |
+| `{{services.<id>.ssl.key_path}}` | Caminho da chave de cliente. |
+| `{{services.<id>.ssl.pem_path}}` | Caminho do PEM de cliente combinado, usado pelo MongoDB. |
+| `{{services.<id>.ssl.p12_path}}` | Caminho da identidade de cliente em PKCS#12 (`.p12`), usada pelo Prisma 6. Sua senha é vazia. |
+| `{{services.<id>.ssl.p12_password}}` | Senha do `.p12`, vazia. |
+| `{{services.<id>.prisma_url}}` | URL do Postgres no formato que o Prisma 6 exige (com `sslmode`, `sslcert` e `sslidentity`). Vazia para outros engines. |
+
+Os valores `ssl.*_path` são caminhos absolutos dentro do app, em `/app/.vertra/certs/<database_id>/` (`ca.pem`, `client.crt`, `client.key`, `client.pem`, `client.p12`). A plataforma os grava a cada início, e o seu processo (uid 1000) consegue lê-los. `prisma_url` carrega a senha, então é sensível e só existe quando o seu manifesto o pede.
+
+Postgres do n8n, com certificados:
+
+```yaml
+env:
+  DB_POSTGRESDB_HOST: "{{services.db.host}}"
+  DB_POSTGRESDB_PORT: "{{services.db.port}}"
+  DB_POSTGRESDB_DATABASE: "{{services.db.database}}"
+  DB_POSTGRESDB_USER: "{{services.db.user}}"
+  DB_POSTGRESDB_PASSWORD: "{{services.db.password}}"
+  DB_POSTGRESDB_SSL_CA_FILE: "{{services.db.ssl.ca_path}}"
+  DB_POSTGRESDB_SSL_CERT_FILE: "{{services.db.ssl.cert_path}}"
+  DB_POSTGRESDB_SSL_KEY_FILE: "{{services.db.ssl.key_path}}"
+```
+
+### Pastas Blob
+
+| Placeholder | Valor |
+|---|---|
+| `{{services.<id>.endpoint}}` | Endpoint compatível com S3. |
+| `{{services.<id>.bucket}}` | Nome do bucket. |
+| `{{services.<id>.region}}` | Região. |
+| `{{services.<id>.prefix}}` | A pasta da stack, `stacks/<stack-slug>/`. |
+| `{{services.<id>.access_key_id}}` | Id da chave de acesso da chave gerenciada restrita à pasta. |
+| `{{services.<id>.secret_access_key}}` | Chave secreta dessa chave gerenciada. |
+| `{{services.<id>.public_base_url}}` | URL base dos arquivos públicos; vazia quando a pasta é privada. |
+
+### Secrets e respostas
+
+| Placeholder | Valor |
+|---|---|
+| `{{secret:<n>}}` | Um secret aleatório de `n` caracteres (8 a 128), gerado uma vez e guardado criptografado como a variável. Não permitido nas saídas. |
+| `{{secrets.<name>}}` | Um secret declarado em `secrets`, o mesmo em todo serviço que o usa. |
+| `{{inputs.<id>}}` | A resposta a uma pergunta. |
+
+### Serviços desligados
+
+Um placeholder que aponta para um serviço desligado por uma resposta resolve para um valor vazio, e uma variável que termina vazia **não é gravada**. Por isso o template do n8n pode listar todas as variáveis `DB_POSTGRESDB_*` e ainda rodar em SQLite.
+
+### Variáveis gerenciadas
+
+Uma variável cujo valor é um placeholder de banco de dados, pasta Blob ou app é **gerenciada pela stack**: ela é atualizada sozinha quando o banco de dados troca de senha ou certificado, ou quando o endereço do app muda, e o dashboard mostra um selo "gerenciada pela stack". Editá-la à mão a transforma em uma variável comum.
+
+### O que é recusado
+
+| Erro | Código |
+|---|---|
+| Placeholder desconhecido ou malformado, ou um campo que não existe para aquele tipo de serviço | `unknown_placeholder` |
+| Um id de serviço que não está no manifesto | `unknown_service` |
+| `{{inputs.x}}` para uma pergunta que não existe | `unknown_input` |
+| `{{secrets.x}}` com `x` não declarado em `secrets` | `unknown_placeholder` |
+| Nomes de variável controlados pela plataforma, como `PORT`, `HOME` ou `LD_PRELOAD` | `forbidden_env` |
+| Um valor literal que parece uma credencial | `secret_in_manifest` |
+
+Veja [Validar e testar](/pt-br/templates/create/validate-and-test#códigos-de-validação) para saber como corrigir cada um.

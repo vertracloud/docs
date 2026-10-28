@@ -1,0 +1,92 @@
+---
+title: 'Buenas prácticas de plantillas: datos, disco, puerto, healthcheck y secretos'
+sidebarTitle: 'Buenas prácticas'
+description: 'Escribe plantillas que funcionen en el sandbox de Vertra Cloud: datos en bases del stack, /app como único disco, uid 1000, puerto correcto y sin secretos.'
+icon: 'list-check'
+---
+
+Una plantilla se ejecuta dentro del mismo sandbox que cualquier otra app, así que debe respetar las mismas reglas: un solo disco escribible, sin root, el puerto correcto y un healthcheck que diga la verdad. Una plantilla que las ignora funciona en tu portátil y falla en el primer arranque.
+
+## Guarda los datos en las bases de datos del stack
+
+Pon los datos que importan en las bases de datos del stack (Postgres, MySQL, MongoDB o Redis), no en archivos bajo `/app`. Las bases de datos entran en snapshots, se restauran, se revierten y se actualizan por la plataforma, y nunca se cierran, así que se comportan igual en una [plantilla cerrada](/es-es/templates/create/permissions#plantillas-cerradas). Un archivo en `/app` de una plantilla cerrada es invisible para el usuario y es responsabilidad tuya.
+
+Cuando el software ofrece una opción, exponla: n8n deja al usuario elegir entre Postgres gestionado o el SQLite integrado mediante una pregunta, y usa `sets` para activar o desactivar la base de datos. Consulta [Placeholders e inputs](/es-es/templates/create/placeholders-and-inputs#opciones-y-sets).
+
+## `/app` es el único disco persistente
+
+El sistema de archivos raíz es de **solo lectura**. `/app` es el directorio de trabajo y el `HOME` de la app, y el único lugar donde los archivos sobreviven a un reinicio, a un despliegue y a un snapshot. Apunta todo lo que escribe el software ahí con una variable:
+
+```yaml
+env:
+  N8N_USER_FOLDER: /app
+  OPENCLAW_HOME: /app
+```
+
+No hay ninguna propiedad de persistencia en el manifiesto, y una instrucción `VOLUME` en un Dockerfile se ignora. No dependas de ninguna otra ruta para el estado: el resto del sistema de archivos es de solo lectura.
+
+`/app/.vertra/` está reservada para la plataforma (certificados de bases de datos). Nunca escribas ahí ni incluyas archivos ahí.
+
+## Ejecuta como uid 1000
+
+Los procesos se ejecutan como el usuario sin privilegios con uid 1000, sin nuevos privilegios y con raíz de solo lectura. El software que debe arrancar como root, cambiar de usuario al arrancar (`usermod`, `chown` de rutas del sistema), usar un sistema init como PID 1 o escribir en `/opt` o `/var` no funciona tal cual. Adáptalo:
+
+- Usa una imagen o un Dockerfile que arranque como usuario normal y guarde sus datos bajo `/app`.
+- Elimina los pasos de arranque que necesiten root.
+- Prueba con raíz de solo lectura y uid 1000 antes de publicar; consulta [Validar y probar](/es-es/templates/create/validate-and-test).
+
+## Define el puerto
+
+Para un servicio de imagen, define `port` con el puerto en el que escucha el software (el `EXPOSE` de la imagen). Un servicio de código sigue las mismas reglas que cualquier app (consulta [Aplicaciones](/es-es/applications)) y no puede definir `port`. No definas `PORT` en `env`: la plataforma lo controla, y el manifiesto se rechaza con `forbidden_env` si lo intentas.
+
+## Escribe un healthcheck honesto
+
+El healthcheck decide cuándo el asistente dice «listo». Elige una ruta que responda solo cuando el software realmente pueda atender:
+
+- Prefiere una ruta de readiness a una de liveness. El `/healthz` de n8n se abre antes de que terminen sus migraciones, así que su plantilla usa `/healthz/readiness`, que espera a la base de datos.
+- Define `timeout` con el primer arranque más lento que hayas medido, con margen. Las migraciones y la descarga de imágenes hacen el primer arranque más lento que los siguientes.
+- Un servicio sin HTTP (un bot, un worker) omite `path`: se aplica la comprobación de listo habitual y un proceso que termina aparece como un despliegue fallido.
+
+```yaml
+healthcheck: { path: /healthz/readiness, timeout: 240 }
+```
+
+## Nunca pongas un secreto en la plantilla
+
+Una plantilla se copia, se comparte y, en el catálogo público, lo lee todo el mundo.
+
+- **Genera** lo que el usuario no necesita saber: `{{secret:48}}`, un nombre de `secrets` declarado o una pregunta con `generate`.
+- **Pregunta** lo que solo tiene el usuario, como el token de un bot, con una pregunta `secret`. El valor llega a la app cifrado y no se guarda en la plantilla.
+- **Oculta** lo que te pertenece (una clave de licencia) con `env_hidden`, en una plantilla privada cerrada.
+- No dejes archivos `.env*`, claves privadas ni tokens en el código. La plataforma rechaza una subida de código que los contenga (`TEMPLATE_SECRET_IN_SOURCE`), y el validador rechaza una variable cuyo nombre parezca un secreto (`*_KEY`, `*_TOKEN`, `*_SECRET`, `PASSWORD`...) con un valor literal (`secret_in_manifest`).
+
+```yaml
+env:
+  N8N_ENCRYPTION_KEY: "{{secrets.encryption_key}}"   # generated once, the same in every service
+  DISCORD_TOKEN: "{{inputs.discord_token}}"          # typed by the user
+```
+
+## Variables que controla la plataforma
+
+Algunos nombres son de la plataforma, y un manifiesto que los define se rechaza con `forbidden_env`: `PORT`, `HOST`, `NODE_ENV`, `RACK_ENV`, `RAILS_ENV`, `APP_ID`, `PATH`, `HOME`, `USER`, `SHELL`, además de `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT`, `NODE_OPTIONS` y cualquier nombre que empiece por `DYLD_`. La comparación ignora mayúsculas y minúsculas. Pasa los ajustes al software mediante sus propias variables.
+
+## Fija lo que publicas
+
+- Fija una imagen por digest (`name@sha256:...`). Una plantilla pública con solo una etiqueta se rechaza con `invalid_source`, y una versión fijada significa que todos los que usan una versión concreta de tu plantilla obtienen el mismo software.
+- Fija las versiones de runtime y de dependencias en las plantillas de código, y haz commit del lock file.
+- Mantén la memoria honesta: `ram.min` es lo que el software necesita para arrancar con las respuestas por defecto, y `recommended` es lo que ejecutarías en producción.
+
+## Escribe la documentación que necesita un usuario
+
+El `README.md` y la carpeta opcional `docs/` se muestran en la página de la plantilla. Explica qué crea la plantilla, qué debe hacer el usuario después del despliegue (crear la primera cuenta, invitar a un bot) y dónde viven los datos. Pon también los primeros pasos en los `outputs`, donde el usuario los ve cuando termina el despliegue.
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Permisos" icon="user-lock" href="/es-es/templates/create/permissions">
+    Qué puede cambiar el usuario después.
+  </Card>
+  <Card title="Ajustes de despliegue" icon="arrows-rotate" href="/es-es/templates/create/deploy-settings">
+    Cuándo bloquear blue-green en off.
+  </Card>
+</CardGroup>

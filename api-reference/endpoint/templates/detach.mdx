@@ -1,0 +1,169 @@
+---
+title: Detach an Application or Stack from a Template
+sidebarTitle: Detach
+api: POST https://api.vertracloud.app/v1/apps/{id}/template/detach
+authMethod: bearer
+description: Detaches an application or stack from its template so it stops receiving versions, and the confirm_detach rule of the routes that change code.
+---
+
+{/* @see RESTPostAPIApplicationTemplateDetachResponse, RESTPostAPIStackTemplateDetachResponse, RESTAPIConfirmDetach — @vertracloud/api-types */}
+Detaching makes an application or a stack an ordinary one: it keeps running as it is, but it no longer sees new versions of the template and cannot be updated from it. It cannot be undone. This page covers the two detach routes and the `confirm_detach` rule that detaches an application when you change its code.
+
+There are two routes: `POST /v1/apps/{id}/template/detach` for an application and `POST /v1/stacks/{stack_id}/template/detach` for a stack. Detaching a stack detaches all its applications from the template. The call is idempotent. For an application that did not come from a template, or a stack assembled by hand, it answers `404` with `TEMPLATE_NOT_FOUND`.
+
+An application or stack of a [closed template](/templates/use/closed-templates) cannot be detached: the call fails with `TEMPLATE_CLOSED`, with `details.action` set to `detach`. A stack with one closed service cannot be detached either.
+
+The application route needs the `apps:write` scope and the stack route needs `stacks:write`, when called with an API key.
+
+<ParamField path="id" type="string" required>
+  The application ID, on the application route.
+</ParamField>
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID, on the stack route.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application or stack belongs to a workspace, the workspace's ID.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/apps/app-abc123def456/template/detach \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The application (see [Get Application](/api-reference/endpoint/apps/get)) or the stack. The origin of the resource is in `template`, and it now has `detached: true`.
+
+  <Expandable title="template object">
+
+  <ResponseField name="template_id" type="string">
+    The template ID.
+  </ResponseField>
+
+  <ResponseField name="slug" type="string">
+    The template slug.
+  </ResponseField>
+
+  <ResponseField name="name" type="object">
+    The template name by language.
+  </ResponseField>
+
+  <ResponseField name="origin" type="string">
+    `vertra`, `community` or `private`.
+  </ResponseField>
+
+  <ResponseField name="version_id" type="string">
+    The ID of the version the resource was created from or last updated to.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    That version number.
+  </ResponseField>
+
+  <ResponseField name="closed" type="boolean">
+    `true` for an application of a closed template.
+  </ResponseField>
+
+  <ResponseField name="detached" type="boolean">
+    `true` after this call.
+  </ResponseField>
+
+  <ResponseField name="update_available" type="boolean">
+    `true` when there is a newer version the resource can update to.
+  </ResponseField>
+
+  <ResponseField name="latest_version" type="string | null">
+    The latest version, or `null`.
+  </ResponseField>
+
+  <ResponseField name="removed" type="boolean">
+    `true` when the author deleted the template.
+  </ResponseField>
+
+  <ResponseField name="icon_url" type="string | null">
+    The stable URL of the template icon, or `null` when there is none.
+  </ResponseField>
+
+  <ResponseField name="via_share_link" type="boolean">
+    `true` when the resource was created from a share link.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "name": "support-bot",
+    "template": {
+      "template_id": "tpl-abc123def456",
+      "slug": "support-bot",
+      "name": { "pt-br": "Bot de suporte", "en": "Support bot" },
+      "origin": "private",
+      "version_id": "tplv-111222333444",
+      "version": "1.0.0",
+      "closed": false,
+      "detached": true,
+      "update_available": false,
+      "latest_version": null,
+      "removed": false,
+      "via_share_link": true
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Changing the code detaches the application
+
+An application of an open template (one whose permissions let you edit code) is detached when you change its code. The routes that do it ask you to confirm first. Without `confirm_detach` set to `true`, the request changes nothing and fails with `409` and `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`; with it, the change is made and, when it succeeds, the application is detached. The field is ignored for an application that did not come from a template.
+
+The routes are the ones that write files (`PUT`, `PATCH` and `DELETE` on `/v1/apps/{id}/files`), the file upload, the GitHub link of the application and the commit of the container to an image. Send `confirm_detach` as a boolean in the JSON body, as a text part of a multipart body, or as the query `confirm_detach=true` on any of them.
+
+The `details` of the error say which action asked for the confirmation:
+
+<ResponseField name="details.action" type="string">
+  `files.write` (changing files), `deploy.code` (uploading code), `deploy.github` (linking a repository) or `commit` (committing the container to an image).
+</ResponseField>
+
+```bash Confirming a file change
+curl -X PUT "https://api.vertracloud.app/v1/apps/app-abc123def456/files?confirm_detach=true" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "path": "src/index.js", "content": "..." }'
+```
+
+An application of a closed template does not ask: the same routes are refused with `TEMPLATE_CLOSED`, and the code stays out of reach. Read the details in [Closed templates](/templates/use/closed-templates).
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `apps:write` scope (application route) or `stacks:write` (stack route) (`403`).
+  - `TEMPLATE_NOT_FOUND`: The application or stack did not come from a template (`404`).
+  - `APP_NOT_FOUND` or `STACK_NOT_FOUND`: The application or stack does not exist or is not yours.
+  - `TEMPLATE_CLOSED`: The template is closed, so it cannot be detached (`403`).
+  - `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`: A route that changes code was called without `confirm_detach` (`409`). Nothing was changed.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_DETACH_CONFIRMATION_REQUIRED",
+  "details": { "action": "files.write" }
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,107 @@
+---
+title: "Listar links de compartilhamento"
+sidebarTitle: "Listar compartilhamentos"
+api: "GET https://blob.vertracloud.app/v1/shares"
+authMethod: bearer
+description: "Lista os links de compartilhamento da conta, ou apenas os de um objeto."
+---
+
+{/* @see RESTGetAPIBlobSharesQuery, RESTGetAPIBlobSharesResponse, APIBlobShare — @vertracloud/api-types */}
+
+Lista os links de compartilhamento da conta, do mais recente para o mais antigo. Passe `object_id` para listar apenas os compartilhamentos de um objeto. Compartilhamentos revogados, expirados e esgotados (sem downloads restantes) não são listados.
+
+**Escopo:** `blob:read`.
+
+<ParamField query="object_id" type="string">
+  Somente os compartilhamentos deste objeto.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do dono do workspace e precisa da permissão de workspace `blob:read` (`blob:manage` nas rotas que alteram dados). Omita para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl "https://blob.vertracloud.app/v1/shares?object_id=0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Resposta
+
+<ResponseField name="response" type="object[]">
+  Os links de compartilhamento.
+  <Expandable title="propriedades">
+  <ResponseField name="id" type="string">ID do compartilhamento. Use-o para revogar o compartilhamento.</ResponseField>
+  <ResponseField name="object_id" type="string">O objeto ao qual o compartilhamento dá acesso.</ResponseField>
+  <ResponseField name="url" type="string">URL da página de compartilhamento. Envie para quem deve baixar o arquivo.</ResponseField>
+  <ResponseField name="expires_at" type="string">Quando o compartilhamento deixa de funcionar, como timestamp ISO 8601.</ResponseField>
+  <ResponseField name="max_downloads" type="number | null">Limite de downloads. `null` significa sem limite.</ResponseField>
+  <ResponseField name="remaining_downloads" type="number | null">Downloads restantes. `null` quando não há limite.</ResponseField>
+  <ResponseField name="has_password" type="boolean">Se o compartilhamento pede senha.</ResponseField>
+  <ResponseField name="object_is_public" type="boolean">`true` quando o objeto é público. Um objeto público é acessível pela sua URL, então o compartilhamento não o protege.</ResponseField>
+  <ResponseField name="created_at" type="string">Data e hora de criação em ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "3e4f5a6b-7c8d-4e9f-a0b1-c2d3e4f5a6b7",
+      "object_id": "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c",
+      "url": "https://vertracloud.app/share/xK3mP9qLwT2vN8rY",
+      "expires_at": "2026-10-15T12:00:00.000Z",
+      "max_downloads": 10,
+      "remaining_downloads": 10,
+      "has_password": false,
+      "object_is_public": false,
+      "created_at": "2026-10-14T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): Nenhum header `Authorization` foi enviado.
+  - `API_KEY_INVALID` (`401`): A chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): A chave não tem o escopo que a rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Somente com `workspace_id`: você não é membro, ou seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `VALIDATION_ERROR` (`400`): Um parâmetro ou campo do body falhou na validação. `details.path` informa o campo.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

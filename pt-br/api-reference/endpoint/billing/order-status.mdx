@@ -1,0 +1,97 @@
+---
+title: Obter status do pedido
+sidebarTitle: Status do pedido
+api: GET https://api.vertracloud.app/v1/orders/{orderId}/status
+authMethod: bearer
+description: Retorna o status atual de um único pedido.
+---
+<ParamField path="orderId" type="string" required>
+  O ID do pedido.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do pedido.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Status do pedido. Valores possíveis: `unpaid`, `paid`, `cancelled`, `expired`.
+  </ResponseField>
+
+  <ResponseField name="price" type="number">
+    O preço final cobrado, depois de aplicado qualquer desconto de cupom.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null">
+    Quando o pedido não pago expira, em ISO 8601 (72 horas após a criação do pedido). `null` quando
+    o pedido não tem expiração.
+  </ResponseField>
+
+  <ResponseField name="allowed_payment_methods" type="string[]">
+    Métodos de pagamento aceitos pelo pedido (`pix`, `card`). O plano Economy retorna `["pix"]`.
+  </ResponseField>
+
+  <ResponseField name="related_to" type="object">
+    O plano ao qual o pedido se aplica.
+
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="plan" type="object">
+      <Expandable title="Mostrar objeto">
+      <ResponseField name="name" type="string">O nome do plano.</ResponseField>
+      <ResponseField name="months" type="integer">Duração em meses (1, 3 ou 12).</ResponseField>
+      </Expandable>
+    </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "order-abc123",
+    "status": "unpaid",
+    "price": 24.9,
+    "expires_at": "2026-10-16T12:00:00.000Z",
+    "allowed_payment_methods": ["pix"],
+    "related_to": { "plan": { "name": "PRO", "months": 1 } }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` não foi enviado, a chave de API é inválida ou a sessão do dashboard foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API foi usada a partir de um IP fora da sua lista de permissões, ou não tem o escopo que a rota exige (`403`).
+  - `USER_NOT_FOUND`: o usuário autenticado não foi encontrado.
+  - `ORDER_NOT_FOUND`: o pedido informado não existe.
+  - `FORBIDDEN`: o pedido não pertence ao usuário autenticado.
+  - `INTERNAL_SERVER_ERROR`: ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "ORDER_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

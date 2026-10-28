@@ -1,0 +1,178 @@
+---
+title: 'Cómo conectar una app a una base de datos en un stack en Vertra Cloud'
+sidebarTitle: 'Conectar bases de datos'
+description: 'Descubre qué variables y certificados inyecta un stack en tu app y cómo conectar con Postgres, MongoDB, Redis y MySQL desde Node.js, Python y Go.'
+icon: 'plug'
+---
+
+En un stack, conectas una app a una base de datos leyendo variables de entorno: la plataforma inyecta la URL de conexión y, en el modo de red público, escribe los certificados de cliente de la base de datos en la carpeta `/app/.vertra/certs/<database_id>/` de la app. Postgres y MongoDB llevan las rutas de los certificados dentro de la URL, así que la mayoría de los drivers no necesitan código adicional. Redis y MySQL necesitan unas pocas líneas que lean las rutas de los certificados desde variables.
+
+Esta página cubre la conexión propia del stack. Para los detalles de conexión de una base de datos a la que accedes desde fuera (tu ordenador, otro servicio), consulta [¿Cómo me conecto a cada motor?](/es-es/databases#cómo-me-conecto-a-cada-motor) y la [guía de conexión](/es-es/guides/connect-database).
+
+## Variables que inyecta la plataforma
+
+Cada conexión entre una app y una base de datos crea variables gestionadas en la app. Los nombres por defecto:
+
+| Motor | Variable de URL | Variables de certificado |
+|---|---|---|
+| Postgres | `DATABASE_URL` | `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT`, `PGSSLKEY` |
+| MongoDB | `MONGODB_URI` | Ninguna: la URI lleva las rutas. |
+| Redis | `REDIS_URL` | `REDIS_TLS_CA`, `REDIS_TLS_CERT`, `REDIS_TLS_KEY` |
+| MySQL | `MYSQL_URL` | `MYSQL_SSL_CA`, `MYSQL_SSL_CERT`, `MYSQL_SSL_KEY` |
+
+- **Postgres:** la URL ya lleva `sslmode`, `sslrootcert`, `sslcert` y `sslkey`. Pasa siempre la URL al driver: las variables `PG*` por sí solas no bastan para algunos drivers, como `pg` de Node.js.
+- **MongoDB:** la URI lleva `tls=true`, el archivo de la CA (`ca.pem`) y el archivo del certificado de cliente (`client.pem`, certificado y clave juntos).
+- **Redis y MySQL:** la URL no lleva archivos, así que las rutas llegan en sus propias variables. Léelas en el código.
+
+Los archivos están en `/app/.vertra/certs/<database_id>/` como `ca.pem`, `client.crt` y `client.key`, además de `client.pem` (certificado y clave en un solo archivo, usado por MongoDB) y `client.p12` (para Prisma 6) cuando la conexión los necesita. Son de solo lectura y propiedad de la plataforma, y las variables contienen rutas absolutas. El proceso de tu app los lee con normalidad. La carpeta está reservada: tus despliegues, restauraciones y rollbacks no eliminan ni recuperan certificados antiguos, queda fuera de las descargas y de los snapshots, y la plataforma reescribe los archivos en cada arranque.
+
+Puedes editar los nombres de las variables antes de crear una conexión.
+
+### Variables gestionadas
+
+Una variable creada por una conexión muestra **gestionada por el stack** en la app y se actualiza sola cuando la base de datos cambia su contraseña o su certificado, o cuando cambia el modo de red del stack. **Reinicia la app** después de un cambio así; la plataforma te indica qué apps lo necesitan. Si editas a mano una variable gestionada, deja de estar gestionada y pasa a ser una variable normal, con una advertencia.
+
+Cuando [restableces los certificados de una base de datos](/es-es/api-reference/endpoint/databases/credentials/reset), la plataforma reescribe los archivos en las apps conectadas y pide un reinicio.
+
+## Más de una base de datos del mismo tipo
+
+Un stack puede tener varias bases de datos del mismo motor, por ejemplo un Redis para caché y otro para una cola. Cada una es una base de datos normal con su propia memoria. La primera de cada motor recibe el nombre por defecto (`REDIS_URL`); las demás toman el nombre del servicio como prefijo (`QUEUE_REDIS_URL`, `ANALYTICS_DATABASE_URL`), y puedes editar los nombres antes de crear. Una base de datos puede conectarse a varias apps del stack (por ejemplo una API y un worker sobre el mismo Postgres), pero una base de datos pertenece a un solo stack.
+
+## Código por lenguaje
+
+Los nombres de abajo son los predeterminados; si renombraste una variable, usa tu nombre. El panel **Cómo conectar** del panel de control (y `get_connection_info` con `app_id` en el [servidor MCP](/es-es/mcp), o [la ruta de conexión del stack](/es-es/api-reference/endpoint/stacks/connection)) muestra el mismo código con los nombres reales de tus variables, en el lenguaje de la app.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```javascript Postgres (pg)
+    import pg from "pg";
+
+    // Pasa siempre la URL: lleva sslmode, la CA y el certificado de cliente.
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    ```
+
+    ```javascript MongoDB (mongodb)
+    import { MongoClient } from "mongodb";
+
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    ```
+
+    ```javascript Redis (ioredis)
+    import fs from "node:fs";
+    import Redis from "ioredis";
+
+    const url = new URL(process.env.REDIS_URL);
+    const redis = new Redis({
+      host: url.hostname,
+      port: Number(url.port),
+      username: decodeURIComponent(url.username),
+      password: decodeURIComponent(url.password),
+      tls: {
+        servername: url.hostname,
+        ca: fs.readFileSync(process.env.REDIS_TLS_CA),
+        cert: fs.readFileSync(process.env.REDIS_TLS_CERT),
+        key: fs.readFileSync(process.env.REDIS_TLS_KEY),
+      },
+    });
+    ```
+
+    Para MySQL (`mysql2`), lee `MYSQL_URL` y pasa `ssl: { ca, cert, key }` con los archivos `MYSQL_SSL_*`; `mysql2` no comprueba que el nombre del host coincida con el certificado. Prisma 7 usa el adaptador `pg`, así que sirve la misma `DATABASE_URL`. Para los demás drivers, consulta [¿Cómo me conecto a cada motor?](/es-es/databases#cómo-me-conecto-a-cada-motor).
+  </Tab>
+  <Tab title="Python">
+    ```python Postgres (psycopg)
+    import os
+    import psycopg
+
+    # La URL lleva sslmode, sslrootcert, sslcert y sslkey.
+    conn = psycopg.connect(os.environ["DATABASE_URL"])
+    ```
+
+    ```python MongoDB (pymongo)
+    import os
+    from pymongo import MongoClient
+
+    client = MongoClient(os.environ["MONGODB_URI"])
+    ```
+
+    ```python Redis (redis-py)
+    import os
+    import redis
+
+    r = redis.from_url(
+        os.environ["REDIS_URL"],
+        ssl_ca_certs=os.environ["REDIS_TLS_CA"],
+        ssl_certfile=os.environ["REDIS_TLS_CERT"],
+        ssl_keyfile=os.environ["REDIS_TLS_KEY"],
+    )
+    ```
+
+    Para MySQL (PyMySQL), analiza `MYSQL_URL` y pasa `ssl_ca`, `ssl_cert` y `ssl_key` con las variables `MYSQL_SSL_*`. SQLAlchemy acepta las mismas URLs que los drivers anteriores.
+  </Tab>
+  <Tab title="Go">
+    ```go Postgres (pgx)
+    import (
+        "context"
+        "os"
+
+        "github.com/jackc/pgx/v5/pgxpool"
+    )
+
+    // La URL lleva sslmode, sslrootcert, sslcert y sslkey.
+    pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+    ```
+
+    ```go MongoDB (mongo-driver v2)
+    import (
+        "os"
+
+        "go.mongodb.org/mongo-driver/v2/mongo"
+        "go.mongodb.org/mongo-driver/v2/mongo/options"
+    )
+
+    // Driver v2: Connect no recibe contexto.
+    client, err := mongo.Connect(options.Client().ApplyURI(os.Getenv("MONGODB_URI")))
+    ```
+
+    ```go Redis (go-redis)
+    import (
+        "crypto/tls"
+        "crypto/x509"
+        "net"
+        "os"
+
+        "github.com/redis/go-redis/v9"
+    )
+
+    opts, err := redis.ParseURL(os.Getenv("REDIS_URL"))
+    ca, _ := os.ReadFile(os.Getenv("REDIS_TLS_CA"))
+    pool := x509.NewCertPool()
+    pool.AppendCertsFromPEM(ca)
+    cert, _ := tls.LoadX509KeyPair(os.Getenv("REDIS_TLS_CERT"), os.Getenv("REDIS_TLS_KEY"))
+    host, _, _ := net.SplitHostPort(opts.Addr)
+    opts.TLSConfig = &tls.Config{ServerName: host, RootCAs: pool, Certificates: []tls.Certificate{cert}}
+    rdb := redis.NewClient(opts)
+    ```
+
+    Para MySQL (`go-sql-driver/mysql`), registra una configuración TLS construida con los archivos `MYSQL_SSL_*` y úsala en el DSN construido a partir de `MYSQL_URL`.
+  </Tab>
+</Tabs>
+
+Otros lenguajes reciben un panel genérico que lista los nombres de las variables. La [lista de drivers](/es-es/databases#cómo-me-conecto-a-cada-motor) cubre las opciones propias de cada motor.
+
+## Si la conexión falla
+
+- **Fallo de handshake o de autenticación:** falta el certificado de cliente. Confirma que la app pasa la URL (Postgres, MongoDB) o lee las variables de certificado (Redis, MySQL).
+- **La variable está vacía o desactualizada:** reinicia la app después de un cambio de contraseña o de certificado en la base de datos.
+- **Faltan los archivos de certificado en `/app/.vertra/certs/`:** la plataforma los reescribe en cada arranque. Reinicia la app; no crees la carpeta tú mismo.
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Stacks" icon="layer-group" href="/es-es/templates/use/stacks">
+    Añade o quita una base de datos en un stack.
+  </Card>
+  <Card title="Bases de datos" icon="database" href="/es-es/databases">
+    Motores, certificados, restablecimientos y límites.
+  </Card>
+</CardGroup>

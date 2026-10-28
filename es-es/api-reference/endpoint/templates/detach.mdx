@@ -1,0 +1,169 @@
+---
+title: Desvincular una aplicación o stack de una plantilla
+sidebarTitle: Desvincular
+api: POST https://api.vertracloud.app/v1/apps/{id}/template/detach
+authMethod: bearer
+description: Desvincula una aplicación o stack de su plantilla para que deje de recibir versiones, y la regla confirm_detach de las rutas que cambian código.
+---
+
+{/* @see RESTPostAPIApplicationTemplateDetachResponse, RESTPostAPIStackTemplateDetachResponse, RESTAPIConfirmDetach — @vertracloud/api-types */}
+Desvincular convierte una aplicación o un stack en uno normal: sigue funcionando tal como está, pero ya no ve nuevas versiones de la plantilla y no puede actualizarse desde ella. No se puede deshacer. Esta página cubre las dos rutas de desvinculación y la regla `confirm_detach`, que desvincula una aplicación cuando cambias su código.
+
+Hay dos rutas: `POST /v1/apps/{id}/template/detach` para una aplicación y `POST /v1/stacks/{stack_id}/template/detach` para un stack. Desvincular un stack desvincula todas sus aplicaciones de la plantilla. La llamada es idempotente. Para una aplicación que no vino de una plantilla, o para un stack armado a mano, responde `404` con `TEMPLATE_NOT_FOUND`.
+
+Una aplicación o un stack de una [plantilla cerrada](/es-es/templates/use/closed-templates) no puede desvincularse: la llamada falla con `TEMPLATE_CLOSED`, con `details.action` en `detach`. Un stack con un servicio cerrado tampoco puede desvincularse.
+
+La ruta de aplicación necesita el ámbito `apps:write`, y la ruta de stack necesita `stacks:write`, cuando se llama con una clave de API.
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación, en la ruta de aplicación.
+</ParamField>
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack, en la ruta de stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación o el stack pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/apps/app-abc123def456/template/detach \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La aplicación (consulta [Obtener aplicación](/es-es/api-reference/endpoint/apps/get)) o el stack. El origen del recurso está en `template`, y ahora tiene `detached: true`.
+
+  <Expandable title="Objeto template">
+
+  <ResponseField name="template_id" type="string">
+    El ID de la plantilla.
+  </ResponseField>
+
+  <ResponseField name="slug" type="string">
+    El slug de la plantilla.
+  </ResponseField>
+
+  <ResponseField name="name" type="object">
+    El nombre de la plantilla por idioma.
+  </ResponseField>
+
+  <ResponseField name="origin" type="string">
+    `vertra`, `community` o `private`.
+  </ResponseField>
+
+  <ResponseField name="version_id" type="string">
+    El ID de la versión desde la que se creó el recurso o a la que se actualizó por última vez.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    Ese número de versión.
+  </ResponseField>
+
+  <ResponseField name="closed" type="boolean">
+    `true` para una aplicación de una plantilla cerrada.
+  </ResponseField>
+
+  <ResponseField name="detached" type="boolean">
+    `true` después de esta llamada.
+  </ResponseField>
+
+  <ResponseField name="update_available" type="boolean">
+    `true` cuando hay una versión más nueva a la que el recurso puede actualizarse.
+  </ResponseField>
+
+  <ResponseField name="latest_version" type="string | null">
+    La última versión, o `null`.
+  </ResponseField>
+
+  <ResponseField name="removed" type="boolean">
+    `true` cuando el autor eliminó la plantilla.
+  </ResponseField>
+
+  <ResponseField name="icon_url" type="string | null">
+    La URL estable del icono de la plantilla, o `null` cuando no hay ninguno.
+  </ResponseField>
+
+  <ResponseField name="via_share_link" type="boolean">
+    `true` cuando el recurso se creó desde un enlace para compartir.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "name": "support-bot",
+    "template": {
+      "template_id": "tpl-abc123def456",
+      "slug": "support-bot",
+      "name": { "pt-br": "Bot de suporte", "en": "Support bot" },
+      "origin": "private",
+      "version_id": "tplv-111222333444",
+      "version": "1.0.0",
+      "closed": false,
+      "detached": true,
+      "update_available": false,
+      "latest_version": null,
+      "removed": false,
+      "via_share_link": true
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Cambiar el código desvincula la aplicación
+
+Una aplicación de una plantilla abierta (una cuyos permisos te dejan editar el código) se desvincula cuando cambias su código. Las rutas que lo hacen piden confirmación primero. Sin `confirm_detach` en `true`, la petición no cambia nada y falla con `409` y `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`; con él, el cambio se hace y, cuando tiene éxito, la aplicación se desvincula. El campo se ignora en una aplicación que no vino de una plantilla.
+
+Las rutas son las que escriben archivos (`PUT`, `PATCH` y `DELETE` en `/v1/apps/{id}/files`), la subida de archivos, el enlace de GitHub de la aplicación y el commit del contenedor a una imagen. Envía `confirm_detach` como booleano en el cuerpo JSON, como parte de texto de un cuerpo multipart, o como query `confirm_detach=true` en cualquiera de ellas.
+
+Los `details` del error indican qué acción pidió la confirmación:
+
+<ResponseField name="details.action" type="string">
+  `files.write` (cambio de archivos), `deploy.code` (subida de código), `deploy.github` (vinculación de un repositorio) o `commit` (commit del contenedor a una imagen).
+</ResponseField>
+
+```bash Confirming a file change
+curl -X PUT "https://api.vertracloud.app/v1/apps/app-abc123def456/files?confirm_detach=true" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "path": "src/index.js", "content": "..." }'
+```
+
+Una aplicación de una plantilla cerrada no pregunta: las mismas rutas se rechazan con `TEMPLATE_CLOSED`, y el código queda fuera de alcance. Lee los detalles en [Plantillas cerradas](/es-es/templates/use/closed-templates).
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `apps:write` (ruta de aplicación) o `stacks:write` (ruta de stack) (`403`).
+  - `TEMPLATE_NOT_FOUND`: La aplicación o el stack no vino de una plantilla (`404`).
+  - `APP_NOT_FOUND` o `STACK_NOT_FOUND`: La aplicación o el stack no existe o no es tuyo.
+  - `TEMPLATE_CLOSED`: La plantilla está cerrada, así que no puede desvincularse (`403`).
+  - `TEMPLATE_DETACH_CONFIRMATION_REQUIRED`: Se llamó a una ruta que cambia código sin `confirm_detach` (`409`). No se cambió nada.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_DETACH_CONFIRMATION_REQUIRED",
+  "details": { "action": "files.write" }
+}
+```
+
+</ResponseExample>

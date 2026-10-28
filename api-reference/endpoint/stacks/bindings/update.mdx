@@ -1,0 +1,39 @@
+---
+title: Update Stack Connection
+sidebarTitle: Update Connection
+api: PATCH https://api.vertracloud.app/v1/stacks/{stack_id}/bindings/{binding_id}
+authMethod: bearer
+description: Replaces the variable names of a stack connection.
+---
+
+{/* @see RESTPatchAPIStackBindingBody, RESTPatchAPIStackBindingResponse — @vertracloud/api-types */}
+Replaces the whole `env_map` of a connection. Needs the `stacks:write` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField path="binding_id" type="string" required>
+  The connection ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to, when you act on it as the workspace owner.
+</ParamField>
+
+<ParamField body="env_map" type="object" required>
+  Variable name to what it receives. The allowed values are listed in [Create Stack Connection](/api-reference/endpoint/stacks/bindings/create).
+</ParamField>
+
+### Response
+
+The connection with `restart_required` and `apps_to_restart`. Restart the listed applications to make them read the new names.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | A value is not valid for the target of the connection. |
+| 409 | `ENV_DUPLICATE_KEY` | A variable name is already managed by another connection. |
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
+| 404 | `STACK_BINDING_NOT_FOUND` | The stack has no connection with that ID. |

@@ -1,0 +1,106 @@
+---
+title: "Verificar um domínio personalizado de blob"
+sidebarTitle: "Verificar domínio"
+api: "POST https://blob.vertracloud.app/v1/domains/{domain_id}/verify"
+authMethod: bearer
+description: "Verifica de novo o registro CNAME e o certificado de um domínio personalizado e retorna o status atualizado."
+---
+
+{/* @see RESTPostAPIBlobDomainVerifyResponse, APIBlobCustomDomain — @vertracloud/api-types */}
+
+Verifica de novo, na hora, o registro CNAME, o registro TXT de posse e o certificado TLS de um domínio personalizado, e retorna o domínio com o `status` atualizado. Use-o depois de alterar o registro DNS.
+
+**Escopo:** `blob:write`.
+
+<ParamField path="domain_id" type="string" required>
+  O ID do domínio.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X POST "https://blob.vertracloud.app/v1/domains/9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5/verify" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O domínio com o status atualizado.
+  <Expandable title="propriedades">
+  <ResponseField name="id" type="string">ID do domínio.</ResponseField>
+  <ResponseField name="hostname" type="string">Somente o subdomínio, por exemplo `cdn.example.com`.</ResponseField>
+  <ResponseField name="status" type="string">`pending`, `active`, `failed` ou `suspended`. Somente `active` serve arquivos.</ResponseField>
+  <ResponseField name="ssl_status" type="string">Status do certificado TLS do hostname.</ResponseField>
+  <ResponseField name="cname_target" type="string">Aponte um registro CNAME de `hostname` para este valor.</ResponseField>
+  <ResponseField name="prefix" type="string | null">Quando definido, o domínio serve somente esta pasta.</ResponseField>
+  <ResponseField name="web_content" type="boolean">`true` quando o domínio serve `.html`, `.htm`, `.xhtml`, `.svg` e `.xml` no navegador (em sandbox); `false` quando esses tipos sempre são baixados.</ResponseField>
+  <ResponseField name="verification" type="object | null">
+    O registro TXT que comprova que você é dono do hostname. Presente somente enquanto o domínio não está `active`; ausente ou `null` depois.
+    <Expandable title="propriedades">
+    <ResponseField name="type" type="string">Sempre `txt`.</ResponseField>
+    <ResponseField name="name" type="string">Nome do registro TXT a ser criado.</ResponseField>
+    <ResponseField name="value" type="string">Valor do registro TXT.</ResponseField>
+    </Expandable>
+  </ResponseField>
+  <ResponseField name="created_at" type="string">Data de criação em ISO 8601.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5",
+    "hostname": "cdn.example.com",
+    "status": "active",
+    "ssl_status": "active",
+    "cname_target": "cname.vertracloud.dev",
+    "prefix": "images/",
+    "web_content": false,
+    "verification": null,
+    "created_at": "2026-10-14T12:00:00.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `BLOB_CUSTOM_DOMAIN_NOT_FOUND` (`404`): não existe domínio com esse ID nesta conta.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

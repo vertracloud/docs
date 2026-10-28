@@ -1,0 +1,50 @@
+---
+title: Remover membro da stack
+sidebarTitle: Remover membro
+api: DELETE https://api.vertracloud.app/v1/stacks/{stack_id}/members/{resource_type}/{resource_id}
+authMethod: bearer
+description: Tira um app, banco de dados ou pasta do Blob de uma stack sem apagá-lo, escolhendo o que acontece com as variáveis dele.
+---
+
+{/* @see RESTDeleteAPIStackMemberQuery, RESTDeleteAPIStackMemberResponse — @vertracloud/api-types */}
+Tira um membro da stack. O recurso **não é apagado**. Tirar um membro que veio de um template desvincula a stack do template: ela deixa de receber versões. Um app de um [template fechado](/pt-br/templates/use/closed-templates) não pode sair. Precisa do escopo `stacks:write` quando chamado com uma chave de API.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField path="resource_type" type="string" required>
+  `application`, `database` ou `blob`.
+</ParamField>
+
+<ParamField path="resource_id" type="string" required>
+  O ID do app ou do banco de dados. Para uma pasta do Blob, o ID do membro, como em `members` de [Obter stack](/pt-br/api-reference/endpoint/stacks/get).
+</ParamField>
+
+<ParamField query="bindings" type="string" default="keep_connection">
+  O que acontece com as variáveis que as conexões do membro criaram:
+
+  - `keep_connection`: elas viram variáveis comuns, reescritas para o endereço público com certificados, então o app continua conectando.
+  - `remove_variables`: as variáveis são apagadas, e também os certificados copiados para o app.
+</ParamField>
+
+<ParamField query="blob" type="string" default="keep">
+  Para um membro Blob: `keep` mantém os arquivos, `delete` os remove. Nos dois casos, a chave que a plataforma criou para a stack é revogada.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence, quando você age sobre ela como dono do workspace.
+</ParamField>
+
+### Resposta
+
+A stack atualizada, com `restart_required` e `apps_to_restart`, como em [Criar stack](/pt-br/api-reference/endpoint/stacks/create). Os apps só leem variáveis quando iniciam: reinicie os listados.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `STACK_SERVICE_LOCKED` | O membro vem de um template fechado e não pode sair da stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | O recurso não é membro da stack. |

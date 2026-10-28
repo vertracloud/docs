@@ -1,0 +1,202 @@
+---
+title: 'Template Questions and Placeholders: inputs, when, sets and {{ }} Values'
+sidebarTitle: 'Placeholders and inputs'
+description: 'Ask the user for values with inputs, switch services and variables with when and sets, and wire apps to databases and Blob with every {{ }} placeholder.'
+icon: 'sliders'
+---
+
+A question (`inputs`) is one step of the wizard, and a placeholder (`{{...}}`) is a value the platform fills in when it creates the template. Questions collect what only the user knows; placeholders connect the services and generate what nobody should type.
+
+## Questions
+
+`inputs` is an ordered list. Each item becomes a step of the wizard, shown in that order.
+
+| Field | Required | Rule |
+|---|---|---|
+| `id` | yes | Lowercase letters, digits, `_` and `-`, up to 40 characters, unique in the template. Used as `{{inputs.<id>}}`. |
+| `type` | yes | `text`, `secret`, `select`, `boolean`, `number`, `url` or `email`. |
+| `label` | yes | Text per language, up to 128 characters. |
+| `help` | no | Text per language, up to 512 characters. |
+| `required` | no | Default `false`. |
+| `default` | no | Text, number or boolean matching the type, up to 3,072 characters. For `select`, one of the option values. |
+| `validation` | no | `regex`, `min`, `max`, `min_length`, `max_length`. |
+| `generate` | no | `secret` only: `random:<n>` with `n` from 8 to 128, or `uuid`. |
+| `editable` | no | With `false`, the value is always generated and the user cannot type one. Needs `generate`. |
+| `when` | no | `{ input, equals }`: ask only when an earlier answer matches. |
+| `options` | select | Up to 25 items `{ value, label?, sets? }`. |
+
+How each type is checked:
+
+| Type | Accepts | Validation that applies |
+|---|---|---|
+| `text`, `secret` | Text | `min_length`, `max_length`, `regex` |
+| `url` | An `http` or `https` URL | `min_length`, `max_length`, `regex` |
+| `email` | An e-mail address | `min_length`, `max_length`, `regex` |
+| `number` | A number | `min`, `max` |
+| `boolean` | `true` or `false` | None |
+| `select` | One of the `options` values | None |
+
+A `secret` question is typed without echo. When `generate` is set and the user leaves it empty, the platform generates it on the server and shows it once in the outputs. A `regex` is limited to 200 characters and cannot use back-references, nested quantifiers or a repeated alternation, because it runs on the server; it only applies to text types.
+
+Token question, from the starter bot:
+
+```yaml
+inputs:
+  - id: discord_token
+    type: secret
+    required: true
+    label: { pt-br: "Token do bot", en: "Bot token", es: "Token del bot" }
+    help:
+      en: "In the Discord Developer Portal: create the application, open Bot and use Reset Token."
+      pt-br: "No Discord Developer Portal: crie a aplicação, abra Bot e use Reset Token."
+    validation: { min_length: 50, max_length: 100 }
+```
+
+### Conditions with `when`
+
+`when` is an equality check against **one earlier question**, with no expression language. `equals` must fit the type of that question: a boolean for `boolean`, a number for `number`, one of the option values for `select`. A condition on a later question, on itself or on an unknown id is refused (`invalid_when`, `unknown_input`). A question whose condition is false is skipped, and its answer does not exist.
+
+```yaml
+  - id: email
+    type: select
+    label: { pt-br: "Enviar e-mails do n8n?", en: "Send n8n emails?" }
+    default: none
+    options:
+      - { value: none, label: { pt-br: "Não, configurar depois", en: "No, set it up later" } }
+      - { value: smtp, label: { pt-br: "Sim, usar meu servidor SMTP", en: "Yes, use my SMTP server" } }
+  - id: smtp_host
+    type: text
+    required: true
+    label: { pt-br: "Servidor SMTP", en: "SMTP server" }
+    when: { input: email, equals: smtp }
+```
+
+A database or Blob service accepts the same `when` to be created conditionally. An app service does not; use `sets.services`.
+
+### Options and `sets`
+
+The effect of a choice lives in the option itself. `sets` can do three things. When several questions touch the same service or variable, the last one wins; memory from `ram_extra` adds up:
+
+| Key | Effect |
+|---|---|
+| `services` | `{ <service-id>: "on" \| "off" }` creates or skips a service. |
+| `env` | `{ <app-service-id>: { NAME: value } }` adds variables to an app. Values accept placeholders. |
+| `ram_extra` | `{ <service-id>: MB }` adds memory to the minimum and the recommended value of a service. |
+
+A template cannot end up without an app: if the chosen options turn every app off, the deploy is refused. Quote `"on"` and `"off"` in YAML so they stay text.
+
+This is how n8n offers Postgres, SQLite or workers without any expression:
+
+```yaml
+inputs:
+  - id: mode
+    type: select
+    label: { pt-br: "Como o n8n vai rodar?", en: "How will n8n run?", es: "¿Cómo va a correr n8n?" }
+    default: postgres
+    options:
+      - value: postgres
+        label: { pt-br: "Postgres gerenciado (recomendado)", en: "Managed Postgres (recommended)" }
+        sets:
+          services: { db: "on", queue: "off", worker: "off" }
+          env: { app: { DB_TYPE: postgresdb } }
+      - value: sqlite
+        label: { pt-br: "SQLite interno (no disco do app)", en: "Built-in SQLite (on the app disk)" }
+        sets:
+          services: { db: "off", queue: "off", worker: "off" }
+          env: { app: { DB_TYPE: sqlite } }
+```
+
+## Placeholders
+
+A placeholder is written `{{ ... }}`. The platform resolves it when it creates the template and again when a managed value changes (for example after a database password reset). It is never resolved in the browser.
+
+Placeholders work in `env` (and in `sets.env`) and in `outputs`. They do **not** work in `main`, `build`, `start` or `healthcheck.path`; there they give `unknown_placeholder`. Text outside `{{ }}` is never interpreted, and the **value** of a placeholder is never expanded again, so an answer that contains `{{secrets.x}}` stays as plain text.
+
+### Apps and the stack
+
+| Placeholder | Value |
+|---|---|
+| `{{app.url}}` | Public URL of the app that owns the variable (empty if it has no web). In outputs, the main app. |
+| `{{app.domain}}` | Public host name of that app, without the scheme. |
+| `{{services.<id>.url}}` | Public URL of another app service. |
+| `{{services.<id>.domain}}` | Public host name of another app service. |
+| `{{stack.name}}`, `{{stack.id}}` | Name and id of the stack. Empty when the template creates a single app. |
+
+The URL follows the app: it is updated when the subdomain changes or when the user adds a custom domain.
+
+### Databases
+
+The app reaches the database through its public address, with client certificates. See [Stacks](/templates/create/stacks#how-the-services-connect).
+
+| Placeholder | Value |
+|---|---|
+| `{{services.<id>.url}}` | Complete connection URL of the database, password included. |
+| `{{services.<id>.host}}` | Host of the database. |
+| `{{services.<id>.port}}` | Port. |
+| `{{services.<id>.user}}` | User (the `vertracloud` user for a new database). |
+| `{{services.<id>.password}}` | Password. |
+| `{{services.<id>.database}}` | Database name. |
+| `{{services.<id>.ssl.ca_path}}` | Path of the CA certificate. |
+| `{{services.<id>.ssl.cert_path}}` | Path of the client certificate. |
+| `{{services.<id>.ssl.key_path}}` | Path of the client key. |
+| `{{services.<id>.ssl.pem_path}}` | Path of the combined client PEM, used by MongoDB. |
+| `{{services.<id>.ssl.p12_path}}` | Path of the client identity in PKCS#12 (`.p12`), used by Prisma 6. Its password is empty. |
+| `{{services.<id>.ssl.p12_password}}` | Password of the `.p12`, empty. |
+| `{{services.<id>.prisma_url}}` | Postgres URL in the shape Prisma 6 needs (`sslmode`, `sslcert` and `sslidentity` included). Empty for other engines. |
+
+The `ssl.*_path` values are absolute paths inside the app, in `/app/.vertra/certs/<database_id>/` (`ca.pem`, `client.crt`, `client.key`, `client.pem`, `client.p12`). The platform writes them at every start, and your process (uid 1000) can read them. `prisma_url` carries the password, so it is sensitive and exists only when your manifest asks for it.
+
+Postgres from n8n, with certificates:
+
+```yaml
+env:
+  DB_POSTGRESDB_HOST: "{{services.db.host}}"
+  DB_POSTGRESDB_PORT: "{{services.db.port}}"
+  DB_POSTGRESDB_DATABASE: "{{services.db.database}}"
+  DB_POSTGRESDB_USER: "{{services.db.user}}"
+  DB_POSTGRESDB_PASSWORD: "{{services.db.password}}"
+  DB_POSTGRESDB_SSL_CA_FILE: "{{services.db.ssl.ca_path}}"
+  DB_POSTGRESDB_SSL_CERT_FILE: "{{services.db.ssl.cert_path}}"
+  DB_POSTGRESDB_SSL_KEY_FILE: "{{services.db.ssl.key_path}}"
+```
+
+### Blob folders
+
+| Placeholder | Value |
+|---|---|
+| `{{services.<id>.endpoint}}` | S3-compatible endpoint. |
+| `{{services.<id>.bucket}}` | Bucket name. |
+| `{{services.<id>.region}}` | Region. |
+| `{{services.<id>.prefix}}` | The stack folder, `stacks/<stack-slug>/`. |
+| `{{services.<id>.access_key_id}}` | Access key id of the managed key restricted to the folder. |
+| `{{services.<id>.secret_access_key}}` | Secret key of that managed key. |
+| `{{services.<id>.public_base_url}}` | Base URL for public files; empty when the folder is private. |
+
+### Secrets and answers
+
+| Placeholder | Value |
+|---|---|
+| `{{secret:<n>}}` | A random secret of `n` characters (8 to 128), generated once and stored encrypted as the variable. Not allowed in outputs. |
+| `{{secrets.<name>}}` | A secret declared in `secrets`, the same in every service that uses it. |
+| `{{inputs.<id>}}` | The answer to a question. |
+
+### Switched-off services
+
+A placeholder that points to a service turned off by an answer resolves to an empty value, and a variable that ends up empty is **not written**. That is why the n8n template can list every `DB_POSTGRESDB_*` variable and still run on SQLite.
+
+### Managed variables
+
+A variable whose value is a placeholder of a database, Blob folder or app is **managed by the stack**: it is updated on its own when the database changes password or certificate, or when the app's address changes, and the dashboard shows a "managed by the stack" badge. Editing it by hand turns it into a regular variable.
+
+### What is refused
+
+| Mistake | Code |
+|---|---|
+| Unknown or malformed placeholder, or a field that does not exist for that kind of service | `unknown_placeholder` |
+| A service id that is not in the manifest | `unknown_service` |
+| `{{inputs.x}}` for a question that does not exist | `unknown_input` |
+| `{{secrets.x}}` with `x` not declared in `secrets` | `unknown_placeholder` |
+| Platform-controlled variable names such as `PORT`, `HOME` or `LD_PRELOAD` | `forbidden_env` |
+| A literal value that looks like a credential | `secret_in_manifest` |
+
+See [Validate and test](/templates/create/validate-and-test#validation-codes) for how to fix each one.

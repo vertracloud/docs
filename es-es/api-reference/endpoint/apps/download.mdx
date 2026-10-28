@@ -1,0 +1,62 @@
+---
+title: "Descargar aplicación"
+sidebarTitle: "Descargar aplicación"
+api: "GET https://api.vertracloud.app/v1/apps/{id}/download"
+authMethod: "bearer"
+description: "Descarga los archivos de una aplicación en un archivo ZIP a partir de su ID."
+---
+
+{/* @see binary zip — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación que se va a descargar. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID de ese workspace. Obligatorio para los miembros del workspace que actúan sobre una aplicación que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+La respuesta es un archivo ZIP binario con los archivos de la aplicación y un `vertracloud.config` generado a partir de la configuración actual (nombre, archivo principal, memoria, versión, comando de inicio, reinicio automático, subdominio), de modo que el ZIP se pueda volver a subir con la misma configuración.
+
+- **Content-Type**: `application/zip`
+- **Content-Disposition**: `attachment; filename="app-{id}.zip"`
+- **Content-Length**: El tamaño del archivo ZIP en bytes.
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: La aplicación pertenece a otra cuenta, o no tienes el permiso de workspace necesario para descargar sus archivos (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe (`404`).
+  - `INTERNAL_SERVER_ERROR`: No se pudieron descargar los archivos de la aplicación (`500`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Una descripción detallada con información adicional sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,98 @@
+---
+title: 'Template Permissions and Closed Templates: What Users Can Change'
+sidebarTitle: 'Permissions'
+description: 'Set what users may do with the apps a template creates: view and edit code, change memory, add variables, edit commands, and build a closed template.'
+icon: 'user-lock'
+---
+
+`permissions` controls what the person who uses your template can do with the apps it creates. The permissions are stored with each version and travel with the app, so a later version of the template does not silently take them away from apps that already exist.
+
+## The permissions
+
+| Field | Default | What it controls |
+|---|---|---|
+| `code.view` | `true` | `false` makes the template **closed**: the user cannot see the code. Private templates only. |
+| `code.edit` | `true` for code, `false` for image | Lets the user edit the code. Editing the code of an open template **detaches** the app: it becomes a regular app and stops receiving updates. |
+| `ram.change` | `true` | Lets the user change the memory after creation. |
+| `ram.below_min` | `false` | Lets the memory go below `ram.min`. Needs `ram.change`. |
+| `ram.above_max` | `true` | Lets the memory go above `ram.max`, when you declared one. Needs `ram.change`. |
+| `env.add` | `true` | Lets the user create variables you did not declare. |
+| `commands.edit` | `true` for code | Lets the user edit the start and build commands. |
+| `version.selectable` | `false` | Lets the user pick an earlier version of the template in the wizard. |
+| `share.full_copy` | `false` | Allows [full-copy share links](/templates/create/share-links#use-link-or-full-copy). Private templates only. |
+
+```yaml
+permissions:
+  code: { view: true, edit: true }
+  ram: { change: true, below_min: false, above_max: true }
+```
+
+## Combinations that are refused
+
+| Combination | Code |
+|---|---|
+| `code.view: false` in a public template | `forbidden_in_public` |
+| `share.full_copy: true` in a public template | `forbidden_in_public` |
+| `code.view: false` with `code.edit: true` | `invalid_permissions` |
+| `code.view: false` with `env.add: true` | `invalid_permissions` |
+| `code.view: false` with `commands.edit: true` | `invalid_permissions` |
+| `code.view: false` with `share.full_copy: true` | `invalid_permissions` |
+| `ram.change: false` with `ram.below_min: true` or `ram.above_max: true` | `invalid_permissions` |
+
+Leaving the field out is always allowed: a closed template that does not mention `env.add` simply gets `false`.
+
+## Closed templates
+
+A closed template keeps its code in the app's `/app`, but the people who use it have no way to read it. Set `code.view: false` in a private template to build one.
+
+```yaml
+# origin: private
+permissions:
+  code: { view: false }
+  ram: { change: true }
+```
+
+The validator derives the rest and you cannot change it. In a closed template, the user:
+
+| Can | Cannot |
+|---|---|
+| Start, stop, restart, read logs and metrics | Open the file manager (list, read, upload, move, delete) |
+| Create a snapshot and **restore** it | **Download** a snapshot or the app |
+| Roll back | Create free-form variables (for example `NODE_OPTIONS` or `LD_PRELOAD`) |
+| Answer the template's questions and change memory, if you allow it | Edit start and build commands |
+| Update to a newer version | Use a terminal |
+| Move the app to another folder or workspace | Deploy through GitHub or upload code |
+| Use the stack's **databases** without restriction | Save the app as a template, detach it, or create a full-copy link |
+
+The block is enforced by the API on every file and code route, not only in the dashboard, so it applies equally to the CLI, the MCP server and the SDKs. A snapshot taken from a closed app can be restored only into the same closed template.
+
+Variables you list in `env_hidden` are injected into the app and are never returned by the Vertra Cloud API or shown in the dashboard. They are the right place for a key that belongs to you, such as a license. They exist only in a **closed** template (`code.view: false`): where the user can read the code or the variables, hiding a value would achieve nothing, so the validator refuses `env_hidden` in an open template. A version that uses `env_hidden` cannot enable `share.full_copy`, so the value never reaches a copy. If the app is ever unlinked from the template, the hidden values are deleted.
+
+<Warning>
+  Databases are never closed. A closed template does not hide the data in its Postgres, MongoDB, Redis or MySQL: the user can connect to them directly. Keep your intellectual property in the code and the user's data in the databases.
+</Warning>
+
+### What Vertra Cloud guarantees, and what it does not
+
+| Guaranteed | Not guaranteed |
+|---|---|
+| The platform gives the user no route to the code: no file manager, download, terminal, GitHub deploy or snapshot download. | A flaw in **your own code** that exposes its files (a route that serves its own sources, a debug endpoint, a path traversal). |
+| `env_hidden` values are never returned by the Vertra Cloud API or shown in the dashboard. | Anything your app prints to its logs or returns in responses. |
+| Closed apps cannot be turned into a template or detached. | Administrative access by the platform operators, which is covered by the terms of service. |
+
+The person who receives your template sees a notice that the code is closed and that what they type goes to code they cannot read. Be careful with what you ask for in `inputs`.
+
+## Updates and permissions
+
+When you publish a version, permissions never become more restrictive for apps that already exist: each flag stays on if the app's current policy or the new version grants it. A closed template that you later open opens it for existing apps too; the other way around does not close an app that already runs. New services in a new version are created with the new version's policy.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Using a closed template" icon="eye-slash" href="/templates/use/closed-templates">
+    The same rules, from the user's side.
+  </Card>
+  <Card title="Private templates" icon="lock" href="/templates/create/private-templates">
+    Where closed templates are created.
+  </Card>
+</CardGroup>

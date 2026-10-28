@@ -1,0 +1,271 @@
+---
+title: Crear una plantilla privada
+sidebarTitle: Crear plantilla
+api: POST https://api.vertracloud.app/v1/templates
+authMethod: bearer
+description: Crea una plantilla privada y su primera versión a partir de un manifiesto y el código de cada servicio, enviados como datos de formulario multipart.
+---
+
+{/* @see RESTPostAPITemplateBody, RESTPostAPITemplateResponse — @vertracloud/api-types */}
+Esta llamada crea una plantilla privada con su primera versión y responde `201` con la plantilla. La petición es `multipart/form-data`: el manifiesto va en un campo de texto, y cada servicio que ejecuta tu código va en una parte ZIP. Para partir de una aplicación o de un stack que ya tienes, usa [Guardar una aplicación como plantilla](/es-es/api-reference/endpoint/templates/create-from-app) o [Guardar un stack como plantilla](/es-es/api-reference/endpoint/templates/create-from-stack).
+
+Requiere el scope `templates:write` cuando se llama con una clave de API. Solo pueden crear plantillas los planes que permiten crear imágenes Docker personalizadas, y cada cuenta tiene como máximo 5 plantillas privadas, personales y de workspace juntas. En un workspace, solo el propietario crea plantillas. Vertra Cloud no revisa una plantilla privada: quien la reciba verá el aviso «No verificado por Vertra». Comprueba antes el manifiesto con [Validar manifiesto](/es-es/api-reference/endpoint/templates/validate). El formato está en la [referencia del manifiesto](/es-es/templates/create/manifest-reference).
+
+El ZIP de cada servicio se revisa antes de guardarse. Toda la subida se rechaza con `TEMPLATE_SECRET_IN_SOURCE` cuando contiene un archivo `.env` que no es un ejemplo, una clave privada o un token conocido; `details.files` solo enumera las rutas. Las carpetas `.vertra/` se descartan, y los archivos `.env*` nunca entran en una plantilla.
+
+<ParamField body="manifest" type="string" required>
+  El manifiesto como cadena JSON serializada, siguiendo el [esquema del manifiesto](/es-es/templates/reference/manifest-schema). Un servicio cuyo `source.type` es `image` apunta a una imagen de tu cuenta por su ID en `source.image`.
+</ParamField>
+
+<ParamField body="sources[service_id]" type="file">
+  Una parte ZIP por cada servicio del manifiesto cuyo `source` sea `code`, con el nombre del id del servicio, por ejemplo `sources[bot]`. Es obligatoria para cada uno de esos servicios.
+</ParamField>
+
+<ParamField body="changelog" type="string">
+  El mensaje de la primera versión, como objeto JSON serializado con `pt-br` (obligatorio), `en` y `es`.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  El workspace que será propietario de la plantilla. Sin este campo, la plantilla te pertenece.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -F 'manifest=<manifest.json' \
+  -F 'sources[bot]=@bot.zip'
+```
+
+</RequestExample>
+
+### Response
+
+<ResponseField name="response" type="object">
+  La plantilla, con su primera versión.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la plantilla.
+  </ResponseField>
+
+  <ResponseField name="slug" type="string">
+    El slug de la plantilla, tomado del `id` del manifiesto.
+  </ResponseField>
+
+  <ResponseField name="origin" type="string">
+    `private` para las plantillas que creas. Las plantillas del catálogo son `vertra` o `community`.
+  </ResponseField>
+
+  <ResponseField name="visibility" type="string">
+    `public`, `beta`, `hidden` o `deprecated`.
+  </ResponseField>
+
+  <ResponseField name="name" type="object">
+    El nombre por idioma: `pt-br`, `en` y `es`. Si falta `en` o `es`, se usa `pt-br`.
+  </ResponseField>
+
+  <ResponseField name="description" type="object">
+    La descripción por idioma, con la misma forma que `name`.
+  </ResponseField>
+
+  <ResponseField name="category" type="string">
+    `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases` u `other`.
+  </ResponseField>
+
+  <ResponseField name="tags" type="string[]">
+    Las etiquetas.
+  </ResponseField>
+
+  <ResponseField name="icon_url" type="string | null">
+    URL del icono, o `null` cuando la plantilla no tiene ninguno.
+  </ResponseField>
+
+  <ResponseField name="author_display" type="string | null">
+    El nombre que se muestra como autor. `null` en las plantillas creadas por la plataforma.
+  </ResponseField>
+
+  <ResponseField name="links" type="object">
+    Enlaces del software que empaqueta la plantilla: `website`, `docs`, `source` y `license`, todos opcionales.
+  </ResponseField>
+
+  <ResponseField name="landing" type="string | null">
+    Slug de una página pública dedicada, o `null`.
+  </ResponseField>
+
+  <ResponseField name="featured" type="boolean">
+    Destacada en la galería.
+  </ResponseField>
+
+  <ResponseField name="current_version" type="object">
+    La versión más reciente: `id`, `version` (versión semántica), `security` (`true` para una publicación de seguridad) y `created_at`.
+  </ResponseField>
+
+  <ResponseField name="services" type="object[]">
+    Lo que crea la plantilla. Cada servicio tiene `id`, `kind` (`app`, `database` o `blob`), `source_type` (`code`, `image` o `null`), `database` (el motor, o `null`), `blob_visibility`, `ram` (`min`, `recommended` y `max` opcional, en MB), `web` (`required`, `optional`, `none` o `null`) y `conditional` (`true` cuando el servicio solo se crea para algunas respuestas).
+  </ResponseField>
+
+  <ResponseField name="creates_stack" type="boolean">
+    `true` cuando usar la plantilla crea un stack (dos o más servicios).
+  </ResponseField>
+
+  <ResponseField name="ram_min_total" type="integer">
+    La suma de la memoria mínima de cada servicio, en MB.
+  </ResponseField>
+
+  <ResponseField name="byok" type="boolean">
+    `true` cuando quien usa la plantilla trae su propia clave para un modelo de IA.
+  </ResponseField>
+
+  <ResponseField name="required_plan" type="string">
+    El plan más bajo que puede usar la plantilla.
+  </ResponseField>
+
+  <ResponseField name="code_view" type="boolean">
+    `false` para una [plantilla cerrada](/es-es/templates/use/closed-templates): quien la usa no puede ver su código.
+  </ResponseField>
+
+  <ResponseField name="uses_count" type="integer | null">
+    Siempre `null` en una plantilla privada.
+  </ResponseField>
+
+  <ResponseField name="owner" type="object | null">
+    `user_id` y `workspace_id` (`null` cuando la plantilla pertenece al usuario).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    El repositorio vinculado (`repository` como `owner/name`, y `branch`), o `null` cuando la plantilla no está vinculada.
+  </ResponseField>
+
+  <ResponseField name="inputs" type="object[]">
+    Las preguntas que responde el usuario al usar la plantilla. Consulta [Marcadores y entradas](/es-es/templates/create/placeholders-and-inputs).
+  </ResponseField>
+
+  <ResponseField name="permissions" type="object">
+    Los permisos efectivos de las aplicaciones creadas a partir de la plantilla, tras los valores por defecto y las restricciones de una plantilla cerrada: `code_view`, `code_edit`, `ram_change`, `ram_below_min`, `ram_above_max`, `env_add`, `commands_edit`, `terminal`, `save_as_template` y `detach`, todos booleanos.
+  </ResponseField>
+
+  <ResponseField name="outputs" type="object[]">
+    Lo que muestra el asistente al final de un despliegue: `label`, `value` y las marcas opcionales `secret` y `once`.
+  </ResponseField>
+
+  <ResponseField name="readme" type="object | null">
+    La documentación de la plantilla (Markdown) por idioma, o `null`.
+  </ResponseField>
+
+  <ResponseField name="changelog" type="object | null">
+    El changelog de la última versión por idioma, o `null`.
+  </ResponseField>
+
+  <ResponseField name="account" type="object">
+    Lo que supondría usar la plantilla para tu cuenta (`fits`, `reasons`, `required_ram`, `free_ram`, `needs_image_slot`, `image_slots_free`, `in_use`, `in_use_count`). Solo aparece en las llamadas autenticadas que leen la plantilla.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó la plantilla.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Cuándo se actualizó por última vez la plantilla.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "support-bot",
+    "origin": "private",
+    "visibility": "public",
+    "name": { "pt-br": "Bot de suporte", "en": "Support bot" },
+    "description": { "pt-br": "Bot que responde o suporte.", "en": "A bot that answers support." },
+    "category": "bots",
+    "tags": ["discord", "support"],
+    "icon_url": null,
+    "author_display": "Ana",
+    "links": {},
+    "landing": null,
+    "featured": false,
+    "current_version": {
+      "id": "tplv-111222333444",
+      "version": "1.0.0",
+      "security": false,
+      "created_at": "2026-10-27T14:02:00Z"
+    },
+    "services": [
+      {
+        "id": "bot",
+        "kind": "app",
+        "source_type": "code",
+        "database": null,
+        "blob_visibility": null,
+        "ram": { "min": 256, "recommended": 512 },
+        "web": "none",
+        "conditional": false
+      }
+    ],
+    "creates_stack": false,
+    "ram_min_total": 256,
+    "byok": false,
+    "required_plan": "economy",
+    "code_view": true,
+    "uses_count": null,
+    "owner": { "user_id": "1234567890123456789", "workspace_id": null },
+    "github": null,
+    "inputs": [],
+    "permissions": {
+      "code_view": true,
+      "code_edit": true,
+      "ram_change": true,
+      "ram_below_min": false,
+      "ram_above_max": true,
+      "env_add": true,
+      "commands_edit": true,
+      "terminal": false,
+      "save_as_template": true,
+      "detach": true
+    },
+    "outputs": [],
+    "readme": null,
+    "changelog": null,
+    "created_at": "2026-10-27T14:02:00Z",
+    "updated_at": "2026-10-27T14:02:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `templates:write` (`403`).
+  - `TEMPLATE_MANIFEST_INVALID`: El manifiesto no es válido; `details.issues` enumera cada hallazgo con su `path` y su `code`. No se crea nada.
+  - `TEMPLATE_SOURCE_REQUIRED`: Un servicio `code` no tiene su parte ZIP.
+  - `TEMPLATE_SECRET_IN_SOURCE`: Un ZIP contiene un secreto (un archivo `.env`, una clave privada o un token); `details.files` enumera las rutas (`400`).
+  - `TEMPLATE_SLUG_TAKEN`: El `id` del manifiesto ya está en uso entre tus plantillas o es una palabra reservada.
+  - `TEMPLATE_PRIVATE_LIMIT_REACHED`: La cuenta ya tiene 5 plantillas privadas.
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: El plan no puede crear imágenes Docker personalizadas, así que tampoco puede crear plantillas.
+  - `IMAGE_NOT_FOUND`: Un servicio `image` apunta a una imagen que no es tuya o que no tiene ningún build exitoso.
+  - `WORKSPACE_OWNER_ONLY`: Se envió `workspace_id` y quien llama no es el propietario de ese workspace.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_MANIFEST_INVALID",
+  "details": {
+    "issues": [{ "path": "services.bot.ram.min", "code": "invalid_ram", "message": "ram.min must be a positive number of MB" }]
+  }
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,113 @@
+---
+title: Obter arquivos da aplicação
+sidebarTitle: Obter arquivos
+api: GET https://api.vertracloud.app/v1/apps/{id}/files
+authMethod: bearer
+description: Retorna a lista de arquivos e pastas de uma aplicação pelo seu ID.
+---
+
+{/* @see APIApplicationFile[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID da aplicação da qual os arquivos serão listados. Se a aplicação pertencer a um workspace, informe o ID dele no parâmetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Membros com papel de Owner, Admin ou Developer podem usar o gerenciador de arquivos em uma aplicação do workspace que não é deles; sem isso, somente o dono da aplicação pode.
+</ParamField>
+
+<ParamField query="path" type="string">
+  O caminho relativo de onde os arquivos serão listados. Padrão: o diretório raiz (`/`).
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="array">
+  Um array de objetos de arquivo ou pasta.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="name" type="string">
+    O nome do arquivo ou pasta.
+  </ResponseField>
+
+  <ResponseField name="path" type="string">
+    O caminho completo do arquivo ou pasta.
+  </ResponseField>
+
+  <ResponseField name="type" type="string">
+    `"file"` ou `"directory"`.
+  </ResponseField>
+
+  <ResponseField name="size" type="string">
+    O tamanho do arquivo, em formato legível (por exemplo `"12.34 KB"`). Presente somente para entradas do tipo `"file"`; diretórios não trazem tamanho.
+  </ResponseField>
+
+  <ResponseField name="last_modified" type="string" format="date-time">
+    O timestamp de quando o arquivo ou pasta foi modificado pela última vez.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "type": "file",
+      "name": "index.js",
+      "path": "/index.js",
+      "size": "1.24 KB",
+      "last_modified": "2026-03-14T19:58:00Z"
+    },
+    {
+      "type": "directory",
+      "name": "src",
+      "path": "/src",
+      "last_modified": "2026-03-14T19:58:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões, ou não tem o escopo que a rota exige (`403`).
+  - `ACCESS_DENIED`: o recurso pertence a outra conta, ou você não tem a permissão do workspace para ele (`403`).
+  - `FORBIDDEN`: o usuário não tem permissão para acessar a aplicação.
+  - `APP_NOT_FOUND`: a aplicação especificada não existe.
+  - `PLAN_RESTRICTED_FEATURE`: o plano do usuário não oferece suporte ao acesso ao gerenciador de arquivos.
+  - `INTERNAL_SERVER_ERROR`: falha ao obter a lista de arquivos.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "PLAN_RESTRICTED_FEATURE"
+}
+```
+
+</ResponseExample>

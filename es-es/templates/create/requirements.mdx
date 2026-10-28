@@ -1,0 +1,84 @@
+---
+title: 'Requisitos de la plantilla: cómo se calculan el plan necesario y min_plan'
+sidebarTitle: 'Requisitos'
+description: 'Cómo calcula Vertra Cloud el plan que necesita una plantilla según RAM, web, imagen, Blob y base de datos, y cómo min_plan añade un mínimo comercial.'
+icon: 'gauge-high'
+---
+
+El plan que necesita una plantilla es el mayor de dos planes: el **calculado** a partir de lo que requieren los servicios y el `min_plan` que **declaraste**. Cualquier plan puede usar una plantilla siempre que cumpla ambos. No escribes la parte calculada; la plataforma la deriva del manifiesto.
+
+```text
+required plan = max(plan calculated from the services, min_plan)
+```
+
+## Qué se calcula
+
+La API lo calcula sobre el catálogo de planes, nunca a partir de una lista fija, así que sigue siendo correcto cuando los planes cambian. Para conocer los planes en sí, consulta [Planes y límites](/es-es/plans-and-limits).
+
+| Requisito | De dónde viene | Qué necesita el usuario |
+|---|---|---|
+| Memoria | La suma de `ram.min` de cada servicio que se va a crear, tras las respuestas del usuario | Que esa suma quepa en la memoria **libre** del plan. El asistente muestra "necesita X, tienes Y libres". |
+| Publicación web | Cualquier aplicación con `web: required` | Un plan que publique en la web. |
+| Imagen | Cualquier aplicación con `source.type: image` | Un plan que incluya [imágenes Docker propias](/es-es/guides/custom-docker-images) y un cupo de imagen libre. |
+| Blob | Un servicio `blob` | Un plan que incluya Blob Storage. |
+| Número de aplicaciones y bases de datos | Los servicios que se van a crear | Margen dentro de los límites de aplicaciones y bases de datos del plan. |
+| Despliegues por hora | Uno por aplicación creada | Un hueco de despliegue en la última hora. |
+
+Los servicios desactivados por una respuesta no se cuentan, así que una plantilla cuyo Postgres es opcional pide menos memoria cuando el usuario elige SQLite. Un enlace `private: required` queda fuera de la galería pública. Consulta [Stacks](/es-es/templates/create/stacks#enlaces-que-quedan-fuera-de-la-galería).
+
+### Cupos de imagen
+
+Una plantilla de imagen usa **un cupo por imagen distinta** que ejecuta el usuario. Los servicios que comparten el mismo `source.image` comparten un cupo, tres aplicaciones de la misma plantilla usan uno, y una nueva versión de la plantilla conserva el mismo cupo. El cupo se libera cuando desaparece la última aplicación que usa la imagen. Una plantilla `code` no usa ninguno. En tu propia plantilla privada, las imágenes son tuyas y ya ocupan tus cupos.
+
+## Por qué una plantilla no encaja
+
+Cuando una plantilla no encaja con una cuenta, la tarjeta y la página explican por qué. Los motivos son:
+
+| Motivo | Significado |
+|---|---|
+| `no_plan` | La cuenta no tiene un plan activo. |
+| `min_plan` | El plan está por debajo de tu `min_plan`. |
+| `ram` | No hay suficiente memoria libre. |
+| `web_publish` | El plan no publica en la web. |
+| `image_plan` | El plan no incluye imágenes propias. |
+| `image_slots` | Todos los cupos de imagen están en uso. |
+| `blob_plan` | El plan no incluye Blob Storage. |
+| `private_network` | La plantilla pide un enlace que queda fuera de la galería. |
+| `max_apps` | Se superaría el límite de aplicaciones del plan. |
+| `max_databases` | Se superaría el límite de bases de datos del plan. |
+| `deploys_per_hour` | Se alcanzó el límite de despliegues por hora. |
+
+La API devuelve la misma lista para cada plantilla cuando has iniciado sesión, en `account.reasons`.
+
+## `min_plan`
+
+`min_plan` es una decisión comercial del autor, por ejemplo "solo a partir de Enterprise-28". Es el **id** del plan, no el nombre que se muestra en el panel:
+
+```yaml
+min_plan: enterprise-28
+```
+
+Los ids son `economy`, `pro`, `scale`, `intermediary` y `enterprise-<size>`. Un valor que no sea el id de un plan existente se rechaza con `invalid_plan` desde la CLI, el editor, la API y el CI del repositorio público, de modo que una plantilla nunca apunta en silencio a un plan que fue renombrado. Úsalo con moderación: si los servicios ya fuerzan un plan, `min_plan` es redundante.
+
+## Ver el resultado antes de publicar
+
+`vertra template validate` y `POST /v1/templates/validate` devuelven el plan calculado para tu manifiesto (aquí, para el bot de inicio):
+
+```json
+{
+  "valid": true,
+  "issues": [],
+  "required_plan": "economy",
+  "ram_min_total": 256,
+  "services": [
+    { "id": "app", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null,
+      "ram": { "min": 256, "recommended": 256 }, "web": "none", "conditional": false }
+  ]
+}
+```
+
+`required_plan` es el plan más bajo que cumple los requisitos y `min_plan`, y `ram_min_total` es la suma de la memoria mínima de todos los servicios en MB. Ambos son `null` cuando el manifiesto es demasiado inválido para calcularlos. Consulta [Validar y probar](/es-es/templates/create/validate-and-test).
+
+## Los ajustes de despliegue nunca conceden más
+
+El bloque `deploy` de un servicio solo puede restringir el comportamiento, nunca desbloquear algo que el plan no incluye. Un manifiesto que pide blue-green en un plan que no lo tiene se ejecuta igualmente sin él. Consulta [Ajustes de despliegue](/es-es/templates/create/deploy-settings).

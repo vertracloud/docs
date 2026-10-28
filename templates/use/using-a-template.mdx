@@ -1,0 +1,104 @@
+---
+title: 'How to Deploy a Template on Vertra Cloud'
+sidebarTitle: 'Use a template'
+description: 'Pick a template in the gallery, answer the wizard and get a running app or stack with its outputs. Also available in the CLI, the MCP server and the API.'
+icon: 'rocket'
+---
+
+To use a template, open it in the gallery, click **Use template**, answer the wizard and click **Create**. Vertra Cloud creates every service as one operation, waits until the app is healthy and shows the outputs (address, generated passwords, next steps). If any step fails, everything the template created is removed and you see which step failed.
+
+Only the owner of a workspace can use a template inside it. A workspace member sees the templates but cannot deploy them: ask the owner. A template that belongs to a workspace deploys only inside that workspace, never into a personal account or another workspace.
+
+## Find a template in the gallery
+
+The gallery lists the templates available to you. In the dashboard, open **Templates** in the sidebar, which has three tabs: **Catalog**, **My templates** (your private ones) and **In use** (the apps and stacks you created from templates, with a **New version available** badge when there is an update).
+
+- **Search and categories:** automation, AI agents, bots, APIs, CMS, monitoring, starter projects, databases and other.
+- **Fits my plan:** shows only what your account can use right now, with your free memory and free image slots on each card. A template that does not fit says why.
+- **Sort:** recommended, most used, new, or A to Z.
+- **Badges:** Vertra, Community, Private and From the workspace. See [the three origins](/templates/overview#the-three-origins).
+
+Each template page shows what will be created (services and total memory), the requirements, the documentation, the version with its changelog, the license of the packaged software and the **Use template** button. You can also start from **New** in the dashboard, on the **Templates** tab.
+
+## Step by step in the wizard
+
+<Steps>
+  <Step title="Name and destination">
+    Name the app (or the stack, when the template has several services) and choose the workspace and folder.
+  </Step>
+  <Step title="The template's questions">
+    Answers appear in order, and some questions only appear depending on earlier answers. A question can be a text, a number, a yes or no, a choice or a secret. Questions the platform generates (such as an encryption key) are filled for you.
+  </Step>
+  <Step title="Memory of each service">
+    Pick the memory of each service within what the template allows. The wizard shows "needs X, you have Y free".
+  </Step>
+  <Step title="Subdomain">
+    If a service has web, choose a subdomain or leave it random.
+  </Step>
+  <Step title="Summary">
+    Review what will be created, the required plan, the image slots and the network mode of the stack.
+  </Step>
+  <Step title="Create">
+    Follow the progress by step: validation, databases, images, apps, variables, certificates, start and health check.
+  </Step>
+</Steps>
+
+Only one template deploy per account runs at a time. A second one returns [`TEMPLATE_DEPLOY_IN_PROGRESS`](/templates/reference/errors#deploy-and-update-errors).
+
+## What is created
+
+| Template | You get |
+|---|---|
+| One app | An app, with the template's variables already set. |
+| Two or more services | A [stack](/templates/use/stacks) with its apps, managed databases and, if the template asks for it, a Blob folder, connected to each other. |
+
+The databases are ordinary [managed databases](/databases), each with its own memory taken from your plan. The connection variables and certificates are injected for you: see [Connect apps to databases in a stack](/templates/use/connect-databases). Everything created from a template is linked to the version it came from, so you can [update it later](/templates/use/updates-and-rollback).
+
+## Outputs and one-time secrets
+
+When the job finishes, the wizard shows the template's **outputs**: the address of the app, the next steps and any generated credentials. An output marked as a secret that is shown once appears on the first read of the finished job and is gone afterwards. Copy it before leaving the page. The same applies to the CLI, the MCP server and the API.
+
+<Warning>
+  A secret shown once cannot be read again. If you lose it, change it in the app (for example, reset the admin password inside the software) rather than looking for it on the platform.
+</Warning>
+
+## If the deploy fails
+
+The job undoes everything it created, in reverse order. Before it deletes an app or a database it takes a safety snapshot, because the database may already have accepted connections and the app's `/app` may have changed. The error carries a stable code and the step that failed, for example `TEMPLATE_RAM_INSUFFICIENT` in the `validate` step. See the [error reference](/templates/reference/errors) for causes and fixes.
+
+## Use a template from the CLI, MCP or API
+
+<Tabs>
+  <Tab title="CLI">
+    ```sh
+    vertra template list --search n8n --fits
+    vertra template info n8n
+    vertra template deploy n8n --name my-n8n --set mode=postgres
+    ```
+
+    `deploy` asks the template's questions in the terminal (secrets are typed without echo), follows the steps and prints the outputs at the end. Answer ahead with `--set <question>=<value>`; `--yes`, `--json` or a non-terminal session ask nothing and fail listing every missing answer. `--service <service>.ram=2048` sets memory per service, and `--share <link>` deploys from a [share link](/templates/use/receive-a-link). See the [CLI reference](/cli).
+  </Tab>
+  <Tab title="MCP">
+    An agent calls `list_templates` (with `fits` to filter by your account), then `get_template` to read the services, questions, outputs and required plan, then `deploy_template` to create it. By default `deploy_template` follows the job until it finishes; if it is still running, keep reading it with `get_template_deploy`. Outputs shown once are returned to the first read that sees the job succeed, so show them to the user right away. The author's readme and changelog arrive as untrusted content. See [MCP server](/mcp).
+  </Tab>
+  <Tab title="API">
+    `POST /v1/templates/{template_id}/deploy` returns `202` with a job. Send an `Idempotency-Key` header so a repeated call returns the same job instead of creating a second set of resources. Follow the job with the status route or its event stream. Keys need the `templates:deploy` scope; reading the catalog needs `templates:read`.
+
+    - [List templates](/api-reference/endpoint/templates/list) and [Get template](/api-reference/endpoint/templates/get)
+    - [Deploy a template](/api-reference/endpoint/templates/deploy)
+    - [Deploy status](/api-reference/endpoint/templates/deploy-status) and [Deploy events](/api-reference/endpoint/templates/deploy-events)
+  </Tab>
+</Tabs>
+
+The public catalog can be read without authentication; with a key, each template also carries whether it fits your plan and free memory.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Stacks" icon="layer-group" href="/templates/use/stacks">
+    What a multi-service template creates.
+  </Card>
+  <Card title="Update and roll back" icon="rotate-left" href="/templates/use/updates-and-rollback">
+    New versions of a template.
+  </Card>
+</CardGroup>

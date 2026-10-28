@@ -1,0 +1,71 @@
+---
+title: Excluir imagem
+sidebarTitle: Excluir imagem
+api: DELETE https://api.vertracloud.app/v1/images/{image_id}
+authMethod: bearer
+description: Exclui uma imagem, as suas versões, o seu contexto e todas as aplicações criadas a partir dela.
+---
+
+{/* @see RESTDeleteAPICustomImageBody, RESTDeleteAPICustomImageResult — @vertracloud/api-types */}
+<Warning>
+  Excluir uma imagem **também exclui todas as aplicações criadas a partir dela**. Cada aplicação segue as regras habituais de exclusão de uma aplicação, incluindo o snapshot de segurança nos planos que o têm.
+</Warning>
+
+Exige o escopo `images:delete` quando chamada com uma chave de API; `images:write` não o cobre. Quando a imagem tem aplicações, a chave também precisa do escopo `apps:delete`, pois elas também são excluídas. Sem ele, a chamada falha com `API_KEY_SCOPE_DENIED` e `details.required` com o valor `apps:delete`. A exclusão é recusada enquanto um build está em execução, e é permitida em planos que já não podem criar imagens.
+
+<ParamField path="image_id" type="string" required>
+  O ID da imagem.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a imagem pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que atuam sobre uma imagem que não lhes pertence.
+</ParamField>
+
+<ParamField body="confirm_name" type="string" required>
+  Deve ser igual ao nome da imagem.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="deleted_apps" type="string[]">
+    Os IDs das aplicações excluídas junto com a imagem.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "deleted_apps": ["app-abc123def456"]
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `images:delete`, ou a imagem tem aplicações e a chave não tem o escopo `apps:delete`. `details.required` informa o escopo que falta (`403`).
+  - `IMAGE_NOT_FOUND`: A imagem não existe ou você não tem acesso a ela (`404`).
+  - `IMAGE_NAME_MISMATCH`: `confirm_name` não é o nome da imagem (`400`).
+  - `IMAGE_BUILD_IN_PROGRESS`: Um build está em execução; aguarde o fim dele (`409`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_NAME_MISMATCH"
+}
+```
+
+</ResponseExample>

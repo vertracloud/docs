@@ -1,0 +1,76 @@
+---
+title: "Revocar un enlace para compartir"
+sidebarTitle: "Revocar enlace"
+api: "DELETE https://blob.vertracloud.app/v1/shares/{share_id}"
+authMethod: bearer
+description: "Revoca un enlace para compartir para que su página y sus descargas dejen de funcionar."
+---
+
+{/* @see RESTDeleteAPIBlobShareResponse — @vertracloud/api-types */}
+
+Revoca un enlace para compartir de inmediato, de modo que su página y su descarga dejan de funcionar para todos. Revocar no elimina el objeto. La respuesta es `null` en el campo `response`.
+
+**Ámbito:** `blob:write`.
+
+<ParamField path="share_id" type="string" required>
+  El ID del enlace para compartir.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La llamada actúa sobre el blob del propietario del workspace y necesita el permiso de workspace `blob:read` (`blob:manage` en las rutas que modifican datos). Omítelo para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X DELETE "https://blob.vertracloud.app/v1/shares/3e4f5a6b-7c8d-4e9f-a0b1-c2d3e4f5a6b7" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Respuesta
+
+Vacía si todo sale bien.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe ningún workspace con ese ID o no eres miembro.
+  - `BLOB_SHARE_NOT_FOUND` (`404`): No hay ningún enlace para compartir con ese ID en esta cuenta.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

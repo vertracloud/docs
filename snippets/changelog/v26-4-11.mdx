@@ -1,0 +1,42 @@
+### Templates: deploy ready-made software in one click
+
+Pick a template, answer a few questions and Vertra Cloud creates everything it needs, as one operation: the application, its databases and the variables that connect them. If any step fails, everything the deploy created is removed, so you never end up with half a setup.
+
+- **Catalog:** n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI, Uptime Kuma and starter Discord bots in JavaScript and Python. Browse it in the dashboard, with search, categories and a "fits my plan" filter, or with `vertra template list`.
+- **Generated secrets:** encryption keys and tokens are generated for you. A secret an output needs is shown once, at the end of the deploy.
+- **Required plan is calculated** from what the template needs (memory, web publishing, Docker images). The assistant tells you what is missing and why.
+- **Docker image slots:** an image template takes one image slot per distinct image in use, not one per app. Three apps from the same template use one slot. Code templates use none. `POST /v1/apps/image` refuses images that belong to a template, with `IMAGE_TEMPLATE_ONLY`.
+- **Updates are never automatic.** A new version shows "New version available"; updating takes a safety snapshot first and rolls back on failure.
+- **Everywhere:** dashboard, `vertra template` and `vertra stack` in the CLI, the MCP server and the JavaScript, Python and Go SDKs. New API key scopes: `templates:read`, `templates:write`, `templates:deploy`, `stacks:read`, `stacks:write` and `stacks:delete`. See the [Templates guide](/templates/overview) and the [API reference](/api-reference/endpoint/templates/list).
+
+### Stacks
+
+A template with more than one service creates a **stack**: applications, databases and Blob folders that belong together. You can also build one by hand: add a database to an application, or turn the apps and databases of a folder into a stack.
+
+- Connection variables and the client certificates are injected into the app and kept up to date when a database password or certificate changes. Variables managed by a stack are marked as such in the dashboard.
+- Apps in a stack reach databases through their public address, with client certificates managed by the platform.
+- A **Connect** panel shows the connection code in the language of your app, with the real variable names.
+- Snapshot and roll back the whole stack together, and update it to a newer template version.
+- Deleting a stack asks whether to only undo it (the resources stay, loose) or delete everything.
+- **Blob in stacks:** a stack can have its own Blob folder with a restricted key. Undoing the stack keeps the files.
+
+### Your own templates and share links
+
+- **Save as template** from an app or a stack, from a GitHub repository, or write the manifest (`vertracloud.template.yaml`) in the editor. Secrets never go in: every variable becomes a question, and you review what is copied.
+- Available on plans that can create Docker images, up to 5 private templates per account. In a workspace, only the owner creates and manages templates.
+- **Share links** let another account use your template (use link) or take a full copy (copy link). Both show a preview with the author and what will be created, and carry the "Not verified by Vertra" label. You can revoke a link at any time; what was already created keeps running. Use **Report** on a preview or on a created app to flag abuse.
+- **Closed templates** hide the code from whoever uses them: no file manager, downloads or terminal, on every route. Databases are never closed.
+- `vertra template validate` checks a manifest locally against the public [JSON Schema](/templates/reference/manifest-schema).
+
+### Blob: keys restricted to one folder
+
+An API key with `blob:*` scopes can now be limited to one folder with `blob_prefix`. The S3 credentials derived from the key inherit the limit. Operations outside the folder, and account-level ones such as rules, domains and statistics, fail with `BLOB_PREFIX_DENIED`. See [Blob authentication](/blob/authentication).
+
+### Databases
+
+- The page [How do I connect to each engine?](/databases#how-do-i-connect-to-each-engine) now covers Prisma with client certificates and Python 3.13.
+- Resetting a database certificate rewrites the files of the apps connected through a stack. Restart those apps to pick them up.
+
+### Folders
+
+Dashboard folders have notes and a position on the Flow canvas, and the Flow groups became folders.

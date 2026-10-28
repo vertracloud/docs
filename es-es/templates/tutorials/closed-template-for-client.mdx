@@ -1,0 +1,170 @@
+---
+title: 'Tutorial: entrega una plantilla cerrada a un cliente mediante un enlace'
+sidebarTitle: 'Plantilla cerrada para un cliente'
+description: 'Crea una plantilla privada con código cerrado y una variable oculta, genera un enlace de un solo uso y comprueba qué puede y qué no puede hacer tu cliente.'
+icon: 'lock'
+---
+
+Una **plantilla cerrada** permite a un cliente ejecutar tu software en su propia cuenta sin poder abrir su código. Defines `code.view: false` en el manifiesto, ocultas las variables que te pertenecen con `env_hidden` y envías un **enlace de uso**: el cliente lo previsualiza, rellena sus propias respuestas y obtiene una aplicación que arranca, se detiene, registra logs y hace snapshots como cualquier otra, con el código sellado. En este tutorial entregas un bot a un cliente de este modo.
+
+La plataforma aplica el sellado en su propia API, en cada ruta que lee o modifica archivos y código, no solo en el panel. No hace que tu código sea secreto para quien controle la máquina donde se ejecuta ni para el equipo de Vertra, y no puede protegerte de un fallo en tu propio código que sirva archivos. Lee [Permisos](/es-es/templates/create/permissions) para ver la lista completa de garantías.
+
+## Antes de empezar
+
+<Check>Una plantilla de código privada que funcione, como la del [primer tutorial](/es-es/templates/tutorials/discord-bot-code). Las plantillas abiertas y cerradas comparten la misma estructura, así que solo cambias los permisos.</Check>
+<Check>Un plan que pueda crear plantillas privadas (consulta [Planes y límites](/es-es/plans-and-limits)).</Check>
+<Check>Una segunda cuenta en la que puedas iniciar sesión. Es la única forma de ver la vista previa y la aplicación cerrada exactamente como las ve el cliente.</Check>
+
+## Qué puede y qué no puede hacer el cliente
+
+| El cliente puede | El cliente no puede |
+|---|---|
+| Iniciar, detener y reiniciar la aplicación, leer logs y métricas | Abrir el gestor de archivos (ver, subir, mover o eliminar archivos) |
+| Hacer snapshots y restaurarlos | Descargar un snapshot, o descargar la aplicación |
+| Hacer rollback y actualizar a una versión nueva que publiques | Crear variables libres (como `NODE_OPTIONS`) o editar los comandos de inicio y de build |
+| Responder a las preguntas de la plantilla y cambiar la RAM, si lo permites | Usar un terminal, desplegar desde GitHub o subir código |
+| Usar las **bases de datos** del stack sin ninguna restricción | Guardar la aplicación como plantilla, desvincularla de la plantilla o crear enlaces a partir de ella |
+
+Las bases de datos nunca están cerradas: el cliente tiene acceso completo a sus datos, como en cualquier base de datos que posea. Mantén todo lo que deba quedar fuera del alcance del cliente en tu propio código y variables, no en la base de datos.
+
+## Paso a paso
+
+<Steps>
+  <Step title="Decide qué es tuyo y qué es del cliente">
+    Divide la configuración en dos. Lo que aporta el **cliente** (su token de Discord) se convierte en una pregunta. Lo que aportas **tú** (una clave de un servicio que pagas tú, o una licencia) se convierte en una variable oculta: se inyecta en la aplicación, la API nunca la devuelve y nunca se muestra en el panel. En este tutorial el bot lee `VENDOR_API_KEY`, que es tuya.
+  </Step>
+  <Step title="Escribe el manifiesto cerrado">
+    Parte del manifiesto del primer tutorial y cambia tres cosas: define `code.view` como `false`, añade la variable oculta y deja fuera todo lo que una plantilla cerrada no puede permitir.
+
+    ```yaml title="vertracloud.template.yaml"
+    id: support-bot
+    version: 1.0.0
+    name:
+      pt-br: Bot de suporte
+      en: Support bot
+    description:
+      pt-br: Bot de suporte entregue ao cliente, com código fechado.
+      en: A support bot delivered to a client, with closed code.
+    category: bots
+    tags: [discord, bot, support]
+
+    inputs:
+      - id: discord_token
+        type: secret
+        required: true
+        label:
+          pt-br: Token do seu bot
+          en: Your bot token
+        help:
+          pt-br: "No Discord Developer Portal, abra Bot e use Reset Token."
+          en: "In the Discord Developer Portal, open Bot and use Reset Token."
+        validation: { min_length: 50, max_length: 100 }
+
+    services:
+      app:
+        source: { type: code, path: src }
+        language: javascript
+        runtime_version: recommended
+        main: index.js
+        start: node index.js
+        ram: { min: 256, recommended: 256 }
+        web: none
+        env:
+          DISCORD_TOKEN: "{{inputs.discord_token}}"
+          VENDOR_API_KEY: "paste-your-real-key-here-before-create"
+        env_hidden: [VENDOR_API_KEY]
+        healthcheck: { timeout: 60 }
+        deploy:
+          zero_downtime: { default: "off", locked: true }
+          auto_rollback: { default: true }
+
+    permissions:
+      code: { view: false }
+      ram: { change: true, below_min: false, above_max: true }
+
+    outputs:
+      - label:
+          pt-br: Próximo passo
+          en: Next step
+        value:
+          pt-br: "Convide o bot ao seu servidor. Em caso de dúvida, fale com o suporte de quem lhe entregou o bot."
+          en: "Invite the bot to your server. If in doubt, contact whoever delivered the bot to you."
+    ```
+
+    - **`permissions.code.view: false`** es lo que cierra la plantilla. La plataforma deduce el resto: sin variables libres, sin edición de comandos, sin terminal, sin guardar como plantilla, sin desvincular, sin despliegue de código.
+    - **`env_hidden`** lista claves de `env`. El valor se escribe en el manifiesto solo para que la plataforma pueda almacenarlo; una vez creada la plantilla, el manifiesto almacenado ya no lo contiene.
+    - **Lo que debes dejar fuera.** `code.edit: true`, `env.add: true`, `commands.edit: true` y `share.full_copy: true` se rechazan en una plantilla cerrada con `invalid_permissions`, porque cada uno devolvería el código o sus secretos. No los incluyas en absoluto.
+    - **Los placeholders siguen funcionando.** Las respuestas del cliente y los secretos generados entran en la aplicación como de costumbre; el código que ocultas es lo único que el cliente no puede leer.
+
+    <Warning>El valor real de `VENDOR_API_KEY` está en este archivo, así que mantén este manifiesto fuera de cualquier repositorio público. Define el valor solo en la máquina que ejecuta `vertra template create` y no lo subas al repositorio. Cuando publicas una versión nueva, una clave oculta que dejes fuera de `env` conserva su valor anterior, y un valor que envíes de nuevo lo sustituye. `vertra template validate` no conoce la versión anterior, así que sigue exigiendo la clave en `env`.</Warning>
+
+    <Note>El código cerrado y `env_hidden` solo existen en plantillas **privadas**, y `env_hidden` solo en una **cerrada** (si no, el validador da el error `invalid_permissions`). Una plantilla del catálogo público siempre muestra su código, y el catálogo rechaza `code.view: false` y `env_hidden` con `forbidden_in_public`.</Note>
+  </Step>
+  <Step title="Valida">
+    ```bash
+    vertra template validate
+    ```
+
+    Prueba una combinación prohibida para ver la regla en acción: añade `code: { view: false, edit: true }` y el hallazgo es `permissions.code.edit` con código `invalid_permissions` ("A closed template cannot let users edit its code"). Quita de nuevo la línea `edit`.
+  </Step>
+  <Step title="Crea la plantilla">
+    ```bash
+    vertra template create
+    ```
+
+    La plantilla es privada y aparece como una entrada nueva en **Plantillas**, **Mis plantillas**, con la etiqueta **Código cerrado**. Una plantilla cerrada nunca es legible por otras cuentas: pedir el manifiesto de una que no es tuya devuelve `null`.
+  </Step>
+  <Step title="Crea el enlace de uso">
+    Un enlace de uso da al cliente el derecho de crear aplicaciones a partir de la plantilla, con su propia copia de la imagen cuando la plantilla usa una. Para un cliente, hazlo de un solo uso y de corta duración:
+
+    ```bash
+    vertra template share <template-id> --mode use --max-uses 1 --expires-days 14
+    ```
+
+    La CLI imprime el token **una sola vez**. Cópialo y envíaselo al cliente de inmediato; después solo podrás ver el final y revocarlo. En el panel, lo mismo es **Plantillas**, **Mis plantillas**, la plantilla, **Enlaces para compartir**, **Crear enlace**.
+
+    También existe un enlace de **copia completa**, que da al receptor una plantilla propia con código e imagen. No está disponible aquí: un enlace de copia completa muestra el código, así que en una plantilla cerrada el panel dice "No disponible: plantilla cerrada" y la API rechaza la combinación del manifiesto con `invalid_permissions`.
+
+    <Tip>Haz tú mismo la primera ejecución con la segunda cuenta: abre el enlace sin sesión iniciada, comprueba la vista previa, inicia sesión y crea la aplicación. Después prueba el gestor de archivos y el terminal, y confirma que están cerrados.</Tip>
+  </Step>
+  <Step title="Conoce lo que ve el cliente">
+    El enlace abre una página de vista previa antes de crear nada. El cliente ve el autor, la versión, lo que se creará (servicios, memoria mínima, plan necesario, cupos de imagen), una insignia **No verificado por Vertra** y este aviso:
+
+    > Código cerrado. Los valores que rellenas (por ejemplo, tu clave de OpenAI) van a un código que no puedes ver. Estás confiando en el autor.
+
+    Después el cliente inicia sesión, elige dónde crear la aplicación y responde a las preguntas. La vista previa tiene un botón **Denunciar** para cualquiera que considere abusivo la plantilla. En la aplicación, el cliente ve la etiqueta **Plantilla cerrada** y la explicación de que el código pertenece al autor y qué acciones siguen abiertas.
+
+    Sé honesto con tu cliente sobre la confianza que implica: el aviso anterior se le muestra por diseño.
+  </Step>
+  <Step title="Actualiza y revoca">
+    Para corregir algo, sube `version` y ejecuta `vertra template create --template support-bot --changelog "Describe the change"`. El cliente ve **Nueva versión disponible** y actualiza cuando quiere, con un snapshot de seguridad previo; una actualización nunca es automática. Cuando termina el contrato con el cliente, revoca el enlace:
+
+    ```bash
+    vertra template share list <template-id>
+    vertra template share revoke <template-id> <link-id>
+    ```
+
+    Revocar detiene las nuevas creaciones y deja de ofrecer actualizaciones. Lo que el cliente ya creó sigue funcionando: le pertenece, y tú nunca puedes detener, eliminar ni leer nada en su cuenta.
+  </Step>
+</Steps>
+
+## Solución de problemas
+
+| Síntoma | Causa y solución |
+|---|---|
+| `validate` informa `invalid_permissions` | Un permiso que reabriría el código (`code.edit`, `env.add`, `commands.edit`, `share.full_copy`) está en `true` en una plantilla cerrada. Quítalo. |
+| Un pipeline del catálogo informa `forbidden_in_public` | Intentaste publicar la plantilla en el catálogo público. El código cerrado y `env_hidden` son solo para plantillas privadas. |
+| `validate` informa `unknown_field` en `env_hidden` | Una clave listada en `env_hidden` no está en `env`. Añádela a `env` con su valor. |
+| `validate` informa `secret_in_manifest` | Una variable con nombre de secreto tiene un valor literal y no está en `env_hidden`. Ocúltala o conviértela en una pregunta. |
+| El cliente recibe `TEMPLATE_CLOSED` en una acción de archivo, terminal o código | Es el sellado funcionando. Atiende la necesidad mediante una pregunta o una versión nueva. |
+| El enlace del cliente dice revocado, caducado o agotado | Un enlace tiene su propio estado: revocado por ti, fuera de su validez o usado el número máximo de veces. Crea otro. |
+| No puedes guardar la aplicación de un cliente como plantilla | Las aplicaciones creadas a partir de un enlace de uso, y las de una plantilla cerrada, no pueden convertirse en una plantilla ni generar un enlace. Es por diseño. |
+
+## Próximos pasos
+
+- [Plantillas cerradas para quienes las usan](/es-es/templates/use/closed-templates): el lado del cliente de esta misma página.
+- [Recibir una plantilla por enlace](/es-es/templates/use/receive-a-link): la vista previa, la copia de la imagen y el flujo de denuncia.
+- [Enlaces para compartir](/es-es/templates/create/share-links): enlaces de uso frente a enlaces de copia completa, límites y revocación.
+- [Permisos](/es-es/templates/create/permissions): cada combinación y lo que bloquea cada una.
+- [Buenas prácticas](/es-es/templates/create/best-practices): dónde guardar los datos en una plantilla cerrada.
+- Siguiente tutorial: [de una plantilla privada al catálogo público](/es-es/templates/tutorials/private-to-public-pr).

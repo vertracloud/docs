@@ -1,0 +1,338 @@
+---
+title: Listar plantillas
+sidebarTitle: Listar plantillas
+api: GET https://api.vertracloud.app/v1/templates
+authMethod: bearer
+description: Lista las plantillas públicas del catálogo, más tus plantillas privadas si estás autenticado, con filtros, orden, paginación y si cada una encaja en tu cuenta.
+---
+
+{/* @see APITemplate, RESTGetAPITemplatesQuery, RESTGetAPITemplatesResponse — @vertracloud/api-types */}
+Devuelve una página de plantillas, filtradas y ordenadas como lo pidas. El catálogo público no requiere **autenticación**. Con una sesión o una clave de API (ámbito `templates:read`), la respuesta también incluye tus plantillas privadas y un bloque `account` en cada plantilla que indica si encaja en tu cuenta en este momento. Las llamadas con cabecera `Authorization` siempre se validan: una clave o un token no válidos devuelven `401`, nunca una respuesta anónima. Las lecturas están limitadas a 60 peticiones por minuto por cliente.
+
+<ParamField query="search" type="string">
+  Texto a buscar en el nombre, en la descripción (en los tres idiomas), en el slug y en las etiquetas. Ignora mayúsculas y acentos. Hasta 100 caracteres.
+</ParamField>
+
+<ParamField query="category" type="string">
+  Solo plantillas de una categoría: `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases` u `other`.
+</ParamField>
+
+<ParamField query="origin" type="string">
+  Solo plantillas de un origen: `vertra` (hechas por la plataforma), `community` (aportadas y revisadas) o `private` (tuyas). `private` lista tus plantillas privadas personales, o las de `workspace_id`, y solo devuelve algo cuando estás autenticado.
+</ParamField>
+
+<ParamField query="tag" type="string">
+  Solo plantillas que tengan esta etiqueta. Hasta 50 caracteres.
+</ParamField>
+
+<ParamField query="fits" type="boolean">
+  `true` deja solo las plantillas que encajan en tu cuenta en este momento (plan, memoria libre, límites y slots de imagen). **Requiere autenticación**: sin ella, la llamada falla con `AUTH_TOKEN_MISSING`.
+</ParamField>
+
+<ParamField query="sort" type="string" default="recommended">
+  El orden: `recommended` (primero las destacadas y después las más usadas), `popular` (las más usadas), `newest` (las más recientes) o `name` (por nombre).
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  La página, empezando en 1.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="20">
+  Plantillas por página, de 1 a 50.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Incluye las plantillas privadas de ese workspace. El propietario del workspace y los miembros que pueden leer sus aplicaciones pueden listarlas; cualquier otra persona recibe el error de workspace.
+</ParamField>
+
+La galería pública muestra las plantillas públicas o en beta cuya última versión está lista. Las plantillas ocultas y obsoletas no se listan, pero [Obtener plantilla](/es-es/api-reference/endpoint/templates/get) sigue sirviéndolas por ID o slug.
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Una página de plantillas.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="data" type="object[]">
+    Las plantillas de la página.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="id" type="string">
+      El ID de la plantilla.
+    </ResponseField>
+
+    <ResponseField name="slug" type="string">
+      Un nombre corto, único entre las plantillas públicas. Se acepta en cualquier lugar donde va un ID de plantilla.
+    </ResponseField>
+
+    <ResponseField name="origin" type="string">
+      `vertra`, `community` o `private`.
+    </ResponseField>
+
+    <ResponseField name="visibility" type="string">
+      `public`, `beta`, `hidden` o `deprecated`. Una plantilla obsoleta no puede usarse para aplicaciones nuevas; las que ya se ejecutan siguen funcionando.
+    </ResponseField>
+
+    <ResponseField name="name" type="object">
+      El nombre en los tres idiomas: `pt-br` (siempre presente), `en` y `es` (si falta uno, se usa `pt-br`).
+    </ResponseField>
+
+    <ResponseField name="description" type="object">
+      La descripción, con la misma forma que `name`.
+    </ResponseField>
+
+    <ResponseField name="category" type="string">
+      Una de las categorías anteriores.
+    </ResponseField>
+
+    <ResponseField name="tags" type="string[]">
+      Las etiquetas de la plantilla.
+    </ResponseField>
+
+    <ResponseField name="icon_url" type="string | null">
+      URL del icono, o `null` cuando no tiene (las plantillas privadas no tienen).
+    </ResponseField>
+
+    <ResponseField name="author_display" type="string | null">
+      El nombre que se muestra como autor, o `null` para las plantillas de la plataforma.
+    </ResponseField>
+
+    <ResponseField name="links" type="object">
+      Enlaces del software que empaqueta la plantilla: `website`, `docs`, `source` y `license`, cada uno opcional.
+    </ResponseField>
+
+    <ResponseField name="landing" type="string | null">
+      El slug de la página pública dedicada, cuando existe.
+    </ResponseField>
+
+    <ResponseField name="featured" type="boolean">
+      `true` cuando la plantilla está destacada en la galería.
+    </ResponseField>
+
+    <ResponseField name="current_version" type="object">
+      La última versión: `id`, `version` (versión semántica), `security` (`true` para una versión de seguridad) y `created_at`.
+    </ResponseField>
+
+    <ResponseField name="services" type="object[]">
+      Los servicios que crea la plantilla. Cada uno tiene `id`, `kind` (`app`, `database` o `blob`), `source_type` (`code` o `image` para una aplicación; si no, `null`), `database` (`postgres`, `mysql`, `mongodb` o `redis` para una base de datos; si no, `null`), `blob_visibility` (`private` o `public` para una carpeta de Blob; si no, `null`), `ram` (`min`, `recommended` y `max` opcional, en MB; una carpeta de Blob no usa ninguno), `web` (`required`, `optional` o `none` para una aplicación; si no, `null`) y `conditional` (`true` cuando el servicio solo se crea para algunas respuestas).
+    </ResponseField>
+
+    <ResponseField name="creates_stack" type="boolean">
+      `true` cuando usar la plantilla crea un stack, lo que ocurre con dos o más servicios.
+    </ResponseField>
+
+    <ResponseField name="ram_min_total" type="integer">
+      La suma de la memoria mínima de cada servicio, en MB.
+    </ResponseField>
+
+    <ResponseField name="byok" type="boolean">
+      `true` cuando traes tu propia clave del modelo de IA que usa el software.
+    </ResponseField>
+
+    <ResponseField name="required_plan" type="string">
+      El plan más bajo que puede usar la plantilla.
+    </ResponseField>
+
+    <ResponseField name="code_view" type="boolean">
+      `false` para una plantilla cerrada: quien la usa no puede ver ni descargar su código. Las plantillas públicas siempre son abiertas.
+    </ResponseField>
+
+    <ResponseField name="uses_count" type="integer | null">
+      Cuántas veces se usó una plantilla del catálogo: el total de despliegues terminados con éxito, en todas las versiones. Los despliegues fallidos o revertidos no cuentan, y eliminar la aplicación resultante no lo reduce. Es solo un agregado, sin información sobre quién la usó. `null` para plantillas privadas.
+    </ResponseField>
+
+    <ResponseField name="owner" type="object | null">
+      El propietario de una plantilla privada, con `user_id` y `workspace_id` (`null` cuando pertenece al usuario); `null` para plantillas del catálogo.
+    </ResponseField>
+
+    <ResponseField name="github" type="object | null">
+      El repositorio de GitHub vinculado de una plantilla privada (`repository` como `owner/name` y `branch`), o `null`.
+    </ResponseField>
+
+    <ResponseField name="created_at" type="string" format="date-time">
+      Cuándo se creó la plantilla.
+    </ResponseField>
+
+    <ResponseField name="updated_at" type="string" format="date-time">
+      Cuándo se actualizó la plantilla por última vez.
+    </ResponseField>
+
+    <ResponseField name="account" type="object">
+      Presente solo cuando la petición está autenticada: lo que usar la plantilla haría con tu cuenta.
+
+      <Expandable title="Mostrar objeto">
+
+      <ResponseField name="fits" type="boolean">
+        `true` cuando tu plan y tus recursos libres cubren la plantilla.
+      </ResponseField>
+
+      <ResponseField name="reasons" type="object[]">
+        Por qué no encaja; vacío cuando encaja. Cada elemento tiene `reason` y, cuando es un número o un plan, `required` y `available`. Motivos: `no_plan`, `ram`, `web_publish`, `image_plan`, `image_slots`, `private_network`, `blob_plan`, `min_plan`, `max_apps`, `max_databases` y `deploys_per_hour`.
+      </ResponseField>
+
+      <ResponseField name="required_ram" type="integer">
+        La memoria que necesita la plantilla: la suma de la memoria mínima de los servicios que se crearían, en MB.
+      </ResponseField>
+
+      <ResponseField name="free_ram" type="integer">
+        La memoria libre de tu cuenta, en MB.
+      </ResponseField>
+
+      <ResponseField name="needs_image_slot" type="boolean">
+        `true` cuando usar la plantilla ocupa un slot de imagen que aún no tienes. Nunca es `true` para una imagen de tu propia plantilla privada.
+      </ResponseField>
+
+      <ResponseField name="image_slots_free" type="integer">
+        Los slots de imagen libres de tu cuenta.
+      </ResponseField>
+
+      <ResponseField name="in_use" type="boolean">
+        `true` cuando tu cuenta ya ejecuta aplicaciones creadas a partir de esta plantilla.
+      </ResponseField>
+
+      <ResponseField name="in_use_count" type="integer">
+        Cuántas aplicaciones y stacks de tu cuenta vienen de esta plantilla.
+      </ResponseField>
+
+      </Expandable>
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="total_count" type="integer">
+    Cuántas plantillas coinciden con los filtros, en todas las páginas.
+  </ResponseField>
+
+  <ResponseField name="page" type="integer">
+    La página actual.
+  </ResponseField>
+
+  <ResponseField name="limit" type="integer">
+    El tamaño de página usado.
+  </ResponseField>
+
+  <ResponseField name="total_pages" type="integer">
+    El número de páginas.
+  </ResponseField>
+
+  <ResponseField name="has_next_page" type="boolean">
+    `true` cuando hay una página siguiente.
+  </ResponseField>
+
+  <ResponseField name="has_previous_page" type="boolean">
+    `true` cuando hay una página anterior.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+Una respuesta anónima puede guardarse en caché durante 30 segundos. Una respuesta autenticada nunca se guarda en caché.
+
+<RequestExample>
+
+```bash cURL
+curl "https://api.vertracloud.app/v1/templates?category=bots&fits=true&sort=popular&limit=10" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "data": [
+      {
+        "id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+        "slug": "discord-bot-js",
+        "origin": "vertra",
+        "visibility": "public",
+        "name": { "pt-br": "Bot de Discord (JavaScript)", "en": "Discord bot (JavaScript)", "es": "Bot de Discord (JavaScript)" },
+        "description": {
+          "pt-br": "Bot de Discord com discord.js e o comando /ping. Ponto de partida para o seu bot.",
+          "en": "Discord bot with discord.js and a /ping command. A starting point for your bot."
+        },
+        "category": "bots",
+        "tags": ["discord", "bot", "javascript", "discordjs"],
+        "icon_url": "https://api.vertracloud.app/v1/template-icons/7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41?v=a1b2c3d4",
+        "author_display": null,
+        "links": { "website": "https://discord.js.org", "docs": "https://discordjs.guide" },
+        "landing": null,
+        "featured": true,
+        "current_version": {
+          "id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+          "version": "1.0.0",
+          "security": false,
+          "created_at": "2026-10-26T13:05:00Z"
+        },
+        "services": [
+          {
+            "id": "app",
+            "kind": "app",
+            "source_type": "code",
+            "database": null,
+            "blob_visibility": null,
+            "ram": { "min": 256, "recommended": 256 },
+            "web": "none",
+            "conditional": false
+          }
+        ],
+        "creates_stack": false,
+        "ram_min_total": 256,
+        "byok": false,
+        "required_plan": "economy",
+        "code_view": true,
+        "uses_count": 87,
+        "owner": null,
+        "github": null,
+        "created_at": "2026-10-26T09:00:00Z",
+        "updated_at": "2026-10-26T13:05:00Z",
+        "account": {
+          "fits": true,
+          "reasons": [],
+          "required_ram": 256,
+          "free_ram": 2048,
+          "needs_image_slot": false,
+          "image_slots_free": 0,
+          "in_use": false,
+          "in_use_count": 0
+        }
+      }
+    ],
+    "total_count": 1,
+    "page": 1,
+    "limit": 10,
+    "total_pages": 1,
+    "has_next_page": false,
+    "has_previous_page": false
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `VALIDATION_ERROR`: Un parámetro de consulta no es válido, por ejemplo una `category` desconocida o un `limit` superior a 50 (`400`).
+  - `AUTH_TOKEN_MISSING`: `fits=true` sin autenticación (`401`).
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el ámbito `templates:read` (`403`).
+  - `WORKSPACE_NOT_FOUND`: El workspace de `workspace_id` no existe o no formas parte de él (`404`).
+  - `RATE_LIMIT_EXCEEDED`: Demasiadas peticiones (`429`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+</ResponseExample>

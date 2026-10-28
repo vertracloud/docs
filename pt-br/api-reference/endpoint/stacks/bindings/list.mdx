@@ -1,0 +1,44 @@
+---
+title: Listar conexões da stack
+sidebarTitle: Listar conexões
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/bindings
+authMethod: bearer
+description: Lista as conexões de uma stack, as variáveis que a plataforma injeta em cada aplicação.
+---
+
+{/* @see RESTGetAPIStackBindingsResponse, APIStackBinding — @vertracloud/api-types */}
+Retorna as conexões entre os membros de uma stack. Uma conexão faz a plataforma injetar variáveis (e, no caso de um banco de dados, os certificados de cliente) em um app e mantê-las atualizadas. Precisa do escopo `stacks:read` quando chamado com uma chave de API.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence. Obrigatório para um membro do workspace que age sobre uma stack que não é dele.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object[]">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">O ID da conexão.</ResponseField>
+  <ResponseField name="stack_id" type="string">O ID da stack.</ResponseField>
+  <ResponseField name="app_id" type="string">O app que recebe as variáveis.</ResponseField>
+  <ResponseField name="database_id" type="string | null">O banco de dados ao qual o app se conecta.</ResponseField>
+  <ResponseField name="blob_id" type="string | null">O membro Blob ao qual o app se conecta.</ResponseField>
+  <ResponseField name="target_app_id" type="string | null">Outro app que o app chama; o próprio app quando a variável carrega o endereço dele.</ResponseField>
+  <ResponseField name="env_map" type="object">Nome da variável para o que ela recebe. Veja [Criar conexão](/pt-br/api-reference/endpoint/stacks/bindings/create) para os valores.</ResponseField>
+  <ResponseField name="certs_path" type="string | null">Pasta dentro do app onde são gravados os certificados de cliente do banco, ou `null` sem banco de dados.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time">Quando a conexão foi criada.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+Exatamente um entre `database_id`, `blob_id` e `target_app_id` é preenchido.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |

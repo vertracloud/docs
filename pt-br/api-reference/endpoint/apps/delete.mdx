@@ -1,0 +1,75 @@
+---
+title: Excluir aplicação
+sidebarTitle: Excluir aplicação
+api: DELETE https://api.vertracloud.app/v1/apps/{id}
+authMethod: bearer
+description: Exclui uma aplicação pelo seu ID. No Pro e planos superiores, um snapshot de segurança é feito antes.
+---
+No **Pro e planos superiores** (o plano do proprietário), excluir uma aplicação primeiro faz um **snapshot
+de segurança** automático, mantido por 30 dias em Snapshots. Se esse snapshot falhar, nada é excluído e a
+requisição responde `SNAPSHOT_FAILED`; entre em contato com o suporte. No Economy a aplicação é excluída na
+hora, sem nenhuma cópia.
+
+
+{/* @see success/error — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID da aplicação a excluir.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="null">
+  Sempre `null` — a aplicação foi excluída.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões, ou não tem o escopo que a rota exige (`403`).
+  - `ACCESS_DENIED`: o recurso pertence a outra conta, ou você não tem a permissão do workspace para ele (`403`).
+  - `APP_NOT_FOUND`: a aplicação especificada não existe.
+  - `APP_SHIELD_COOLDOWN`: o Vertra Shield pausou a aplicação; ela não pode ser excluída até o fim da pausa (`403`). `details.until` informa quando.
+  - `APP_ID_REQUIRED`: o ID da aplicação não foi informado.
+  - `INTERNAL_SERVER_ERROR`: a aplicação não pôde ser excluída (`500`).
+  - `FORCED_SNAPSHOT_RATE_LIMIT`: foram feitos muitos snapshots de segurança recentemente nesta aplicação ou na sua conta; a aplicação não foi excluída (`429`).
+  - `SNAPSHOT_FAILED`: não foi possível fazer o snapshot de segurança; a aplicação não foi excluída. Entre em contato com o suporte (`500`).
+  - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida na mesma aplicação já está em execução (`409`). Nada foi excluído — aguarde alguns segundos e tente novamente. Veja [Códigos de erro comuns](/pt-br/api-reference/introduction#quais-códigos-de-erro-a-api-pode-retornar).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

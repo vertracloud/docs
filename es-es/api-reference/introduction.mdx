@@ -1,0 +1,367 @@
+---
+title: 'Referencia de la API pública de Vertra Cloud'
+sidebarTitle: 'API pública'
+description: 'La API REST de Vertra Cloud gestiona aplicaciones, bases de datos y workspaces por código. URL base, autenticación Bearer, formato de respuesta y errores.'
+---
+
+## ¿Qué puede hacer la API de Vertra Cloud?
+
+La API REST pública de Vertra Cloud gestiona aplicaciones, bases de datos, workspaces y cualquier otro
+recurso de la plataforma de forma programática: cada operación disponible en el panel está disponible
+por HTTP. Vertra Cloud es una plataforma brasileña de alojamiento de aplicaciones (PaaS); esta API sirve
+para automatizar despliegues, reinicios, variables de entorno, snapshots y monitorización desde tus
+propias herramientas.
+
+**URL base:** `https://api.vertracloud.app`
+
+## ¿Cómo te autenticas?
+
+Cada petición lleva una clave de API como token Bearer en la cabecera `Authorization`; no existe ningún
+otro método de autenticación para la API pública.
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     https://api.vertracloud.app/v1/users/me
+```
+
+### Formato de la clave de API
+
+Una clave creada hoy tiene el formato `vc_live_` seguido de 48 caracteres hexadecimales. El secreto completo
+se muestra **una sola vez**, al crearla o rotarla; solo se guarda un hash, así que no puede recuperarse
+más tarde. Las claves creadas antes de este formato (64 caracteres hexadecimales, sin prefijo) siguen
+funcionando con todos los scopes.
+
+### Crear y gestionar claves
+
+Gestiona las claves desde [https://vertracloud.app/dashboard/settings](https://vertracloud.app/dashboard/settings).
+La gestión de claves en sí (listar, crear, actualizar, rotar y eliminar) es **solo con sesión del panel**:
+llamar a cualquiera de esas rutas con una clave de API responde `403 API_KEY_SCOPE_DENIED`, para que una
+clave filtrada no pueda crear ni editar claves para sí misma. Crea y gestiona las claves desde el panel.
+
+Puedes tener hasta **10 claves** por cuenta. Cada clave tiene:
+
+- **Un nombre**: de 1 a 40 caracteres.
+- **Scopes**: qué rutas puede llamar la clave (ver abajo). Se requiere al menos uno.
+- **IPs permitidas** *(opcional)*: hasta 20 IPs o CIDR. Vacío significa que cualquier IP puede usar la clave.
+
+Hay también una ruta heredada, `POST /v1/users/me/generate-api-key`, que se mantiene por compatibilidad
+(sobre todo para la [CLI](/es-es/cli)): crea o **rota** la única clave de la cuenta llamada "CLI" (scope
+completo), sin tocar tus otras claves. Si la llamas de nuevo, esa misma clave "CLI" recibe un nuevo secreto;
+nunca crea una segunda.
+
+### Scopes
+
+Cada ruta que la API expone a una clave pertenece a exactamente un scope, agrupado por recurso. La clave
+debe tener el scope que requiere la ruta; si no, la petición responde `403 API_KEY_SCOPE_DENIED` con
+`details.required` indicando el scope que falta. Una ruta que no está en el catálogo en absoluto —la gestión
+de claves en sí o la pestaña Data de la base de datos (`/v1/databases/{id}/data/*`)— responde siempre `403`,
+sin importar los scopes: **la pestaña Data solo puede manejarse con sesión del panel**.
+
+Tres presets agilizan la creación: **`read`** marca todos los scopes `*:read`, **`write`** añade todos los
+`*:write` y `templates:deploy` sobre `read`, y **`full`** marca el catálogo completo, incluidos los scopes sin
+sufijo read/write (delete, envs, files, credentials).
+
+31 scopes en 10 grupos:
+
+| Scope | Grupo | Qué permite |
+|---|---|---|
+| `billing:read` | Facturación | Listar pedidos, consultar el estado de un pedido y leer los datos de facturación |
+| `billing:write` | Facturación | Crear un pedido de plan, generar su pago por Pix y actualizar los datos de facturación |
+| `redeem:write` | Facturación | Canjear un código promocional |
+| `apps:read` | Aplicaciones | Leer el estado, las métricas, los logs, los despliegues, el historial de releases, las descargas, la configuración de red, los dominios personalizados y sus registros DNS de una aplicación |
+| `apps:write` | Aplicaciones | Crear; iniciar, detener y reiniciar (incluida la reinstalación de dependencias y el build forzado); actualizar la configuración; webhooks de despliegue; red; añadir, cambiar y eliminar dominios personalizados; volver a una release anterior con rollback |
+| `apps:delete` | Aplicaciones | Eliminar una aplicación |
+| `apps:envs` | Aplicaciones | Leer, crear y eliminar variables de entorno; previsualizar los cambios de variables de un rollback y restaurar variables con un rollback |
+| `apps:files` | Aplicaciones | Leer, escribir y subir archivos |
+| `databases:read` | Bases de datos | Leer el estado y las métricas de una base de datos |
+| `databases:write` | Bases de datos | Crear, actualizar, iniciar y detener, y restablecer |
+| `databases:delete` | Bases de datos | Eliminar una base de datos |
+| `databases:credentials` | Bases de datos | Leer y restablecer el certificado TLS, y restablecer las credenciales |
+| `images:read` | Imágenes de Docker | Listar y leer imágenes, sus versiones, los logs de build y el contexto actual, y comprobar un `Dockerfile` |
+| `images:write` | Imágenes de Docker | Crear, renombrar, describir y reconstruir imágenes, y vincular o desvincular GitHub |
+| `images:delete` | Imágenes de Docker | Eliminar una imagen |
+| `snapshots:read` | Snapshots | Listar snapshots y descargarlos |
+| `snapshots:write` | Snapshots | Crear y restaurar snapshots |
+| `blob:read` | Blob Storage | Listar y leer archivos, obtener enlaces de descarga y URLs, leer enlaces para compartir, reglas de carpeta, dominios, uso y credenciales S3 |
+| `blob:write` | Blob Storage | Subir, cambiar, copiar, mover y eliminar archivos; crear enlaces para compartir, tokens de subida, reglas de carpeta y dominios personalizados |
+| `account:read` | Cuenta | Leer el perfil, las sesiones y la organización personal |
+| `account:write` | Cuenta | Actualizar tu propio perfil y tus carpetas y favoritos personales |
+| `workspaces:read` | Workspaces | Listar y leer workspaces, incluida tu organización individual |
+| `workspaces:write` | Workspaces | Crear y actualizar workspaces, gestionar miembros, roles y recursos, tus carpetas y favoritos individuales, y solicitar una acción (action request) |
+| `workspaces:delete` | Workspaces | Eliminar un workspace (solo el propietario) |
+| `workspaces:invites` | Workspaces | Listar y revocar las invitaciones de un workspace; previsualizar, aceptar y rechazar una invitación por token |
+| `templates:read` | Plantillas | Explorar el catálogo y tus propias plantillas y sus versiones, validar un manifiesto, leer enlaces para compartir y previsualizar lo que haría una actualización |
+| `templates:write` | Plantillas | Crear y gestionar tus plantillas privadas, sus versiones y enlaces para compartir; guardar una aplicación o un stack como plantilla; copiar una plantilla compartida y denunciar una plantilla |
+| `templates:deploy` | Plantillas | Usar una plantilla (también mediante un enlace para compartir), seguir el job de despliegue y sus eventos, y actualizar una aplicación o un stack a una versión más nueva |
+| `stacks:read` | Stacks | Listar y leer stacks, sus conexiones y snapshots, y obtener el código de conexión |
+| `stacks:write` | Stacks | Crear y modificar stacks, miembros y conexiones; añadir una base de datos o una carpeta de Blob; tomar y restaurar snapshots de stack; desvincular de una plantilla |
+| `stacks:delete` | Stacks | Eliminar un stack |
+<Note>
+  Eliminar una imagen requiere `images:delete`, y `images:write` no lo cubre. Cuando la imagen tiene
+  aplicaciones, la clave también necesita `apps:delete`, porque las aplicaciones se eliminan junto con ella;
+  sin él, la llamada responde `403 API_KEY_SCOPE_DENIED` con `details.required` en `apps:delete`. Subir
+  archivos a una aplicación que ejecuta una imagen es un commit que reconstruye la imagen, así que necesita
+  `images:write` además de `apps:files`. Crear una aplicación desde una imagen usa `apps:write`.
+</Note>
+
+<Note>
+  `templates:deploy` crea aplicaciones, bases de datos y stacks, así que necesita el preset `write` o una
+  selección personalizada; `read` nunca lo incluye. `stacks:delete` no tiene sufijo read/write y solo está en
+  `full` o en una selección personalizada. Con `mode: "delete_all"`, eliminar un stack también necesita
+  `apps:delete` y `databases:delete`, y `blob:write` cuando se eliminan los archivos de Blob. Añadir una
+  carpeta de Blob a un stack necesita `blob:write` además de `stacks:write`. Solo el propietario del workspace
+  despliega plantillas; un miembro recibe `WORKSPACE_OWNER_ONLY`. Ver [Stacks](/es-es/templates/use/stacks).
+</Note>
+
+<Note>
+  Para controlar la plataforma desde tu propio agente, usa el [servidor MCP](/es-es/mcp) con los scopes
+  `apps:read`, `apps:write` y `apps:files` de arriba.
+</Note>
+
+<Note>
+  Tampoco existe un scope `databases:data`. La **pestaña Data** de la base de datos (`/v1/databases/{id}/data/*`
+  —esquemas, tablas, filas, consola SQL, colecciones, documentos, claves— es solo con sesión del panel: una
+  clave de API recibe `403` en todas esas rutas, sin importar el scope.
+</Note>
+
+<Note>
+  `account:write` no cubre todas las acciones de la cuenta. Cubre las actualizaciones del perfil y las carpetas
+  y favoritos personales. Revocar sesiones (`DELETE /v1/users/me/sessions`) y bajar de plan
+  (`POST /v1/users/me/downgrade`) son solo con sesión del panel: una clave de API recibe
+  `403 API_KEY_SCOPE_DENIED` en ambas, sin importar el scope.
+</Note>
+
+<Note>
+  `workspaces:delete` y `workspaces:invites` no tienen sufijo read/write, así que los presets `read` y `write`
+  nunca los incluyen; solo los incluye `full` o una selección personalizada. Lo mismo ocurre con los demás
+  scopes de eliminación, incluido `images:delete`. `workspaces:read` también lista las solicitudes de acción.
+  Algunas acciones del workspace siguen siendo solo con sesión del panel y ningún scope las cubre: crear una
+  invitación (una clave filtrada podría dejar un acceso que sobreviva a su revocación), transferir la propiedad
+  (podría usarse para apoderarse del workspace) y aprobar o rechazar una solicitud de acción (una decisión
+  humana, incluso cuando la pidió un agente). Con una clave de API, esas rutas responden
+  `403 API_KEY_SCOPE_DENIED`.
+</Note>
+
+<Note>
+  El registro de actividad es solo con sesión del panel. Listar actividades y exportar el registro de actividad
+  de un workspace reciben `403 API_KEY_SCOPE_DENIED` con una clave de API, sin importar el scope; el registro
+  sigue disponible en el panel.
+</Note>
+
+<Note>
+  Una clave de API puede gestionar pedidos y datos de facturación: `billing:read` cubre listar pedidos, consultar
+  el estado de un pedido y leer los datos de facturación; `billing:write` cubre crear un pedido de plan, generar
+  su pago por Pix y actualizar los datos de facturación; y `redeem:write` cubre canjear un código promocional.
+  Bajar de plan, pagar con tarjeta, las tarjetas guardadas y la renovación automática siguen siendo solo del panel.
+</Note>
+
+### IPs permitidas
+
+Una lista `allowed_ips` vacía significa que la clave funciona desde cualquier IP. En cuanto añades al menos una
+IP o CIDR, toda petición desde fuera de esa lista responde `403 API_KEY_IP_DENIED`, aunque la clave y el scope
+sean correctos. La IP que se comprueba es la que el borde de Vertra ve como origen de la conexión; las cabeceras
+enviadas por el cliente, como `X-Forwarded-For` o `CF-Connecting-IP`, se ignoran, así que no pueden falsificarse
+para saltarse la lista de permitidas.
+
+### Errores específicos de las claves de API
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 401 | `API_KEY_INVALID` | La clave no existe, o su secreto no coincide; ambos casos responden igual, así que quien llama no puede usar la respuesta para distinguir un prefijo válido de uno inválido. |
+| 403 | `API_KEY_SCOPE_DENIED` | A la clave le falta el scope que requiere la ruta (`details.required`), o la ruta es solo con sesión del panel y ningún scope la cubre (sin `details`). |
+| 403 | `API_KEY_IP_DENIED` | La IP de la petición no está en `allowed_ips` de la clave. |
+
+### Conectarse mediante OAuth
+
+Además de pegar una clave desde el panel, un cliente puede obtener una mediante un flujo OAuth estándar: así es
+como los clientes de agentes de terceros se conectan a tu cuenta de Vertra sin que tengas que manejar nunca una
+clave en bruto.
+
+- **Descubrimiento:** `GET /.well-known/oauth-authorization-server` devuelve el documento de metadatos estándar
+  (`authorization_endpoint`, `token_endpoint`, `registration_endpoint`, y los tipos de grant y los métodos PKCE
+  admitidos).
+- **Registro dinámico de clientes:** un `POST` a `registration_endpoint` registra el cliente que se conecta y
+  devuelve un `client_id`; no hace falta registrar ninguna app a mano en el panel.
+- **Autorización:** el cliente envía al usuario a `authorization_endpoint` con PKCE; `S256` es el único
+  `code_challenge_method` admitido. Apruebas en una pantalla de consentimiento de Vertra que enumera los scopes
+  solicitados y muestra el nombre del cliente que se conecta, y después eliges permitirlo.
+- **Intercambio de token:** un `POST` a `token_endpoint` acepta solo `grant_type=authorization_code` con el
+  `code_verifier` de PKCE correspondiente. No hay grant de refresh token, porque el token que devuelve no caduca.
+- **Lo que recibes:** el "access token" es una clave de API normal de Vertra —mismo formato, mismos scopes, mismos
+  rate limits que una creada en el panel— creada con el nombre del cliente que se conecta. Aparece en
+  **Ajustes → Claves de API**, con el prefijo `oauth:`, y la revocas igual que cualquier otra clave.
+
+## ¿Cómo es una respuesta?
+
+Todas las respuestas usan el mismo formato: un éxito lleva el contenido bajo `response`, un error lleva un `code`
+estable, un `message` opcional y, en algunos códigos, un objeto `details` con los números que necesitas para
+actuar (el scope que falta, el tiempo de espera, el límite). El estado HTTP indica cuál de los dos es.
+
+**Éxito:**
+```json
+{
+  "response": { ... }
+}
+```
+
+Una ruta sin nada que devolver (un borrado, un guardado de archivo, una purga de caché) responde `{ "response": null }`.
+
+**Error:**
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Optional descriptive message",
+  "details": { "retry_after": 30 }
+}
+```
+
+## ¿Qué códigos de error puede devolver la API?
+
+Los códigos de error son cadenas estables, seguras para tomar decisiones en el código; el `message` no lo es. Estos
+son los que más vas a encontrar; las páginas de cada endpoint documentan los códigos específicos de cada ruta.
+
+| Código | Descripción |
+|--------|-----------|
+| `AUTH_TOKEN_MISSING` | No hay cabecera `Authorization` (HTTP `401`) |
+| `API_KEY_INVALID` | La clave no existe o su secreto no coincide (HTTP `401`) |
+| `SESSION_REVOKED` | La sesión del panel detrás del token caducó o fue revocada (HTTP `401`) |
+| `ACCESS_DENIED` | El recurso existe, pero tu cuenta no puede actuar sobre él (HTTP `403`) |
+| `APP_NOT_FOUND` | Aplicación no encontrada |
+| `DATABASE_NOT_FOUND` | Base de datos no encontrada |
+| `APP_BANNED` | La aplicación está bloqueada y no puede gestionarse |
+| `DATABASE_PERSISTENCE_FAILED` | La base de datos se creó, pero no se pudo volver a leer |
+| `PLAN_RESTRICTED_FEATURE` | Función no disponible en tu plan |
+| `VALIDATION_ERROR` | Un parámetro, query o campo del body no superó la validación (HTTP `400`); `details.path` indica el campo (p. ej. `"memory"`, `"user.name"`) |
+| `OPERATION_IN_PROGRESS` | Ya hay otra operación de ciclo de vida en curso sobre el mismo recurso (HTTP `409`) |
+| `STORAGE_ABOVE_NEW_LIMIT` | Se rechazó un cambio de configuración porque el volumen de la aplicación ya ocupa más que su techo de disco (HTTP `409`) |
+| `BUILD_FAILED` | El `build_command` de la aplicación terminó con error; el despliegue falla y la aplicación no se levanta (HTTP `422`). Al crearla no se devuelve: la aplicación se crea detenida |
+| `BUILD_TIMEOUT` | El `build_command` superó su límite de 10 minutos (HTTP `422`) |
+| `INSTALL_TIMEOUT` | La instalación de dependencias superó su límite de 15 minutos (HTTP `422`) |
+| `DEPLOY_RATE_LIMITED` | Se alcanzó el presupuesto horario de despliegues del plan de la cuenta (HTTP `429`); ver abajo |
+| `DAILY_QUOTA_EXCEEDED` | Se alcanzó la cuota diaria de peticiones a la API del plan de la cuenta (HTTP `429`); ver abajo |
+| `SNAPSHOT_RATE_LIMITED` | La creación manual de snapshots alcanzó su presupuesto por recurso o por cuenta (HTTP `429`); ver [Crear snapshot](/es-es/api-reference/endpoint/apps/snapshots/create) |
+| `INSTALL_SHIELD_BLOCKED` | Vertra Shield detuvo el despliegue porque el tráfico superó la asignación del plan (HTTP `422`) |
+| `DATABASE_NOT_RUNNING` | Se pidió un snapshot manual para una base de datos detenida (HTTP `409`); inicia la y vuelve a intentarlo: Redis no tiene ese requisito |
+| `SNAPSHOT_IMPORT_FAILED` | La restauración de un snapshot falló al cargar los datos; la base de datos queda en marcha y vacía, y el snapshot sigue disponible para reintentar (HTTP `500`) |
+| `SNAPSHOT_ENGINE_MISMATCH` | El snapshot pertenece a un motor de base de datos distinto al del destino (HTTP `400`) |
+| `SNAPSHOT_VERSION_NEWER` | El snapshot se tomó en una versión mayor más nueva que la de la base de datos destino (HTTP `400`) |
+
+### `OPERATION_IN_PROGRESS`
+
+Las operaciones de ciclo de vida sobre la misma aplicación o base de datos se serializan: solo se ejecuta una a la
+vez. Si pides una segunda mientras la primera sigue en marcha, la API responde `409 OPERATION_IN_PROGRESS` y deja
+el recurso sin cambios.
+
+Esto es contención, no un fallo. Espera unos segundos y vuelve a intentarlo. Puede devolverse en start, restart,
+stop, delete, instalaciones de dependencias, despliegues y operaciones de snapshot.
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+### `STORAGE_ABOVE_NEW_LIMIT`
+
+Cada aplicación tiene un techo de disco fijo (ver [Límites](/es-es/api-reference/limitations)). Si el volumen ya
+ocupa más que ese techo, un cambio a través de [Actualizar configuración](/es-es/api-reference/endpoint/apps/updateconfig)
+se rechaza con `409` en lugar de aplicarse.
+
+La respuesta incluye los números necesarios para actuar, en MB:
+
+```json Error Response (409)
+{
+  "code": "STORAGE_ABOVE_NEW_LIMIT",
+  "details": {
+    "used_mb": 2048,
+    "limit_mb": 1024,
+    "free_mb": 1024
+  }
+}
+```
+
+`free_mb` es cuánto tienes que borrar antes de que el cambio pueda aplicarse.
+
+## ¿Cómo se aplican los límites de peticiones a la API?
+
+La API tiene tres niveles de límites, y una sola llamada puede ser rechazada por cualquiera de ellos.
+
+**1. Por ruta, fijo, igual en todos los planes.** Las rutas de ciclo de vida de la aplicación —[`start`](/es-es/api-reference/endpoint/apps/start), [`restart`](/es-es/api-reference/endpoint/apps/restart), [`stop`](/es-es/api-reference/endpoint/apps/stop) y publicar— comparten un único presupuesto de **10 peticiones por minuto por aplicación**, así que reiniciar una app diez veces seguidas no deja margen para detenerla en ese mismo minuto. El reset de base de datos está limitado a **1 por hora**; los cambios de subdominio, a **5 por minuto con un enfriamiento de 5 minutos**; la consola SQL, a **30 por minuto**; cada otra ruta de la pestaña Data, a **120 por minuto**; las exportaciones de workspace, a **5 por minuto**. Cualquier otra ruta, incluidas las de bases de datos, tiene su propio presupuesto. Al superar el límite: `429 RATE_LIMIT_EXCEEDED`.
+
+**2. Por minuto, por cuenta, según el plan.** Este nivel solo cuenta las peticiones autenticadas con una **clave de API**; las sesiones del panel no cuentan. Cada respuesta a una clave de API incluye las cabeceras `x-ratelimit-limit`, `x-ratelimit-remaining` y `x-ratelimit-reset` (en segundos). Al superar el límite: `429 RATE_LIMIT_EXCEEDED` con `details: { scope: "minute", limit, used, retry_after }`.
+
+**3. Por día, por cuenta, según el plan.** También solo con clave de API, y se reinicia a medianoche en la zona horaria America/Fortaleza (Brasilia). Cada respuesta a una clave de API incluye las cabeceras `x-quota-limit`, `x-quota-remaining` y `x-quota-reset` (en segundos). Al superar el límite: `429
+DAILY_QUOTA_EXCEEDED` con `details: { scope: "day", limit, used, retry_after }`.
+
+| Plan | Peticiones/min | Peticiones/día |
+|---|---:|---:|
+| Sin plan activo | 30 | 1000 |
+| Economy | 60 | 5000 |
+| Pro | 120 | 20.000 |
+| Scale | 180 | 86.400 |
+| Intermediary | 240 | 115.200 |
+| Enterprise-4 | 300 | 144.000 |
+| Enterprise-6 | 300 | 180.000 |
+| Enterprise-8 | 300 | 216.000 |
+| Enterprise-12 | 480 | 324.000 |
+| Enterprise-14 | 480 | 378.000 |
+| Enterprise-16 | 480 | 432.000 |
+| Enterprise-18 | 480 | 486.000 |
+| Enterprise-20 | 480 | 540.000 |
+| Enterprise-22 | 480 | 594.000 |
+| Enterprise-24 | 480 | 648.000 |
+| Enterprise-26 | 480 | 702.000 |
+| Enterprise-28 | 480 | 756.000 |
+| Enterprise-30 | 480 | 810.000 |
+| Enterprise-32 | 480 | 864.000 |
+
+Recomendamos implementar lógica de reintento con backoff exponencial para cualquier respuesta `429`.
+
+**Los despliegues tienen su propio presupuesto horario, separado de los límites de peticiones de arriba.** Crear una
+aplicación, subir un ZIP, desplegar desde GitHub, reiniciar con `reinstall_dependencies` o `force_build`, y cambiar
+el build command consumen todos un mismo contador por cuenta, dimensionado según el plan (de 10/hora en Economy a
+60/hora en Intermediary y en todos los niveles Enterprise; ver [Planes y límites](/es-es/plans-and-limits)). Iniciar,
+detener y un reinicio simple no consumen este contador. Al superar el límite, la API responde `429 DEPLOY_RATE_LIMITED`
+con `details.limit`, `details.window_seconds` (3600) y `details.retry_after`.
+
+**La creación manual de snapshots tiene además su propio presupuesto**, por encima del límite por ruta: como máximo
+**1 cada 5 minutos por proyecto** y **10 por hora y por cuenta**. Al superar el límite, la API responde
+`429 SNAPSHOT_RATE_LIMITED` con `details: { scope: "resource" | "account", retry_after }`. Restaurar o descargar un
+snapshot no se ve afectado, y los snapshots que la plataforma toma automáticamente antes de una operación destructiva
+no cuentan contra este presupuesto.
+
+## ¿Qué recursos cubre la API?
+
+La API cubre usuarios, aplicaciones, imágenes de Docker, bases de datos, workspaces, facturación, códigos de canje,
+estado de la plataforma y Blob Storage. Cada uno tiene su propia página de referencia con el cuerpo de la petición,
+la respuesta y los códigos de error.
+
+<CardGroup cols={2}>
+  <Card title="Usuarios" icon="user" href="/es-es/api-reference/endpoint/users/me">
+    Consulta información sobre el usuario autenticado.
+  </Card>
+  <Card title="Aplicaciones" icon="rocket" href="/es-es/api-reference/endpoint/apps/get">
+    Gestiona el ciclo de vida completo de una aplicación: creación, despliegue, inicio y detención, archivos, variables de entorno, snapshots y dominios.
+  </Card>
+  <Card title="Imágenes de Docker" icon="docker" href="/es-es/api-reference/endpoint/images/list">
+    Crea, construye y versiona imágenes de Docker personalizadas, y ejecuta aplicaciones a partir de ellas.
+  </Card>
+  <Card title="Bases de datos" icon="database" href="/es-es/api-reference/endpoint/databases/create">
+    Gestiona bases de datos: creación, inicio y detención, restablecimiento, métricas y credenciales.
+  </Card>
+  <Card title="Workspaces" icon="users" href="/es-es/api-reference/endpoint/workspaces/get-all">
+    Gestiona workspaces: creación, miembros, permisos y asociación de recursos.
+  </Card>
+  <Card title="Facturación" icon="credit-card" href="/es-es/api-reference/endpoint/billing/list-orders">
+    Lista pedidos, crea un pedido de plan, genera su pago por Pix y gestiona los datos de facturación.
+  </Card>
+  <Card title="Canje" icon="ticket" href="/es-es/api-reference/endpoint/redeem/redeem">
+    Canjea un código de plan en la cuenta autenticada.
+  </Card>
+  <Card title="Estado" icon="heart-pulse" href="/es-es/api-reference/endpoint/services/status">
+    Comprueba si la infraestructura está completamente operativa. No requiere autenticación.
+  </Card>
+  <Card title="Blob Storage" icon="box-archive" href="/es-es/blob/overview">
+    Almacenamiento de objetos con su propia referencia de API: subidas, objetos, enlaces para compartir, reglas y dominios.
+  </Card>
+</CardGroup>

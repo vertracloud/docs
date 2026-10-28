@@ -1,0 +1,163 @@
+---
+title: Adicionar domínio à aplicação
+sidebarTitle: Adicionar domínio
+api: POST https://api.vertracloud.app/v1/apps/{id}/domains
+authMethod: bearer
+description: Adiciona um domínio personalizado a uma aplicação publicada, sem redeploy, com www, porta, prefixo de caminho e redirecionamento opcionais.
+---
+
+{/* @see RESTPostAPIApplicationDomainBody, RESTPostAPIApplicationDomainResponse — @vertracloud/api-types */}
+Adiciona o domínio personalizado à aplicação e responde `201 Created` com o novo domínio. A aplicação não é
+reiniciada nem recebe um novo deploy. O domínio começa como `pending` até que os seus registros DNS sejam
+resolvidos; consulte-os em [Registros DNS do domínio](/pt-br/api-reference/endpoint/apps/domains/dns). Exige o escopo
+`apps:write` quando chamado com uma chave de API.
+
+Por padrão, a chamada também cria o domínio complementar automático: `www.example.com` quando você adiciona
+`example.com`, ou `example.com` quando você adiciona `www.example.com`. O complementar redireciona para o domínio
+que você adicionou com um `308`, e **não conta** no limite de domínios do seu plano. Para qualquer outro subdomínio
+(`app.example.com`) não há complementar.
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação. A aplicação precisa estar publicada na web (ela precisa de um subdomínio `*.vertraweb.app`).
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que atuam em uma aplicação que não é deles.
+</ParamField>
+
+<ParamField body="hostname" type="string" required>
+  O domínio a adicionar (por exemplo `example.com` ou `api.example.com`), com entre 1 e 253 caracteres. Ele é armazenado
+  em minúsculas. Envie somente o hostname: um esquema, um caminho ou uma porta são rejeitados com
+  `INVALID_CUSTOM_DOMAIN_FORMAT`. Domínios que pertencem à Vertra Cloud são rejeitados com `FORBIDDEN_DOMAIN`.
+</ParamField>
+
+<ParamField body="www" type="boolean" default="true">
+  Se o complementar automático `www` (ou raiz) deve ser criado. Envie `false` para adicionar somente o hostname enviado.
+  Não tem efeito em subdomínios diferentes de `www`, e é ignorado quando `redirect_to` está definido.
+</ParamField>
+
+<ParamField body="port" type="integer" default="80">
+  A porta da aplicação que atende este domínio, um inteiro de `1` a `65535`. Uma aplicação pode atender os seus domínios
+  em até **5 portas diferentes além da `80`**; a sexta responde `DOMAIN_PORT_LIMIT_REACHED`. Um domínio que apenas
+  redireciona não usa porta.
+</ParamField>
+
+<ParamField body="path_prefix" type="string">
+  Um caminho literal adicionado antes de cada requisição que o domínio encaminha para a aplicação: com `/api`, uma
+  requisição para `https://api.example.com/users` chega à aplicação como `/api/users`. Deve começar com `/`, não pode
+  terminar com `/`, tem até 128 caracteres e só pode conter letras, dígitos, `.`, `_`, `~` e `-` entre as barras
+  (por exemplo `/api` ou `/v1/api`). Recomendado para APIs: um site precisa ser construído para rodar sob esse caminho,
+  incluindo os seus assets e os próprios redirecionamentos.
+</ParamField>
+
+<ParamField body="redirect_to" type="string">
+  O ID de outro domínio da mesma aplicação. O novo domínio passa a redirecionar cada requisição para esse domínio,
+  mantendo o caminho e a query string, em vez de servir a aplicação. O destino não pode redirecionar para si mesmo.
+</ParamField>
+
+<ParamField body="redirect_status" type="integer" default="308">
+  O status HTTP do redirecionamento: `301`, `302`, `307` ou `308`. Só é usado junto com `redirect_to`. `301` e `308`
+  são permanentes; `302` e `307` são temporários. `307` e `308` mantêm o método da requisição; `301` e `302` podem
+  transformar um `POST` em `GET`.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="APIApplicationDomain[]">
+  O domínio que você adicionou primeiro, seguido do seu complementar quando um foi criado. Cada item tem os campos
+  descritos em [Listar domínios da aplicação](/pt-br/api-reference/endpoint/apps/domains/list#resposta).
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (201)
+{
+  "response": [
+    {
+      "id": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "hostname": "example.com",
+      "apex": true,
+      "companion_of": null,
+      "redirect_to": null,
+      "redirect_status": 308,
+      "path_prefix": null,
+      "port": 80,
+      "status": "pending",
+      "ssl_status": "pending",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    },
+    {
+      "id": "c2a9d4f1-86b0-4a37-b5e8-1f3d7a9c0e62",
+      "hostname": "www.example.com",
+      "apex": false,
+      "companion_of": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "redirect_to": "7b8f5e0a-3c1d-4e52-9a47-0d6e2c1f9b34",
+      "redirect_status": 308,
+      "path_prefix": null,
+      "port": 80,
+      "status": "pending",
+      "ssl_status": "pending",
+      "created_at": "2026-10-21T14:02:11.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Os domínios personalizados começam no plano **Intermediary** (1 domínio por aplicação) e crescem com o nível Enterprise.
+  O complementar automático nunca conta. Os limites de cada plano estão em
+  [Planos e limites](/pt-br/plans-and-limits#quantos-domínios-personalizados-e-portas-cada-plano-permite).
+  Despublicar a aplicação remove todos os seus domínios. Remover um domínio, manualmente, por despublicação ou pela
+  limpeza automática, nunca altera o seu DNS: apague os registros `CNAME` e `TXT` por conta própria, como explicado em
+  [Remover domínio da aplicação](/pt-br/api-reference/endpoint/apps/domains/delete).
+</Note>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `VALIDATION_ERROR`: o parâmetro de caminho ou o corpo falhou na validação, por exemplo um campo desconhecido ou um tipo errado (`400`). A resposta também traz `message` e `path`.
+  - `INVALID_CUSTOM_DOMAIN_FORMAT`: `hostname` não é um hostname público válido (`400`).
+  - `FORBIDDEN_DOMAIN`: o domínio é reservado e não pode ser adicionado (`400`).
+  - `INVALID_DOMAIN_PORT`: `port` não é um inteiro de 1 a 65535 (`400`).
+  - `INVALID_PATH_PREFIX`: `path_prefix` não segue o formato descrito acima (`400`).
+  - `INVALID_REDIRECT_TARGET`: `redirect_to` não é um domínio desta aplicação, não está `active`, ou o destino redireciona para si mesmo (`400`).
+  - `APP_NOT_PUBLISHED`: a aplicação não está publicada na web; publique-a primeiro com [Publicar aplicação na web](/pt-br/api-reference/endpoint/apps/network/publish) (`400`).
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões (`403`).
+  - `USER_NOT_FOUND`: não foi possível identificar o usuário autenticado (`401`).
+  - `ACCESS_DENIED`: o usuário não tem permissão para atuar na aplicação (`403`).
+  - `API_KEY_SCOPE_DENIED`: a chave de API não tem o escopo `apps:write` (`403`).
+  - `PLAN_REQUIRED`: o dono da aplicação não tem um plano ativo (`403`).
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN`: o plano do dono não inclui domínios personalizados (`403`).
+  - `DOMAIN_LIMIT_REACHED`: a aplicação já tem tantos domínios quanto o plano permite (`403`). `details.limit` traz o limite.
+  - `DOMAIN_PORT_LIMIT_REACHED`: a aplicação já atende domínios em 5 portas além da `80` (`403`). `details.limit` traz o limite.
+  - `APP_NOT_FOUND`: a aplicação especificada não existe (`404`).
+  - `DOMAIN_ALREADY_IN_USE`: o hostname já está vinculado a uma aplicação (`409`).
+  - `RATE_LIMIT_EXCEEDED`: foi atingido o orçamento de requisições da rota (`429`).
+  - `CUSTOM_DOMAIN_REGISTRATION_FAILED`: o domínio não pôde ser registrado agora; tente novamente mais tarde (`502`).
+  - `INTERNAL_SERVER_ERROR`: falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "DOMAIN_LIMIT_REACHED",
+  "details": { "limit": 1 }
+}
+```
+
+```json Error Response (409)
+{
+  "code": "DOMAIN_ALREADY_IN_USE"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  Esta rota tem um orçamento próprio de 10 requisições por minuto. Veja [Limite de requisições](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa).
+</Note>

@@ -1,0 +1,136 @@
+---
+title: 'Organización personal de recursos'
+sidebarTitle: 'Carpetas y favoritos'
+description: 'Crea carpetas y favoritos individuales para organizar tus aplicaciones y bases de datos de la cuenta.'
+---
+Esta API organiza tu vista personal de aplicaciones y bases de datos. No cambia el recurso ni crea una
+configuración compartida con otras personas.
+
+## Alcance y lectura
+
+Usa un token Bearer. La organización personal se devuelve en
+[`GET /v1/users/me`](/es-es/api-reference/endpoint/users/me), en el campo
+`response.resource_organization`.
+
+Una clave de API necesita `account:read` para leer el perfil y `account:write` para cambiar la
+organización personal.
+
+Las carpetas y los favoritos solo aceptan estos tipos de recurso:
+
+| `resource_type` | Recurso |
+|---|---|
+| `application` | Aplicación |
+| `database` | Base de datos |
+| `image` | Imagen de Docker |
+| `stack` | Stack |
+
+Los colores de carpeta son `neutral`, `red`, `orange`, `yellow`, `green`, `blue` y `purple`.
+
+## Crear una carpeta
+
+```http
+POST /v1/users/me/folders
+```
+
+```json
+{
+  "name": "Active projects",
+  "color": "blue",
+  "position": 0
+}
+```
+
+`name` es obligatorio. `color` y `position` son opcionales. La respuesta contiene la carpeta creada en
+`response`.
+
+## Renombrar, cambiar el color o reordenar una carpeta
+
+```http
+PATCH /v1/users/me/folders/{folder_id}
+```
+
+Envía uno o más campos:
+
+```json
+{
+  "name": "Published projects",
+  "color": "green",
+  "position": 1
+}
+```
+
+Una carpeta también acepta `notes` (texto libre; `null` lo elimina) y `flow_layout` (`{ "x": 0, "y": 0, "collapsed": false }`, su lugar en el lienzo de Flow; `null` lo elimina). Ambos vuelven en la carpeta.
+
+`folder_id` es el ID de la carpeta personal. La respuesta contiene la carpeta actualizada en `response`.
+
+## Eliminar una carpeta
+
+```http
+DELETE /v1/users/me/folders/{folder_id}
+```
+
+Eliminar quita la carpeta y sus vínculos de organización; no elimina las aplicaciones ni las bases de
+datos.
+
+## Poner un recurso en una carpeta
+
+```http
+PUT /v1/users/me/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+Parámetros:
+
+| Parámetro | Valores |
+|---|---|
+| `folder_id` | ID de la carpeta personal |
+| `resource_type` | `application`, `database`, `image` o `stack` |
+| `resource_id` | ID de la aplicación o de la base de datos |
+
+El body puede contener la posición del recurso dentro de la carpeta:
+
+```json
+{
+  "position": 0
+}
+```
+
+Si el recurso ya está en otra carpeta personal, esta operación lo mueve a la carpeta indicada. La respuesta
+devuelve la organización actualizada en `response`.
+
+Para quitar solo el vínculo con la carpeta:
+
+```http
+DELETE /v1/users/me/folders/{folder_id}/resources/{resource_type}/{resource_id}
+```
+
+## Marcar y desmarcar un recurso como favorito
+
+Para marcar como favorito:
+
+```http
+PUT /v1/users/me/favorites/{resource_type}/{resource_id}
+```
+
+El body puede contener la posición del favorito:
+
+```json
+{
+  "position": 0
+}
+```
+
+Para desmarcar:
+
+```http
+DELETE /v1/users/me/favorites/{resource_type}/{resource_id}
+```
+
+Favorito y carpeta son preferencias independientes: un recurso puede estar en ambos. Ambas operaciones
+devuelven la organización actualizada en `response` y pueden repetirse sin problema.
+
+## Actividad
+
+Crear, editar o eliminar una carpeta, mover un recurso, y marcar o desmarcar un favorito genera una
+actividad. El panel y los workflows usan la misma API; las llamadas con clave de API hechas desde la CLI,
+el MCP o la extensión también entran en el historial. El cliente no envía `origin` ni `author_id`: esos
+campos los define la API.

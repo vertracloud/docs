@@ -1,0 +1,116 @@
+---
+title: Listar os links de compartilhamento de um template
+sidebarTitle: Listar links
+api: GET https://api.vertracloud.app/v1/templates/{template_id}/share-links
+authMethod: bearer
+description: Lista os links de compartilhamento de um template privado com modo, usos, limite, validade e revogação, sem os tokens.
+---
+
+{/* @see RESTGetAPITemplateShareLinksResponse — @vertracloud/api-types */}
+Esta chamada lista todos os links de compartilhamento de um template privado, incluindo os revogados e expirados, para que você veja como cada um é usado. Os tokens nunca são retornados de novo: cada link mostra apenas os últimos 4 caracteres (`last4`) para diferenciá-los.
+
+Precisa do escopo `templates:read` quando chamada com uma chave de API. Só o dono do template pode listar os links dele; um membro do workspace não pode.
+
+<ParamField path="template_id" type="string" required>
+  O ID do template.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o template pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/templates/tpl-abc123def456/share-links \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Resposta
+
+<ResponseField name="response" type="object[]">
+  Os links.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do link.
+  </ResponseField>
+
+  <ResponseField name="template_id" type="string">
+    O template ao qual o link pertence.
+  </ResponseField>
+
+  <ResponseField name="mode" type="string">
+    `use` ou `full_copy`.
+  </ResponseField>
+
+  <ResponseField name="last4" type="string">
+    Os últimos 4 caracteres do token, para diferenciar os links.
+  </ResponseField>
+
+  <ResponseField name="uses" type="integer">
+    Quantas vezes o link foi usado.
+  </ResponseField>
+
+  <ResponseField name="max_uses" type="integer | null">
+    O número máximo de usos, ou `null` para sem limite.
+  </ResponseField>
+
+  <ResponseField name="expires_at" type="string | null" format="date-time">
+    Quando o link expira, ou `null` quando não expira.
+  </ResponseField>
+
+  <ResponseField name="revoked_at" type="string | null" format="date-time">
+    Quando o autor revogou o link, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando o link foi criado.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "lnk-abc123def456",
+      "template_id": "tpl-abc123def456",
+      "mode": "use",
+      "last4": "x9Qa",
+      "uses": 3,
+      "max_uses": 10,
+      "expires_at": "2026-11-03T14:02:00Z",
+      "revoked_at": null,
+      "created_at": "2026-10-27T14:02:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:read` (`403`).
+  - `TEMPLATE_NOT_FOUND`: O template não existe ou não é seu (`404`).
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace lista os links dos templates dele.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

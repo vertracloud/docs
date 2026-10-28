@@ -1,0 +1,104 @@
+---
+title: 'Como fazer deploy de um template na Vertra Cloud'
+sidebarTitle: 'Usar um template'
+description: 'Escolha um template na galeria, responda ao assistente e receba um app ou uma stack em execução com suas saídas. Também disponível na CLI, no MCP e na API.'
+icon: 'rocket'
+---
+
+Para usar um template, abra-o na galeria, clique em **Use template**, responda ao assistente e clique em **Create**. A Vertra Cloud cria todos os serviços como uma única operação, espera até o app ficar saudável e mostra as saídas (endereço, senhas geradas, próximos passos). Se algum passo falhar, tudo o que o template criou é removido e você vê qual passo falhou.
+
+Somente o dono de um workspace pode usar um template dentro dele. Um membro do workspace vê os templates, mas não pode fazer deploy deles: peça ao dono. Um template que pertence a um workspace só faz deploy dentro desse workspace, nunca em uma conta pessoal ou em outro workspace.
+
+## Encontre um template na galeria
+
+A galeria lista os templates disponíveis para você. No dashboard, abra **Templates** na barra lateral, que tem três abas: **Catalog**, **My templates** (seus templates privados) e **In use** (os apps e stacks que você criou a partir de templates, com o selo **New version available** quando há atualização).
+
+- **Busca e categorias:** automação, agentes de IA, bots, APIs, CMS, monitoramento, projetos iniciais, bancos de dados e outros.
+- **Fits my plan:** mostra apenas o que a sua conta pode usar agora, com sua memória livre e suas vagas de imagem livres em cada card. Um template que não cabe explica o motivo.
+- **Ordenação:** recomendados, mais usados, novos ou de A a Z.
+- **Selos:** Vertra, Community, Private e From the workspace. Veja [as três origens](/pt-br/templates/overview#as-três-origens).
+
+A página de cada template mostra o que será criado (serviços e memória total), os requisitos, a documentação, a versão com seu changelog, a licença do software empacotado e o botão **Use template**. Você também pode começar por **New** no dashboard, na aba **Templates**.
+
+## Passo a passo no assistente
+
+<Steps>
+  <Step title="Nome e destino">
+    Dê um nome ao app (ou à stack, quando o template tem vários serviços) e escolha o workspace e a pasta.
+  </Step>
+  <Step title="As perguntas do template">
+    As respostas aparecem em ordem, e algumas perguntas só aparecem dependendo das respostas anteriores. Uma pergunta pode ser texto, número, sim ou não, uma escolha ou um segredo. As perguntas que a plataforma gera (como uma chave de criptografia) são preenchidas para você.
+  </Step>
+  <Step title="Memória de cada serviço">
+    Escolha a memória de cada serviço dentro do que o template permite. O assistente mostra "precisa de X, você tem Y livre".
+  </Step>
+  <Step title="Subdomínio">
+    Se um serviço tem web, escolha um subdomínio ou deixe aleatório.
+  </Step>
+  <Step title="Resumo">
+    Revise o que será criado, o plano exigido, as vagas de imagem e o modo de rede da stack.
+  </Step>
+  <Step title="Criar">
+    Acompanhe o progresso por etapa: validação, bancos de dados, imagens, apps, variáveis, certificados, início e verificação de saúde.
+  </Step>
+</Steps>
+
+Apenas um deploy de template por conta roda por vez. Um segundo retorna [`TEMPLATE_DEPLOY_IN_PROGRESS`](/pt-br/templates/reference/errors#erros-de-deploy-e-de-atualização).
+
+## O que é criado
+
+| Template | Você recebe |
+|---|---|
+| Um app | Um app, com as variáveis do template já definidas. |
+| Dois ou mais serviços | Uma [stack](/pt-br/templates/use/stacks) com seus apps, bancos de dados gerenciados e, se o template pedir, uma pasta do Blob, conectados entre si. |
+
+Os bancos de dados são [bancos de dados gerenciados](/pt-br/databases) comuns, cada um com sua própria memória descontada do seu plano. As variáveis de conexão e os certificados são injetados para você: veja [Conectar apps a bancos de dados em uma stack](/pt-br/templates/use/connect-databases). Tudo o que é criado a partir de um template fica vinculado à versão de origem, então você pode [atualizar depois](/pt-br/templates/use/updates-and-rollback).
+
+## Saídas e segredos exibidos uma única vez
+
+Quando o job termina, o assistente mostra as **saídas** do template: o endereço do app, os próximos passos e as credenciais geradas. Uma saída marcada como segredo exibido uma única vez aparece na primeira leitura do job concluído e some depois. Copie-a antes de sair da página. O mesmo vale para a CLI, o servidor MCP e a API.
+
+<Warning>
+  Um segredo exibido uma única vez não pode ser lido de novo. Se você o perder, altere-o no app (por exemplo, redefina a senha de administrador dentro do software) em vez de procurá-lo na plataforma.
+</Warning>
+
+## Se o deploy falhar
+
+O job desfaz tudo o que criou, em ordem inversa. Antes de apagar um app ou um banco de dados, ele tira um snapshot de segurança, porque o banco de dados pode já ter aceitado conexões e o `/app` do app pode ter mudado. O erro traz um código estável e o passo que falhou, por exemplo `TEMPLATE_RAM_INSUFFICIENT` no passo `validate`. Veja a [referência de erros](/pt-br/templates/reference/errors) para causas e correções.
+
+## Use um template pela CLI, MCP ou API
+
+<Tabs>
+  <Tab title="CLI">
+    ```sh
+    vertra template list --search n8n --fits
+    vertra template info n8n
+    vertra template deploy n8n --name my-n8n --set mode=postgres
+    ```
+
+    `deploy` faz as perguntas do template no terminal (segredos são digitados sem eco), acompanha os passos e imprime as saídas no final. Responda antes com `--set <question>=<value>`; `--yes`, `--json` ou uma sessão sem terminal não perguntam nada e falham listando todas as respostas que faltam. `--service <service>.ram=2048` define a memória por serviço, e `--share <link>` faz deploy a partir de um [link de compartilhamento](/pt-br/templates/use/receive-a-link). Veja a [referência da CLI](/pt-br/cli).
+  </Tab>
+  <Tab title="MCP">
+    Um agente chama `list_templates` (com `fits` para filtrar pela sua conta), depois `get_template` para ler os serviços, as perguntas, as saídas e o plano exigido, e então `deploy_template` para criar. Por padrão, `deploy_template` acompanha o job até ele terminar; se ainda estiver em execução, continue lendo com `get_template_deploy`. As saídas exibidas uma única vez são retornadas à primeira leitura que vê o job concluído com sucesso, então mostre-as ao usuário imediatamente. O readme e o changelog do autor chegam como conteúdo não confiável. Veja [Servidor MCP](/pt-br/mcp).
+  </Tab>
+  <Tab title="API">
+    `POST /v1/templates/{template_id}/deploy` retorna `202` com um job. Envie um header `Idempotency-Key` para que uma chamada repetida retorne o mesmo job em vez de criar um segundo conjunto de recursos. Acompanhe o job pela rota de status ou pelo stream de eventos. As chaves precisam do escopo `templates:deploy`; ler o catálogo exige `templates:read`.
+
+    - [List templates](/pt-br/api-reference/endpoint/templates/list) e [Get template](/pt-br/api-reference/endpoint/templates/get)
+    - [Deploy a template](/pt-br/api-reference/endpoint/templates/deploy)
+    - [Deploy status](/pt-br/api-reference/endpoint/templates/deploy-status) e [Deploy events](/pt-br/api-reference/endpoint/templates/deploy-events)
+  </Tab>
+</Tabs>
+
+O catálogo público pode ser lido sem autenticação; com uma chave, cada template também informa se cabe no seu plano e na sua memória livre.
+
+## Relacionados
+
+<CardGroup cols={2}>
+  <Card title="Stacks" icon="layer-group" href="/pt-br/templates/use/stacks">
+    O que um template de vários serviços cria.
+  </Card>
+  <Card title="Atualizar e fazer rollback" icon="rotate-left" href="/pt-br/templates/use/updates-and-rollback">
+    Novas versões de um template.
+  </Card>
+</CardGroup>

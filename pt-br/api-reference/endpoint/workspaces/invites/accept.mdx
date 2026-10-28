@@ -1,0 +1,42 @@
+---
+title: Aceitar convite
+sidebarTitle: Aceitar
+api: POST https://api.vertracloud.app/v1/workspaces/invites/{token}/accept
+authMethod: bearer
+description: Aceita um convite e entra no workspace. Qualquer conta logada; uma chave de API precisa do escopo `workspaces:invites`.
+---
+
+{/* @see RESTPostAPIWorkspaceInviteAcceptResponse — @vertracloud/api-types */}
+<Note>
+  Uma chave de API precisa do escopo `workspaces:invites` e age como a conta que a possui: um convite
+  por e-mail só bate se o e-mail dessa conta for o convidado. Mesmo limite de 10/min por sessão e IP de
+  [Visualizar convite](/pt-br/api-reference/endpoint/workspaces/invites/preview).
+</Note>
+
+Para um convite por **e-mail**, o e-mail da conta que aceita precisa ser igual ao endereço convidado
+(comparado com normalização NFKC, sem diferenciar maiúsculas e minúsculas) — caso contrário,
+`WORKSPACE_INVITE_EMAIL_MISMATCH`. Um convite por **link** não tem essa verificação.
+
+<Note>
+  Aceitar é idempotente se você já é membro: você recebe `200`, não um `409` — clicar em um link de
+  convite antigo que você já usou não gera erro.
+</Note>
+
+### Caminho
+
+<ParamField path="token" type="string" required>O token do convite.</ParamField>
+
+### Resposta
+
+Mesmo formato de [Obter workspace](/pt-br/api-reference/endpoint/workspaces/get) — o workspace em que você acabou de entrar.
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `API_KEY_SCOPE_DENIED` | Chamada com uma chave de API que não tem o escopo `workspaces:invites`. |
+| 403 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | (convite por e-mail) O e-mail de quem chama não é o endereço convidado. |
+| 403 | `WORKSPACE_INVITES_DISABLED` | O workspace tem os convites desativados. |
+| 404 | `WORKSPACE_INVITE_NOT_FOUND` | O token não existe, ou o convite foi revogado ou esgotado. |
+| 409 | `WORKSPACE_MEMBER_LIMIT_REACHED` | Atingido o limite de membros do plano do dono. |
+| 410 | `WORKSPACE_INVITE_EXPIRED` | O convite existiu, mas o prazo dele já passou. |

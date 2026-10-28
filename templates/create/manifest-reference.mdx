@@ -1,0 +1,230 @@
+---
+title: 'Template Manifest Reference: Every vertracloud.template.yaml Field'
+sidebarTitle: 'Manifest reference'
+description: 'Every field of vertracloud.template.yaml with its rules, limits and an example: identity, app, database and Blob services, healthcheck, outputs, secrets.'
+icon: 'file-code'
+---
+
+The manifest is one YAML file named `vertracloud.template.yaml` at the root of the template. Unknown fields are rejected, and the same checks run in the CLI, in the editor and in the API. The machine-readable version is the [JSON Schema](/templates/reference/manifest-schema).
+
+A minimal manifest has `id`, `version`, `name`, `description`, `category` and `services`:
+
+```yaml
+id: discord-bot-js
+version: 1.0.0
+name: { pt-br: Bot de Discord (JavaScript), en: Discord bot (JavaScript), es: Bot de Discord (JavaScript) }
+description:
+  pt-br: Bot de Discord com discord.js e o comando /ping. Ponto de partida para o seu bot.
+  en: Discord bot with discord.js and a /ping command. A starting point for your bot.
+category: bots
+
+services:
+  app:
+    source: { type: code, path: src }
+    language: javascript
+    start: node index.js
+    ram: { min: 256, recommended: 256 }
+    web: none
+```
+
+## Limits
+
+| What | Limit |
+|---|---|
+| Services per template | 8, with at least one app |
+| Questions (`inputs`) | 40, with up to 25 options each |
+| Outputs | 16 |
+| Tags | 10 |
+| Declared secrets (`secrets`) | 16 |
+| Variables per app (`env`) | 256, each value up to 3,072 characters |
+| Manifest size sent to the validation route | 1 MiB |
+
+Over any of these the validator answers `too_many_services` or `invalid_type` with the path of the field. Every code is listed in [Validate and test](/templates/create/validate-and-test#validation-codes).
+
+## Identity
+
+| Field | Required | Rule |
+|---|---|---|
+| `id` | yes | Slug of lowercase letters, digits and hyphens, up to 64 characters, not starting or ending with a hyphen. Unique per owner; in the public catalog, unique everywhere. |
+| `version` | yes | Semantic version such as `1.0.0`. Every published change is a new version, and a new version must be higher than the current one. |
+| `name` | yes | Text per language, up to 50 characters. |
+| `description` | yes | Text per language, up to 128 characters. |
+| `category` | yes | One of `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases`, `other`. |
+| `tags` | no | Up to 10 lowercase slugs of up to 30 characters, no duplicates. |
+| `icon` | no | Relative path to an `.svg` or `.png` file inside the template, no `..`. |
+| `links` | no | `website`, `docs`, `source` and `license` of the original software, each an `http(s)` URL. |
+| `landing` | no | Slug of a dedicated landing page. Only in public templates; a private template that sets it gets `unknown_field`. |
+| `min_plan` | no | Id of the lowest plan allowed, such as `enterprise-28`. A slug that is not a plan gives `invalid_plan`. See [Requirements](/templates/create/requirements). |
+| `byok` | no | `true` shows the notice "bring your own AI model key" on the template page and in the wizard. |
+
+Text per language is an object with `pt-br`, `en` and `es`. `pt-br` is required; the other two fall back to it.
+
+```yaml
+id: n8n
+version: 1.0.0
+name: { pt-br: n8n, en: n8n, es: n8n }
+description:
+  pt-br: Automação de workflows com editor visual, nó Code em Python e JavaScript, workers e nós da comunidade.
+  en: Visual workflow automation with Python and JavaScript Code nodes, workers and community nodes.
+category: automation
+tags: [automation, workflows, webhooks, python, queue]
+links:
+  website: https://n8n.io
+  docs: https://docs.n8n.io
+  source: https://github.com/n8n-io/n8n
+  license: https://github.com/n8n-io/n8n/blob/master/LICENSE.md
+```
+
+## Services
+
+`services` is a map from a service id to its definition. The id is lowercase letters, digits, `_` and `-`, up to 40 characters, and it is what placeholders use (`{{services.db.host}}`). A service is one of three kinds, told apart by its key: an **app** has `source`, a **database** has `database`, and a **Blob folder** has `blob`.
+
+### App service
+
+| Field | Required | Rule |
+|---|---|---|
+| `source.type` | yes | `code` or `image`. |
+| `source.path` | code | Folder with the code, relative to the template root, never absolute and never containing `..`. Required in public templates. |
+| `source.image` | image | Public: origin plus digest, `registry/name@sha256:<64 hex>`; a tag without a digest is refused. Private: the id of one of your own images. |
+| `source.context` | no | Folder with a `Dockerfile` that builds the image, for image templates whose image Vertra Cloud builds from the template. |
+| `language` | code | `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet` or `elixir`. |
+| `runtime_version` | no | Version of the language runtime, up to 32 characters (the starter bot uses `recommended`). Code only. |
+| `main`, `build`, `start` | no | The same keys as `vertracloud.config`; `main` up to 255 characters, `build` and `start` up to 512. Code only, and no placeholders. |
+| `port` | no | Port the image listens on, 1 to 65535. Image only. |
+| `ram` | yes | `{ min, recommended, max? }` in MB, each from 16 to 262144. `recommended` is at least `min`, and `max` at least `recommended`. |
+| `web` | yes | `required` (web publishing is mandatory), `optional` or `none`. |
+| `env` | no | Map of variable name to value, with fixed text and [placeholders](/templates/create/placeholders-and-inputs). |
+| `env_hidden` | no | Names from `env` that the user never sees. Only in a closed template (`code.view: false`); refused in an open or public one. |
+| `healthcheck` | no | `{ path?, timeout }`: `path` starts with `/`; `timeout` is in seconds, 1 to 900. |
+| `deploy` | no | Blue-green and rollback behavior. See [Deploy settings](/templates/create/deploy-settings). |
+| `connections` | no | `<service>: { private: required }` keeps the template out of the public gallery. See [Stacks](/templates/create/stacks#links-that-stay-out-of-the-gallery). |
+
+A code service needs `language`, and an image service cannot set `language`, `runtime_version`, `main`, `build` or `start`. A code service cannot set `port` or `source.image`. App services do not take a `when`: to turn an app on or off by answer, use `sets.services` in a [question option](/templates/create/placeholders-and-inputs#options-and-sets).
+
+Code service, from the starter bot:
+
+```yaml
+services:
+  app:
+    source: { type: code, path: src }
+    language: javascript
+    runtime_version: recommended
+    main: index.js
+    start: node index.js
+    ram: { min: 256, recommended: 256 }
+    web: none                             # outbound connections only
+    env:
+      DISCORD_TOKEN: "{{inputs.discord_token}}"
+    healthcheck: { timeout: 60 }
+```
+
+Image service, from n8n:
+
+```yaml
+services:
+  app:
+    source: { type: image, image: "docker.io/n8nio/n8n@sha256:942bc274709f27f99f7c6024a785d8e8f75ac06838cabcba448abb8d9127ec7b", context: . }
+    port: 5678
+    ram: { min: 1024, recommended: 2048 }
+    web: required
+    healthcheck: { path: /healthz/readiness, timeout: 240 }
+```
+
+### Healthcheck
+
+`healthcheck` says when the service counts as ready at the end of the wizard. With `path`, the platform requests that path until it answers; without it, the same ready check as any app applies. Use `timeout` for the slowest realistic first boot, including database migrations. A service with `web: none` should omit `path`.
+
+### Database service
+
+| Field | Required | Rule |
+|---|---|---|
+| `database` | yes | `postgres`, `mysql`, `mongodb` or `redis`. |
+| `ram` | yes | `{ min, recommended, max? }`, as for apps. |
+| `version` | no | One of the versions available for that engine, up to 16 characters. Without it the recommended version is used. An unavailable version gives `invalid_option`. |
+| `when` | no | `{ input, equals }`: create the database only if that answer matches. |
+
+The database is created as a normal managed database with its own memory taken from the plan. It is **never closed**, even in a [closed template](/templates/create/permissions#closed-templates).
+
+```yaml
+  db:
+    database: postgres
+    ram: { min: 1024, recommended: 1024 }
+  queue:
+    database: redis
+    ram: { min: 512, recommended: 512 }
+    when: { input: mode, equals: queue }
+```
+
+### Blob folder
+
+| Field | Required | Rule |
+|---|---|---|
+| `blob` | yes | `{ visibility? }` with `private` or `public`. An empty `blob: {}` is valid. |
+| `when` | no | Same as for a database. |
+
+A Blob service gives the stack its own folder in Blob Storage and a managed key restricted to it, with no memory of its own (`ram_extra` on it is refused with `invalid_ram`). The fields are available as [placeholders](/templates/create/placeholders-and-inputs#placeholders), and the plan must include Blob Storage. Undoing the stack keeps the files.
+
+```yaml
+services:
+  app:
+    source: { type: code, path: src }
+    language: javascript
+    start: node server.js
+    ram: { min: 256, recommended: 512 }
+    web: required
+    env:
+      S3_ENDPOINT: "{{services.files.endpoint}}"
+      S3_BUCKET: "{{services.files.bucket}}"
+      S3_PREFIX: "{{services.files.prefix}}"
+      S3_ACCESS_KEY_ID: "{{services.files.access_key_id}}"
+      S3_SECRET_ACCESS_KEY: "{{services.files.secret_access_key}}"
+  files:
+    blob: { visibility: private }
+```
+
+## Questions, permissions and deploy
+
+`inputs` defines the questions of the wizard and is documented in [Questions and placeholders](/templates/create/placeholders-and-inputs). `permissions` defines what the user can change afterwards and is documented in [Permissions and closed templates](/templates/create/permissions). `deploy` is a per-service block covered in [Deploy settings](/templates/create/deploy-settings).
+
+## Secrets
+
+`secrets` declares up to 16 names. Each is generated once when the template is used (32 random characters) and is the same in every service that reads it with `{{secrets.<name>}}`. Use it for a key that two services must share, such as the encryption key of an editor and its workers.
+
+```yaml
+secrets: [encryption_key, runners_token]
+```
+
+For a secret that only one variable needs, `{{secret:<n>}}` in `env` is shorter. Never write a real secret as a literal value: see [Best practices](/templates/create/best-practices#never-put-a-secret-in-the-template).
+
+## Outputs
+
+`outputs` is the list the wizard shows when the deploy finishes. Each item has a `label` and a `value`, both per language, with an optional `secret` and `once`.
+
+| Field | Rule |
+|---|---|
+| `label` | Text per language, up to 128 characters. |
+| `value` | A string, or text per language, up to 512 characters. Placeholders work, except `{{secret:<n>}}`. |
+| `secret` | `true` marks the value as sensitive: the dashboard masks it and the CLI prints it only in that run. A value built from a secret, a database password, a database URL or a Blob key is marked secret even if you forget. |
+| `once` | `true` shows the value only once; later reads return nothing. |
+
+`{{app.url}}` in an output means the main app: the first with `web: required`, then the first with `web: optional`, then the first app.
+
+```yaml
+outputs:
+  - { label: { pt-br: Endereço, en: Address, es: Dirección }, value: "{{app.url}}" }
+  - label: { pt-br: Próximo passo, en: Next step, es: Siguiente paso }
+    value:
+      pt-br: "Abra o endereço e crie a conta de owner."
+      en: "Open the address and create the owner account."
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Questions and placeholders" icon="sliders" href="/templates/create/placeholders-and-inputs">
+    `inputs`, `when`, `sets` and every `{{...}}` placeholder.
+  </Card>
+  <Card title="Manifest JSON Schema" icon="code" href="/templates/reference/manifest-schema">
+    Editor validation and autocomplete.
+  </Card>
+</CardGroup>

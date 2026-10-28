@@ -1,0 +1,44 @@
+---
+title: Actualizar rol
+sidebarTitle: Actualizar
+api: PUT https://api.vertracloud.app/v1/workspaces/{id}/roles/{role_id}
+authMethod: bearer
+description: Actualiza el nombre o los permisos de un rol. Requiere `roles:manage`.
+---
+
+{/* @see RESTPutAPIWorkspaceRoleBody, RESTPutAPIWorkspaceRoleResponse — @vertracloud/api-types */}
+Requiere `roles:manage`. Una clave de API necesita el scope `workspaces:write`.
+
+<Note>
+  La misma protección contra escalada que en [Crear rol](/es-es/api-reference/endpoint/workspaces/roles/create), pero
+  comprobada contra la **unión de los conjuntos de permisos antiguo y nuevo** del rol: quitar de un rol ajeno un permiso
+  que no tienes también es editar algo que no es tuyo. Nadie —el propietario incluido en espíritu, aunque el propietario
+  queda exento de la comprobación— puede editar el rol que tiene asignado, y nadie puede cambiar su propia asignación de
+  rol a través de este endpoint.
+</Note>
+
+### Ruta
+
+<ParamField path="id" type="string" required>ID del workspace.</ParamField>
+<ParamField path="role_id" type="string" required>ID del rol.</ParamField>
+
+### Body
+
+Reemplazo completo: mismos campos que [Crear rol](/es-es/api-reference/endpoint/workspaces/roles/create), todos obligatorios salvo los opcionales.
+
+<ParamField body="name" type="string" required />
+<ParamField body="permissions" type="WorkspacePermission[]" required />
+<ParamField body="position" type="number" />
+
+### Respuesta
+
+Misma forma que [Crear rol](/es-es/api-reference/endpoint/workspaces/roles/create).
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Quien llama no tiene `roles:manage`. |
+| 403 | `WORKSPACE_PERMISSION_ESCALATION` | El conjunto de permisos antiguo o el nuevo incluye algo que quien llama no tiene (si no es el propietario). |
+| 404 | `WORKSPACE_NOT_FOUND` | El workspace no existe o no eres miembro. |
+| 404 | `WORKSPACE_ROLE_NOT_FOUND` | `role_id` no pertenece a este workspace. |

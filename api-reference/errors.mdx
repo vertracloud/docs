@@ -33,6 +33,7 @@ Every error uses the same envelope, described in the [API introduction](/api-ref
 | 401 | `SESSION_REVOKED` | The dashboard session behind the token expired or was revoked (signed out, or ended from the sessions list). Sign in again. |
 | 401 | `USER_NOT_FOUND` | The authenticated user no longer exists (rare — usually a deleted account). |
 | 403 | `API_KEY_IP_DENIED` | The request's IP isn't in the key's `allowed_ips`. Add the caller's IP/CIDR to the key, or clear the list to allow any IP. |
+| 403 | `API_KEY_MANAGED` | The key was created by the platform for a stack. It cannot be edited; it is revoked together with the stack. |
 | 403 | `API_KEY_SCOPE_DENIED` | The key is missing the scope the route requires (`details.required`), or the route is dashboard-session only. See [Scopes](/api-reference/introduction#scopes). |
 | 403 | `WEBSITE_ONLY` | The route only accepts a dashboard session. API keys normally get `API_KEY_SCOPE_DENIED` first on these routes; `WEBSITE_ONLY` is the second check behind it. No scope unlocks the action — use the dashboard. |
 | 403 | `ACCESS_DENIED` | The resource exists but your account can't act on it. Confirm you own the resource or have the right workspace permission. |
@@ -158,6 +159,7 @@ When a build or install fails, `GET /v1/apps/{id}` returns the code in `last_bui
 
 | Status | Code | Meaning & fix |
 |---|---|---|
+| 403 | `BLOB_PREFIX_DENIED` | The API key is restricted to a Blob folder and the operation is outside it, or it is an account-level operation (rules, domains, statistics). Use a key without the restriction. |
 | 404 | `BLOB_OBJECT_NOT_FOUND` | No object with that ID in this account (or it belongs to another account). Check the ID. |
 | 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Another object already has that `path`. Send `overwrite: true` to replace it, or choose another path. |
 | 404 | `BLOB_UPLOAD_NOT_FOUND` | The upload doesn't exist, belongs to another account, or was already completed or aborted. Start a new upload. |
@@ -259,6 +261,8 @@ Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDE
 | 409 | `IMAGE_BUILD_IN_PROGRESS` | The image already has a build running. Wait for it to end. Also returned when you try to delete the image during a build. |
 | 409 | `IMAGE_NOT_READY` | The image has no successful build yet, so apps cannot be created from it. |
 | 400 | `IMAGE_NAME_MISMATCH` | `confirm_name` is not the image name. |
+| 403 / 409 | `IMAGE_TEMPLATE_ONLY` | The image belongs to a template and can only be used through it. Creating an application from it answers 403; rebuilding, committing to, linking a repository to or editing the context of it answers 409. |
+| 409 | `IMAGE_IN_USE` | The image is the source of the current version of one of your private templates. `details.templates` lists them. Remove or replace it in the template first. |
 | 503 | `IMAGE_BUILDER_UNAVAILABLE` | No host can build images right now. Try again later. |
 | 400 | `IMAGE_APP_FIELD_NOT_APPLICABLE` | You sent `main_file`, `language`, `version`, `start_command` or `build_command` for an application that runs a custom image. These come from the image; leave them out. |
 | 409 | `IMAGE_APP_CODE_NOT_APPLICABLE` | The application runs a custom image, so code cannot be written into `/app` or deployed from GitHub on it. Update the image instead. |
@@ -268,6 +272,58 @@ Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDE
 | — | `IMAGE_TOO_LARGE` | Build failure: the built image is larger than 10 GB uncompressed. It appears in the image's `error` and build log. Remove files or use a smaller base image. |
 
 See [Custom Docker images](/guides/custom-docker-images).
+
+## Templates
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `TEMPLATE_NOT_FOUND` | The template does not exist, was removed, or is not visible to you. |
+| 404 | `TEMPLATE_VERSION_NOT_FOUND` | The template has no version with that number or ID. |
+| 409 | `TEMPLATE_SLUG_TAKEN` | Another template of yours already uses the slug. Choose another. |
+| 400 | `TEMPLATE_MANIFEST_INVALID` | The manifest is not valid. `details.issues` lists each problem. |
+| 400 | `TEMPLATE_INPUT_INVALID` | An answer to a question is missing or invalid. `details.issues` lists the questions. |
+| 400 | `TEMPLATE_SOURCE_REQUIRED` | A service that runs code was sent without its source file. |
+| 400 | `TEMPLATE_SECRET_IN_SOURCE` | The code sent to become a template holds a secret (a `.env` file, a private key or a token). `details.files` lists the paths. Remove the secret and send it again. |
+| 404 | `TEMPLATE_GITHUB_MANIFEST_NOT_FOUND` | The linked repository has no template manifest at its root. |
+| 403 | `TEMPLATE_PLAN_REQUIRED` | Your plan is below what the template needs. `details` names the reason and the plan required. |
+| 400 | `TEMPLATE_RAM_INSUFFICIENT` | Not enough free memory for the template. `details` carries the memory needed and the memory free. |
+| 403 | `TEMPLATE_IMAGE_SLOTS_EXHAUSTED` | The template runs an image and every custom image slot of the account is in use. Delete an image you no longer use. |
+| 403 | `TEMPLATE_CLOSED` | The route reads or changes the code, files, commands or variables of an application that comes from a [closed template](/templates/use/closed-templates). |
+| 403 | `TEMPLATE_PRIVATE_LIMIT_REACHED` | The limit of 5 private templates per account was reached. Delete one first. |
+| 403 | `TEMPLATE_SAVE_NOT_ALLOWED` | An application that came from a share link cannot be saved as a template or shared. |
+| 503 | `TEMPLATE_STORAGE_UNAVAILABLE` | The template catalog cannot be updated right now. Try again later. |
+| 409 | `TEMPLATE_DEPRECATED` | The template is deprecated and cannot be used for new applications. |
+| 400 | `TEMPLATE_VERSION_NOT_SELECTABLE` | The template does not allow picking earlier versions. |
+| 403 | `MANAGED_ENV_READONLY` | The variable is injected by the template and cannot be read or changed. |
+| 409 | `TEMPLATE_DEPLOY_IN_PROGRESS` | Another template deploy or update of the account is running. Wait for it to end. |
+| — | `TEMPLATE_DEPLOY_FAILED` | The deploy failed and everything it created was undone. `details.step` is the step that failed. |
+| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | The deploy job does not exist or belongs to another account. |
+| 409 | `IDEMPOTENCY_KEY_CONFLICT` | The `Idempotency-Key` was already used with a different request. Use a new key. |
+| 409 | `TEMPLATE_UPDATE_BLOCKED` | The update cannot go ahead. `details` gives the reason (for example, the application is still building or there is no newer version). |
+| 409 | `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | The change detaches the application from its template, so it stops receiving versions. Repeat the request with `confirm_detach` set to confirm. `details.action` names the change. |
+| 409 | `TEMPLATE_ROLLBACK_REQUIRES_DATA` | The template marks the service as migrating its data on update, so rolling back only the code is blocked. Restore the snapshot the update took instead. |
+| 404 | `SHARE_LINK_NOT_FOUND` | The share link does not exist. |
+| 410 | `SHARE_LINK_REVOKED` | The author revoked the share link. |
+| 410 | `SHARE_LINK_EXPIRED` | The share link expired. |
+| 410 | `SHARE_LINK_EXHAUSTED` | The share link reached its limit of uses. |
+
+Deploying a template is asynchronous; failures arrive in the deploy job and its events. See [Template errors](/templates/reference/errors).
+
+## Stacks
+
+| Status | Code | Meaning & fix |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 409 | `STACK_MEMBER_CONFLICT` | The resource is already in another stack, or is not in the same account or workspace as the stack. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | The resource is not a member of the stack. |
+| 404 | `STACK_BINDING_NOT_FOUND` | The stack has no connection with that ID. |
+| 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | The network mode is not `public`. |
+| 403 | `STACK_SERVICE_LOCKED` | The member comes from a closed template and cannot leave the stack. |
+| 400 | `STACK_NAME_MISMATCH` | `confirm_name` is not the stack name. |
+| 400 | `STACK_TRANSFORM_EMPTY` | The folder has no application, or no database, to put in a stack. |
+| 409 | `STACK_BLOB_PREFIX_TAKEN` | The Blob folder is already used by a stack, or has files. Choose another prefix. |
+
+Changes that can alter variables or certificates return `restart_required` and `apps_to_restart`: see [Create Stack](/api-reference/endpoint/stacks/create).
 
 ## Workspaces
 

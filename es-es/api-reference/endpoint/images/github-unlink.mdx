@@ -1,0 +1,139 @@
+---
+title: Desvincular imagen de GitHub
+sidebarTitle: Desvincular GitHub
+api: DELETE https://api.vertracloud.app/v1/images/{image_id}/github
+authMethod: bearer
+description: Elimina el vínculo entre una imagen y su repositorio de GitHub.
+---
+
+{/* @see RESTDeleteAPICustomImageGithubResult — @vertracloud/api-types */}
+Tras desvincular, los pushes ya no reconstruyen la imagen. Las versiones y las aplicaciones existentes no se ven afectadas. Puedes volver a vincularla en cualquier momento con [Vincular imagen a GitHub](/es-es/api-reference/endpoint/images/github-link). Solo el propietario de la imagen puede desvincularla; en un workspace, un miembro recibe `403`.
+
+Requiere el scope `images:write` cuando se llama con una clave de API.
+
+<ParamField path="image_id" type="string" required>
+  El ID de la imagen.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la imagen pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  La imagen.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID de la imagen.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    El nombre de la imagen.
+  </ResponseField>
+
+  <ResponseField name="description" type="string | null">
+    La descripción de la imagen (texto libre, de hasta 128 caracteres), o `null` si no tiene ninguna.
+  </ResponseField>
+
+  <ResponseField name="owner" type="string">
+    `account` para tus imágenes, `system` para las imágenes que proporciona la plataforma (estas no se pueden modificar ni eliminar).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Estado del último build: `building`, `success` o `failed`. Una reconstrucción fallida no cambia la versión actual: las aplicaciones siguen ejecutando la última que funcionó.
+  </ResponseField>
+
+  <ResponseField name="error" type="string | null">
+    Motivo legible del último build fallido, o `null`.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string | null">
+    Digest (`sha256:...`) de la versión actual, o `null` mientras ningún build haya tenido éxito.
+  </ResponseField>
+
+  <ResponseField name="uncompressed_bytes" type="integer | null">
+    Tamaño de la versión actual, sin comprimir, en bytes.
+  </ResponseField>
+
+  <ResponseField name="layer_count" type="integer | null">
+    Número de capas de la versión actual.
+  </ResponseField>
+
+  <ResponseField name="apps" type="object[]">
+    Las aplicaciones creadas a partir de esta imagen. Cada una tiene `id`, `name`, `version_id` (la versión de la imagen que ejecuta, o `null`) y `outdated` (`true` cuando la imagen tiene una versión más nueva; la aplicación pasa a ella en el siguiente reinicio o despliegue que pidas).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    El repositorio y la rama de GitHub vinculados (`repository` como `owner/name`, `branch`), o `null` si la imagen no está vinculada.
+  </ResponseField>
+
+  <ResponseField name="current_version_id" type="string | null">
+    La versión actual de la imagen, o `null` mientras ningún build haya tenido éxito.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó la imagen.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Cuándo se actualizó por última vez la imagen.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "img-abc123def456",
+    "name": "my-api",
+    "description": null,
+    "owner": "account",
+    "status": "success",
+    "error": null,
+    "digest": "sha256:3f1c0a9d5b7e2c4a8d6f1b0e9c3a7d5f2b4e6a8c0d1f3b5a7c9e2d4f6a8b0c1e",
+    "uncompressed_bytes": 187432960,
+    "layer_count": 9,
+    "apps": [
+      {
+        "id": "app-abc123def456",
+        "name": "my-api-prod",
+        "version_id": "imgv-111aaa222bbb",
+        "outdated": false
+      }
+    ],
+    "github": null,
+    "current_version_id": "imgv-111aaa222bbb",
+    "created_at": "2026-10-23T14:02:00Z",
+    "updated_at": "2026-10-23T14:09:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope necesario (`403`).
+  - `ACCESS_DENIED`: No eres el propietario de la imagen, o es una imagen de la plataforma (`403`).
+  - `IMAGE_NOT_FOUND`: La imagen no existe o no puedes acceder a ella (`404`).
+  - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

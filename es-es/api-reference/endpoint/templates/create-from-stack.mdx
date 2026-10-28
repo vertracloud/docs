@@ -1,0 +1,162 @@
+---
+title: Guardar un stack como plantilla
+sidebarTitle: Crear desde stack
+api: POST https://api.vertracloud.app/v1/templates/from-stack/{stack_id}
+authMethod: bearer
+description: Guarda uno de tus stacks como plantilla privada con un servicio por miembro, eligiendo variables y archivos para cada aplicación.
+---
+
+{/* @see RESTPostAPITemplateFromStackBody, RESTPostAPITemplateFromStackResponse — @vertracloud/api-types */}
+Esta llamada guarda un stack como plantilla privada con una primera versión y responde `201` con la plantilla, con un servicio por cada miembro que elijas. Las variables de conexión del stack se convierten en marcadores que apuntan a los otros servicios (`{{services.db.url}}`, por ejemplo), y cada carpeta de Blob del stack se convierte en un servicio Blob. Un miembro que se deja fuera de la plantilla también deja fuera las variables que apuntaban a él. Las bases de datos se recrean vacías: sus datos nunca se copian.
+
+Requiere el scope `templates:write` cuando se llama con una clave de API. Se aplican las reglas de plan, límite y workspace de [Crear una plantilla privada](/es-es/api-reference/endpoint/templates/create), la plantilla no la verifica Vertra Cloud, y las negativas de [Guardar una aplicación como plantilla](/es-es/api-reference/endpoint/templates/create-from-app) valen para cada miembro que sea aplicación. Lee antes la propuesta con [Revisar borrador de plantilla](/es-es/api-reference/endpoint/templates/draft).
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si el stack pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  El slug de la plantilla: letras minúsculas, dígitos y guiones.
+</ParamField>
+
+<ParamField body="name" type="object" required>
+  El nombre por idioma: `pt-br` (obligatorio), `en` y `es`, de hasta 50 caracteres cada uno.
+</ParamField>
+
+<ParamField body="description" type="object" required>
+  La descripción por idioma, con la misma forma que `name`, de hasta 128 caracteres cada uno.
+</ParamField>
+
+<ParamField body="category" type="string" required>
+  `automation`, `ai-agents`, `bots`, `apis`, `cms`, `monitoring`, `starters`, `databases` u `other`.
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Hasta 10 etiquetas.
+</ParamField>
+
+<ParamField body="version" type="string">
+  La primera versión, como versión semántica. Por defecto `1.0.0`.
+</ParamField>
+
+<ParamField body="permissions" type="object">
+  Lo que pueden hacer los usuarios de la plantilla, como en los [permisos](/es-es/templates/create/permissions) del manifiesto.
+</ParamField>
+
+<ParamField body="members" type="object[]" required>
+  Lo que se guarda de cada miembro del stack, una aplicación o una base de datos.
+
+  <Expandable title="Objeto member">
+
+  <ResponseField name="resource_id" type="string" required>
+    El ID de la aplicación o de la base de datos que se guarda.
+  </ResponseField>
+
+  <ResponseField name="service_id" type="string" required>
+    El id que recibe el servicio en el manifiesto.
+  </ResponseField>
+
+  <ResponseField name="env" type="object[]">
+    Una revisión por variable de una aplicación. Una variable sin revisión queda fuera de la plantilla. Cada revisión tiene:
+
+    - `key`: el nombre de la variable.
+    - `mode`: `question` (se convierte en una pregunta que responde el usuario; el valor no se copia), `keep` (el valor se copia; se rechaza cuando parece una credencial), `generate` (se convierte en un secreto que la plataforma genera para cada usuario, con `generate` igual a `random:<n>` o `uuid`), `hidden` (se copia, pero se oculta a quien usa la plantilla; el valor queda fuera de su vista) u `omit` (se deja fuera).
+    - `label` y `help`: textos por idioma (`pt-br`, `en`, `es`), usados por `question` y `generate`.
+    - `generate`: cómo se genera el secreto, `random:<n>` o `uuid`.
+
+    Lee antes las sugerencias con [Revisar borrador de plantilla](/es-es/api-reference/endpoint/templates/draft).
+  </ResponseField>
+
+  <ResponseField name="paths" type="string[]">
+    Las rutas de `/app` de la aplicación que entran en la plantilla, para aplicaciones con código. Sin este campo, entra todo excepto lo que el borrador deja sin seleccionar. Los archivos `.env*`, la carpeta de la plataforma y las carpetas de dependencias nunca se pueden incluir.
+  </ResponseField>
+
+  <ResponseField name="ram" type="object">
+    La memoria del servicio en MB: `min`, `recommended` y `max` opcional.
+  </ResponseField>
+
+  </Expandable>
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  El workspace que será propietario de la plantilla. Sin este campo, la plantilla te pertenece.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/templates/from-stack/stk-abc123def456 \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "api-with-postgres",
+    "name": { "pt-br": "API com Postgres", "en": "API with Postgres" },
+    "description": { "pt-br": "API e banco prontos." },
+    "category": "apis",
+    "members": [
+      { "resource_id": "app-abc123def456", "service_id": "api" },
+      { "resource_id": "db-abc123def456", "service_id": "db" }
+    ]
+  }'
+```
+
+</RequestExample>
+
+### Response
+
+El mismo objeto de plantilla que devuelve [Crear una plantilla privada](/es-es/api-reference/endpoint/templates/create), con `201 Created`. `creates_stack` es `true` y `services` tiene una entrada por miembro.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "api-with-postgres",
+    "origin": "private",
+    "name": { "pt-br": "API com Postgres", "en": "API with Postgres" },
+    "category": "apis",
+    "creates_stack": true,
+    "services": [
+      { "id": "api", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null, "ram": { "min": 256, "recommended": 512 }, "web": "required", "conditional": false },
+      { "id": "db", "kind": "database", "source_type": null, "database": "postgres", "blob_visibility": null, "ram": { "min": 256, "recommended": 256 }, "web": null, "conditional": false }
+    ],
+    "ram_min_total": 512,
+    "created_at": "2026-10-27T14:02:00Z",
+    "updated_at": "2026-10-27T14:02:00Z"
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `API_KEY_SCOPE_DENIED`: La clave de API no tiene el scope `templates:write` (`403`).
+  - `STACK_NOT_FOUND`: El stack no existe o no es tuyo.
+  - `APP_NOT_FOUND`: Una aplicación miembro no existe.
+  - `TEMPLATE_SAVE_NOT_ALLOWED`: Una aplicación miembro llegó desde un enlace para compartir, o ejecuta una imagen de la plataforma (`403`).
+  - `TEMPLATE_CLOSED`: Un miembro procede de una plantilla cerrada (`403`).
+  - `TEMPLATE_MANIFEST_INVALID`: El resultado no es un manifiesto válido; `details.issues` enumera los hallazgos.
+  - `TEMPLATE_SECRET_IN_SOURCE`: Un archivo seleccionado contiene un secreto; `details.files` enumera las rutas (`400`).
+  - `TEMPLATE_SLUG_TAKEN`: El slug ya está en uso entre tus plantillas o está reservado.
+  - `TEMPLATE_PRIVATE_LIMIT_REACHED`: La cuenta ya tiene 5 plantillas privadas.
+  - `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES`: El plan no puede crear plantillas.
+  - `WORKSPACE_OWNER_ONLY`: Solo el propietario del workspace guarda plantillas en él.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_CLOSED"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,102 @@
+---
+title: Métricas da aplicação
+sidebarTitle: Métricas da aplicação
+api: GET https://api.vertracloud.app/v1/apps/{id}/metrics
+authMethod: bearer
+description: Retorna as métricas de uma aplicação pelo seu ID, incluindo uso de CPU, RAM, armazenamento e rede nas últimas 24 horas.
+---
+
+{/* @see APIApplicationMetric[] — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID da aplicação cujas métricas serão retornadas. Se a aplicação pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma aplicação que não lhes pertence.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="array">
+  Um array de objetos de métrica da aplicação nas últimas 24 horas.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="cpu" type="number">
+    Porcentagem de uso de CPU.
+  </ResponseField>
+
+  <ResponseField name="ram" type="number">
+    Uso de RAM, em MB.
+  </ResponseField>
+
+  <ResponseField name="storage" type="number">
+    Uso de armazenamento, em MB.
+  </ResponseField>
+
+  <ResponseField name="network" type="array">
+    Um array com dois números: `[network_in, network_out]`, representando o tráfego de rede de entrada e de saída, em bytes.
+  </ResponseField>
+
+  <ResponseField name="date" type="string" format="date-time">
+    O timestamp de quando a métrica foi registrada.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "cpu": 25.5,
+      "ram": 512,
+      "storage": 1024,
+      "network": [1048576, 524288],
+      "date": "2026-03-20T19:58:00Z"
+    },
+    {
+      "cpu": 30.2,
+      "ram": 510,
+      "storage": 1024,
+      "network": [2097152, 1048576],
+      "date": "2026-03-20T19:59:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
+  - `ACCESS_DENIED`: o recurso pertence a outra conta, ou você não tem a permissão do workspace para ele (`403`).
+  - `APP_NOT_FOUND`: a aplicação informada não existe.
+  - `FORBIDDEN`: o usuário não tem permissão para acessar a aplicação.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,58 @@
+---
+title: Excluir conexão da stack
+sidebarTitle: Excluir conexão
+api: DELETE https://api.vertracloud.app/v1/stacks/{stack_id}/bindings/{binding_id}
+authMethod: bearer
+description: Remove uma conexão de uma stack, mantendo ou apagando as variáveis que ela criou.
+---
+
+{/* @see RESTDeleteAPIStackBindingQuery, RESTDeleteAPIStackBindingResponse — @vertracloud/api-types */}
+Remove uma conexão. Os membros continuam na stack. Precisa do escopo `stacks:write` quando chamado com uma chave de API.
+
+<ParamField path="stack_id" type="string" required>
+  O ID da stack.
+</ParamField>
+
+<ParamField path="binding_id" type="string" required>
+  O ID da conexão.
+</ParamField>
+
+<ParamField query="variables" type="string" default="keep_connection">
+  O que acontece com as variáveis que a conexão criou:
+
+  - `keep_connection`: elas viram variáveis comuns e os certificados ficam, então o app continua conectando.
+  - `remove_variables`: as variáveis e os certificados copiados para o app são apagados.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O workspace ao qual a stack pertence, quando você age sobre ela como dono do workspace.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="restart_required" type="boolean">`true` quando variáveis foram removidas de um app (`variables=remove_variables`): ele precisa reiniciar para deixar de lê-las.</ResponseField>
+  <ResponseField name="apps_to_restart" type="string[]">Os apps que precisam reiniciar.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": { "restart_required": true, "apps_to_restart": ["app-abc123def456"] }
+}
+```
+
+</ResponseExample>
+
+### Erros
+
+| Status | Código | Quando |
+|---|---|---|
+| 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
+| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |
+| 404 | `STACK_BINDING_NOT_FOUND` | A stack não tem uma conexão com esse ID. |

@@ -1,0 +1,44 @@
+---
+title: List Stack Connections
+sidebarTitle: List Connections
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/bindings
+authMethod: bearer
+description: Lists the connections of a stack, the variables the platform injects into each application.
+---
+
+{/* @see RESTGetAPIStackBindingsResponse, APIStackBinding — @vertracloud/api-types */}
+Returns the connections between the members of a stack. A connection makes the platform inject variables (and, for a database, the client certificates) into an application and keep them up to date. Needs the `stacks:read` scope when called with an API key.
+
+<ParamField path="stack_id" type="string" required>
+  The stack ID.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  The workspace the stack belongs to. Required for a workspace member acting on a stack they do not own.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object[]">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">The connection ID.</ResponseField>
+  <ResponseField name="stack_id" type="string">The stack ID.</ResponseField>
+  <ResponseField name="app_id" type="string">The application that receives the variables.</ResponseField>
+  <ResponseField name="database_id" type="string | null">The database the application connects to.</ResponseField>
+  <ResponseField name="blob_id" type="string | null">The Blob member the application connects to.</ResponseField>
+  <ResponseField name="target_app_id" type="string | null">Another application the application calls; the application itself when the variable carries its own address.</ResponseField>
+  <ResponseField name="env_map" type="object">Variable name to what it receives. See [Create Connection](/api-reference/endpoint/stacks/bindings/create) for the values.</ResponseField>
+  <ResponseField name="certs_path" type="string | null">Folder inside the application where the client certificates of the database are written, or `null` without a database.</ResponseField>
+  <ResponseField name="created_at" type="string" format="date-time">When the connection was created.</ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+Exactly one of `database_id`, `blob_id` and `target_app_id` is set.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |

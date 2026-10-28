@@ -1,0 +1,145 @@
+---
+title: Listar imagens
+sidebarTitle: Listar imagens
+api: GET https://api.vertracloud.app/v1/images
+authMethod: bearer
+description: Lista as imagens Docker personalizadas da conta.
+---
+
+{/* @see APICustomImage[], RESTGetAPICustomImagesResult — @vertracloud/api-types */}
+Precisa do escopo `images:read` quando chamado com uma chave de API.
+
+<ParamField query="workspace_id" type="string">
+  Lista as imagens desse workspace em vez das imagens da conta.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="array">
+  Um array de imagens.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID da imagem.
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    O nome da imagem.
+  </ResponseField>
+
+  <ResponseField name="description" type="string | null">
+    A descrição da imagem (texto livre, até 128 caracteres), ou `null` quando ela não tem uma.
+  </ResponseField>
+
+  <ResponseField name="owner" type="string">
+    `account` para as suas imagens, `system` para imagens fornecidas pela plataforma (estas não podem ser alteradas nem apagadas).
+  </ResponseField>
+
+  <ResponseField name="kind" type="string">
+    `own` para uma imagem que você construiu, ou `template_copy` para a cópia da imagem de um template que [usar um template](/pt-br/templates/use/using-a-template) colocou na sua conta. Uma cópia ocupa uma vaga de imagem e só pode ser usada pelo template dela.
+  </ResponseField>
+
+  <ResponseField name="origin" type="object | null">
+    Para um `template_copy`, o template de onde ela veio: `template_id`, `template_name` (por idioma) e `author_display` (`null` para um template da plataforma). `null` para as suas imagens.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Estado do build mais recente: `building`, `success` ou `failed`. Uma reconstrução que falha não muda a versão atual: os apps continuam rodando a última versão que deu certo.
+  </ResponseField>
+
+  <ResponseField name="error" type="string | null">
+    Motivo legível do último build que falhou, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="digest" type="string | null">
+    Digest (`sha256:...`) da versão atual, ou `null` enquanto nenhum build tiver dado certo.
+  </ResponseField>
+
+  <ResponseField name="uncompressed_bytes" type="integer | null">
+    Tamanho da versão atual, descompactada, em bytes.
+  </ResponseField>
+
+  <ResponseField name="layer_count" type="integer | null">
+    Número de camadas da versão atual.
+  </ResponseField>
+
+  <ResponseField name="suggested_port" type="integer | null">
+    Porta sugerida para um novo app nesta imagem: o primeiro `EXPOSE` do `Dockerfile` do contexto de build mais recente, ou `80`. `null` para uma imagem criada antes deste campo existir.
+  </ResponseField>
+
+  <ResponseField name="apps" type="object[]">
+    Os apps criados a partir desta imagem. Cada um tem `id`, `name`, `version_id` (a versão da imagem que ele executa, ou `null`) e `outdated` (`true` quando a imagem tem uma versão mais nova; o app passa para ela no próximo restart ou deploy que você pedir).
+  </ResponseField>
+
+  <ResponseField name="github" type="object | null">
+    O repositório e a branch do GitHub vinculados (`repository` no formato `owner/name`, `branch`), ou `null` quando a imagem não está vinculada.
+  </ResponseField>
+
+  <ResponseField name="current_version_id" type="string | null">
+    A versão atual da imagem, ou `null` enquanto nenhum build tiver dado certo.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Quando a imagem foi criada.
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string" format="date-time">
+    Quando a imagem foi atualizada pela última vez.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+  {
+    "id": "img-abc123def456",
+    "name": "my-api",
+    "description": null,
+    "owner": "account",
+    "status": "success",
+    "error": null,
+    "digest": "sha256:3f1c0a9d5b7e2c4a8d6f1b0e9c3a7d5f2b4e6a8c0d1f3b5a7c9e2d4f6a8b0c1e",
+    "uncompressed_bytes": 187432960,
+    "layer_count": 9,
+    "suggested_port": 3000,
+    "apps": [
+      {
+        "id": "app-abc123def456",
+        "name": "my-api-prod",
+        "version_id": "imgv-111aaa222bbb",
+        "outdated": false
+      }
+    ],
+    "github": null,
+    "current_version_id": "imgv-111aaa222bbb",
+    "created_at": "2026-10-23T14:02:00Z",
+    "updated_at": "2026-10-23T14:09:00Z"
+  }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo necessário (`403`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+</ResponseExample>

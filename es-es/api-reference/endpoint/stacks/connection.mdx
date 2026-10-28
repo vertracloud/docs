@@ -1,0 +1,50 @@
+---
+title: Obtener código de conexión del stack
+sidebarTitle: Código de conexión
+api: GET https://api.vertracloud.app/v1/stacks/{stack_id}/connection
+authMethod: bearer
+description: Devuelve código listo para usar que conecta una aplicación de un stack a sus bases de datos y carpetas de Blob, con los nombres reales de las variables.
+---
+
+{/* @see RESTGetAPIStackConnectionQuery, RESTGetAPIStackConnectionResponse, APIStackConnectionInfo — @vertracloud/api-types */}
+Devuelve fragmentos de código en el lenguaje de la aplicación, usando los nombres de variables que inyectó la plataforma. Requiere el scope `stacks:read` cuando se llama con una clave de API.
+
+<ParamField path="stack_id" type="string" required>
+  El ID del stack.
+</ParamField>
+
+<ParamField query="app_id" type="string" required>
+  La aplicación del stack que se va a conectar.
+</ParamField>
+
+<ParamField query="language" type="string">
+  El lenguaje del código. Por defecto: el lenguaje de la aplicación.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El workspace al que pertenece el stack. Es obligatorio para un miembro del workspace que actúe sobre un stack que no le pertenece.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="app_id" type="string">El ID de la aplicación.</ResponseField>
+  <ResponseField name="language" type="string">El lenguaje de la aplicación.</ResponseField>
+
+  <ResponseField name="snippets" type="object[]">
+    Un elemento por conexión. Cada uno tiene `language`, `driver` (la librería cliente que usa el código), `database_type` (`null` para una carpeta de Blob), `blob` (`true` para un cliente de Blob compatible con S3), `title`, `code` y `env_vars` (los nombres de las variables que lee el código).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+Para más información sobre cómo conectar, consulta [Conectar una base de datos](/es-es/guides/connect-database).
+
+### Errores
+
+| Estado | Código | Cuándo |
+|---|---|---|
+| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | La aplicación no es miembro del stack. |

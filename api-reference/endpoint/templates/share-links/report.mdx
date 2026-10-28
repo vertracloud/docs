@@ -1,0 +1,83 @@
+---
+title: Report a Template
+sidebarTitle: Report Template
+api: POST https://api.vertracloud.app/v1/share/templates/{token}/report
+authMethod: bearer
+description: Reports a private template to Vertra Cloud from its share link or from an application created from it, with a reason and optional details.
+---
+
+{/* @see RESTPostAPITemplateReportBody, RESTPostAPITemplateReportResponse — @vertracloud/api-types */}
+This call reports a private template to Vertra Cloud and answers `200` with `null`. The author is not told who reported. Reports are reviewed by the platform; for a serious case with evidence, also write to `abuse@vertracloud.app`.
+
+There are two routes with the same body: `POST /v1/share/templates/{token}/report` from a share link, which still works after the link was revoked, and `POST /v1/apps/{id}/template/report` from an application created from the template. For the application route, the caller is the owner of the application or, in a workspace, a member with access to applications. An account can report the same template at most 3 times, after which the call fails with `429`.
+
+Both need the `templates:write` scope when called with an API key. The details are never written to logs.
+
+<ParamField path="token" type="string" required>
+  The token of the link, on the link route.
+</ParamField>
+
+<ParamField path="id" type="string" required>
+  The application ID, on the application route.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  On the application route, the workspace's ID when the application belongs to one.
+</ParamField>
+
+<ParamField body="reason" type="string" required>
+  `malware`, `scam`, `copyright`, `leaked_secret` or `other`.
+</ParamField>
+
+<ParamField body="details" type="string">
+  What you saw, up to 1,000 characters.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/share/templates/vtpl_EXAMPLE_TOKEN/report \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "leaked_secret", "details": "The code has a token in src/config.js" }'
+```
+
+</RequestExample>
+
+### Response
+
+<ResponseField name="response" type="null">
+  Always `null`.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for the failure. Possible values:
+  - `API_KEY_SCOPE_DENIED`: The API key does not have the `templates:write` scope (`403`).
+  - `VALIDATION_ERROR`: `reason` is not one of the values above or `details` is over 1,000 characters (`400`).
+  - `SHARE_LINK_NOT_FOUND`: The token has the wrong form, does not exist, or its template was deleted (`404`).
+  - `APP_NOT_FOUND`: On the application route, the application does not exist or is not yours.
+  - `TEMPLATE_NOT_FOUND`: On the application route, the application did not come from a template (`404`).
+  - `RATE_LIMIT_EXCEEDED`: You already reported this template 3 times (`429`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "SHARE_LINK_NOT_FOUND"
+}
+```
+
+</ResponseExample>

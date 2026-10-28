@@ -1,0 +1,82 @@
+---
+title: Logs de la aplicación en tiempo real
+sidebarTitle: Logs en tiempo real
+api: GET https://api.vertracloud.app/v1/apps/{id}/realtime
+authMethod: bearer
+description: Devuelve los logs en tiempo real de una aplicación a partir de su ID, transmitidos como un flujo de eventos de texto.
+---
+
+{/* @see SSE stream — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  El ID de la aplicación cuyos logs en tiempo real quieres obtener. Si la aplicación pertenece a un workspace, pasa su ID en el parámetro de consulta `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúen sobre una aplicación que no les pertenece.
+</ParamField>
+
+### Respuesta
+
+La respuesta se transmite como un flujo de eventos de texto (`text/event-stream`). Cada entrada de log se envía como un evento con el siguiente formato:
+
+- **Tipo de evento**: `logs` para los mensajes de log, `system` para los avisos del flujo y de la plataforma (por ejemplo, `install_note:started`), `heartbeat` para los eventos de keep-alive sin contenido.
+- **Data**: Texto plano (no JSON). Un evento `logs` lleva una o más líneas separadas por saltos de línea, cada una con una marca de tiempo ISO 8601 seguida del mensaje del log.
+
+Tras un despliegue, los eventos `system` también pueden informar de lo que ocurrió con la nueva versión. El aviso nombra las releases implicadas por su ID, tal como aparecen en [Listar releases de la aplicación](/es-es/api-reference/endpoint/apps/releases/list):
+
+- `deploy_note:failed:<release_id>`: la nueva versión se detuvo justo después de arrancar. El log del fallo está disponible en esa release.
+- `deploy_note:rollback:<from>:<to>`: la plataforma volvió automáticamente a la versión anterior, porque la nueva se detuvo en los 60 segundos posteriores al despliegue. `<from>` es la release que falló y `<to>` es la que vuelve a estar en ejecución.
+- `deploy_note:discarded:<release_id>`: en el plan Enterprise, la nueva versión no llegó a estar sana y se descartó; la versión anterior siguió ejecutándose.
+
+Mientras se instalan las dependencias, el flujo lleva la salida de la instalación precedida por el
+evento de sistema `install_note:started`.
+La instalación se ejecuta fuera del límite de memoria del plan, y la aplicación arranca en cuanto termina.
+
+<ResponseExample>
+
+```text Response
+event: logs
+data: 2026-03-20T19:58:00Z [INFO] Application iniciada com sucesso
+
+event: logs
+data: 2026-03-20T19:58:01Z [DEBUG] Connected to database
+
+event: logs
+data: 2026-03-20T19:58:02Z [ERROR] Failed to process request
+
+event: system
+data: 2026-03-20T19:58:03Z Connection Closed
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `ACCESS_DENIED`: El recurso pertenece a otra cuenta, o no tienes el permiso de workspace necesario para él (`403`).
+  - `APP_NOT_FOUND`: La aplicación indicada no existe.
+  - `FORBIDDEN`: El usuario no tiene permiso para acceder a la aplicación.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Un mensaje descriptivo con más detalles sobre el error.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (401)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+</ResponseExample>

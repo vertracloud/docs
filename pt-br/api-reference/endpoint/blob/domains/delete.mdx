@@ -1,0 +1,76 @@
+---
+title: "Excluir um domínio personalizado de blob"
+sidebarTitle: "Excluir domínio"
+api: "DELETE https://blob.vertracloud.app/v1/domains/{domain_id}"
+authMethod: bearer
+description: "Remove um domínio personalizado do armazenamento de blob. A resposta é null."
+---
+
+{/* @see RESTDeleteAPIBlobDomainResponse — @vertracloud/api-types */}
+
+Remove um domínio personalizado, para que o hostname deixe de servir os arquivos da conta. Os arquivos em si não são excluídos. A resposta é `null` no campo `response`.
+
+**Escopo:** `blob:write`.
+
+<ParamField path="domain_id" type="string" required>
+  O ID do domínio.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  O ID do workspace, quando o blob pertence a um workspace. A chamada atua sobre o blob do proprietário do workspace e exige a permissão `blob:read` do workspace (`blob:manage` nas rotas que alteram dados). Deixe de fora para atuar sobre o seu próprio blob.
+</ParamField>
+
+### Exemplo de requisição
+
+```bash
+curl -X DELETE "https://blob.vertracloud.app/v1/domains/9a8b7c6d-5e4f-4a3b-b2c1-d0e9f8a7b6c5" \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+### Resposta
+
+Vazia em caso de sucesso.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": null
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING` (`401`): o cabeçalho `Authorization` não foi enviado.
+  - `API_KEY_INVALID` (`401`): a chave de API não existe, foi revogada ou o segredo não confere.
+  - `API_KEY_SCOPE_DENIED` (`403`): a chave não tem o escopo que esta rota exige (`blob:read` ou `blob:write`); `details.required` informa qual.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): somente com `workspace_id`: você não é membro, ou o seu papel não tem a permissão de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): somente com `workspace_id`: não existe workspace com esse ID, ou você não é membro.
+  - `BLOB_CUSTOM_DOMAIN_NOT_FOUND` (`404`): não existe domínio com esse ID nesta conta.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

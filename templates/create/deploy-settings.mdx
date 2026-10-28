@@ -1,0 +1,74 @@
+---
+title: 'Template Deploy Settings: Blue-Green, Auto Rollback and Rollback with Data'
+sidebarTitle: 'Deploy settings'
+description: 'Set zero_downtime, auto_rollback and rollback.with_data per service, and learn when to lock blue-green off because two copies would break your software.'
+icon: 'arrows-rotate'
+---
+
+`deploy` is a block inside an app service that sets the default and the lock of three behaviors: zero-downtime (blue-green) deploys, automatic rollback and rollback with data. It only restricts: the plan still decides what exists, and a manifest never enables something the plan does not include.
+
+```yaml
+services:
+  app:
+    # ...
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: required }
+```
+
+## The three settings
+
+| Setting | Values | What it does |
+|---|---|---|
+| `zero_downtime.default` | `auto`, `on`, `off` | The starting mode of the app. |
+| `zero_downtime.locked` | `true` or `false` | With `true`, the user cannot change the mode. A locked setting needs `default: on` or `default: off`; `locked: true` with `auto` gives `invalid_deploy`. |
+| `auto_rollback.default` | `true` or `false` | Whether a failed deploy goes back on its own. |
+| `auto_rollback.locked` | `true` or `false` | With `true`, the user cannot change it. |
+| `rollback.with_data` | `required` or `optional` | `required` blocks a rollback of the code alone: rolling back restores the code, `/app` and the databases together, from the safety snapshot. |
+
+Quote `"off"` and `"on"` in YAML, or the parser reads them as booleans. For how blue-green and rollback work for a regular app, see [Rollback and zero-downtime deploys](/guides/rollback-and-zero-downtime-deploys).
+
+## When to lock blue-green off
+
+Blue-green runs the old and the new copy at the same time while traffic moves. **Lock it off** (`default: "off"`, `locked: true`) whenever two copies running together would do harm.
+
+| Software | What breaks with two copies |
+|---|---|
+| A bot that connects to a channel (Discord, Telegram, WhatsApp) | Both copies connect with the same token and every message is answered twice. |
+| Software with scheduled triggers (n8n, job runners) | Schedules fire twice; in queue mode both copies may claim to be the leader. |
+| An app tied to a WhatsApp number or session | A second session of the same number disconnects the first. |
+| Anything with SQLite, or any single-writer file in `/app` | Two processes writing the same file can corrupt it. |
+| A worker that must be the only consumer of a queue or lock | Duplicated work or a split brain. |
+
+Leave it open (`auto`, unlocked) for stateless web apps and APIs that keep their data in a managed database and answer requests without side effects at startup.
+
+## When to require rollback with data
+
+Use `rollback: { with_data: required }` when the new version **migrates the database or the data files** on startup. Rolling back only the code would leave an old program reading a schema it no longer understands. With `required`, the manual and the automatic rollback of the code alone are blocked, and the way back is to restore the snapshot taken before the update, which brings the code, `/app` and the stack's databases back together.
+
+Use `optional` (the default) when the code can be rolled back independently, as in a stateless bot whose state is only a token.
+
+## Updates to the template
+
+Whoever uses the template receives a new version only when they choose to update. Before the update, the platform takes a safety snapshot of `/app` and of the stack's databases, updates the services one after another and, if a step fails, goes back to the snapshot. `with_data: required` is what tells the platform that restoring the databases is part of going back.
+
+## Example: n8n and the starter bot
+
+n8n migrates its database, runs schedules and may keep SQLite, so it locks blue-green off and requires rollback with data:
+
+```yaml
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: required }
+```
+
+The starter bot has no data to migrate, but two copies with the same token would answer twice:
+
+```yaml
+    deploy:
+      zero_downtime: { default: "off", locked: true }
+      auto_rollback: { default: true }
+      rollback: { with_data: optional }
+```

@@ -1,0 +1,65 @@
+---
+title: Parar banco de dados
+sidebarTitle: Parar banco de dados
+api: POST https://api.vertracloud.app/v1/databases/{id}/stop
+authMethod: bearer
+description: Para um banco de dados pelo seu ID.
+---
+
+{/* @see success — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID do banco de dados a parar. Se o banco de dados pertencer a um workspace, informe o ID dele no parâmetro de query `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o banco de dados pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que atuam sobre um banco de dados que não lhes pertence.
+</ParamField>
+
+<Note>
+  **Parar é idempotente.** Parar um banco de dados que já está parado é um sucesso, não um erro: a API responde `200` e garante que o estado registrado seja `down`. Você não precisa ler o status antes para decidir se a chamada é segura.
+</Note>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A resposta com o status da operação.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="status" type="string">
+    O status da operação (`success`).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "status": "success"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `DATABASE_NOT_FOUND`: O banco de dados informado não existe.
+  - `ACCESS_DENIED`: O usuário não tem permissão para agir sobre o banco de dados.
+  - `OPERATION_IN_PROGRESS`: Outra operação de ciclo de vida sobre o mesmo banco de dados já está em execução (`409`). O container não foi alterado — aguarde alguns segundos e tente novamente. Veja [Códigos de erro comuns](/pt-br/api-reference/introduction#quais-códigos-de-erro-a-api-pode-retornar).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (409)
+{
+  "code": "OPERATION_IN_PROGRESS"
+}
+```
+
+</ResponseExample>

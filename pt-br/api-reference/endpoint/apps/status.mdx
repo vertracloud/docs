@@ -1,0 +1,138 @@
+---
+title: Status da aplicação
+sidebarTitle: Obter status da aplicação
+api: GET https://api.vertracloud.app/v1/apps/{id}/status
+authMethod: bearer
+description: Retorna o status atual e o uso de recursos de uma aplicação pelo seu ID.
+---
+
+{/* @see APIApplicationStatus — @vertracloud/api-types */}
+<ParamField path="id" type="string" required>
+  O ID da aplicação cujo status será retornado. Se a aplicação pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma aplicação que não lhes pertence.
+</ParamField>
+
+<Note>
+  **Uma aplicação parada responde `200`, e não um erro.** O container de uma aplicação parada não existe — ele é removido ao parar — e isso é um estado normal, não uma falha. A API retorna `200` com `running: false` e todas as métricas zeradas. Só uma falha real na leitura do status retorna `500`.
+</Note>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O status da aplicação e os detalhes de uso de recursos.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID da aplicação.
+  </ResponseField>
+
+  <ResponseField name="cpu" type="string">
+    Porcentagem de uso de CPU (por exemplo, `25.5%`).
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    Uso de RAM (por exemplo, `512 MB`).
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    Uso de armazenamento (por exemplo, `1024 MB`).
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    O status da aplicação (por exemplo, `running`).
+  </ResponseField>
+
+  <ResponseField name="running" type="boolean">
+    Indica se a aplicação está em execução.
+  </ResponseField>
+
+  <ResponseField name="installing" type="boolean">
+    Presente e `true` enquanto as dependências estão sendo instaladas ou a aplicação está sendo rebuildada. Durante esse tempo, `running` pode ser `false` mesmo com trabalho em andamento. Trate isso como um estado em progresso, não como "parada", e não emita um start enquanto ele for `true`. Um [restart](/pt-br/api-reference/endpoint/apps/restart) com `reinstall_dependencies` ou `force_build` é uma das operações que abrem esta janela.
+  </ResponseField>
+
+  <ResponseField name="network" type="object">
+    Detalhes de uso de rede.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="total" type="string">
+      Tráfego de rede total.
+    </ResponseField>
+
+    <ResponseField name="now" type="string">
+      Tráfego de rede atual.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="uptime" type="number">
+    O tempo em que a aplicação está no ar, em segundos.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "app-abc123def456",
+    "cpu": "25.50%",
+    "ram": "512.00 MB",
+    "storage": "1024.00 MB",
+    "status": "running",
+    "running": true,
+    "network": {
+      "total": "569.90KB ↓ 36.41KB ↑",
+      "now": "18.78KB ↑ 1.20KB ↓"
+    },
+    "uptime": 3600
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
+  - `ACCESS_DENIED`: o recurso pertence a outra conta, ou você não tem a permissão do workspace para ele (`403`).
+  - `APP_NOT_FOUND`: a aplicação informada não existe.
+  - `FORBIDDEN`: o usuário não tem permissão para acessar a aplicação.
+  - `INTERNAL_SERVER_ERROR`: o status não pôde ser lido. Uma aplicação parada **não** é este caso — veja a nota acima.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "APP_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "FORBIDDEN"
+}
+```
+
+```json Error Response (500)
+{
+  "code": "INTERNAL_SERVER_ERROR"
+}
+```
+
+</ResponseExample>

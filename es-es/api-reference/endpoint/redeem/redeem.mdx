@@ -1,0 +1,58 @@
+---
+title: Canjear código
+sidebarTitle: Canjear código
+api: POST https://api.vertracloud.app/v1/redeem/{code}
+authMethod: bearer
+description: Canjea un código de plan, aplicando su plan a la cuenta autenticada.
+---
+<ParamField path="code" type="string" required>
+  El código de canje.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="plan" type="object">
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="name" type="string">El slug del plan que se aplicó.</ResponseField>
+    <ResponseField name="duration" type="integer">Duración concedida, en días.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "plan": { "name": "pro", "duration": 30 }
+  }
+}
+```
+
+</ResponseExample>
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `INVALID_OR_EXPIRED_CODE`: El código no existe, ya se usó o ha caducado.
+  - `INVALID_PLAN_NAME`: El código apunta a un plan que ya no existe.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "INVALID_OR_EXPIRED_CODE"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,100 @@
+---
+title: Create Stack
+sidebarTitle: Create Stack
+api: POST https://api.vertracloud.app/v1/stacks
+authMethod: bearer
+description: Creates a stack from applications and databases you already have, and optionally connects them to each other.
+---
+
+{/* @see RESTPostAPIStackBody, RESTPostAPIStackResponse, APIStackChange — @vertracloud/api-types */}
+Groups applications and databases that already exist into one stack. All members must belong to the same account or workspace and none can be in another stack. To create a stack from a folder in one step, see [Transform Folder into Stack](/api-reference/endpoint/stacks/transform). Needs the `stacks:write` scope when called with an API key. Only the owner of a workspace can create stacks in it.
+
+<ParamField body="name" type="string" required>
+  The stack name.
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  Optional description.
+</ParamField>
+
+<ParamField body="network_mode" type="string" default="public">
+  Only `public` is accepted. Any other value fails with `STACK_NETWORK_MODE_UNAVAILABLE`.
+</ParamField>
+
+<ParamField body="members" type="object[]">
+  The resources to put in the stack. Each item has `resource_type` (`application` or `database`) and `resource_id`. A Blob folder is added afterwards with [Add Blob Folder](/api-reference/endpoint/stacks/blob/create).
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Connections to create between the members. Each item has `app_id` (the application that receives the variables), exactly one of `database_id` or `target_app_id`, and an optional `env_map` (variable name to what it receives; see [Create Connection](/api-reference/endpoint/stacks/bindings/create)). Without `env_map`, the standard names of the engine are used.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  The workspace that will own the stack.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The stack created (`201`), with the same fields as [Get Stack](/api-reference/endpoint/stacks/get), plus:
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="restart_required" type="boolean">
+    `true` when at least one application must restart to read the variables or certificates the new connections created. An application reads them only when it starts, so the platform does not restart it for you.
+  </ResponseField>
+
+  <ResponseField name="apps_to_restart" type="string[]">
+    The applications that need a restart. Empty when `restart_required` is `false`. Restart them with [Restart Application](/api-reference/endpoint/apps/restart).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+The same two fields come back on every change that can alter variables or certificates of an application: transform, add or remove a member, create or change a connection, add a database or a Blob folder.
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "stk-abc123def456",
+    "name": "shop",
+    "network_mode": "public",
+    "members": [],
+    "bindings": [],
+    "restart_required": true,
+    "apps_to_restart": ["app-abc123def456"]
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/stacks \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "shop",
+    "members": [
+      { "resource_type": "application", "resource_id": "app-abc123def456" },
+      { "resource_type": "database", "resource_id": "db-abc123def456" }
+    ],
+    "bindings": [{ "app_id": "app-abc123def456", "database_id": "db-abc123def456" }]
+  }'
+```
+
+</RequestExample>
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | `network_mode` is `private`. |
+| 409 | `STACK_MEMBER_CONFLICT` | A resource is already in another stack, or is not in the same account or workspace as the stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
+| 404 | `APP_NOT_FOUND` | An application does not exist or is not yours. |
+| 404 | `DATABASE_NOT_FOUND` | A database does not exist or is not yours. |

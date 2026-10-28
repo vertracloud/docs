@@ -1,0 +1,42 @@
+---
+title: Transform Folder into Stack
+sidebarTitle: Transform into Stack
+api: POST https://api.vertracloud.app/v1/stacks/transform
+authMethod: bearer
+description: Turns the applications and databases of a folder into a stack, optionally injecting the connection variables.
+---
+
+{/* @see RESTPostAPIStackTransformBody, RESTPostAPIStackTransformResponse — @vertracloud/api-types */}
+Creates a stack from every application and database in a folder. The folder stays. With `inject_variables: true` the platform adds the connection variables and the certificates to the applications; with `false` the applications are assumed to connect on their own. Needs the `stacks:write` scope when called with an API key.
+
+<ParamField body="folder_id" type="string" required>
+  The folder to take the resources from.
+</ParamField>
+
+<ParamField body="workspace_id" type="string">
+  The workspace of the folder. Absent means your own folder.
+</ParamField>
+
+<ParamField body="name" type="string">
+  The stack name. Optional.
+</ParamField>
+
+<ParamField body="inject_variables" type="boolean" required>
+  Whether the platform creates the connections and injects the variables and certificates.
+</ParamField>
+
+<ParamField body="bindings" type="object[]">
+  Connections to create when `inject_variables` is `true`. Each item has `app_id`, `database_id` and an optional `env_map` (see [Create Connection](/api-reference/endpoint/stacks/bindings/create)).
+</ParamField>
+
+### Response
+
+`201` with the stack, the same as [Create Stack](/api-reference/endpoint/stacks/create), including `restart_required` and `apps_to_restart`.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `STACK_TRANSFORM_EMPTY` | The folder has no application, or no database, to put in a stack. |
+| 409 | `STACK_MEMBER_CONFLICT` | A resource of the folder is already in another stack. |
+| 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |

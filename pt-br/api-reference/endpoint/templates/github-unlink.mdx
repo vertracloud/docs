@@ -1,0 +1,83 @@
+---
+title: Desvincular um template privado do GitHub
+sidebarTitle: Desvincular GitHub
+api: DELETE https://api.vertracloud.app/v1/templates/{template_id}/github
+authMethod: bearer
+description: Remove o vínculo entre um template privado e o repositório do GitHub, para que os pushes deixem de publicar versões.
+---
+
+{/* @see RESTDeleteAPITemplateGithubResponse — @vertracloud/api-types */}
+Depois de desvincular, os pushes deixam de publicar versões. As versões existentes e as aplicações criadas a partir do template não são afetadas. Você pode vincular de novo a qualquer momento com [Vincular um template privado ao GitHub](/pt-br/api-reference/endpoint/templates/github-link). Só o dono do template pode desvinculá-lo.
+
+Precisa do escopo `templates:write` quando chamada com uma chave de API.
+
+<ParamField path="template_id" type="string" required>
+  O ID do template.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o template pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.vertracloud.app/v1/templates/tpl-abc123def456/github \
+  -H "Authorization: Bearer $VERTRA_API_KEY"
+```
+
+</RequestExample>
+
+### Resposta
+
+O objeto template de [Criar um template privado](/pt-br/api-reference/endpoint/templates/create), agora com `github` definido como `null`.
+
+<ResponseField name="response" type="object">
+  O template.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="github" type="object | null">
+    `null` após desvincular.
+  </ResponseField>
+
+  <ResponseField name="id" type="string">
+    O ID do template. Os demais campos são os listados em [Criar um template privado](/pt-br/api-reference/endpoint/templates/create).
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "tpl-abc123def456",
+    "slug": "support-bot",
+    "origin": "private",
+    "github": null
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:write` (`403`).
+  - `TEMPLATE_NOT_FOUND`: O template não existe ou não é seu (`404`).
+  - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace desvincula os templates dele.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "TEMPLATE_NOT_FOUND"
+}
+```
+
+</ResponseExample>

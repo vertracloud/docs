@@ -1,0 +1,103 @@
+---
+title: Obter o status de todos os bancos de dados
+sidebarTitle: Status de todos os bancos
+api: GET https://api.vertracloud.app/v1/databases/status
+authMethod: bearer
+description: Retorna o status de todos os bancos de dados do usuário autenticado ou de um workspace específico.
+---
+
+{/* @see APIDatabaseStatusShort[] — @vertracloud/api-types */}
+<ParamField query="workspace_id" type="string">
+  O ID do workspace para filtrar os bancos de dados. Se não for informado, retorna os bancos de dados do usuário.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="array">
+  Um array de objetos com o status de cada banco de dados.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do banco de dados.
+  </ResponseField>
+
+  <ResponseField name="cpu" type="string">
+    O uso de CPU do container do banco de dados (por exemplo, "0.00%").
+  </ResponseField>
+
+  <ResponseField name="ram" type="string">
+    O uso de RAM do container do banco de dados em MB (por exemplo, "0.00 MB").
+  </ResponseField>
+
+  <ResponseField name="storage" type="string">
+    O uso de armazenamento do container do banco de dados em MB (por exemplo, "0.00 MB").
+  </ResponseField>
+
+  <ResponseField name="running" type="boolean">
+    Indica se o container do banco de dados está em execução.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "00000000000000000000000000000001",
+      "cpu": "0.00%",
+      "ram": "0.00 MB",
+      "storage": "0.00 MB",
+      "running": false
+    },
+    {
+      "id": "00000000000000000000000000000002",
+      "cpu": "1.25%",
+      "ram": "128.50 MB",
+      "storage": "256.00 MB",
+      "running": true
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: O header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: A chave de API é usada a partir de um IP fora da sua lista de IPs permitidos, ou não tem o escopo que a rota exige (`403`).
+  - `WORKSPACE_NOT_FOUND`: O workspace informado não existe.
+  - `USER_NOT_IN_WORKSPACE`: O usuário não é membro do workspace informado.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Uma mensagem descritiva com detalhes adicionais sobre o erro.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "USER_NOT_IN_WORKSPACE"
+}
+```
+
+</ResponseExample>

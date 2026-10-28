@@ -1,0 +1,43 @@
+---
+title: Eliminar una base de datos
+sidebarTitle: Eliminar base de datos
+api: DELETE https://api.vertracloud.app/v1/databases/{id}
+authMethod: bearer
+description: Elimina una base de datos por su ID tras tomar un snapshot de seguridad automático. Requiere el ámbito databases:delete.
+---
+Al eliminar una base de datos, primero se toma automáticamente un **snapshot de seguridad**, en todos los planes. Si ese snapshot falla, no se elimina nada y la petición responde `SNAPSHOT_FAILED`; contacta con soporte. Una clave de API necesita el ámbito `databases:delete`.
+
+<ParamField path="id" type="string" required>
+  El ID de la base de datos que se va a eliminar.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la base de datos pertenece a un workspace, el ID del workspace.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="string">
+  El ID de la base de datos eliminada.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": "00000000000000000000000000000001"
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  - `DATABASE_NOT_FOUND`: La base de datos no existe (`404`).
+  - `ACCESS_DENIED`: Tu cuenta no puede actuar sobre esta base de datos (`403`).
+  - `FORCED_SNAPSHOT_RATE_LIMIT`: Se intentaron demasiados snapshots de seguridad recientemente en esta base de datos o en tu cuenta; la base de datos no se eliminó (`429`).
+  - `SNAPSHOT_FAILED`: No se pudo tomar el snapshot de seguridad; la base de datos no se eliminó. Contacta con soporte (`500`).
+  - `OPERATION_IN_PROGRESS`: Hay otra operación del ciclo de vida en curso en esta base de datos (`409`).
+  - `INTERNAL_SERVER_ERROR`: La plataforma no pudo eliminar la base de datos; vuelve a intentarlo más tarde (`500`).
+</ResponseField>

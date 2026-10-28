@@ -1,0 +1,105 @@
+---
+title: "Eliminar varios objetos blob o una carpeta"
+sidebarTitle: "Eliminar varios objetos"
+api: "DELETE https://blob.vertracloud.app/v1/objects"
+authMethod: bearer
+description: "Elimina hasta 1.000 objetos blob por ID, o todo lo que haya bajo un prefijo de carpeta. Devuelve lo que se eliminó."
+---
+
+{/* @see RESTDeleteAPIBlobObjectsBody, RESTDeleteAPIBlobObjectsResponse, APIBlobDeleteResult — @vertracloud/api-types */}
+
+Elimina hasta 1.000 objetos en una sola llamada, por `ids` o por `prefix` de carpeta. Envía exactamente uno de los dos. La
+eliminación es permanente. Cuando hay más objetos que coinciden con un `prefix`, `remaining` es `true`; vuelve a hacer la
+llamada hasta que sea `false`.
+
+**Ámbito:** `blob:write`.
+
+<ParamField body="ids" type="string[]">
+  IDs de objeto, hasta 1.000. No lo envíes junto con `prefix`.
+</ParamField>
+
+<ParamField body="prefix" type="string">
+  Elimina cada objeto cuya ruta empiece por este prefijo de carpeta, hasta 1.000 por llamada. No lo envíes junto con `ids`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X DELETE "https://blob.vertracloud.app/v1/objects" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prefix":"tmp/"}'
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  Lo que se eliminó en esta llamada.
+  <Expandable title="propiedades">
+  <ResponseField name="deleted" type="string[]">IDs eliminados en esta llamada.</ResponseField>
+  <ResponseField name="not_found" type="string[]">IDs que no existían en esta cuenta.</ResponseField>
+  <ResponseField name="remaining" type="boolean">`true` cuando hay más objetos que coinciden y hace falta otra llamada.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "deleted": [
+      "0b6f7c1e-3d2a-4f5b-9a8c-1d2e3f4a5b6c"
+    ],
+    "not_found": [],
+    "remaining": false
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `VALIDATION_ERROR` (`400`): Un parámetro o un campo del cuerpo no superó la validación. `details.path` indica el campo.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+</ResponseExample>

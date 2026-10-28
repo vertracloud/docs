@@ -1,0 +1,44 @@
+---
+title: Excluir banco de dados
+sidebarTitle: Excluir banco de dados
+api: DELETE https://api.vertracloud.app/v1/databases/{id}
+authMethod: bearer
+description: Exclui um banco de dados pelo seu ID, depois de fazer um snapshot de segurança automático. Exige o escopo databases:delete.
+---
+Antes de excluir um banco de dados, é feito automaticamente um **snapshot de segurança**, em todos os planos. Se esse snapshot falhar, nada é excluído e a requisição responde `SNAPSHOT_FAILED`; entre em contato com o suporte. Uma chave de API precisa do escopo
+`databases:delete`.
+
+<ParamField path="id" type="string" required>
+  O ID do banco de dados a excluir.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o banco de dados pertencer a um workspace, o ID do workspace.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="string">
+  O ID do banco de dados excluído.
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": "00000000000000000000000000000001"
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  - `DATABASE_NOT_FOUND`: O banco de dados não existe (`404`).
+  - `ACCESS_DENIED`: Sua conta não pode agir sobre este banco de dados (`403`).
+  - `FORCED_SNAPSHOT_RATE_LIMIT`: Muitos snapshots de segurança foram tentados recentemente neste banco de dados ou na sua conta; o banco de dados não foi excluído (`429`).
+  - `SNAPSHOT_FAILED`: Não foi possível fazer o snapshot de segurança; o banco de dados não foi excluído. Entre em contato com o suporte (`500`).
+  - `OPERATION_IN_PROGRESS`: Outra operação de ciclo de vida está em andamento neste banco de dados (`409`).
+  - `INTERNAL_SERVER_ERROR`: A plataforma não conseguiu remover o banco de dados; tente novamente mais tarde (`500`).
+</ResponseField>

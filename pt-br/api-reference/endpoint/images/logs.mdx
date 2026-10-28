@@ -1,0 +1,58 @@
+---
+title: Logs de build da imagem
+sidebarTitle: Logs de build
+api: GET https://api.vertracloud.app/v1/images/{image_id}/logs
+authMethod: bearer
+description: Transmite o log de build de uma imagem como um stream de eventos de texto.
+---
+
+{/* @see RESTGetAPICustomImageLogsQuery, RESTGetAPICustomImageLogsResult — @vertracloud/api-types */}
+Precisa do escopo `images:read` quando chamado com uma chave de API.
+
+<ParamField path="image_id" type="string" required>
+  O ID da imagem.
+</ParamField>
+
+<ParamField query="version_id" type="string">
+  A versão cujo log de build será lido. Ausente: o build mais recente.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a imagem pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma imagem que não é deles.
+</ParamField>
+
+### Resposta
+
+A resposta é um stream de **Server-Sent Events** (`text/event-stream`), não JSON. Primeiro ele repete o log que já tinha saído e depois acompanha o build ao vivo, com heartbeats de keep-alive. Cada evento `log` traz uma linha do log de build como texto simples. Até 2 streams por imagem podem estar abertos ao mesmo tempo. Depois que o build termina, o log do build mais recente e de cada versão continua disponível.
+
+<ResponseExample>
+
+```text Response
+event: log
+data: Step 1/6 : FROM node:22-slim
+
+event: log
+data: Step 2/6 : WORKDIR /srv
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo necessário (`403`).
+  - `IMAGE_NOT_FOUND`: A imagem não existe ou você não tem acesso a ela (`404`).
+  - `IMAGE_VERSION_NOT_FOUND`: A imagem não tem nenhuma versão com esse `version_id` (`404`).
+  - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "IMAGE_VERSION_NOT_FOUND"
+}
+```
+
+</ResponseExample>

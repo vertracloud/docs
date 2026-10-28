@@ -1,0 +1,170 @@
+---
+title: Visualizar um link de compartilhamento de template
+sidebarTitle: Visualizar link
+api: GET https://api.vertracloud.app/v1/share/templates/{token}
+authMethod: bearer
+description: "Mostra o que um link de compartilhamento de template cria antes de alguém usá-lo: serviços, memória, plano, perguntas e permissões."
+---
+
+{/* @see RESTGetAPITemplateSharePreviewResponse, APITemplateSharePreview — @vertracloud/api-types */}
+Esta chamada retorna o que um link de compartilhamento criaria, para que a pessoa possa decidir antes de usá-lo. Ela funciona sem autenticação; quando você está autenticado, a resposta também traz um objeto `account` que informa se o template cabe na sua conta. Ela é limitada por IP (20 requisições por minuto).
+
+A prévia nunca mostra IDs, e-mails, o manifesto ou o código-fonte. `verified` é sempre `false`: a Vertra Cloud não revisa templates privados, e o painel mostra "Não verificado pela Vertra" ao lado de cada um. Confira o autor e o que o template faz antes de usá-lo. Em um template fechado (`code_view` é `false`), você não pode ver o código, e os valores que preencher vão para um código que você não consegue ler. Se algo parecer errado, [denuncie o template](/pt-br/api-reference/endpoint/templates/share-links/report).
+
+Uma chave de API precisa do escopo `templates:read` quando é enviada.
+
+<ParamField path="token" type="string" required>
+  O token do link, que começa com `vtpl_`.
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl https://api.vertracloud.app/v1/share/templates/vtpl_EXAMPLE_TOKEN
+```
+
+</RequestExample>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  A prévia.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="mode" type="string">
+    `use` (você cria as próprias aplicações a partir dele) ou `full_copy` (você recebe um template privado próprio).
+  </ResponseField>
+
+  <ResponseField name="name" type="object">
+    O nome do template por idioma (`pt-br`, `en`, `es`).
+  </ResponseField>
+
+  <ResponseField name="description" type="object">
+    A descrição por idioma.
+  </ResponseField>
+
+  <ResponseField name="category" type="string">
+    A categoria.
+  </ResponseField>
+
+  <ResponseField name="icon_url" type="string | null">
+    URL do ícone, ou `null`.
+  </ResponseField>
+
+  <ResponseField name="author_display" type="string | null">
+    O nome que o autor escolheu exibir.
+  </ResponseField>
+
+  <ResponseField name="version" type="string">
+    A versão que o link fornece.
+  </ResponseField>
+
+  <ResponseField name="services" type="object[]">
+    O que seria criado. Cada serviço tem `id`, `kind` (`app`, `database` ou `blob`), `source_type`, `database`, `blob_visibility`, `ram` (`min`, `recommended`, `max` opcional, em MB), `web` e `conditional`.
+  </ResponseField>
+
+  <ResponseField name="creates_stack" type="boolean">
+    `true` quando cria uma stack.
+  </ResponseField>
+
+  <ResponseField name="ram_min_total" type="integer">
+    A soma da memória mínima dos serviços, em MB.
+  </ResponseField>
+
+  <ResponseField name="required_plan" type="string">
+    O plano mais baixo que pode usá-lo.
+  </ResponseField>
+
+  <ResponseField name="image_slots_needed" type="integer">
+    As vagas de imagem personalizada que você usaria: uma por imagem distinta do template, então pode ser mais de 1. Um template só com código não usa nenhuma.
+  </ResponseField>
+
+  <ResponseField name="verified" type="boolean">
+    Sempre `false`.
+  </ResponseField>
+
+  <ResponseField name="code_view" type="boolean">
+    `false` para um [template fechado](/pt-br/templates/use/closed-templates).
+  </ResponseField>
+
+  <ResponseField name="byok" type="boolean">
+    `true` quando você traz a sua própria chave para um modelo de IA.
+  </ResponseField>
+
+  <ResponseField name="inputs" type="object[]">
+    As perguntas que você responde ao usá-lo.
+  </ResponseField>
+
+  <ResponseField name="permissions" type="object">
+    O que você pode fazer com as aplicações criadas a partir dele: `code_view`, `code_edit`, `ram_change`, `ram_below_min`, `ram_above_max`, `env_add`, `commands_edit`, `terminal`, `save_as_template` e `detach`.
+  </ResponseField>
+
+  <ResponseField name="account" type="object">
+    Só quando autenticado: `fits`, `reasons`, `required_ram`, `free_ram`, `needs_image_slot`, `image_slots_free`, `in_use` e `in_use_count`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "mode": "use",
+    "name": { "pt-br": "Bot de suporte", "en": "Support bot" },
+    "description": { "pt-br": "Bot que responde o suporte." },
+    "category": "bots",
+    "icon_url": null,
+    "author_display": "Ana",
+    "version": "1.0.0",
+    "services": [
+      { "id": "bot", "kind": "app", "source_type": "code", "database": null, "blob_visibility": null, "ram": { "min": 256, "recommended": 512 }, "web": "none", "conditional": false }
+    ],
+    "creates_stack": false,
+    "ram_min_total": 256,
+    "required_plan": "economy",
+    "image_slots_needed": 0,
+    "verified": false,
+    "code_view": true,
+    "byok": false,
+    "inputs": [],
+    "permissions": {
+      "code_view": true,
+      "code_edit": true,
+      "ram_change": true,
+      "ram_below_min": false,
+      "ram_above_max": true,
+      "env_add": true,
+      "commands_edit": true,
+      "terminal": false,
+      "save_as_template": false,
+      "detach": true
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `SHARE_LINK_NOT_FOUND`: O token tem formato inválido, não existe, ou o template foi excluído (`404`).
+  - `SHARE_LINK_REVOKED`: O autor revogou o link (`410`).
+  - `SHARE_LINK_EXPIRED`: O link passou do seu `expires_at` (`410`).
+  - `SHARE_LINK_EXHAUSTED`: O link atingiu o seu `max_uses` (`410`).
+  - `API_KEY_SCOPE_DENIED`: Uma chave de API foi enviada sem o escopo `templates:read` (`403`).
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response
+{
+  "code": "SHARE_LINK_EXPIRED"
+}
+```
+
+</ResponseExample>

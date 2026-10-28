@@ -1,0 +1,130 @@
+---
+title: "Reemplazar todas las reglas de carpeta"
+sidebarTitle: "Reemplazar reglas"
+api: "PUT https://blob.vertracloud.app/v1/rules"
+authMethod: bearer
+description: "Reemplaza la lista completa de reglas de carpeta. Envía en If-Match el etag de la última lectura, para no sobrescribir un cambio hecho en otro sitio."
+---
+
+{/* @see RESTPutAPIBlobRulesBody, RESTPutAPIBlobRulesHeaders, RESTPutAPIBlobRulesResponse, APIBlobRules — @vertracloud/api-types */}
+
+Reemplaza la lista completa de reglas de carpeta por la lista que envías. La cabecera `If-Match` debe contener el `etag` de
+tu última lectura; si la lista cambió desde entonces, la llamada falla con `BLOB_RULES_CONFLICT` y no se guarda nada. Para
+cambiar una sola regla, usa [Crear o actualizar una regla](/es-es/api-reference/endpoint/blob/rules/put).
+
+**Ámbito:** `blob:write`.
+
+<ParamField header="If-Match" type="string" required>
+  El `etag` de la última lectura de la lista de reglas.
+</ParamField>
+
+<ParamField body="rules" type="object[]" required>
+  La lista completa de reglas. Cada elemento acepta `prefix` (obligatorio) más los campos de
+  [Crear o actualizar una regla](/es-es/api-reference/endpoint/blob/rules/put). Hasta 100 reglas, y cada regla necesita al
+  menos un campo además del prefijo. `expire_seconds` no puede ser menor que el plazo mínimo de caducidad del plan.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  El ID del workspace, cuando el blob pertenece a un workspace. La petición actúa sobre el blob del propietario del
+  workspace y necesita el permiso `blob:read` del workspace (`blob:manage` en las rutas que modifican datos). Omítelo
+  para actuar sobre tu propio blob.
+</ParamField>
+
+### Ejemplo de petición
+
+```bash
+curl -X PUT "https://blob.vertracloud.app/v1/rules" \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  -H "If-Match: v3" \
+  -H "Content-Type: application/json" \
+  -d '{"rules":[{"prefix":"tmp/","delete_after_days":30}]}'
+```
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  La lista guardada y su nuevo etag.
+  <Expandable title="propiedades">
+  <ResponseField name="rules" type="object[]">Reglas de carpeta. Se aplica el prefijo coincidente más largo.</ResponseField>
+  <ResponseField name="rules[].prefix" type="string">Prefijo de carpeta, que siempre se guarda con `/` al final.</ResponseField>
+  <ResponseField name="rules[].visibility" type="string">Visibilidad por defecto de los objetos nuevos de la carpeta.</ResponseField>
+  <ResponseField name="rules[].expire_seconds" type="number">Caducidad por defecto de cada objeto nuevo, en segundos.</ResponseField>
+  <ResponseField name="rules[].max_size" type="number">Archivo aceptado más grande, en bytes, de 512 B a 10 GB.</ResponseField>
+  <ResponseField name="rules[].extensions" type="string[]">Extensiones aceptadas, de 1 a 50, en minúsculas, sin el punto.</ResponseField>
+  <ResponseField name="rules[].cache_control" type="string">`cache_control` por defecto de los objetos nuevos.</ResponseField>
+  <ResponseField name="rules[].delete_after_days" type="number">Los objetos se eliminan estos días después de subirlos, de 1 a 3650.</ResponseField>
+  <ResponseField name="rules[].active_from" type="string">Cuándo empieza a aplicarse `delete_after_days`, lo fija la plataforma (24 horas después de guardar la regla).</ResponseField>
+  <ResponseField name="rules[].created_at" type="string">Fecha ISO 8601 de creación de la regla.</ResponseField>
+  <ResponseField name="etag" type="string">Versión de la lista completa de reglas. Envíala de vuelta en `If-Match` cuando reemplaces la lista.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "rules": [
+      {
+        "prefix": "tmp/",
+        "delete_after_days": 30,
+        "active_from": "2026-10-15T12:00:00.000Z",
+        "created_at": "2026-10-14T12:00:00.000Z"
+      }
+    ],
+    "etag": "v3"
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING` (`401`): No se envió la cabecera `Authorization`.
+  - `API_KEY_INVALID` (`401`): La clave de API no existe, fue revocada o su secreto no coincide.
+  - `API_KEY_SCOPE_DENIED` (`403`): La clave no tiene el ámbito que necesita esta ruta (`blob:read` o `blob:write`); `details.required` lo indica.
+  - `WORKSPACE_PERMISSION_DENIED` (`403`): Solo con `workspace_id`: no eres miembro, o tu rol no tiene el permiso de blob.
+  - `WORKSPACE_NOT_FOUND` (`404`): Solo con `workspace_id`: no existe un workspace con ese ID, o no eres miembro.
+  - `VALIDATION_ERROR` (`400`): Un parámetro o un campo del cuerpo no superó la validación. `details.path` indica el campo; si falta la cabecera `If-Match`, devuelve este error con `details.path` en `if-match`.
+  - `BLOB_NAMESPACE_SUSPENDED` (`403`): El almacenamiento de blob de la cuenta está suspendido, o su plan expiró.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): Una regla pone `cache_control` en `no-cache` en un plan inferior a Enterprise-26.
+  - `BLOB_RULES_CONFLICT` (`409`): El etag de `If-Match` no está actualizado. Vuelve a leer la lista y reintenta.
+  - `BLOB_RULE_LIMIT` (`409`): La lista tiene más reglas de las que permite el plan: 5, 10 o 20.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+```json Error Response (403)
+{
+  "code": "API_KEY_SCOPE_DENIED"
+}
+```
+
+```json Error Response (404)
+{
+  "code": "WORKSPACE_NOT_FOUND"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "VALIDATION_ERROR"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "BLOB_RULES_CONFLICT"
+}
+```
+
+</ResponseExample>

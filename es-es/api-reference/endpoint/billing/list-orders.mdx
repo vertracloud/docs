@@ -1,0 +1,110 @@
+---
+title: Listar pedidos
+sidebarTitle: Listar pedidos
+api: GET https://api.vertracloud.app/v1/orders
+authMethod: bearer
+description: Lista los pedidos del usuario autenticado (compras de planes, renovaciones y actualizaciones).
+---
+<ParamField query="provider" type="string">
+  Filtra por método de pago. Valores posibles: `pix`, `card`, `redeem_code`.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="array">
+  Un array de pedidos, del más reciente al más antiguo.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    El ID del pedido.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    Estado del pedido. Valores posibles: `unpaid`, `paid`, `cancelled`, `expired`.
+  </ResponseField>
+
+  <ResponseField name="price" type="number">
+    El precio final cobrado, después de cualquier descuento del cupón.
+  </ResponseField>
+
+  <ResponseField name="provider" type="string">
+    Cómo se pagó o se pagará el pedido. Valores posibles: `pix`, `card`, `redeem_code`.
+  </ResponseField>
+
+  <ResponseField name="type" type="string">
+    Para qué es el pedido. Valores posibles: `purchase`, `renew`, `upgrade`.
+  </ResponseField>
+
+  <ResponseField name="related_to" type="object">
+    El plan al que se aplica el pedido.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="plan" type="object">
+      <Expandable title="Mostrar objeto">
+      <ResponseField name="name" type="string">El nombre del plan.</ResponseField>
+      <ResponseField name="duration" type="integer">Duración en meses (1, 3 o 12).</ResponseField>
+      <ResponseField name="months" type="integer">Duración en meses (mismo valor que `duration`).</ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string" format="date-time">
+    Cuándo se creó el pedido.
+  </ResponseField>
+
+  <ResponseField name="paid_at" type="string | null" format="date-time">
+    Cuándo se pagó el pedido, o `null` si todavía no se ha pagado.
+  </ResponseField>
+
+  <ResponseField name="has_receipt" type="boolean">
+    Indica si existe un recibo de pago para este pedido. Los recibos están disponibles en el historial de facturación del panel.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "order-abc123",
+      "status": "paid",
+      "price": 24.9,
+      "provider": "pix",
+      "type": "purchase",
+      "related_to": { "plan": { "name": "PRO", "duration": 1, "months": 1 } },
+      "created_at": "2026-08-01T12:00:00.000Z",
+      "paid_at": "2026-08-01T12:05:00.000Z",
+      "has_receipt": true
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (401)
+{
+  "code": "AUTH_TOKEN_MISSING"
+}
+```
+
+</ResponseExample>

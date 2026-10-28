@@ -1,0 +1,89 @@
+---
+title: 'Cómo actualizar una plantilla y hacer rollback en Vertra Cloud'
+sidebarTitle: 'Actualizaciones y rollback'
+description: 'Las actualizaciones de una plantilla nunca se ejecutan solas: pulsas Actualizar, se toma antes un snapshot de seguridad y un fallo lo restaura todo.'
+icon: 'rotate-left'
+---
+
+Una aplicación o stack creado a partir de una plantilla nunca se actualiza automáticamente. Se queda en la versión con la que nació hasta que pulsas **Actualizar**. La actualización toma primero un snapshot de seguridad, despliega la nueva versión y comprueba el estado de salud; si algún paso falla, devuelve todos los servicios al snapshot.
+
+## Actualizar a una versión nueva
+
+Cuando se publica una versión nueva, la aplicación o el stack muestra **Nueva versión disponible** con un changelog breve y el botón **Actualizar**. Una versión de seguridad se destaca en el panel y también se envía por correo a las cuentas que ejecutan una versión anterior; el clic sigue siendo tuyo.
+
+Antes de confirmar, la actualización muestra qué cambiaría: la nueva versión, si es una versión de seguridad, preguntas nuevas, servicios añadidos o quitados, memoria que ha subido y si abre permisos.
+
+<Steps>
+  <Step title="Snapshot de seguridad">
+    Se toma un snapshot del `/app` de cada aplicación y de las bases de datos del stack sin detener nada.
+  </Step>
+  <Step title="Despliegue">
+    Los servicios se actualizan uno tras otro, con los mismos pasos de un despliegue: imágenes, aplicaciones, variables, certificados, arranque y comprobación de salud.
+  </Step>
+  <Step title="Rollback en caso de fallo">
+    Si un paso falla, **todos** los servicios vuelven atrás: las variables, las conexiones y la configuración de la aplicación regresan a lo que eran, y el snapshot se restaura.
+  </Step>
+</Steps>
+
+Solo el propietario de la cuenta o del workspace puede actualizar; un miembro del workspace puede leer la información de la actualización.
+
+### Cuando una versión nueva cambia la receta
+
+| La nueva versión | Qué ocurre |
+|---|---|
+| Añade un servicio | Se crea durante la actualización, en la misma operación. Sin memoria libre suficiente, la actualización se bloquea, con el motivo. |
+| Quita un servicio | El servicio **no se elimina**. Sale del enlace con la plantilla y el panel te avisa de que puedes eliminarlo. |
+| Añade una pregunta obligatoria | **Actualizar** abre un asistente corto solo con las preguntas nuevas. Las preguntas que ya respondiste no se repiten. |
+| Sube la memoria mínima | El asistente propone subir la memoria cuando hay memoria libre; si no, la actualización se bloquea con el motivo. |
+| Exige un plan superior o más cupos de imagen | La actualización se bloquea hasta que tu plan lo cubra. |
+| Añade una variable que el autor oculta | Se aplica (pertenece al autor). |
+
+Una actualización bloqueada devuelve `TEMPLATE_UPDATE_BLOCKED` con un `reason`: `no_new_version`, `detached`, `template_removed`, `link_revoked`, `ram`, `plan`, `image_slots`, `app_building` o `deploy_in_progress`. Consulta la [referencia de errores](/es-es/templates/reference/errors#errores-de-despliegue-y-actualización).
+
+### Los permisos nunca se vuelven más estrictos
+
+Una aplicación existente conserva la política con la que se creó. Si la nueva versión abre algo (una plantilla cerrada pasa a ser abierta), se abre con la actualización. Si una nueva versión cierra algo, solo se aplica a las aplicaciones creadas después: quien ya ha visto el código no puede dejar de haberlo visto. Consulta [Plantillas cerradas](/es-es/templates/use/closed-templates).
+
+### Aplicaciones desvinculadas y plantillas retiradas
+
+- Si el autor de la plantilla **la retira**, tu aplicación sigue funcionando con normalidad, con un aviso de que no recibirá más actualizaciones.
+- Si editas el código de la aplicación de una plantilla **abierta**, la aplicación se **desvincula** y pasa a ser una aplicación normal sin actualizaciones. El panel te avisa antes de la primera edición, y también puedes desvincularla tú mismo. La aplicación de una plantilla cerrada no se puede desvincular.
+- Las versiones de una plantilla que alguna aplicación usa nunca se eliminan del almacenamiento.
+
+## Rollback y snapshots
+
+El rollback de una aplicación de una plantilla depende de si el software migra sus datos al actualizarse.
+
+| La plantilla declara | Qué hace el rollback |
+|---|---|
+| Rollback con datos **obligatorio** | El rollback solo de código se bloquea (`TEMPLATE_ROLLBACK_REQUIRES_DATA`). Restaura el **snapshot de seguridad** tomado antes de la actualización, que recupera la imagen o el código, el `/app` y las bases de datos a la vez. |
+| Rollback con datos **opcional** | Funciona el rollback normal. |
+
+Software como n8n, Open WebUI y Evolution API migra su base de datos al arrancar, por lo que el código antiguo no puede ejecutarse sobre los datos tal como están ahora. Por eso estas plantillas exigen rollback con datos. Las aplicaciones que no vienen de una plantilla, y las que se desvincularon, mantienen el rollback habitual descrito en [Rollback y despliegues sin tiempo de inactividad](/es-es/guides/rollback-and-zero-downtime-deploys). Para los snapshots, consulta [Copias de seguridad y snapshots](/es-es/guides/backups-snapshots).
+
+## Por qué los despliegues sin tiempo de inactividad están desactivados
+
+Los despliegues sin tiempo de inactividad mantienen dos copias de la aplicación ejecutándose a la vez mientras una sustituye a la otra. La mayoría de las plantillas lo mantienen **desactivado y bloqueado**, porque dos copias romperían el software:
+
+| Software | Qué se rompe con dos copias |
+|---|---|
+| OpenClaw, Hermes Agent | Ambas se conectan al mismo canal (Telegram, WhatsApp, Discord) y cada mensaje se responde dos veces. |
+| Evolution API | Dos sesiones del mismo número de WhatsApp; una expulsa a la otra. |
+| n8n | Los disparadores programados se ejecutan dos veces; con SQLite, riesgo de corromper los datos. |
+| Uptime Kuma, Open WebUI | SQLite con dos procesos escribiendo. |
+| Bots de Discord | Dos copias con el mismo token responden dos veces. |
+
+Un autor solo puede restringir lo que el plan permite; el plan sigue decidiendo lo que existe. El rollback automático, donde tu plan lo incluye, permanece activado por defecto.
+
+## Relacionado
+
+<CardGroup cols={2}>
+  <Card title="Stacks" icon="layer-group" href="/es-es/templates/use/stacks">
+    La actualización del stack ejecuta todos los servicios juntos.
+  </Card>
+  <Card title="Errores" icon="triangle-exclamation" href="/es-es/templates/reference/errors">
+    Bloqueos de actualización y sus motivos.
+  </Card>
+</CardGroup>
+
+Para la API, consulta [Update info](/es-es/api-reference/endpoint/templates/update-info), [Update](/es-es/api-reference/endpoint/templates/update) y [Detach](/es-es/api-reference/endpoint/templates/detach).
