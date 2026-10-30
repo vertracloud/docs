@@ -416,7 +416,7 @@ aplicação pode rodar a partir de uma imagem construída a partir do `Dockerfil
   construída.
 - Snapshots guardam os dados de `/app` e a versão da imagem; a restauração pode, opcionalmente, voltar para essa versão.
 - Excluir uma imagem exclui todas as aplicações criadas a partir dela. Planos abaixo do Enterprise 28 não podem criar
-  nem reconstruir imagens; contas rebaixadas continuam rodando e podem excluir.
+  nem reconstruir imagens; o downgrade para um plano com menos vagas que as imagens em uso (próprias e de templates de imagem) é recusado: apague imagens antes.
 
 **Imagens e templates.** Um template de imagem ocupa **um slot de imagem por imagem distinta em uso**, nunca um por
 aplicação: três aplicações a partir do mesmo template usam um slot, e uma nova versão do template mantém o mesmo slot.
@@ -936,7 +936,7 @@ Antes do upload, o dashboard remove automaticamente do zip: `node_modules`, `.lo
 - Disponível pelo dashboard ou pela API: `POST /v1/users/me/downgrade`
 - **Fórmula**: `newDays = remainingDays × (currentPrice / targetPrice)`
 - **Restrições**: o ECONOMY não pode fazer downgrade
-- **Verificações**: o uso de memória precisa caber no plano de destino; rate limit (1 vez a cada 3 horas)
+- **Verificações**: o uso de memória e as imagens Docker em uso (próprias e de templates de imagem) precisam caber no plano de destino (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`); rate limit (1 vez a cada 3 horas)
 - **Impacto**: limite de memória reduzido, recursos de planos superiores desativados, workspaces perdidos ao sair do
   Enterprise. As configurações salvas de rollback automático e de deploy sem downtime permanecem na aplicação, mas só
   atuam em um plano que as inclua

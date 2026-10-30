@@ -385,7 +385,7 @@ less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_
 - Refused: a `# syntax=` other than the official frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh`, `--mount=type=secret`. Warned: `WORKDIR /app`, `.env*` in the context, `COPY`/`ADD` of `.env`, `VOLUME` outside `/app`.
 - Updates: rebuild by upload, commit (on top of the current context) or push to a linked GitHub branch. A rebuild never restarts apps. Each app keeps 30 releases for 30 days, and rollback uses an already built version.
 - Snapshots hold the data of `/app` and the image version; restore can optionally go back to that version.
-- Deleting an image deletes every application created from it. Plans below Enterprise 28 cannot create or rebuild images; downgraded accounts keep running and can delete.
+- Deleting an image deletes every application created from it. Plans below Enterprise 28 cannot create or rebuild images; a downgrade to a plan with fewer image slots than the images in use (own and image templates) is refused: delete images first.
 
 **Images and templates.** An image template takes **one image slot per distinct image in use**, never one per application: three applications from the same template use one slot, and a new version of the template keeps the same slot. A code template uses none. The slot is released when the last application that uses the image is gone. `POST /v1/apps/image` refuses an image that belongs to a template (`IMAGE_TEMPLATE_ONLY`): the only way to run it is the template. An image that is the source of one of your private templates cannot be deleted before you remove it from the template (`IMAGE_IN_USE`). See [Templates and stacks](#23-templates-and-stacks).
 
@@ -901,7 +901,7 @@ The dashboard automatically strips from the zip, before uploading: `node_modules
 - Available via dashboard or API: `POST /v1/users/me/downgrade`
 - **Formula**: `newDays = remainingDays × (currentPrice / targetPrice)`
 - **Restrictions**: ECONOMY cannot downgrade
-- **Checks**: Memory usage must fit the target plan, rate limit (1x every 3 hours)
+- **Checks**: Memory usage and the Docker images in use (own and image templates) must fit the target plan (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`), rate limit (1x every 3 hours)
 - **Impact**: Reduced memory limit, higher-plan features disabled, workspaces lost when leaving Enterprise. The saved automatic rollback and zero-downtime settings stay on the application but only act on a plan that includes them
 
 ---
