@@ -26,13 +26,16 @@ out of your code.
     27017, 6379 or 3306.
   </Step>
   <Step title="Download the certificates">
-    In the **Certificates** tab, download the three files and rename them to something stable:
+    In the **Certificates** tab, download these three files and rename them to something stable:
 
     | Downloaded | Rename to | Role |
     |---|---|---|
-    | `certificate-<id>.crt` | `certs/db.crt` | client certificate |
+    | `certificate-<id>.ca.pem` | `certs/db.ca.pem` | CA file: verifies the database's server certificate |
+    | `certificate-<id>.crt` | `certs/db.crt` | client certificate (not the CA) |
     | `certificate-<id>.key` | `certs/db.key` | client key |
-    | `certificate-<id>.pem` | `certs/db.pem` | CA file |
+
+    The `.pem` and `.p12` are for MongoDB and Prisma 6; see [what each file is](/databases#what-do-i-need-to-connect).
+    If your database has no `.ca.pem`, download the `.pem` and use it as the CA file.
   </Step>
   <Step title="Ship the certificates with the application">
     Put the `certs/` folder in the project you upload. If you deploy from GitHub, add `certs/` to
@@ -62,11 +65,11 @@ out of your code.
     const pool = new Pool({
       host: process.env.DB_HOST,
       port: Number(process.env.DB_PORT),
-      user: 'postgres',
-      database: 'postgres',
+      user: 'vertracloud', // older databases: the user shown on the database page
+      database: 'vertracloud',
       password: process.env.DB_PASSWORD,
       ssl: {
-        ca: fs.readFileSync('certs/db.pem'),
+        ca: fs.readFileSync('certs/db.ca.pem'),
         cert: fs.readFileSync('certs/db.crt'),
         key: fs.readFileSync('certs/db.key'),
         rejectUnauthorized: true,
@@ -87,8 +90,86 @@ The connection works the same from your computer, which is the fastest way to te
 from a credential problem:
 
 ```bash
-psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certs/db.pem sslcert=certs/db.crt sslkey=certs/db.key"
+psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certs/db.ca.pem sslcert=certs/db.crt sslkey=certs/db.key"
 ```
+
+## Use Drizzle Kit and Drizzle Studio
+
+Drizzle Kit connects with the same three files, but `drizzle.config.ts` only accepts the `ssl` object
+together with `host`/`port` credentials, not with `url`. Keep the connection URL in `DATABASE_URL`,
+point three variables to the certificate files, and split the URL in the config:
+
+```ini .env
+DATABASE_URL=postgresql://vertracloud:<password>@<host>:<port>/vertracloud
+DATABASE_SSL_CA=./certs/db.ca.pem
+DATABASE_SSL_CERT=./certs/db.crt
+DATABASE_SSL_KEY=./certs/db.key
+```
+
+```typescript drizzle.config.ts
+import "dotenv/config";
+import { readFileSync } from "node:fs";
+import { defineConfig } from "drizzle-kit";
+
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("drizzle.config: set DATABASE_URL");
+
+function readCert(name: string): string {
+  const path = process.env[name];
+  if (!path) throw new Error(`drizzle.config: set ${name}`);
+  return readFileSync(path, "utf8");
+}
+
+const parsed = new URL(url);
+
+export default defineConfig({
+  out: "./drizzle",
+  schema: "./src/db/schema/index.ts",
+  dialect: "postgresql",
+  dbCredentials: {
+    host: parsed.hostname,
+    port: Number(parsed.port),
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.slice(1),
+    ssl: {
+      rejectUnauthorized: true,
+      ca: readCert("DATABASE_SSL_CA"), // certificate-<id>.ca.pem
+      cert: readCert("DATABASE_SSL_CERT"), // certificate-<id>.crt
+      key: readCert("DATABASE_SSL_KEY"), // certificate-<id>.key
+    },
+  },
+});
+```
+
+Install `drizzle-kit`, `drizzle-orm`, `pg` and `dotenv` (Drizzle Kit does not load `.env` on its own,
+hence the `import "dotenv/config"`), then open Drizzle Studio:
+
+```bash
+npx drizzle-kit studio
+```
+
+It prints `https://local.drizzle.studio`; open it in the browser. The same config serves
+`drizzle-kit migrate`, `push` and `pull`.
+
+<Warning>
+  Drizzle Studio connects as the database owner and can edit and delete rows. Point it at a copy, or
+  browse without saving, when the database serves a live application.
+</Warning>
+
+What can go wrong with Drizzle:
+
+- **The page stays on "Connecting to the Drizzle Kit on localhost:4983", or shows sample tables you
+  never created.** The browser is blocking the page from reaching your machine. Safari and Brave do
+  this by default: use another browser, or turn off Brave Shields for the page. In Chrome, allow
+  local network access when asked. The database is not involved.
+- **`self-signed certificate in certificate chain`.** The `ca` is not the `.ca.pem` (often the `.crt`
+  in its place), or a variable is empty and the config fell back to a URL without the files. The
+  config above throws instead of falling back.
+- **`key values mismatch`.** The `cert` and `key` are not a pair: check that `cert` is the `.crt`
+  and that both come from the same download.
+- **The `ssl` object seems ignored.** A `url` was passed instead of `host`/`port`, or the URL has
+  `?sslmode=...`, which overrides the object.
 
 ## Troubleshooting
 
@@ -96,17 +177,35 @@ psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<pass
   <Accordion title="Connection refused or timeout">
     Check the port on the database page and that the database is **Online**.
   </Accordion>
-  <Accordion title="SSL or certificate errors">
-    TLS must be on, and the three files must be the current ones. After **Reset Certificates**, the
-    old files stop working: download them again and redeploy them.
+  <Accordion title="self-signed certificate in certificate chain">
+    The CA is missing or is the wrong file. Pass `certs/db.ca.pem` as the CA: the `.crt` is your
+    client certificate, not the CA. If the connection string also has `?sslmode=require`, it overrides
+    the `ssl` object in Node.js `pg`; drop it from the URL.
+  </Accordion>
+  <Accordion title="key values mismatch">
+    The client certificate and key are not a pair. Use the `.crt` as the certificate (not the `.ca.pem`)
+    and take both from the same download: after **Reset Certificates**, the old files stop working, so
+    download all of them again and redeploy them.
+  </Accordion>
+  <Accordion title="connection requires a valid client certificate">
+    TLS is on but the `.crt` and `.key` were not sent. Pass both, besides the CA.
   </Accordion>
   <Accordion title="Authentication failed">
     Copy the password again; after **Reset Password**, update `DB_PASSWORD` and restart the app.
-    MongoDB also needs `authSource=admin` in the URI. On Redis, send the user too (`vertracloud`): a password
-    alone is rejected on databases created from v26.4.8 on. Check the user in the database's `username`.
+    An error mentioning `user "postgres"` means the wrong user: databases created from v26.4.8 on use
+    `vertracloud`. MongoDB also needs `authSource=admin` in the URI. On Redis, send the user too
+    (`vertracloud`): a password alone is rejected on databases created from v26.4.8 on. Check the user
+    in the database's `username`.
   </Accordion>
-  <Accordion title="ENOENT: no such file certs/db.pem">
+  <Accordion title="Hostname/IP does not match certificate's altnames">
+    The certificate is issued for the database host. Connect by the host on the database page, not by
+    an IP address.
+  </Accordion>
+  <Accordion title="ENOENT: no such file certs/db.ca.pem">
     The path is relative to the process's working directory, the project root. Check the folder
     exists in the **Files** tab.
   </Accordion>
 </AccordionGroup>
+
+Every message, with its cause and fix, is in
+[Why does my database connection fail?](/databases#why-does-my-database-connection-fail).

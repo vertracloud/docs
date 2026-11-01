@@ -25,13 +25,16 @@ Este guia leva uma aplicação de "sem banco de dados" até uma conexão verific
     27017, 6379 ou 3306.
   </Step>
   <Step title="Baixe os certificados">
-    Na aba **Certificados**, baixe os três arquivos e renomeie-os para nomes estáveis:
+    Na aba **Certificados**, baixe estes três arquivos e renomeie-os para nomes estáveis:
 
     | Baixado | Renomear para | Função |
     |---|---|---|
-    | `certificate-<id>.crt` | `certs/db.crt` | certificado do cliente |
+    | `certificate-<id>.ca.pem` | `certs/db.ca.pem` | arquivo da CA: verifica o certificado de servidor do banco |
+    | `certificate-<id>.crt` | `certs/db.crt` | certificado do cliente (não é a CA) |
     | `certificate-<id>.key` | `certs/db.key` | chave do cliente |
-    | `certificate-<id>.pem` | `certs/db.pem` | arquivo da CA |
+
+    O `.pem` e o `.p12` são para o MongoDB e o Prisma 6; veja [o que é cada arquivo](/pt-br/databases#o-que-preciso-para-me-conectar).
+    Se o seu banco não tiver `.ca.pem`, baixe o `.pem` e use-o como arquivo da CA.
   </Step>
   <Step title="Envie os certificados com a aplicação">
     Coloque a pasta `certs/` no projeto que você envia. Se você fizer deploy a partir do GitHub, adicione `certs/` ao
@@ -60,11 +63,11 @@ Este guia leva uma aplicação de "sem banco de dados" até uma conexão verific
     const pool = new Pool({
       host: process.env.DB_HOST,
       port: Number(process.env.DB_PORT),
-      user: 'postgres',
-      database: 'postgres',
+      user: 'vertracloud', // older databases: the user shown on the database page
+      database: 'vertracloud',
       password: process.env.DB_PASSWORD,
       ssl: {
-        ca: fs.readFileSync('certs/db.pem'),
+        ca: fs.readFileSync('certs/db.ca.pem'),
         cert: fs.readFileSync('certs/db.crt'),
         key: fs.readFileSync('certs/db.key'),
         rejectUnauthorized: true,
@@ -85,8 +88,86 @@ A conexão funciona da mesma forma no seu computador, que é a maneira mais ráp
 ou nas credenciais:
 
 ```bash
-psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certs/db.pem sslcert=certs/db.crt sslkey=certs/db.key"
+psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certs/db.ca.pem sslcert=certs/db.crt sslkey=certs/db.key"
 ```
+
+## Use o Drizzle Kit e o Drizzle Studio
+
+O Drizzle Kit se conecta com os mesmos três arquivos, mas o `drizzle.config.ts` só aceita o objeto `ssl`
+junto com credenciais `host`/`port`, não com `url`. Mantenha a URL de conexão em `DATABASE_URL`,
+aponte três variáveis para os arquivos de certificado e divida a URL na configuração:
+
+```ini .env
+DATABASE_URL=postgresql://vertracloud:<password>@<host>:<port>/vertracloud
+DATABASE_SSL_CA=./certs/db.ca.pem
+DATABASE_SSL_CERT=./certs/db.crt
+DATABASE_SSL_KEY=./certs/db.key
+```
+
+```typescript drizzle.config.ts
+import "dotenv/config";
+import { readFileSync } from "node:fs";
+import { defineConfig } from "drizzle-kit";
+
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("drizzle.config: set DATABASE_URL");
+
+function readCert(name: string): string {
+  const path = process.env[name];
+  if (!path) throw new Error(`drizzle.config: set ${name}`);
+  return readFileSync(path, "utf8");
+}
+
+const parsed = new URL(url);
+
+export default defineConfig({
+  out: "./drizzle",
+  schema: "./src/db/schema/index.ts",
+  dialect: "postgresql",
+  dbCredentials: {
+    host: parsed.hostname,
+    port: Number(parsed.port),
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.slice(1),
+    ssl: {
+      rejectUnauthorized: true,
+      ca: readCert("DATABASE_SSL_CA"), // certificate-<id>.ca.pem
+      cert: readCert("DATABASE_SSL_CERT"), // certificate-<id>.crt
+      key: readCert("DATABASE_SSL_KEY"), // certificate-<id>.key
+    },
+  },
+});
+```
+
+Instale `drizzle-kit`, `drizzle-orm`, `pg` e `dotenv` (o Drizzle Kit não carrega o `.env` sozinho,
+por isso o `import "dotenv/config"`) e então abra o Drizzle Studio:
+
+```bash
+npx drizzle-kit studio
+```
+
+Ele imprime `https://local.drizzle.studio`; abra no navegador. A mesma configuração serve para
+`drizzle-kit migrate`, `push` e `pull`.
+
+<Warning>
+  O Drizzle Studio se conecta como o dono do banco e pode editar e apagar linhas. Aponte-o para uma cópia, ou
+  apenas navegue sem salvar, quando o banco atender uma aplicação em produção.
+</Warning>
+
+O que pode dar errado com o Drizzle:
+
+- **A página fica em "Connecting to the Drizzle Kit on localhost:4983", ou mostra tabelas de exemplo que
+  você nunca criou.** O navegador está impedindo a página de alcançar a sua máquina. O Safari e o Brave
+  fazem isso por padrão: use outro navegador ou desligue o Brave Shields para a página. No Chrome, permita
+  o acesso à rede local quando ele pedir. O banco de dados não tem relação com isso.
+- **`self-signed certificate in certificate chain`.** O `ca` não é o `.ca.pem` (muitas vezes o `.crt`
+  está no lugar dele), ou uma variável está vazia e a configuração recorreu a uma URL sem os arquivos. A
+  configuração acima lança um erro em vez de recorrer a ela.
+- **`key values mismatch`.** O `cert` e a `key` não formam um par: confira se o `cert` é o `.crt`
+  e se os dois vêm do mesmo download.
+- **O objeto `ssl` parece ignorado.** Foi passada uma `url` em vez de `host`/`port`, ou a URL tem
+  `?sslmode=...`, que sobrescreve o objeto.
 
 ## Solução de problemas
 
@@ -94,17 +175,34 @@ psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<pass
   <Accordion title="Connection refused ou timeout">
     Confira a porta na página do banco de dados e se o banco está **Online**.
   </Accordion>
-  <Accordion title="Erros de SSL ou de certificado">
-    O TLS precisa estar ativado, e os três arquivos precisam ser os atuais. Depois de **Redefinir certificados**, os
-    arquivos antigos deixam de funcionar: baixe-os novamente e envie-os outra vez no deploy.
+  <Accordion title="self-signed certificate in certificate chain">
+    A CA está ausente ou é o arquivo errado. Passe `certs/db.ca.pem` como CA: o `.crt` é o seu
+    certificado de cliente, não a CA. Se a string de conexão também tiver `?sslmode=require`, ela sobrescreve
+    o objeto `ssl` no Node.js `pg`; tire-a da URL.
+  </Accordion>
+  <Accordion title="key values mismatch">
+    O certificado de cliente e a chave não formam um par. Use o `.crt` como certificado (não o `.ca.pem`)
+    e pegue os dois do mesmo download: depois de **Redefinir certificados**, os arquivos antigos deixam de funcionar,
+    então baixe todos novamente e envie-os outra vez no deploy.
+  </Accordion>
+  <Accordion title="connection requires a valid client certificate">
+    O TLS está ativo, mas o `.crt` e o `.key` não foram enviados. Passe os dois, além da CA.
   </Accordion>
   <Accordion title="Falha de autenticação">
     Copie a senha novamente; depois de **Redefinir senha**, atualize `DB_PASSWORD` e reinicie a aplicação.
-    O MongoDB também precisa de `authSource=admin` na URI. No Redis, envie também o usuário (`vertracloud`): somente a senha
+    Um erro que menciona `user "postgres"` indica o usuário errado: bancos criados a partir da v26.4.8 usam
+    `vertracloud`. O MongoDB também precisa de `authSource=admin` na URI. No Redis, envie também o usuário (`vertracloud`): somente a senha
     é rejeitada nos bancos criados a partir da v26.4.8. Confira o usuário no campo `username` do banco.
   </Accordion>
-  <Accordion title="ENOENT: no such file certs/db.pem">
+  <Accordion title="Hostname/IP does not match certificate's altnames">
+    O certificado é emitido para o host do banco. Conecte-se pelo host da página do banco de dados, não por
+    um endereço IP.
+  </Accordion>
+  <Accordion title="ENOENT: no such file certs/db.ca.pem">
     O caminho é relativo ao diretório de trabalho do processo, que é a raiz do projeto. Confira se a pasta existe na
     aba **Arquivos**.
   </Accordion>
 </AccordionGroup>
+
+Cada mensagem, com sua causa e correção, está em
+[Por que a conexão com o meu banco de dados falha?](/pt-br/databases#por-que-a-conexão-com-o-meu-banco-de-dados-falha).

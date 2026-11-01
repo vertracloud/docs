@@ -25,13 +25,16 @@ Esta guía lleva una aplicación desde "sin base de datos" hasta una conexión v
     5432, 27017, 6379 o 3306.
   </Step>
   <Step title="Descarga los certificados">
-    En la pestaña **Certificados**, descarga los tres archivos y renómbralos con nombres estables:
+    En la pestaña **Certificados**, descarga estos tres archivos y renómbralos con nombres estables:
 
     | Descargado | Renombrar a | Función |
     |---|---|---|
-    | `certificate-<id>.crt` | `certs/db.crt` | certificado de cliente |
+    | `certificate-<id>.ca.pem` | `certs/db.ca.pem` | archivo CA: verifica el certificado de servidor de la base de datos |
+    | `certificate-<id>.crt` | `certs/db.crt` | certificado de cliente (no es la CA) |
     | `certificate-<id>.key` | `certs/db.key` | clave del cliente |
-    | `certificate-<id>.pem` | `certs/db.pem` | archivo CA |
+
+    El `.pem` y el `.p12` son para MongoDB y Prisma 6; consulta [qué es cada archivo](/es-es/databases#qué-necesito-para-conectarme).
+    Si tu base de datos no tiene `.ca.pem`, descarga el `.pem` y úsalo como archivo CA.
   </Step>
   <Step title="Incluye los certificados con la aplicación">
     Coloca la carpeta `certs/` en el proyecto que subes. Si despliegas desde GitHub, añade `certs/` a `.gitignore` y sube la
@@ -60,11 +63,11 @@ Esta guía lleva una aplicación desde "sin base de datos" hasta una conexión v
     const pool = new Pool({
       host: process.env.DB_HOST,
       port: Number(process.env.DB_PORT),
-      user: 'postgres',
-      database: 'postgres',
+      user: 'vertracloud', // older databases: the user shown on the database page
+      database: 'vertracloud',
       password: process.env.DB_PASSWORD,
       ssl: {
-        ca: fs.readFileSync('certs/db.pem'),
+        ca: fs.readFileSync('certs/db.ca.pem'),
         cert: fs.readFileSync('certs/db.crt'),
         key: fs.readFileSync('certs/db.key'),
         rejectUnauthorized: true,
@@ -85,8 +88,86 @@ La conexión funciona igual desde tu ordenador, que es la forma más rápida de 
 de credenciales:
 
 ```bash
-psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certs/db.pem sslcert=certs/db.crt sslkey=certs/db.key"
+psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certs/db.ca.pem sslcert=certs/db.crt sslkey=certs/db.key"
 ```
+
+## Usa Drizzle Kit y Drizzle Studio
+
+Drizzle Kit se conecta con los mismos tres archivos, pero `drizzle.config.ts` solo acepta el objeto `ssl`
+junto con credenciales `host`/`port`, no con `url`. Mantén la URL de conexión en `DATABASE_URL`,
+apunta tres variables a los archivos de certificado y divide la URL en la configuración:
+
+```ini .env
+DATABASE_URL=postgresql://vertracloud:<password>@<host>:<port>/vertracloud
+DATABASE_SSL_CA=./certs/db.ca.pem
+DATABASE_SSL_CERT=./certs/db.crt
+DATABASE_SSL_KEY=./certs/db.key
+```
+
+```typescript drizzle.config.ts
+import "dotenv/config";
+import { readFileSync } from "node:fs";
+import { defineConfig } from "drizzle-kit";
+
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("drizzle.config: set DATABASE_URL");
+
+function readCert(name: string): string {
+  const path = process.env[name];
+  if (!path) throw new Error(`drizzle.config: set ${name}`);
+  return readFileSync(path, "utf8");
+}
+
+const parsed = new URL(url);
+
+export default defineConfig({
+  out: "./drizzle",
+  schema: "./src/db/schema/index.ts",
+  dialect: "postgresql",
+  dbCredentials: {
+    host: parsed.hostname,
+    port: Number(parsed.port),
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.slice(1),
+    ssl: {
+      rejectUnauthorized: true,
+      ca: readCert("DATABASE_SSL_CA"), // certificate-<id>.ca.pem
+      cert: readCert("DATABASE_SSL_CERT"), // certificate-<id>.crt
+      key: readCert("DATABASE_SSL_KEY"), // certificate-<id>.key
+    },
+  },
+});
+```
+
+Instala `drizzle-kit`, `drizzle-orm`, `pg` y `dotenv` (Drizzle Kit no carga el `.env` por sí solo,
+de ahí el `import "dotenv/config"`) y abre Drizzle Studio:
+
+```bash
+npx drizzle-kit studio
+```
+
+Imprime `https://local.drizzle.studio`; ábrelo en el navegador. La misma configuración sirve para
+`drizzle-kit migrate`, `push` y `pull`.
+
+<Warning>
+  Drizzle Studio se conecta como propietario de la base de datos y puede editar y borrar filas. Apúntalo a una copia, o
+  navega sin guardar, cuando la base de datos sirva a una aplicación en producción.
+</Warning>
+
+Qué puede salir mal con Drizzle:
+
+- **La página se queda en "Connecting to the Drizzle Kit on localhost:4983", o muestra tablas de ejemplo
+  que nunca creaste.** El navegador está impidiendo que la página llegue a tu máquina. Safari y Brave
+  lo hacen por defecto: usa otro navegador o desactiva Brave Shields para la página. En Chrome, permite
+  el acceso a la red local cuando lo pida. La base de datos no interviene.
+- **`self-signed certificate in certificate chain`.** El `ca` no es el `.ca.pem` (a menudo el `.crt`
+  ocupa su lugar), o una variable está vacía y la configuración recurrió a una URL sin los archivos. La
+  configuración de arriba lanza un error en lugar de recurrir a ella.
+- **`key values mismatch`.** El `cert` y la `key` no son pareja: comprueba que el `cert` sea el `.crt`
+  y que ambos vengan de la misma descarga.
+- **El objeto `ssl` parece ignorado.** Se pasó una `url` en lugar de `host`/`port`, o la URL tiene
+  `?sslmode=...`, que anula el objeto.
 
 ## Solución de problemas
 
@@ -94,17 +175,34 @@ psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<pass
   <Accordion title="Conexión rechazada o tiempo de espera agotado">
     Revisa el puerto en la página de la base de datos y que la base de datos esté **En línea**.
   </Accordion>
-  <Accordion title="Errores de SSL o de certificado">
-    TLS debe estar activado y los tres archivos deben ser los actuales. Tras **Restablecer Certificado**, los archivos antiguos
-    dejan de funcionar: descárgalos de nuevo y vuelve a desplegarlos.
+  <Accordion title="self-signed certificate in certificate chain">
+    Falta la CA o es el archivo equivocado. Pasa `certs/db.ca.pem` como CA: el `.crt` es tu certificado
+    de cliente, no la CA. Si la cadena de conexión también lleva `?sslmode=require`, anula el objeto `ssl`
+    en Node.js `pg`; quítalo de la URL.
+  </Accordion>
+  <Accordion title="key values mismatch">
+    El certificado de cliente y la clave no son pareja. Usa el `.crt` como certificado (no el `.ca.pem`)
+    y toma ambos de la misma descarga: tras **Restablecer Certificado**, los archivos antiguos dejan de funcionar,
+    así que descárgalos todos de nuevo y vuelve a desplegarlos.
+  </Accordion>
+  <Accordion title="connection requires a valid client certificate">
+    TLS está activado pero no se enviaron el `.crt` y el `.key`. Pasa ambos, además de la CA.
   </Accordion>
   <Accordion title="Fallo de autenticación">
     Copia de nuevo la contraseña; tras **Restablecer Contraseña**, actualiza `DB_PASSWORD` y reinicia la aplicación.
-    MongoDB también necesita `authSource=admin` en la URI. En Redis, envía también el usuario (`vertracloud`): una contraseña
+    Un error que menciona `user "postgres"` indica el usuario equivocado: las bases de datos creadas desde la
+    v26.4.8 usan `vertracloud`. MongoDB también necesita `authSource=admin` en la URI. En Redis, envía también el usuario (`vertracloud`): una contraseña
     sola se rechaza en las bases de datos creadas desde la v26.4.8. Revisa el usuario en el `username` de la base de datos.
   </Accordion>
-  <Accordion title="ENOENT: no such file certs/db.pem">
+  <Accordion title="Hostname/IP does not match certificate's altnames">
+    El certificado se emite para el host de la base de datos. Conéctate con el host de la página de la base de
+    datos, no con una dirección IP.
+  </Accordion>
+  <Accordion title="ENOENT: no such file certs/db.ca.pem">
     La ruta es relativa al directorio de trabajo del proceso, la raíz del proyecto. Comprueba que la carpeta exista en la pestaña
     **Archivos**.
   </Accordion>
 </AccordionGroup>
+
+Todos los mensajes, con su causa y solución, están en
+[¿Por qué falla la conexión con mi base de datos?](/es-es/databases#por-qué-falla-la-conexión-con-mi-base-de-datos).

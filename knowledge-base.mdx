@@ -107,17 +107,23 @@ and a client certificate** — a password alone never connects.
 - **Host**: `<database-id-without-hyphens>.db.usa1.vertraweb.app`. **Port**: unique per database
   (not 5432/27017/6379/3306) — copy it from the database page or `GET /v1/databases/{id}`.
 - **Files** (Certificates tab or `GET /v1/databases/{id}/credentials/certificate`):
-  `certificate-<id>.crt` = client certificate, `certificate-<id>.key` = client private key,
-  `certificate-<id>.pem` = bundle of client key + client certificate + the CA. Use the `.pem` as the
-  CA file everywhere, and as the certificate-key file for MongoDB.
+  `certificate-<id>.ca.pem` = the CA that signs the server certificate (the CA file everywhere),
+  `certificate-<id>.crt` = client certificate (not the CA), `certificate-<id>.key` = client private key,
+  `certificate-<id>.pem` = bundle of client key + client certificate + the CA (MongoDB's certificate-key
+  file), `certificate-<id>.p12` = client identity as PKCS#12 with an empty password (Prisma 6). Older
+  databases may not offer the `.ca.pem`; there, the `.pem` works as the CA file.
+- Common errors: `self-signed certificate in certificate chain` = wrong or missing CA (usually the `.crt`
+  passed as the CA); `key values mismatch` = `.crt` and `.key` are not a pair; `connection requires a
+  valid client certificate` = `.crt`/`.key` not sent. Full table in Databases › Why does my database
+  connection fail?
 - The server certificate matches the host, so full verification works.
 
 | Engine | Connection |
 |---|---|
-| PostgreSQL | `psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.pem sslcert=certificate.crt sslkey=certificate.key"` |
-| MongoDB | `mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.pem --tlsCertificateKeyFile certificate.pem` |
-| Redis | `redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.pem --cert certificate.crt --key certificate.key` |
-| MySQL | `mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.pem --ssl-cert=certificate.crt --ssl-key=certificate.key` |
+| PostgreSQL | `psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.ca.pem sslcert=certificate.crt sslkey=certificate.key"` |
+| MongoDB | `mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.ca.pem --tlsCertificateKeyFile certificate.pem` |
+| Redis | `redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.ca.pem --cert certificate.crt --key certificate.key` |
+| MySQL | `mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.ca.pem --ssl-cert=certificate.crt --ssl-key=certificate.key` |
 
 Node.js examples for each driver (pg, mongodb, ioredis, mysql2) are on the
 [Databases](/databases#how-do-i-connect-to-each-engine) page.

@@ -71,12 +71,17 @@ Cuatro datos, todos en la página de la base de datos del panel (o a través de 
 
 | Archivo | Qué es | Úsalo como |
 |---|---|---|
-| `certificate-<id>.crt` | Tu certificado de cliente | certificado de cliente (`cert`, `sslcert`, `--cert`) |
-| `certificate-<id>.key` | Tu clave privada de cliente | clave de cliente (`key`, `sslkey`, `--key`) |
-| `certificate-<id>.pem` | Paquete: clave de cliente + certificado de cliente + la CA que firma el servidor | archivo de CA (`ca`, `sslrootcert`, `--cacert`) y, en MongoDB, el archivo de certificado con clave |
+| `certificate-<id>.ca.pem` | La CA que firma el certificado de servidor de la base de datos | archivo de CA (`ca`, `sslrootcert`, `--cacert`, `tlsCAFile`, `--ssl-ca`) |
+| `certificate-<id>.crt` | Tu certificado de cliente — **no** es la CA | certificado de cliente (`cert`, `sslcert`, `--cert`, `--ssl-cert`) |
+| `certificate-<id>.key` | Tu clave privada de cliente | clave de cliente (`key`, `sslkey`, `--key`, `--ssl-key`) |
+| `certificate-<id>.pem` | Paquete: clave de cliente + certificado de cliente + la CA, en ese orden | archivo de certificado con clave de MongoDB (`tlsCertificateKeyFile`) |
+| `certificate-<id>.p12` | Tu clave y tu certificado de cliente en PKCS#12, contraseña vacía | drivers que solo aceptan una identidad PKCS#12, como [Prisma 6](#cómo-me-conecto-con-prisma-6) |
+
+La mayoría de las conexiones necesitan tres: `.ca.pem`, `.crt` y `.key`. Es posible que las bases de datos
+antiguas no ofrezcan el `.ca.pem`; en ellas, usa el `.pem` como archivo de CA, ya que la CA es su última parte.
 
 El certificado del servidor coincide con el host de la base de datos, así que funciona la verificación completa
-(`verify-full`, `VERIFY_IDENTITY`, `rejectUnauthorized: true`). Mantén los archivos `.key` y `.pem` en privado:
+(`verify-full`, `VERIFY_IDENTITY`, `rejectUnauthorized: true`). Mantén los archivos `.key`, `.pem` y `.p12` en privado:
 se autentican como tú. [Restablecer los certificados](/es-es/api-reference/endpoint/databases/credentials/reset)
 emite otros nuevos e invalida los archivos antiguos.
 
@@ -84,7 +89,7 @@ emite otros nuevos e invalida los archivos antiguos.
 
 En los ejemplos, `<host>`, `<port>` y `<password>` proceden de la página de la base de datos; el usuario y la
 base de datos son `vertracloud` (sustitúyelo por el `username` de tu base de datos si se creó antes de la
-v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tres archivos descargados.
+v26.4.8), y `certificate.ca.pem` / `certificate.crt` / `certificate.key` / `certificate.pem` son los archivos descargados.
 
 <Tabs>
   <Tab title="PostgreSQL">
@@ -99,7 +104,7 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
       password: '<password>',
       database: 'vertracloud',
       ssl: {
-        ca: fs.readFileSync('certificate.pem'),
+        ca: fs.readFileSync('certificate.ca.pem'),
         cert: fs.readFileSync('certificate.crt'),
         key: fs.readFileSync('certificate.key'),
         rejectUnauthorized: true,
@@ -112,13 +117,13 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
 
     conn = psycopg.connect(
         host="<host>", port=<port>, user="vertracloud", password="<password>", dbname="vertracloud",
-        sslmode="verify-full", sslrootcert="certificate.pem",
+        sslmode="verify-full", sslrootcert="certificate.ca.pem",
         sslcert="certificate.crt", sslkey="certificate.key",
     )
     ```
 
     ```bash psql
-    psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.pem sslcert=certificate.crt sslkey=certificate.key"
+    psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.ca.pem sslcert=certificate.crt sslkey=certificate.key"
     ```
   </Tab>
   <Tab title="MongoDB">
@@ -129,13 +134,13 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
 
     const client = new MongoClient('mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin', {
       tls: true,
-      tlsCAFile: 'certificate.pem',
+      tlsCAFile: 'certificate.ca.pem',
       tlsCertificateKeyFile: 'certificate.pem',
     });
     ```
 
     ```bash mongosh
-    mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.pem --tlsCertificateKeyFile certificate.pem
+    mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.ca.pem --tlsCertificateKeyFile certificate.pem
     ```
   </Tab>
   <Tab title="Redis">
@@ -150,7 +155,7 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
       password: '<password>',
       tls: {
         servername: '<host>',
-        ca: fs.readFileSync('certificate.pem'),
+        ca: fs.readFileSync('certificate.ca.pem'),
         cert: fs.readFileSync('certificate.crt'),
         key: fs.readFileSync('certificate.key'),
       },
@@ -158,7 +163,7 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
     ```
 
     ```bash redis-cli
-    redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.pem --cert certificate.crt --key certificate.key
+    redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.ca.pem --cert certificate.crt --key certificate.key
     ```
   </Tab>
   <Tab title="MySQL">
@@ -173,7 +178,7 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
       password: '<password>',
       database: 'vertracloud',
       ssl: {
-        ca: fs.readFileSync('certificate.pem'),
+        ca: fs.readFileSync('certificate.ca.pem'),
         cert: fs.readFileSync('certificate.crt'),
         key: fs.readFileSync('certificate.key'),
       },
@@ -181,7 +186,7 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
     ```
 
     ```bash mysql
-    mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.pem --ssl-cert=certificate.crt --ssl-key=certificate.key
+    mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.ca.pem --ssl-cert=certificate.crt --ssl-key=certificate.key
     ```
   </Tab>
 </Tabs>
@@ -191,6 +196,44 @@ v26.4.8), y `certificate.crt` / `certificate.key` / `certificate.pem` son los tr
   motores. La mayoría de los errores de "connection refused" o "handshake failed" se deben a un `.crt`/`.key`
   que falta, o a usar el puerto por defecto del motor en lugar del puerto propio de la base de datos.
 </Warning>
+
+### ¿Por qué falla la conexión con mi base de datos?
+
+Casi todos los fallos son una de tres cosas: el puerto equivocado, un archivo de certificado en el lugar
+equivocado o el usuario equivocado. Busca abajo el mensaje que recibiste; los ejemplos vienen de Node.js
+(`pg`), y otros drivers describen la misma causa con otras palabras.
+
+| Mensaje de error | Causa | Solución |
+|---|---|---|
+| `ECONNREFUSED` / `ETIMEDOUT` / `Connection refused` | Puerto equivocado (el del motor por defecto en lugar del puerto propio de la base de datos) o la base de datos no está **En línea** | Copia el puerto desde la página de la base de datos y comprueba el estado |
+| `self-signed certificate in certificate chain` (`SELF_SIGNED_CERT_IN_CHAIN`), `certificate verify failed` | Falta la CA o es el archivo equivocado — normalmente el `.crt` pasado como CA | Pasa el `.ca.pem` como CA (`ca`, `sslrootcert`, `--cacert`) |
+| `key values mismatch` (`ERR_OSSL_X509_KEY_VALUES_MISMATCH`) | El certificado de cliente y la clave no son pareja: archivos intercambiados (el `.ca.pem` pasado como certificado), de bases de datos distintas o de antes de un restablecimiento de certificados | Usa el `.crt` y el `.key` de la misma descarga |
+| `connection requires a valid client certificate` | TLS está activado, pero no se enviaron el certificado de cliente ni la clave | Añade el `.crt` y el `.key` (`cert`/`key`, `sslcert`/`sslkey`) |
+| `pg_hba.conf rejects connection ... no encryption` | TLS está desactivado | Activa TLS con los tres archivos; una conexión sin TLS siempre se rechaza |
+| `pg_hba.conf rejects connection ... user "postgres"` | Usuario equivocado: las bases de datos creadas desde la v26.4.8 usan `vertracloud` | Usa el usuario que aparece en la página de la base de datos (`username` en la API) |
+| `password authentication failed for user` | Contraseña equivocada, o cambió tras **Restablecer Contraseña** | Copia de nuevo la contraseña y reinicia la aplicación |
+| `Hostname/IP does not match certificate's altnames` | Conexión por dirección IP o por otro nombre | Conéctate con el host que aparece en la página de la base de datos |
+| `ENOENT: no such file or directory` | La ruta del certificado no existe donde se ejecuta el proceso | Las rutas son relativas al directorio de trabajo; comprueba que los archivos se desplegaron |
+| `Error opening a TLS connection` (Prisma `P1011`) | Las mismas causas que las filas de certificados anteriores | Consulta [Prisma 6](#cómo-me-conecto-con-prisma-6) |
+
+Situaciones que provocan estos errores sin un motivo evidente:
+
+- **`sslmode` en la URL anula el objeto `ssl` (Node.js `pg`, Drizzle).** Cuando pasas una
+  `connectionString` con `?sslmode=require` y además un objeto `ssl: { ca, cert, key }`, gana la URL y
+  se ignoran los archivos, así que recibes `self-signed certificate in certificate chain` aunque los
+  archivos sean los correctos. Usa uno u otro: el objeto `ssl` con una URL sin `sslmode`, o una URL que lo
+  lleve todo (`?sslmode=verify-full&sslrootcert=certificate.ca.pem&sslcert=certificate.crt&sslkey=certificate.key`).
+- **`rejectUnauthorized: "false"` (una cadena) no desactiva la verificación.** Solo lo hace el booleano
+  `false`, y no deberías usarlo: con el `.ca.pem`, la verificación completa funciona.
+- **Certificados en una variable de entorno.** Un PEM pegado en una variable de una sola línea suele
+  llegar con `\n` literales y no se lee como certificado. Guarda los archivos en el proyecto y apunta
+  las variables a sus rutas.
+- **`psql` rechaza el archivo de la clave.** libpq exige que el `.key` sea legible solo por ti; ejecuta
+  `chmod 600 certificate.key` después de descargarlo.
+- **Tras Restablecer Certificado, todo falla a la vez.** La CA, el certificado de cliente y la clave
+  cambian: descarga los archivos nuevos, sustitúyelos todos y reinicia la aplicación.
+- **Funciona en local, falla en la aplicación.** La carpeta `certs/` no se desplegó (a menudo está en
+  `.gitignore`), o las variables de entorno se añadieron sin reiniciar la aplicación.
 
 ### Certificados en aplicaciones ligadas a una stack
 
@@ -204,7 +247,14 @@ Prisma 6 solo acepta un certificado de cliente como identidad PKCS#12, así que 
 DATABASE_URL=postgresql://vertracloud:<password>@<host>:<port>/vertracloud?sslmode=require&sslaccept=strict&sslcert=/app/.vertra/certs/<database_id>/ca.pem&sslidentity=/app/.vertra/certs/<database_id>/client.p12
 ```
 
-Una plantilla puede pedir esta URL ya preparada, pero nunca se añade a una conexión por defecto, porque lleva la contraseña. Prisma 7 lee los archivos PEM desde la URL estándar de PostgreSQL y no necesita el `.p12`.
+Una plantilla puede pedir esta URL ya preparada, pero nunca se añade a una conexión por defecto, porque lleva la contraseña. Fuera de una stack, usa el `certificate-<id>.ca.pem` descargado en `sslcert` y el `certificate-<id>.p12` en `sslidentity`. Prisma 7 lee los archivos PEM desde la URL estándar de PostgreSQL y no necesita el `.p12`.
+
+### ¿Cómo me conecto con Drizzle?
+
+Drizzle ORM usa tu driver (`pg`), así que pasa el objeto `ssl` del ejemplo de PostgreSQL. Drizzle Kit
+(`drizzle-kit migrate`, `push`, `pull` y `studio`) lee `drizzle.config.ts`, donde el objeto `ssl`
+solo vale con credenciales `host`/`port`, no con `url`. La configuración completa, incluido Drizzle Studio,
+está en [Conectar una base de datos](/es-es/guides/connect-database#usa-drizzle-kit-y-drizzle-studio).
 
 ### ¿Se conecta Python 3.13 a la base de datos?
 
