@@ -63,7 +63,7 @@ read/write suffix (delete, envs, files, credentials).
 
 | Scope | Group | What it allows |
 |---|---|---|
-| `billing:read` | Billing | List orders, check order status and read billing details |
+| `billing:read` | Billing | List orders, check order status, read billing details and quote the price of an order |
 | `billing:write` | Billing | Create a plan order, generate its PIX payment and update billing details |
 | `redeem:write` | Billing | Redeem a promo code |
 | `apps:read` | Applications | Read app status, metrics, logs, deploys, release history, downloads, network config, custom domains and their DNS records |
@@ -139,7 +139,7 @@ read/write suffix (delete, envs, files, credentials).
 
 <Note>
   An API key can drive orders and billing details: `billing:read` covers listing orders, checking an
-  order's status and reading billing details, `billing:write` covers creating a plan order,
+  order's status, reading billing details and quoting the price of a plan and period (`POST /v1/orders/quote`), `billing:write` covers creating a plan order,
   generating its PIX payment and updating billing details, and `redeem:write` covers redeeming a
   promo code. Downgrading the plan, paying by card, saved cards and automatic renewal stay
   dashboard-only.
@@ -296,38 +296,42 @@ DAILY_QUOTA_EXCEEDED` with `details: { scope: "day", limit, used, retry_after }`
 | Plan | Req/min | Req/day |
 |---|---:|---:|
 | No active plan | 30 | 1,000 |
-| Economy | 60 | 5,000 |
-| Pro | 120 | 20,000 |
-| Scale | 180 | 86,400 |
-| Intermediary | 240 | 115,200 |
-| Enterprise-4 | 300 | 144,000 |
-| Enterprise-6 | 300 | 180,000 |
-| Enterprise-8 | 300 | 216,000 |
-| Enterprise-12 | 480 | 324,000 |
-| Enterprise-14 | 480 | 378,000 |
-| Enterprise-16 | 480 | 432,000 |
-| Enterprise-18 | 480 | 486,000 |
-| Enterprise-20 | 480 | 540,000 |
-| Enterprise-22 | 480 | 594,000 |
-| Enterprise-24 | 480 | 648,000 |
-| Enterprise-26 | 480 | 702,000 |
-| Enterprise-28 | 480 | 756,000 |
-| Enterprise-30 | 480 | 810,000 |
-| Enterprise-32 | 480 | 864,000 |
+| Starter 1 | 120 | 43,200 |
+| Starter 2 | 180 | 86,400 |
+| Pro 4 | 300 | 172,800 |
+| Pro 6 | 300 | 259,200 |
+| Pro 8 | 300 | 345,600 |
+| Business 12 | 480 | 432,000 |
+| Business 16 | 480 | 432,000 |
+| Business 24 | 480 | 648,000 |
+| Enterprise 32 | 480 | 864,000 |
+| Enterprise 48 | 720 | 1,036,800 |
+| Enterprise 64 | 960 | 1,382,400 |
+| Enterprise 96 | 1,200 | 1,728,000 |
+| Enterprise 128 | 1,600 | 2,304,000 |
+| Enterprise 160 | 2,000 | 2,880,000 |
+| Enterprise 192 | 2,400 | 3,456,000 |
+| Enterprise 224 | 2,800 | 4,032,000 |
+| Enterprise 256 | 3,200 | 4,608,000 |
+| Enterprise 288 | 3,600 | 5,184,000 |
+| Enterprise 320 | 4,000 | 5,760,000 |
+| Enterprise 384 | 4,800 | 6,912,000 |
+| Enterprise 448 | 5,600 | 8,064,000 |
+| Enterprise 512 | 6,400 | 9,216,000 |
 
 We recommend implementing retry logic with exponential backoff for any `429` response.
 
 **Deploys have their own hourly budget, separate from the request budgets above.** Creating an
 application, uploading a ZIP, deploying from GitHub, a restart with `reinstall_dependencies` or
-`force_build`, and changing the build command all draw from one counter per account, sized by plan (10/hour on Economy up to 60/hour
-on Intermediary and every Enterprise tier — see [Plans and limits](/plans-and-limits)). Starting,
+`force_build`, and changing the build command all draw from one counter per account, sized by plan (20/hour on Starter 1 up to 60/hour
+on Pro and above — see [Plans and limits](/plans-and-limits)). Starting,
 stopping and a plain restart do not draw from it. Over the limit, the API answers `429
 DEPLOY_RATE_LIMITED` with `details.limit`, `details.window_seconds` (3600) and
 `details.retry_after`.
 
 **Manual snapshot creation has its own budget too**, on top of the per-route limit: at most **1
-every 5 minutes per project** and **10 per hour per account**. Over the limit, the API answers
-`429 SNAPSHOT_RATE_LIMITED` with `details: { scope: "resource" | "account", retry_after }`.
+every 5 minutes per project** and a **daily budget per account** that depends on the plan (8 on Starter 1, up to 200 on Enterprise). Over the limit, the API answers
+`429 SNAPSHOT_RATE_LIMITED` with `details: { scope: "resource", retry_after }` or `details: { scope: "account", limit, retry_after, resets_at }`.
 Restoring or downloading a snapshot isn't affected, and snapshots the platform takes automatically
 before a destructive operation don't count against this budget.
 

@@ -173,7 +173,7 @@ mediante `SCAN`, valor según el tipo, TTL.
 | Límite de peticiones: consola SQL | 30/min por usuario |
 | Límite de peticiones: otras rutas de datos | 120/min por usuario |
 
-**Plan mínimo: Intermediary.** Toda la pestaña se desbloquea desde Intermediary en adelante. El control
+**Plan mínimo: Pro.** Toda la pestaña se desbloquea desde Pro en adelante. El control
 verifica el plan del **propietario** de la base de datos, no el plan de quien accede: un miembro de un
 workspace sin plan puede usar la pestaña Datos en una base de datos cuyo propietario tenga el plan
 requerido, y un propietario sin plan no obtiene la función por invitar a alguien con un plan superior.
@@ -191,18 +191,38 @@ la consola de Redis o de Mongo. En SQL, el límite es el tiempo, el tamaño y la
 
 ## 4. Planes y precios
 
-| Plan | Precio | RAM | vCPU | Proyectos máximos |
+Vertra Cloud vende 22 planes en cuatro familias: **Starter** (1 y 2 GB de RAM), **Pro** (4, 6 y 8 GB), **Business** (12, 16 y 24 GB) y **Enterprise** (14 tamaños, de 32 GB a 512 GB). El número del nombre de un plan es su RAM en GB. Los precios son mensuales, en reales; los descuentos de 3, 6 y 12 meses están en [Periodos de facturación y pago](#periodos-de-facturación-y-pago).
+
+| Plan | Precio | RAM | vCPU | Blob Storage |
 |-------|:-----:|:---:|:----:|:------------:|
-| Economy | R\$1,99/mes | 256 MB | 0,3 | limitado por la RAM |
-| Pro | R\$5,99/mes | 1.024 MB | 0,5 | limitado por la RAM |
-| Scale | R\$10,99/mes | 2.048 MB | 1 | limitado por la RAM |
-| Intermediary | R\$18,99/mes | 3.072 MB | 1,5 | limitado por la RAM |
-| Enterprise-4 | R\$23,99/mes | 4.096 MB | 2 | limitado por la RAM |
-| Enterprise-32 | R\$191,99/mes | 32.768 MB | 12 | limitado por la RAM |
+| Starter 1 | R\$ 7,70/mes | 1.024 MB | 1 | 10 GB |
+| Starter 2 | R\$ 11,90/mes | 2.048 MB | 2 | 15 GB |
+| Pro 4 | R\$ 20,90/mes | 4.096 MB | 4 | 50 GB |
+| Pro 6 | R\$ 34,90/mes | 6.144 MB | 4 | 80 GB |
+| Pro 8 | R\$ 47,90/mes | 8.192 MB | 5 | 100 GB |
+| Business 12 | R\$ 59,90/mes | 12.288 MB | 6 | 200 GB |
+| Business 16 | R\$ 94,90/mes | 16.384 MB | 8 | 250 GB |
+| Business 24 | R\$ 139,90/mes | 24.576 MB | 12 | 300 GB |
+| Enterprise 32 | R\$ 181,90/mes | 32.768 MB | 16 | 400 GB |
+| Enterprise 48 | R\$ 272,90/mes | 49.152 MB | 16 | 450 GB |
+| Enterprise 64 | R\$ 363,90/mes | 65.536 MB | 16 | 500 GB |
+| Enterprise 96 | R\$ 545,90/mes | 98.304 MB | 16 | 600 GB |
+| Enterprise 128 | R\$ 727,90/mes | 131.072 MB | 16 | 700 GB |
+| Enterprise 160 | R\$ 909,90/mes | 163.840 MB | 16 | 750 GB |
+| Enterprise 192 | R\$ 1.091,90/mes | 196.608 MB | 16 | 800 GB |
+| Enterprise 224 | R\$ 1.273,90/mes | 229.376 MB | 16 | 900 GB |
+| Enterprise 256 | R\$ 1.455,90/mes | 262.144 MB | 16 | 1 TB |
+| Enterprise 288 | R\$ 1.637,90/mes | 294.912 MB | 16 | 1 TB |
+| Enterprise 320 | R\$ 1.819,90/mes | 327.680 MB | 16 | 1 TB |
+| Enterprise 384 | R\$ 2.183,90/mes | 393.216 MB | 16 | 1 TB |
+| Enterprise 448 | R\$ 2.547,90/mes | 458.752 MB | 16 | 1 TB |
+| Enterprise 512 | R\$ 2.911,90/mes | 524.288 MB | 16 | 1 TB |
 
 **Ningún plan tiene un límite de cantidad.** El límite real es la **RAM del plan**, y lo que rechaza una
-creación es `MEMORY_LIMIT_EXCEEDED`: una aplicación de 100 MB cabe 10 veces en un plan Pro. Mínimos que
+creación es `MEMORY_LIMIT_EXCEEDED`: una aplicación de 100 MB cabe 10 veces en Starter 1. Mínimos que
 consumen esa RAM: aplicación 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1.024 MB.
+
+El listado público de los planes a la venta, con el precio, la RAM, la vCPU, el Blob y los límites de cada uno, y los periodos de facturación con sus descuentos, es `GET /v1/plans` (sin autenticación).
 
 ### vCPU por aplicación
 
@@ -212,18 +232,22 @@ entre los proyectos de la cuenta. Dentro de ese techo, la vCPU de un proyecto cr
 - **Crecimiento:** en planes de hasta 2 vCPU, +1 vCPU por cada 512 MB de RAM; en planes con más de 2
   vCPU, +1 vCPU por cada 1 GB (1.024 MB).
 - **Mínimo:** un proyecto con 512 MB o más recibe al menos 2 vCPU; por debajo de 512 MB, al menos 1 vCPU.
-- **Máximo:** nunca más que la vCPU del plan. Economy (0,3) y Pro (0,5) siempre dan al proyecto la vCPU
-  completa del plan.
+- **Máximo:** nunca más que la vCPU del plan. Starter 1 (1 vCPU) da 1 vCPU a cada proyecto.
 
 La misma regla se aplica a las bases de datos. Más RAM nunca da menos vCPU. Un cambio surte efecto la
-próxima vez que el proyecto se reinicie o se despliegue.
+próxima vez que el proyecto se reinicie o se despliegue: cuando tu plan cambia, el nuevo máximo llega a cada aplicación y base de datos en su próximo reinicio o despliegue, y nada se reinicia por sí solo.
 
-| Plan | vCPU del plan | 256 MB | 512 MB | 1 GB | 2 GB | 4 GB | 8 GB | 12 GB o más |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Scale | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
-| Intermediary | 1,5 | 1 | 1,5 | 1,5 | 1,5 | 1,5 | 1,5 | 1,5 |
-| Enterprise-4 | 2 | 1 | 2 | 2 | 2 | 2 | 2 | 2 |
-| Enterprise-32 | 12 | 1 | 2 | 2 | 2 | 4 | 8 | 12 |
+| Plan | vCPU del plan | 256 MB | 512 MB | 1 GB | 2 GB | 4 GB | 8 GB | 16 GB | 32 GB |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Starter 1 | 1 | 1 | 1 | 1 | — | — | — | — | — |
+| Starter 2 | 2 | 1 | 2 | 2 | 2 | — | — | — | — |
+| Pro 4 | 4 | 1 | 2 | 2 | 2 | 4 | — | — | — |
+| Pro 6 | 4 | 1 | 2 | 2 | 2 | 4 | — | — | — |
+| Pro 8 | 5 | 1 | 2 | 2 | 2 | 4 | 5 | — | — |
+| Business 12 | 6 | 1 | 2 | 2 | 2 | 4 | 6 | — | — |
+| Business 16 | 8 | 1 | 2 | 2 | 2 | 4 | 8 | 8 | — |
+| Business 24 | 12 | 1 | 2 | 2 | 2 | 4 | 8 | 12 | — |
+| Enterprise 32 a 512 | 16 | 1 | 2 | 2 | 2 | 4 | 8 | 16 | 16 |
 
 ### Agentes de IA (MCP)
 
@@ -231,25 +255,6 @@ Vertra no aloja chat ni modelos de IA. Conecta Claude, Codex, Cursor u otro clie
 oficial para operar aplicaciones, bases de datos, archivos, logs y despliegues con tu clave de API.
 Las validaciones internas ocurren durante el ciclo de vida de la aplicación, como el despliegue, el
 nuevo build y el reinicio; no son una superficie de producto aparte.
-
-### Precios de Enterprise
-
-| Plan | Precio/mes |
-|-------|----------:|
-| Enterprise-4 | R\$23,99 |
-| Enterprise-6 | R\$35,99 |
-| Enterprise-8 | R\$47,99 |
-| Enterprise-12 | R\$71,99 |
-| Enterprise-14 | R\$83,99 |
-| Enterprise-16 | R\$95,99 |
-| Enterprise-18 | R\$107,99 |
-| Enterprise-20 | R\$119,99 |
-| Enterprise-22 | R\$131,99 |
-| Enterprise-24 | R\$143,99 |
-| Enterprise-26 | R\$155,99 |
-| Enterprise-28 | R\$167,99 |
-| Enterprise-30 | R\$179,99 |
-| Enterprise-32 | R\$191,99 |
 
 ### Nombres de los planes
 
@@ -260,24 +265,30 @@ activo. Las aplicaciones, las bases de datos y los workspaces llevan el plan del
 
 | Nombre | Plan |
 |-------|-------|
-| `economy` | Economy |
-| `pro` | Pro |
-| `scale` | Scale |
-| `intermediary` | Intermediary |
-| `enterprise-4` | Enterprise-4 |
-| `enterprise-6` | Enterprise-6 |
-| `enterprise-8` | Enterprise-8 |
-| `enterprise-12` | Enterprise-12 |
-| `enterprise-14` | Enterprise-14 |
-| `enterprise-16` | Enterprise-16 |
-| `enterprise-18` | Enterprise-18 |
-| `enterprise-20` | Enterprise-20 |
-| `enterprise-22` | Enterprise-22 |
-| `enterprise-24` | Enterprise-24 |
-| `enterprise-26` | Enterprise-26 |
-| `enterprise-28` | Enterprise-28 |
-| `enterprise-30` | Enterprise-30 |
-| `enterprise-32` | Enterprise-32 |
+| `starter-1` | Starter 1 |
+| `starter-2` | Starter 2 |
+| `pro-4` | Pro 4 |
+| `pro-6` | Pro 6 |
+| `pro-8` | Pro 8 |
+| `business-12` | Business 12 |
+| `business-16` | Business 16 |
+| `business-24` | Business 24 |
+| `enterprise-32` | Enterprise 32 |
+| `enterprise-48` | Enterprise 48 |
+| `enterprise-64` | Enterprise 64 |
+| `enterprise-96` | Enterprise 96 |
+| `enterprise-128` | Enterprise 128 |
+| `enterprise-160` | Enterprise 160 |
+| `enterprise-192` | Enterprise 192 |
+| `enterprise-224` | Enterprise 224 |
+| `enterprise-256` | Enterprise 256 |
+| `enterprise-288` | Enterprise 288 |
+| `enterprise-320` | Enterprise 320 |
+| `enterprise-384` | Enterprise 384 |
+| `enterprise-448` | Enterprise 448 |
+| `enterprise-512` | Enterprise 512 |
+
+**Nombres de la parrilla de planes anterior.** Los planes vendidos antes de la parrilla actual (`economy`, `pro`, `scale`, `intermediary` y `enterprise-4` a `enterprise-30`) se aceptan mientras una cuenta aún tenga alguno, pero no se venden y no están en `GET /v1/plans`; pedir comprar uno falla con `PLAN_NOT_FOR_SALE`. El nombre `enterprise-32` ahora significa Enterprise 32 de la parrilla actual (32 GB, 16 vCPU).
 
 Compara los planes por nombre, nunca por su posición en esta lista. El código que leía `plan_id`,
 `plan.id` o `owner_plan_id` debe leer en su lugar `plan.name` y `owner_plan` (cambio incompatible de la
@@ -285,43 +296,45 @@ API, los SDK, la CLI y el MCP).
 
 ### Funciones por plan
 
-| Función | Economy | Pro | Scale | Intermediary | Enterprise |
-|----------------|:-------:|:---:|:-----:|:------------:|:----------:|
-| Periodos de facturación | 1 mes | 1, 3 o 12 meses | 1, 3 o 12 meses | 1, 3 o 12 meses | 1, 3 o 12 meses |
-| Pago | PIX | PIX o tarjeta | PIX o tarjeta | PIX o tarjeta | PIX o tarjeta |
-| Renovación automática (tarjeta) | — | Sí | Sí | Sí | Sí |
-| Bases de datos | — (la mínima de Redis, 512 MB, no cabe) | Sí | Sí | Sí | Sí |
-| Publicación web (sitio con subdominio `*.vertraweb.app`) | — | Sí | Sí | Sí | Sí |
-| Elegir el nombre del subdominio | — | — | Sí | Sí | Sí |
-| Distintivo «Powered by Vertra Cloud» en el sitio | — | Sí | — | — | — |
-| Dominios personalizados por aplicación | — | — | — | 1 | 2–20 (según el nivel) |
+| Función | Starter 1 | Starter 2 | Pro | Business | Enterprise |
+|----------------|:-------:|:---------:|:---:|:--------:|:----------:|
+| Tamaños | 1 GB | 2 GB | 4, 6 u 8 GB | 12, 16 o 24 GB | de 32 a 512 GB |
+| Periodos de facturación | 1, 3, 6 o 12 meses | 1, 3, 6 o 12 meses | 1, 3, 6 o 12 meses | 1, 3, 6 o 12 meses | 1, 3, 6 o 12 meses |
+| Pago | PIX o tarjeta | PIX o tarjeta | PIX o tarjeta | PIX o tarjeta | PIX o tarjeta |
+| Renovación automática (tarjeta) | Sí | Sí | Sí | Sí | Sí |
+| Bases de datos | Sí (se aplica la RAM mínima del motor) | Sí | Sí | Sí | Sí |
+| Publicación web (sitio con subdominio `*.vertraweb.app`) | Sí | Sí | Sí | Sí | Sí |
+| Elegir el nombre del subdominio | Sí | Sí | Sí | Sí | Sí |
+| Distintivo «Powered by Vertra Cloud» en el sitio | Sí | — | — | — | — |
+| Dominios personalizados por aplicación | — | 1 | 2 | 5 | 20 |
 | Reinicio automático | Sí | Sí | Sí | Sí | Sí |
-| Gestor de archivos | — | Sí | Sí | Sí | Sí |
-| Métricas avanzadas | — | Sí | Sí | Sí | Sí |
-| Copias de seguridad diarias | — | — | Sí | Sí | Sí |
-| Copias de seguridad manuales | — | — | Sí | Sí | Sí |
-| Snapshot de seguridad al eliminar una aplicación | — | Sí | Sí | Sí | Sí |
-| Gestor de datos de bases de datos | — | — | — | Sí | Sí |
-| Imágenes Docker personalizadas (desde tu propio `Dockerfile`) | — | — | — | — | Solo Enterprise 28, 30 y 32: hasta 20 imágenes |
+| Gestor de archivos | Sí | Sí | Sí | Sí | Sí |
+| Métricas avanzadas | Sí | Sí | Sí | Sí | Sí |
+| Copias de seguridad diarias (se conservan 30 días) | Sí | Sí | Sí | Sí | Sí |
+| Copias de seguridad manuales al día (cuenta) | 8 | 16 | 32 a 64 | 96 a 192 | 200 |
+| Snapshot de seguridad al eliminar una aplicación | Sí | Sí | Sí | Sí | Sí |
+| Gestor de datos de bases de datos | — | — | Sí | Sí | Sí |
+| Imágenes Docker personalizadas (desde tu propio `Dockerfile`) | — | — | Hasta 2 imágenes | Hasta 6 imágenes | Hasta 20 imágenes |
 | Plantillas de código (los bots de Discord del catálogo público; recibir enlaces para compartir de plantillas de código) | Sí | Sí | Sí | Sí | Sí |
-| Plantillas de imagen (n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI, Uptime Kuma; recibir enlaces para compartir de plantillas de imagen) | — | — | — | — | Solo Enterprise 28, 30 y 32 (depende de las imágenes Docker personalizadas) |
-| Crear plantillas privadas y enlaces para compartir | — | — | — | — | Solo Enterprise 28, 30 y 32: hasta 5 plantillas (depende de las imágenes Docker personalizadas) |
-| Despliegue automático (GitHub) | — | — | — | Sí | Sí |
-| Historial de despliegues (pestaña Rollbacks) | Solo lectura | Sí | Sí | Sí | Sí |
-| Rollback manual (código + variables de entorno opcionales) | — | Sí | Sí | Sí | Sí |
-| Versiones anteriores conservadas | — | 3 | 5 | 10 | 15–30 (según el nivel) |
-| Validez de la versión | — | 7 días | 14 días | 30 días | 30 días |
-| Rollback automático | — | — | — | Sí | Sí |
-| Despliegues sin tiempo de inactividad | — | — | — | — | Sí |
+| Plantillas de imagen (n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI, Uptime Kuma; recibir enlaces para compartir de plantillas de imagen) | — | — | Sí (depende de las imágenes Docker personalizadas) | Sí (depende de las imágenes Docker personalizadas) | Sí (depende de las imágenes Docker personalizadas) |
+| Crear plantillas privadas y enlaces para compartir | — | — | Hasta 5 plantillas (depende de las imágenes Docker personalizadas) | Hasta 5 plantillas (depende de las imágenes Docker personalizadas) | Hasta 5 plantillas (depende de las imágenes Docker personalizadas) |
+| Despliegue automático (GitHub) | Sí | Sí | Sí | Sí | Sí |
+| Historial de despliegues (pestaña Rollbacks) | Sí | Sí | Sí | Sí | Sí |
+| Rollback manual (código + variables de entorno opcionales) | Sí | Sí | Sí | Sí | Sí |
+| Versiones anteriores conservadas | 3 | 5 | 15 | 25 | 30 |
+| Validez de la versión | 7 días | 14 días | 30 días | 30 días | 30 días |
+| Rollback automático | — | — | Sí | Sí | Sí |
+| Despliegues sin tiempo de inactividad | — | Sí | Sí | Sí | Sí |
 | Vertra Flow (lienzo del panel) | Sí | Sí | Sí | Sí | Sí |
-| Workspaces (roles personalizables, ver §10) | — | — | — | — | Sí (5-24 miembros) |
-| Blob Storage (cuota) | 1 GB | 5 GB | 15 GB | 20 GB | 30–250 GB |
-| Soporte | Especializado | Prioritario | Prioritario | Prioritario | Premium (E-32: agente dedicado + gestor exclusivo) |
+| Workspaces (roles personalizables, ver §10) | — | Sí (2 miembros) | Sí (de 5 a 10 miembros) | Sí (de 15 a 25 miembros) | Sí (de 30 a 60 miembros) |
+| Blob Storage (cuota) | 10 GB | 15 GB | de 50 a 100 GB | de 200 a 300 GB | de 400 GB a 1 TB |
+| Soporte | Discord | Discord | Prioritario | Prioritario | Gestor dedicado |
 
 > **Versiones anteriores conservadas** cuenta las versiones distintas de la que se ejecuta ahora.
 > **Validez de la versión** cuenta desde el momento en que una versión deja de ser la que se ejecuta; la
-> versión en ejecución nunca caduca. Enterprise conserva 15 versiones en los niveles E-4, E-6 y E-8, 20
-> en E-12, E-14 y E-16, 25 de E-18 a E-24, y 30 de E-26 a E-32.
+> versión en ejecución nunca caduca.
+
+> **Copias de seguridad manuales al día** es un límite por cuenta, contado en el día natural en hora de Brasilia: `(RAM del plan en MB ÷ 256) × 2`, hasta 200. Es 8 en Starter 1, 16 en Starter 2, 32, 48 y 64 en Pro 4, 6 y 8, y 96, 128 y 192 en Business 12, 16 y 24; todos los tamaños de Enterprise tienen 200. Las copias de seguridad diarias son automáticas y no usan este límite.
 
 > **Rollback automático** y **Despliegues sin tiempo de inactividad** son ajustes de despliegue, que se
 > cambian en la configuración de la aplicación o con `PATCH /v1/apps/{id}/config` (`deploy`). Pedir
@@ -333,33 +346,34 @@ API, los SDK, la CLI y el MCP).
 
 **Tres cosas distintas que la documentación suele mezclar:**
 
-- **Publicar** (Pro o superior): tener un sitio. La aplicación recibe un subdominio `*.vertraweb.app` y
-  pasa a ser accesible desde internet. En Pro, la plataforma **asigna el subdominio al azar**. En Pro,
-  las páginas HTML del sitio también muestran el distintivo **«Powered by Vertra Cloud»** en la esquina
-  inferior derecha; desde Scale en adelante no aparece. Cambiar de plan activa o desactiva el distintivo
-  de inmediato, sin volver a desplegar.
-- **Elegir el subdominio** (Scale o superior): **elegir** el nombre del subdominio, al crear o más tarde
-  (`PATCH /v1/apps/{id}/network/subdomain`). Sin esta función, el usuario puede publicar, pero no puede
-  elegir el nombre.
-- **Dominios personalizados** (Intermediary o superior): apuntar a la aplicación los dominios que tienes,
+- **Publicar** (todos los planes): tener un sitio. La aplicación recibe un subdominio `*.vertraweb.app` y
+  pasa a ser accesible desde internet. Las páginas HTML del sitio muestran el distintivo
+  **«Powered by Vertra Cloud»** en la esquina inferior derecha solo en Starter 1; desde Starter 2 en adelante
+  no aparece. Cambiar de plan activa o desactiva el distintivo de inmediato, sin volver a desplegar.
+- **Elegir el subdominio** (todos los planes): **elegir** el nombre del subdominio, al crear o más tarde
+  (`PATCH /v1/apps/{id}/network/subdomain`).
+- **Dominios personalizados** (Starter 2 o superior): apuntar a la aplicación los dominios que tienes,
   tantos como permita el plan (ver [Dominios personalizados](#dominios-personalizados)).
 
 ### Cuenta sin plan activo
 
 Una cuenta sin plan activo no puede crear aplicaciones ni bases de datos, ni publicar un sitio: esas
-peticiones se rechazan con `PLAN_REQUIRED` (403). Suscríbete a un plan, a partir de Economy, para continuar.
+peticiones se rechazan con `PLAN_REQUIRED` (403). Suscríbete a un plan, a partir de Starter 1, para continuar.
 
 - Los proyectos sin conexión durante 30 días o más se eliminan automáticamente, con un snapshot previo
 - Notificaciones por correo los días 7, 23 y 27 antes de la eliminación
 
 ### Periodos de facturación y pago
 
-- **Periodos:** 1, 3 o 12 meses. Una compra de 3 meses tiene un **descuento del 5 %** y una de 12 meses
-  un **descuento del 15 %** sobre el precio mensual. Economy es solo mensual.
-- **Métodos de pago:** PIX o tarjeta de crédito (Visa y Mastercard). Economy acepta **solo PIX**, por lo
-  que nunca se renueva por sí solo. Un cupón puede restringir un pedido a un único método.
+- **Periodos:** 1, 3, 6 o 12 meses, en todos los planes. Una compra de 3 meses tiene un **10 % de descuento** sobre
+  el precio mensual, una de 6 meses un **15 %** y una de 12 meses un **25 %**.
+- **Métodos de pago:** PIX o tarjeta de crédito (Visa y Mastercard), en todos los planes, Starter 1 incluido. Un
+  cupón puede restringir un pedido a un único método.
 - **Los precios** están siempre en R\$. El sitio muestra un importe aproximado en dólares
   estadounidenses junto al precio (≈ \$) solo como referencia; el cobro es en reales.
+- **El precio antes de pagar.** `POST /v1/orders/quote` devuelve lo que se cobrará por un plan y un periodo, con un
+  cupón opcional: el precio de lista, el descuento del periodo, el descuento del cupón, el total y si el precio es
+  el precio de transición de abajo. No crea ningún pedido ni usa el cupón. El proceso de pago muestra este mismo valor.
 - **Tarjeta = renovación automática.** La tarjeta se guarda en la cuenta y el plan se renueva con la
   tarjeta predeterminada, sin periodo de fidelidad. Tres días antes de que el plan caduque se cobra la
   tarjeta y el mismo día se envía un correo. Si el cobro falla, se reintenta en cada uno de los 2 días
@@ -390,6 +404,28 @@ peticiones se rechazan con `PLAN_REQUIRED` (403). Suscríbete a un plan, a parti
   pagado y se entrega **por correo electrónico**, a nombre y con el CPF/CNPJ de tus datos de facturación.
   Un reembolso total anula la factura.
 
+### Cambio desde la parrilla de planes anterior
+
+Las cuentas con un plan de la parrilla anterior pasaron, sin coste, al plan equivalente de la parrilla actual. Economy ya no se vende: el plan más barato es Starter 1.
+
+| Plan anterior | Ahora |
+|---|---|
+| Economy, Pro | Starter 1 |
+| Scale | Starter 2 |
+| Intermediary, Enterprise-4 | Pro 4 |
+| Enterprise-6 | Pro 6 |
+| Enterprise-8 | Pro 8 |
+| Enterprise-12 | Business 12 |
+| Enterprise-14, Enterprise-16 | Business 16 |
+| Enterprise-18 a Enterprise-24 | Business 24 |
+| Enterprise-26 a Enterprise-32 | Enterprise 32 |
+
+- **Nada cambia en el tiempo que pagaste.** La fecha de caducidad es la misma, y el tiempo pagado por adelantado sigue siendo válido. El nuevo precio solo se cobra cuando el plan caduca.
+- **Memoria y vCPU.** Cada aplicación y base de datos conserva su memoria: tú la eliges. El máximo de vCPU del nuevo plan llega a cada una en su próximo reinicio o despliegue (ver [vCPU por aplicación](#vcpu-por-aplicación)).
+- **Renovar en el periodo de transición.** Hasta la fecha indicada en el correo de aviso, la renovación **mensual** de tu nuevo plan se cobra al precio que pagabas antes, o al nuevo precio mensual cuando este sea menor. Las renovaciones de 3, 6 o 12 meses ya se cobran al nuevo precio, con el descuento de los nuevos periodos. Después de esa fecha, toda renovación se cobra al nuevo precio. Una renovación con tarjeta sigue la misma regla.
+- **Cupón de transición.** Las cuentas que recibieron el correo de aviso recibieron también, en él, un enlace de cupón para la primera compra mensual del nuevo plan. El cupón es válido solo para esa cuenta, solo en el periodo mensual, para un uso. Ver [Cupones de descuento](#20-cupones-de-descuento).
+- **Pedidos sin pagar.** Un pedido abierto creado antes del cambio conserva el importe que tenía, y activa el plan equivalente de la nueva parrilla cuando se paga.
+
 ---
 
 ## 5. Tipos de aplicación
@@ -415,13 +451,13 @@ hay que comunicar a los usuarios:
 Publicar requiere **512 MB de RAM**. En este flujo la RAM no aumenta por sí sola: con menos que eso, la
 llamada devuelve `MEMORY_BELOW_MINIMUM` con `details: { current_mb, minimum_mb }`.
 
-**Aplicaciones desde una imagen Docker personalizada.** En Enterprise 28, Enterprise 30 y Enterprise 32, una
+**Aplicaciones desde una imagen Docker personalizada.** En los planes Pro, Business y Enterprise, una
 aplicación puede ejecutarse desde una imagen construida a partir del `Dockerfile` propio del cliente. Se crea
 con `POST /v1/apps/image`, y puede ser un Bot (`web: false`) o un Sitio web (`web: true`). Reglas que hay que
 enunciar con exactitud:
 
 - Contexto de build: ZIP de hasta 100 MB, o un repositorio de GitHub, con un archivo llamado exactamente
-  `Dockerfile` en la raíz. Hasta 20 imágenes por cuenta, contando todos los estados. Plataforma `linux/amd64`.
+  `Dockerfile` en la raíz. Hasta 2 imágenes por cuenta en Pro, 6 en Business y 20 en Enterprise, contando todos los estados. Plataforma `linux/amd64`.
 - Build: entorno de build aislado, límite de tiempo de 26 minutos, imagen construida de hasta 10 GB sin
   comprimir (`IMAGE_TOO_LARGE`). Los archivos `.env*` se eliminan del contexto.
 - Runtime: siempre con el usuario `1000:1000`. `/app` es el disco persistente; `/tmp`, `/var/tmp` y `/run` se
@@ -435,8 +471,8 @@ enunciar con exactitud:
   días, y el rollback usa una versión ya construida.
 - Los snapshots guardan los datos de `/app` y la versión de la imagen; al restaurar se puede volver
   opcionalmente a esa versión.
-- Eliminar una imagen elimina todas las aplicaciones creadas a partir de ella. Los planes inferiores a
-  Enterprise 28 no pueden crear ni volver a construir imágenes; el cambio a un plan con menos plazas que las
+- Eliminar una imagen elimina todas las aplicaciones creadas a partir de ella. Los planes Starter no
+  tienen plazas de imagen y no pueden crear ni volver a construir imágenes; el cambio a un plan con menos plazas que las
   imágenes en uso (propias y de plantillas de imagen) se rechaza: elimina imágenes antes.
 
 **Imágenes y plantillas.** Una plantilla de imagen ocupa **una ranura de imagen por cada imagen distinta en
@@ -554,15 +590,15 @@ de archivos; un archivo con ese nombre creado a mano se ignora y se sobrescribe 
 ### Subdominios
 - Formato: `your-app.vertraweb.app`
 - Único por aplicación
-- La publicación web (obtener un subdominio) está disponible desde el plan **Pro**
-- **Elegir el nombre** del subdominio requiere el plan **Scale** o superior; por debajo, la plataforma asigna un nombre al azar
+- La publicación web (obtener un subdominio) está disponible en **todos los planes**
+- **Elegir el nombre** del subdominio está disponible en todos los planes, al crear o más tarde
 - Formato aceptado al elegirlo: de 3 a 50 caracteres, `^[a-z0-9][a-z0-9-]*[a-z0-9]$`
 - Se puede renombrar después mediante `PATCH /v1/apps/{id}/network/subdomain` (mínimo 5 minutos entre cambios)
 
 ### Dominios personalizados
 
-- Disponible desde el plan Intermediary. Dominios por aplicación (el complemento automático `www` o de la raíz no
-  cuenta): Economy, Pro y Scale 0; **Intermediary 1**; Enterprise-4 a 8: 2; Enterprise-12 a 24: 5; Enterprise-26 a 32: 20
+- Disponible desde el plan Starter 2. Dominios por aplicación (el complemento automático `www` o de la raíz no
+  cuenta): Starter 1: 0; **Starter 2: 1**; Pro: 2; Business: 5; Enterprise: 20
 - La aplicación debe estar publicada en la web. Añadir, cambiar o quitar un dominio no reinicia ni vuelve a desplegar la aplicación
 - Configura los registros DNS que se muestran para el dominio (un CNAME y, normalmente, un registro de validación del
   certificado). La configuración automática del DNS todavía no está disponible: `POST /v1/apps/{id}/domains/{domain_id}/connect`
@@ -651,27 +687,28 @@ responden `403` con el error `APP_SHIELD_COOLDOWN`, y `details` incluye el motiv
 
 ## 9. Snapshots
 
-- Creación manual de snapshots para aplicaciones y bases de datos: como máximo **1 cada 5 minutos en el mismo proyecto**
-  y **10 por hora entre todos los recursos de la cuenta**; superar cualquiera de los dos límites devuelve
-  `SNAPSHOT_RATE_LIMITED` (429) con `details: { scope: "resource" | "account", retry_after }`
+- **Copia de seguridad diaria** de aplicaciones y bases de datos, en todos los planes, conservada 30 días como todo snapshot. No usa el límite manual de abajo
+- Creación manual de snapshots para aplicaciones y bases de datos, en todos los planes: como máximo **1 cada 5 minutos en el mismo
+  proyecto** y un **límite diario en toda la cuenta** que depende del plan: `(RAM del plan en MB ÷ 256) × 2`,
+  hasta 200 (8 en Starter 1, 16 en Starter 2, de 32 a 64 en Pro, de 96 a 192 en Business, 200 en Enterprise). El día
+  se cuenta en hora de Brasilia y el límite se restablece a medianoche. Superar cualquiera de los dos devuelve `SNAPSHOT_RATE_LIMITED` (429)
+  con `details: { scope: "resource" | "account", retry_after }`; el ámbito `account` incluye además `limit` y `resets_at`
 - Restauración desde cualquier snapshot anterior (enfriamiento de 30 segundos)
 - Descarga el contenido del snapshot como ZIP
-- Disponible desde el plan Scale (copias de seguridad manuales)
 - **Eliminar o restablecer una base de datos hace automáticamente un snapshot de seguridad antes de destruir los datos**,
   en todos los planes. Si la copia falla, la acción se bloquea (`SNAPSHOT_FAILED`) y la base de datos ni se elimina ni se
   restablece. Este snapshot forzado tiene su propio límite, separado del de creación manual: como máximo 2 intentos por
   hora en el mismo proyecto, y 10 por hora entre todos los proyectos de la cuenta; superar cualquiera de los dos devuelve
   `FORCED_SNAPSHOT_RATE_LIMIT` y también bloquea la acción.
-- **Eliminar una aplicación hace el mismo snapshot de seguridad desde el plan Pro en adelante** (el plan del propietario).
-  Si falla, la aplicación no se elimina (`SNAPSHOT_FAILED`); se aplica el mismo límite. En Economy la aplicación se elimina
-  de inmediato sin copia, y el panel ofrece descargar antes el proyecto. Al caducar el plan, se hace snapshot de cada
-  proyecto antes de eliminarlo, en todos los planes.
+- **Eliminar una aplicación hace el mismo snapshot de seguridad**, en todos los planes.
+  Si falla, la aplicación no se elimina (`SNAPSHOT_FAILED`); se aplica el mismo límite. Al caducar el plan,
+  también se hace snapshot de cada proyecto antes de eliminarlo.
 
 ---
 
 ## 10. Workspaces
 
-Colaboración en equipo con permisos granulares y roles personalizables. **Disponible solo en el plan Enterprise.** El
+Colaboración en equipo con permisos granulares y roles personalizables. **Disponible desde el plan Starter 2.** El
 propietario del workspace conserva el control sobre las acciones de gestión exclusivas del propietario.
 
 ### Los 20 permisos
@@ -714,37 +751,42 @@ del nivel igual que cualquier otro):
 | Operador | `apps:read`, `apps:lifecycle`, `databases:read`, `databases:lifecycle`, `snapshots:read`, `members:read`, `activities:read` |
 | Visualizador | `apps:read`, `databases:read`, `snapshots:read`, `members:read`, `activities:read` |
 
-### Límite de roles personalizados por nivel (Enterprise)
+### Límite de roles personalizados por plan
 
 Los 4 roles iniciales cuentan para el límite.
 
-| Nivel | Límite de roles |
+| Plan | Límite de roles |
 |---|:-:|
-| ENTERPRISE_4 / ENTERPRISE_6 / ENTERPRISE_8 | 4 |
-| ENTERPRISE_12 / ENTERPRISE_14 / ENTERPRISE_16 | 6 |
-| ENTERPRISE_18 / ENTERPRISE_20 / ENTERPRISE_22 / ENTERPRISE_24 | 8 |
-| ENTERPRISE_26 / ENTERPRISE_28 / ENTERPRISE_30 | 10 |
-| ENTERPRISE_32 y superiores | 12 |
+| Starter 2 | 4 |
+| Pro 4 / Pro 6 / Pro 8 | 4 |
+| Business 12 / Business 16 | 6 |
+| Business 24 | 8 |
+| Enterprise (todos los tamaños) | 12 |
 
-### Miembros por nivel (Enterprise)
+### Miembros por plan
 
-La progresión nunca disminuye al subir de nivel (5 como mínimo y 24 como máximo). Una invitación pendiente cuenta.
+Una invitación pendiente cuenta. La progresión nunca disminuye al subir de plan.
 
-| Nivel | Miembros |
+| Plan | Miembros |
 |---|:-:|
-| ENTERPRISE_4 | 5 |
-| ENTERPRISE_6 / ENTERPRISE_8 | 10 |
-| ENTERPRISE_12 | 13 |
-| ENTERPRISE_14 | 14 |
-| ENTERPRISE_16 | 15 |
-| ENTERPRISE_18 | 16 |
-| ENTERPRISE_20 | 17 |
-| ENTERPRISE_22 | 18 |
-| ENTERPRISE_24 | 19 |
-| ENTERPRISE_26 | 20 |
-| ENTERPRISE_28 | 21 |
-| ENTERPRISE_30 | 22 |
-| ENTERPRISE_32 | 24 |
+| Starter 2 | 2 |
+| Pro 4 | 5 |
+| Pro 6 / Pro 8 | 10 |
+| Business 12 | 15 |
+| Business 16 | 20 |
+| Business 24 | 25 |
+| Enterprise 32 | 30 |
+| Enterprise 48 | 33 |
+| Enterprise 64 | 35 |
+| Enterprise 96 | 38 |
+| Enterprise 128 | 41 |
+| Enterprise 160 | 44 |
+| Enterprise 192 | 46 |
+| Enterprise 224 | 49 |
+| Enterprise 256 | 52 |
+| Enterprise 288 | 55 |
+| Enterprise 320 | 57 |
+| Enterprise 384 y superiores | 60 |
 
 ### Invitaciones
 
@@ -792,13 +834,13 @@ la aprueba o la rechaza. Caduca en **24 h** sin decisión (`WORKSPACE_ACTION_REQ
 ### Retención
 
 Eliminar un workspace es una eliminación lógica: el nombre vuelve a estar disponible para un nuevo workspace; un plan
-Enterprise caducado **congela las escrituras** (invitar, acciones, editar), nunca elimina datos.
+caducado **congela las escrituras** (invitar, acciones, editar), nunca elimina datos.
 
 ### Ruta → permiso
 
 | Ruta | Permiso / regla |
 |---|---|
-| `POST /v1/workspaces` | Propietario (plan Enterprise) |
+| `POST /v1/workspaces` | Propietario (plan Starter 2 o superior) |
 | `GET /v1/workspaces` | Cualquier miembro |
 | `GET /v1/workspaces/:id` | Cualquier miembro |
 | `PUT /v1/workspaces/:id` | Propietario |
@@ -847,7 +889,7 @@ Enterprise caducado **congela las escrituras** (invitar, acciones, editar), nunc
 
 ## 11. Gestor de archivos
 
-- Disponible desde el plan Pro
+- Disponible en todos los planes
 - Explora y edita archivos directamente en el panel
 - Resaltado de sintaxis para todos los lenguajes
 - Subida mediante arrastrar y soltar (archivos o ZIP); el **Destino del commit** del diálogo de subida empieza en la carpeta abierta y puede apuntar a cualquier otra carpeta, y un ZIP se fusiona en ella
@@ -864,7 +906,7 @@ Enterprise caducado **congela las escrituras** (invitar, acciones, editar), nunc
 ### Métodos
 1. **Subida de ZIP** desde el panel o la API
 2. **Integración con GitHub**: selección del repositorio (incluidos los privados)
-3. **Webhooks de GitHub**: despliegue automático al hacer push a la rama elegida, `main` o `master` por defecto (planes Intermediary o superiores)
+3. **Webhooks de GitHub**: despliegue automático al hacer push a la rama elegida, `main` o `master` por defecto (todos los planes)
 4. **Extensión de VS Code**: desplegar directamente desde el editor
 
 ### Proceso
@@ -876,7 +918,7 @@ Subida del código → Instalación de dependencias → Build (si hay un `build_
 - Tiempo máximo del comando de build: 10 minutos (`BUILD_TIMEOUT` si se supera)
 - 1 puerto expuesto por aplicación
 
-### Rollback automático (Intermediary o superior)
+### Rollback automático (Pro o superior)
 
 Si la nueva versión de una aplicación se detiene en los **60 segundos** posteriores a un despliegue, la plataforma vuelve a
 la versión anterior **una sola vez** y avisa al propietario, con un enlace al log de la versión fallida. Solo vuelven los
@@ -885,9 +927,9 @@ se avisa al propietario. Durante esos 60 segundos el reinicio automático no rei
 compitan. Un fallo después del primer minuto se trata como un fallo normal. Está desactivado por defecto, también en las
 aplicaciones creadas antes de esta función (`deploy.auto_rollback`, `false` por defecto); el propietario lo activa.
 
-### Despliegues sin tiempo de inactividad (Enterprise)
+### Despliegues sin tiempo de inactividad (Starter 2 o superior)
 
-En Enterprise, un despliegue puede arrancar la nueva versión junto a la que está en ejecución, esperar a que esté sana y
+Desde Starter 2, un despliegue puede arrancar la nueva versión junto a la que está en ejecución, esperar a que esté sana y
 solo entonces cambiar, de modo que una aplicación que recibe tráfico web siga accesible durante el despliegue. El ajuste es
 `deploy.zero_downtime`, desactivado por defecto:
 
@@ -922,11 +964,9 @@ desde GitHub (manualmente o mediante push), reinstalar dependencias y cambiar el
 
 | Plan | Despliegues/hora |
 |---|---:|
-| Economy | 10 |
-| Pro | 20 |
-| Scale | 40 |
-| Intermediary | 60 |
-| Enterprise (cualquier nivel) | 60 |
+| Starter 1 | 20 |
+| Starter 2 | 40 |
+| Pro, Business y Enterprise (cualquier tamaño) | 60 |
 
 Si se supera → `429 DEPLOY_RATE_LIMITED` con `details.limit`, `details.window_seconds` (3.600) y `details.retry_after`
 (segundos hasta que se libere). Un push de GitHub que llegue por encima del límite se **ignora** (no se pone en cola) y
@@ -954,10 +994,10 @@ El panel elimina automáticamente del zip, antes de subirlo: `node_modules`, `.l
 
 - Disponible desde el panel o la API: `POST /v1/users/me/downgrade`
 - **Fórmula**: `newDays = remainingDays × (currentPrice / targetPrice)`
-- **Restricciones**: ECONOMY no puede cambiar a un plan inferior
+- **Restricciones**: Starter 1 no puede cambiar a un plan inferior. Un cambio a un plan inferior siempre va al plan inmediatamente anterior: Starter 1 → Starter 2 → Pro 4 → Pro 6 → Pro 8 → Business 12 → Business 16 → Business 24 → Enterprise 32 → … → Enterprise 512
 - **Comprobaciones**: el uso de memoria y las imágenes Docker en uso (propias y de plantillas de imagen) deben caber en el plan de destino (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`), y límite de frecuencia (1 vez cada 3 horas)
-- **Impacto**: límite de memoria reducido, funciones de planes superiores desactivadas, workspaces perdidos al salir de
-  Enterprise. Los ajustes guardados de rollback automático y de despliegues sin tiempo de inactividad permanecen en la
+- **Impacto**: límite de memoria reducido, funciones de planes superiores desactivadas, workspaces perdidos al pasar de Starter 2 a
+  Starter 1. Los ajustes guardados de rollback automático y de despliegues sin tiempo de inactividad permanecen en la
   aplicación, pero solo actúan en un plan que los incluya
 
 ---
@@ -1005,8 +1045,8 @@ también se pueden elegir de forma individual.
 
 | Scope | Qué permite |
 |---|---|
-| `billing:read` | Listar pedidos y consultar su estado |
-| `billing:write` | Crear un pedido de plan (1, 3 o 12 meses) y generar un pago PIX |
+| `billing:read` | Listar pedidos, consultar su estado y cotizar el precio de un pedido |
+| `billing:write` | Crear un pedido de plan (1, 3, 6 o 12 meses) y generar un pago PIX |
 | `redeem:write` | Canjear un código promocional |
 | `apps:read` | Consultar estado, métricas, logs, despliegues, descargas, red y dominios personalizados de la aplicación |
 | `apps:write` | Crear, iniciar, detener, reiniciar, configurar, publicar, gestionar dominios personalizados y despliegues |
@@ -1052,24 +1092,28 @@ datos y la exportación de actividad.
 
 | Plan | Peticiones/min | Peticiones/día |
 |---|---:|---:|
-| Economy | 60 | 5.000 |
-| Pro | 120 | 20.000 |
-| Scale | 180 | 86.400 |
-| Intermediary | 240 | 115.200 |
-| Enterprise-4 | 300 | 144.000 |
-| Enterprise-6 | 300 | 180.000 |
-| Enterprise-8 | 300 | 216.000 |
-| Enterprise-12 | 480 | 324.000 |
-| Enterprise-14 | 480 | 378.000 |
-| Enterprise-16 | 480 | 432.000 |
-| Enterprise-18 | 480 | 486.000 |
-| Enterprise-20 | 480 | 540.000 |
-| Enterprise-22 | 480 | 594.000 |
-| Enterprise-24 | 480 | 648.000 |
-| Enterprise-26 | 480 | 702.000 |
-| Enterprise-28 | 480 | 756.000 |
-| Enterprise-30 | 480 | 810.000 |
-| Enterprise-32 | 480 | 864.000 |
+| Starter 1 | 120 | 43.200 |
+| Starter 2 | 180 | 86.400 |
+| Pro 4 | 300 | 172.800 |
+| Pro 6 | 300 | 259.200 |
+| Pro 8 | 300 | 345.600 |
+| Business 12 | 480 | 432.000 |
+| Business 16 | 480 | 432.000 |
+| Business 24 | 480 | 648.000 |
+| Enterprise 32 | 480 | 864.000 |
+| Enterprise 48 | 720 | 1.036.800 |
+| Enterprise 64 | 960 | 1.382.400 |
+| Enterprise 96 | 1.200 | 1.728.000 |
+| Enterprise 128 | 1.600 | 2.304.000 |
+| Enterprise 160 | 2.000 | 2.880.000 |
+| Enterprise 192 | 2.400 | 3.456.000 |
+| Enterprise 224 | 2.800 | 4.032.000 |
+| Enterprise 256 | 3.200 | 4.608.000 |
+| Enterprise 288 | 3.600 | 5.184.000 |
+| Enterprise 320 | 4.000 | 5.760.000 |
+| Enterprise 384 | 4.800 | 6.912.000 |
+| Enterprise 448 | 5.600 | 8.064.000 |
+| Enterprise 512 | 6.400 | 9.216.000 |
 
 ### Formato de respuesta
 
@@ -1165,9 +1209,10 @@ datos y la exportación de actividad.
 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | El subdominio se cambió recientemente |
 | `APP_HAS_NO_SUBDOMAIN` | La aplicación no tiene un subdominio publicado |
 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | El plan no incluye elegir subdominio |
-| `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | El plan no incluye el rollback automático (Intermediary o superior) |
-| `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | El plan no incluye forzar despliegues sin tiempo de inactividad (Enterprise) |
+| `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | El plan no incluye el rollback automático (Pro o superior) |
+| `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | El plan no incluye forzar despliegues sin tiempo de inactividad (Starter 2 o superior) |
 | `PLAN_REQUIRED` | La cuenta no tiene un plan activo, así que no puede crear aplicaciones ni bases de datos ni publicar un sitio (403) |
+| `PLAN_NOT_FOR_SALE` | El plan ya no se vende y la cuenta no está renovando el plan que ya tiene (400) |
 | `INVALID_CUSTOM_DOMAIN_FORMAT` | Formato de dominio personalizado no válido (400) |
 | `FORBIDDEN_DOMAIN` | Dominio no permitido (400) |
 | `DOMAIN_NOT_FOUND` | La aplicación no tiene ningún dominio con ese ID (404) |
@@ -1294,8 +1339,10 @@ La lista siguiente corresponde a los endpoints públicos de la API. Los esquemas
 
 | Método | Ruta |
 |---|---|
+| GET | `/v1/plans` |
 | GET | `/v1/orders` |
 | POST | `/v1/orders` |
+| POST | `/v1/orders/quote` |
 | POST | `/v1/orders/{orderId}/initiate/pix` |
 | GET | `/v1/orders/{orderId}/status` |
 
@@ -1347,9 +1394,9 @@ con un snapshot previo:
 - **La instalación de dependencias supera los 15 minutos (`INSTALL_TIMEOUT`)**: elimina las dependencias innecesarias.
 - **El comando de build supera los 10 minutos (`BUILD_TIMEOUT`)**: simplifica el `build_command` o el paso de build del framework.
 - **El sitio agota el tiempo de espera**: enlaza a `0.0.0.0` (no a `localhost`). Usa el valor de `PORT`.
-- **El dominio personalizado no funciona**: plan Intermediary o superior, CNAME correcto, espera a que se propague el DNS. Un dominio raíz necesita un proveedor DNS con CNAME flattening. Un dominio sin DNS durante 14 días se elimina; después borra sus registros CNAME y TXT en tu proveedor DNS.
+- **El dominio personalizado no funciona**: plan Starter 2 o superior, CNAME correcto, espera a que se propague el DNS. Un dominio raíz necesita un proveedor DNS con CNAME flattening. Un dominio sin DNS durante 14 días se elimina; después borra sus registros CNAME y TXT en tu proveedor DNS.
 - **Conexión a la base de datos rechazada**: se requiere TLS. Descarga los certificados desde el panel.
-- **`PLAN_REQUIRED`**: la cuenta no tiene un plan activo. Suscríbete a un plan (Economy o superior) para crear aplicaciones y bases de datos o publicar un sitio.
+- **`PLAN_REQUIRED`**: la cuenta no tiene un plan activo. Suscríbete a un plan para crear aplicaciones y bases de datos o publicar un sitio.
 - **No llega el correo**: revisa el spam. Prueba con otro método (Discord, GitHub, Google).
 
 ### Node.js / JavaScript
@@ -1407,7 +1454,9 @@ puede tener un periodo de validez, un límite de canjes y restricciones de plan 
 100 %) se entrega al instante, sin PIX. Un cupón rechazado en el pago devuelve uno de los códigos `COUPON_INVALID`,
 `COUPON_INACTIVE`, `COUPON_NOT_STARTED`, `COUPON_EXPIRED`, `COUPON_EXHAUSTED`, `COUPON_USER_LIMIT`, `COUPON_AUDIENCE`,
 `COUPON_PLAN`, `COUPON_DURATION`. Un cupón que excluye el método de pago elegido devuelve `COUPON_PAYMENT_METHOD`. Los
-descuentos por periodo de facturación (3 meses −5 %, 12 meses −15 %) se aplican antes del cupón.
+descuentos por periodo de facturación (3 meses −10 %, 6 meses −15 %, 12 meses −25 %) se aplican antes del cupón.
+
+**Cupones de transición.** Las cuentas que pasaron de la parrilla de planes anterior y recibieron el correo de aviso encuentran en él un enlace de cupón. El cupón está ligado a esa cuenta, cubre la primera compra mensual del plan al que se movió la cuenta y puede usarse una vez. Otra cuenta, otro plan u otro periodo se rechaza (`COUPON_AUDIENCE`, `COUPON_PLAN`, `COUPON_DURATION`). Ver [Cambio desde la parrilla de planes anterior](#cambio-desde-la-parrilla-de-planes-anterior).
 
 ---
 
@@ -1442,35 +1491,47 @@ de código y las acciones iniciadas por un agente conectado.
 
 Blob Storage guarda archivos (imágenes, vídeos, copias de seguridad y otros recursos) para tus proyectos. Los archivos públicos tienen
 una URL pública, los privados se leen mediante enlaces temporales o páginas de compartición, y a los mismos archivos se puede acceder
-con un cliente compatible con S3. Está disponible desde Economy. El uso de Blob y su cuota pertenecen al propietario del workspace, así
+con un cliente compatible con S3. Está disponible en todos los planes. El uso de Blob y su cuota pertenecen al propietario del workspace, así
 que un workspace usa la cuota de su propietario.
 
 ### Cuota y límites por plan
 
 | Plan | Cuota de Blob | Reglas de carpeta | Dominios personalizados | Transformaciones de imagen/mes |
 |---|---:|---:|---:|---:|
-| Economy | 1 GB | 5 | 0 | ninguna |
-| Pro | 5 GB | 5 | 0 | ninguna |
-| Scale | 15 GB | 5 | 0 | 600 |
-| Intermediary | 20 GB | 5 | 0 | 1.000 |
-| Enterprise-4 | 30 GB | 5 | 1 | 1.500 |
-| Enterprise-6 | 50 GB | 5 | 1 | 2.000 |
-| Enterprise-8 | 100 GB | 5 | 1 | 2.500 |
-| Enterprise-12 / 14 | 150 GB | 10 | 3 | 4.000 |
-| Enterprise-16 a 24 | 250 GB | 10 | 3 | 5.000 |
-| Enterprise-26 a 32 | 250 GB | 20 | 10 | 10.000 |
+| Starter 1 | 10 GB | 5 | 0 | ninguna |
+| Starter 2 | 15 GB | 5 | 0 | 600 |
+| Pro 4 | 50 GB | 5 | 1 | 1.500 |
+| Pro 6 | 80 GB | 5 | 1 | 2.000 |
+| Pro 8 | 100 GB | 5 | 1 | 2.500 |
+| Business 12 | 200 GB | 10 | 3 | 4.000 |
+| Business 16 | 250 GB | 10 | 3 | 5.000 |
+| Business 24 | 300 GB | 10 | 3 | 5.000 |
+| Enterprise 32 | 400 GB | 20 | 10 | 10.000 |
+| Enterprise 48 | 450 GB | 20 | 10 | 10.000 |
+| Enterprise 64 | 500 GB | 20 | 10 | 10.000 |
+| Enterprise 96 | 600 GB | 20 | 10 | 10.000 |
+| Enterprise 128 | 700 GB | 20 | 10 | 10.000 |
+| Enterprise 160 | 750 GB | 20 | 10 | 10.000 |
+| Enterprise 192 | 800 GB | 20 | 10 | 10.000 |
+| Enterprise 224 | 900 GB | 20 | 10 | 10.000 |
+| Enterprise 256 | 1 TB | 20 | 10 | 10.000 |
+| Enterprise 288 | 1 TB | 20 | 10 | 10.000 |
+| Enterprise 320 | 1 TB | 20 | 10 | 10.000 |
+| Enterprise 384 | 1 TB | 20 | 10 | 10.000 |
+| Enterprise 448 | 1 TB | 20 | 10 | 10.000 |
+| Enterprise 512 | 1 TB | 20 | 10 | 10.000 |
 
 ### Funciones según el plan
 
 | Función | Plan mínimo |
 |---|---|
-| Dominios personalizados para archivos públicos | Enterprise-4 (1 dominio en Enterprise-4 a 8, 3 en Enterprise-12 a 24, 10 en Enterprise-26 a 32) |
-| Transformaciones de imagen (redimensionar, recortar, formato, calidad) | Scale |
-| Subidas sin el límite de 1 por segundo | Enterprise-12 (por debajo, 1 subida por segundo) |
-| Metadatos de objeto (hasta 5 claves, 512 bytes) | Enterprise-12 |
-| Enlaces para compartir con contraseña | Enterprise-12 |
-| `no-cache` para objetos y reglas de carpeta | Enterprise-26 |
-| Caducidad inferior a 7 días (hasta 1 hora) | Enterprise-26 |
+| Dominios personalizados para archivos públicos | Pro (1 dominio en Pro, 3 en Business, 10 en Enterprise) |
+| Transformaciones de imagen (redimensionar, recortar, formato, calidad) | Starter 2 |
+| Subidas sin el límite de 1 por segundo | Business (por debajo, 1 subida por segundo) |
+| Metadatos de objeto (hasta 5 claves, 512 bytes) | Business |
+| Enlaces para compartir con contraseña | Business |
+| `no-cache` para objetos y reglas de carpeta | Enterprise |
+| Caducidad inferior a 7 días (hasta 1 hora) | Enterprise |
 
 Las transformaciones de imagen se aplican mediante parámetros de URL (`w`, `h`, `fit`, `format`, `q`) en las imágenes públicas. Cada
 transformación distinta cuenta una vez al mes. Por encima del límite mensual se sirve la imagen original, sin error.
@@ -1490,13 +1551,13 @@ transformación distinta cuenta una vez al mes. Por encima del límite mensual s
 - Tras un cambio a un plan inferior, tus archivos se mantienen. Si ocupan más que la nueva cuota, se bloquean las nuevas subidas y el exceso se cobra a R\$0,20 por cada GB iniciado en la siguiente renovación.
 - Cuando el plan caduca, la cuenta entra en un **periodo de gracia de 72 horas**: las subidas y demás escrituras se bloquean (`BLOB_NAMESPACE_SUSPENDED`), mientras los archivos públicos, los enlaces temporales y las páginas de compartición siguen funcionando. Renovar dentro de esas 72 horas reactiva todo. Una suspensión por abuso es distinta: los archivos quedan fuera de línea de inmediato.
 - Tras el periodo de gracia, los archivos se eliminan. **La eliminación es permanente y no hay copia de seguridad.**
-- Las páginas de compartición se abren en el sitio web. Una compartición puede tener caducidad, un límite de descargas y, desde Enterprise-12, una contraseña. Una compartición no protege un objeto público.
+- Las páginas de compartición se abren en el sitio web. Una compartición puede tener caducidad, un límite de descargas y, desde Business, una contraseña. Una compartición no protege un objeto público.
 
 ### Acceso
 
 - **Scopes de clave de API:** `blob:read` y `blob:write`. Permisos de workspace: `blob:read` y `blob:manage`. Una clave con solo scopes `blob:*` puede **restringirse a una carpeta** (`blob_prefix`, una ruta que termina en `/`): solo llega a los objetos, subidas y comparticiones dentro de esa carpeta, y las credenciales S3 derivadas de ella heredan el límite. Todo lo demás (reglas, dominios, estadísticas) responde `403 BLOB_PREFIX_DENIED`. Un stack crea su propia clave restringida para su carpeta de Blob.
 - **Token de subida:** un token `vcup_` de vida corta para navegadores. Fija la ruta o carpeta, el tamaño, las extensiones y la visibilidad, y solo se acepta en las rutas de subida.
-- **Acceso compatible con S3:** `GET /v1/s3/credentials`, limitado a 10 llamadas por hora. Revocar la clave de API que lo creó corta el acceso S3 de inmediato. Peticiones S3 por cada 10 segundos y por cuenta: Economy/Pro 100, Scale/Intermediary 200, Enterprise-4 a 8: 400, Enterprise-12 o más: 600; CopyObject/UploadPartCopy 20. Por encima: `503 SlowDown`.
+- **Acceso compatible con S3:** `GET /v1/s3/credentials`, limitado a 10 llamadas por hora. Revocar la clave de API que lo creó corta el acceso S3 de inmediato. Peticiones S3 por cada 10 segundos y por cuenta: Starter 1 100, Starter 2 200, Pro 400, Business y Enterprise 600; CopyObject/UploadPartCopy 20. Por encima: `503 SlowDown`.
 - Cada ruta está documentada en su propia página, en **Referencia de la API > Blob Storage**.
 
 ### Códigos de error de Blob
@@ -1523,7 +1584,7 @@ transformación distinta cuenta una vez al mes. Por encima del límite mensual s
 | 401 | `BLOB_SHARE_PASSWORD_INVALID` | La contraseña es incorrecta. Los intentos repetidos desde la misma IP tienen límite de frecuencia. |
 | 409 | `BLOB_RULES_CONFLICT` | El etag de `If-Match` está desactualizado porque las reglas se guardaron después de que las leyeras. Vuelve a leer las reglas y reintenta. |
 | 409 | `BLOB_RULE_LIMIT` | La cuenta tiene más reglas de carpeta de las que permite su plan (5, 10 o 20). Elimina antes una regla. |
-| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | El plan incluye dominios personalizados y la cuenta ya tiene tantos como permite. Por debajo de Enterprise-4, la respuesta es `PLAN_RESTRICTED_FEATURE`. |
+| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | El plan incluye dominios personalizados y la cuenta ya tiene tantos como permite. Por debajo de Pro, la respuesta es `PLAN_RESTRICTED_FEATURE`. |
 | 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | El hostname ya está en uso. |
 | 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | El dominio no existe o pertenece a otra cuenta. |
 
@@ -1544,7 +1605,7 @@ un servicio crea uno. Guías: [Plantillas](/es-es/templates/overview).
 | Privada | Tú (un usuario o un workspace) | Tú, y quien reciba un enlace para compartir |
 
 Los usuarios no publican en el catálogo público desde el panel. Las plantillas privadas se crean en planes que pueden crear
-imágenes Docker, hasta **5 por cuenta**; en un workspace solo el propietario las crea y gestiona. Un miembro del workspace no
+imágenes Docker (Pro y superiores), hasta **5 por cuenta**; en un workspace solo el propietario las crea y gestiona. Un miembro del workspace no
 despliega plantillas en él: solo lo hace el propietario (`WORKSPACE_OWNER_ONLY`).
 
 ### Plantillas de código e imagen
@@ -1676,14 +1737,14 @@ hace que el manifiesto no sea válido (`TEMPLATE_MANIFEST_INVALID`).
 |-------|-----------|
 | Application | Un proyecto desplegado (bot o sitio web) que se ejecuta en Vertra Cloud |
 | Database | Una instancia gestionada (PostgreSQL, MongoDB, Redis, MySQL) |
-| Workspace | Un espacio de colaboración en equipo con permisos granulares y roles personalizables (Enterprise) |
+| Workspace | Un espacio de colaboración en equipo con permisos granulares y roles personalizables (Starter 2 y superiores) |
 | Permission (workspace) | Una de las 20 acciones atómicas del catálogo (`apps:read`, `members:manage`...) que componen un rol |
 | Role (workspace) | Un conjunto con nombre de permisos asignado a un miembro; 4 roles iniciales por workspace, personalizables |
 | Invite (workspace) | Una forma de unirse a un workspace, por correo (7 días, vinculada a la dirección) o por enlace (24 h, de uso múltiple) |
 | Action request (workspace) | Una solicitud de acción sensible hecha por un miembro sin el permiso, que decide quien tenga `members:manage` y el permiso para esa acción |
 | Snapshot | Una copia guardada del estado de una aplicación o de una base de datos |
 | MCP | El servidor Model Context Protocol de Vertra (`@vertracloud/mcp` en local o `mcp.vertracloud.app/mcp`): da al agente de IA del usuario las herramientas de la plataforma con su clave de API |
-| Subdomain | Una URL asignada automáticamente: `app-name.vertraweb.app` |
+| Subdomain | La URL de una aplicación publicada, `app-name.vertraweb.app`, con un nombre que tú eliges |
 | Custom domain | Un dominio propio del usuario conectado a una aplicación |
 | Auto-restart | Reinicio automático del contenedor tras un fallo; predeterminado en todos los planes, siempre activo |
 | Crash loop | 5 fallos en 10 minutos; desactiva el reinicio automático durante 24 horas |

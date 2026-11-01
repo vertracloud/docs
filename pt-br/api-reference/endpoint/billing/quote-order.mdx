@@ -1,0 +1,166 @@
+---
+title: Cotar pedido
+sidebarTitle: Cotar pedido
+api: POST https://api.vertracloud.app/v1/orders/quote
+authMethod: bearer
+description: Retorna o preço exato de um plano e período de cobrança, com cupom opcional, sem criar um pedido nem usar o cupom.
+---
+
+{/* @see RESTPostAPIOrderQuoteBody, RESTPostAPIOrderQuoteResponse — @vertracloud/api-types */}
+Retorna o valor que um pedido de um plano e de um período de cobrança cobraria da sua conta, com o desconto do período e um cupom opcional já aplicados. Nada é criado e o cupom não é usado. Chame-a antes de [Criar pedido](/pt-br/api-reference/endpoint/billing/create-order) para mostrar o preço final.
+
+Exige o escopo `billing:read` quando chamada com uma chave de API. É limitada a 10 requisições por minuto.
+
+<ParamField body="plan" type="string" required>
+  O nome do plano, como `starter-1`, `pro-4` ou `business-12`. Os nomes e os preços estão em [Listar planos](/pt-br/api-reference/endpoint/plans/list).
+</ParamField>
+
+<ParamField body="months" type="integer" required>
+  O período de cobrança: `1`, `3`, `6` ou `12`. Um período de 3 meses tem 10% de desconto sobre o preço mensal, 6 meses têm 15% e 12 meses têm 25%.
+</ParamField>
+
+<ParamField body="coupon" type="string">
+  Um código de cupom de desconto opcional. A cotação confere o cupom do mesmo jeito que [Criar pedido](/pt-br/api-reference/endpoint/billing/create-order).
+</ParamField>
+
+<Note>
+  O preço depende da conta. Se a conta tem um plano de antes da grade atual e compra o equivalente ao próprio plano, `legacy_price` é `true` e `total` é o preço que ela já paga, até `legacy_price_until`. Só o período mensal mantém esse preço. Períodos maiores usam o preço atual com o desconto do período.
+</Note>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="plan" type="string">
+    O nome do plano.
+  </ResponseField>
+
+  <ResponseField name="months" type="integer">
+    O período de cobrança em meses.
+  </ResponseField>
+
+  <ResponseField name="list_price" type="number">
+    O preço mensal do plano vezes os meses, em BRL, antes de qualquer desconto.
+  </ResponseField>
+
+  <ResponseField name="period_discount_percent" type="number">
+    O desconto do período de cobrança: 0, 10, 15 ou 25.
+  </ResponseField>
+
+  <ResponseField name="coupon" type="object | null">
+    O cupom aplicado, ou `null` quando você não enviou nenhum.
+
+    <Expandable title="Toggle object">
+    <ResponseField name="code" type="string">O código do cupom.</ResponseField>
+    <ResponseField name="discount" type="number">O valor que o cupom desconta, em BRL.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="total" type="number">
+    O preço final em BRL: o valor que um pedido do mesmo plano, período e cupom cobra.
+  </ResponseField>
+
+  <ResponseField name="legacy_price" type="boolean">
+    `true` quando `total` é o preço que a conta tinha antes da grade atual.
+  </ResponseField>
+
+  <ResponseField name="legacy_price_until" type="string | null" format="date-time">
+    Até quando vale o preço da grade anterior, em ISO 8601. `null` quando `legacy_price` é `false`.
+  </ResponseField>
+
+  <ResponseField name="payment_methods" type="string[]">
+    Os meios de pagamento que o plano aceita: `pix` e `card`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Sem cupom
+{
+  "response": {
+    "plan": "pro-4",
+    "months": 3,
+    "list_price": 62.7,
+    "period_discount_percent": 10,
+    "coupon": null,
+    "total": 56.43,
+    "legacy_price": false,
+    "legacy_price_until": null,
+    "payment_methods": ["pix", "card"]
+  }
+}
+```
+
+```json Com cupom
+{
+  "response": {
+    "plan": "starter-1",
+    "months": 1,
+    "list_price": 7.7,
+    "period_discount_percent": 0,
+    "coupon": { "code": "WELCOME10", "discount": 0.77 },
+    "total": 6.93,
+    "legacy_price": false,
+    "legacy_price_until": null,
+    "payment_methods": ["pix", "card"]
+  }
+}
+```
+
+```json Com legacy_price
+{
+  "response": {
+    "plan": "starter-1",
+    "months": 1,
+    "list_price": 7.7,
+    "period_discount_percent": 0,
+    "coupon": null,
+    "total": 5.99,
+    "legacy_price": true,
+    "legacy_price_until": "2026-12-01T03:00:00.000Z",
+    "payment_methods": ["pix", "card"]
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/orders/quote \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "plan": "pro-4", "months": 3, "coupon": "WELCOME10" }'
+```
+
+</RequestExample>
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: O header `Authorization` está ausente, a chave de API é inválida ou a sessão do dashboard foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: A chave de API é usada de um IP fora da lista de permitidos, ou não tem o escopo `billing:read` (`403`).
+  - `USER_NOT_FOUND`: O usuário autenticado não foi encontrado.
+  - `INVALID_PAYLOAD`: O body da requisição falhou na validação.
+  - `INVALID_PLAN`: O nome do plano não existe.
+  - `INVALID_MONTHS`: `months` não é `1`, `3`, `6` ou `12`.
+  - `PLAN_NOT_FOR_SALE`: O plano não é mais vendido (`400`).
+  - `COUPON_INVALID`, `COUPON_INACTIVE`, `COUPON_NOT_STARTED`, `COUPON_EXPIRED`, `COUPON_EXHAUSTED`, `COUPON_USER_LIMIT`, `COUPON_AUDIENCE`, `COUPON_PLAN`, `COUPON_DURATION`: O cupom não pode ser usado para esta conta, plano ou período (`400`). Os códigos estão listados em [Erros](/pt-br/api-reference/errors).
+  - `RATE_LIMIT_EXCEEDED`: Mais de 10 requisições em um minuto (`429`).
+  - `INTERNAL_SERVER_ERROR`: Ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "PLAN_NOT_FOR_SALE"
+}
+```
+
+</ResponseExample>

@@ -17,10 +17,11 @@ description: Faz um snapshot de uma aplicação ou do volume de um banco de dado
 
 <Note>
   **Dois limites se aplicam aos snapshots manuais, além das 5 requisições por minuto da rota.** O mesmo
-  recurso pode receber um snapshot a cada **5 minutos**, e uma conta pode criar no máximo **10
-  snapshots por hora** somando todos os seus recursos. Ao ultrapassar qualquer um dos limites, a API responde
+  recurso pode receber um snapshot a cada **5 minutos**, e uma conta pode criar por dia uma quantidade de
+  snapshots, somando todos os seus recursos, que depende do plano (8 no Starter 1, até 200 no Enterprise). O dia segue o
+  horário de Brasília. Ao ultrapassar qualquer um dos limites, a API responde
   `429 SNAPSHOT_RATE_LIMITED` com `details.scope` (`resource` ou `account`) e
-  `details.retry_after` em segundos. Os snapshots que a plataforma faz por conta própria (antes de um delete ou de um
+  `details.retry_after` em segundos; com `account`, `details` traz também `limit` e `resets_at`, o momento em que o orçamento zera, em ISO 8601. Os snapshots que a plataforma faz por conta própria (antes de um delete ou de um
   reset) não contam. Veja [Limite de requisições](/pt-br/api-reference/introduction#como-a-api-tem-limite-de-taxa).
 </Note>
 
@@ -93,7 +94,7 @@ description: Faz um snapshot de uma aplicação ou do volume de um banco de dado
   - `ACCESS_DENIED`: o usuário não é dono do recurso.
   - `PLAN_NOT_ALLOWED`: o plano da conta não inclui snapshots manuais (`403`).
   - `DATABASE_NOT_RUNNING`: o banco de dados precisa estar em execução para gerar um snapshot (`409`). O Redis não tem essa exigência.
-  - `SNAPSHOT_RATE_LIMITED`: o recurso recebeu um snapshot há menos de 5 minutos, ou a conta já criou 10 snapshots nesta hora (`429`). Vem com `details.scope` e `details.retry_after`.
+  - `SNAPSHOT_RATE_LIMITED`: o recurso recebeu um snapshot há menos de 5 minutos, ou a conta já usou o orçamento diário de snapshots manuais (`429`). Vem com `details.scope` e `details.retry_after`; com `account`, também `details.limit` e `details.resets_at`.
   - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida no mesmo recurso já está em execução (`409`). Nenhum snapshot foi feito — aguarde alguns segundos e tente de novo.
   - `INTERNAL_SERVER_ERROR`: o snapshot não pôde ser armazenado, ou ocorreu uma falha inesperada (`500`). Tente de novo mais tarde.
 </ResponseField>
@@ -118,6 +119,18 @@ description: Faz um snapshot de uma aplicação ou do volume de um banco de dado
   "details": {
     "scope": "resource",
     "retry_after": 212
+  }
+}
+```
+
+```json Error Response (429, account)
+{
+  "code": "SNAPSHOT_RATE_LIMITED",
+  "details": {
+    "scope": "account",
+    "limit": 8,
+    "retry_after": 14520,
+    "resets_at": "2026-12-02T03:00:00.000Z"
   }
 }
 ```

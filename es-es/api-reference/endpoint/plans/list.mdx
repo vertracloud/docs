@@ -1,0 +1,200 @@
+---
+title: Listar planes
+sidebarTitle: Listar planes
+api: GET https://api.vertracloud.app/v1/plans
+authMethod: none
+description: Lista los planes a la venta, con precio, memoria, vCPU, límites y funciones, y los periodos de facturación con sus descuentos.
+---
+
+{/* @see RESTGetAPIPlansResponse, APIPlansCatalog — @vertracloud/api-types */}
+Devuelve los planes que puedes comprar hoy, con el precio, la memoria, la vCPU, los límites y las funciones de cada uno, y los periodos de facturación con sus descuentos. La ruta es pública: no necesita clave de API ni sesión, así que puedes llamarla antes de que exista una cuenta. Está limitada a 60 peticiones por minuto por dirección IP, y la respuesta puede guardarse en caché durante 60 segundos.
+
+Úsala para montar una tabla de precios o para validar los nombres de plan que envías en [Crear pedido](/es-es/api-reference/endpoint/billing/create-order). El importe que se cobra de verdad a una cuenta sale de [Cotizar pedido](/es-es/api-reference/endpoint/billing/quote-order), porque puede incluir un cupón o un precio mantenido de un plan anterior.
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="grid" type="string">
+    La parrilla de planes vigente: `v3` es la actual. `legacy` es la parrilla anterior, que solo se devuelve antes de que la actual salga a la venta.
+  </ResponseField>
+
+  <ResponseField name="cycles" type="object[]">
+    Los periodos de facturación que puedes comprar y su descuento sobre el precio mensual.
+
+    <Expandable title="Toggle object">
+    <ResponseField name="months" type="integer">`1`, `3`, `6` or `12`.</ResponseField>
+    <ResponseField name="discount_percent" type="number">Descuento sobre el precio mensual: 0, 10, 15 y 25 para 1, 3, 6 y 12 meses.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="plans" type="object[]">
+    Los planes a la venta, del más pequeño al más grande.
+
+    <Expandable title="Toggle object">
+    <ResponseField name="name" type="string">El nombre del plan, el valor que envías en `plan` al crear un pedido, como `starter-1`, `pro-4`, `business-12` o `enterprise-32`.</ResponseField>
+    <ResponseField name="family" type="string | null">`starter`, `pro`, `business` o `enterprise`. `null` para un plan de la parrilla anterior.</ResponseField>
+    <ResponseField name="legacy" type="boolean">`true` para un plan de la parrilla anterior, que ya no se vende. Es `false` en todos los planes cuando `grid` es `v3`.</ResponseField>
+    <ResponseField name="memory_mb" type="integer">La memoria que la cuenta puede asignar entre sus aplicaciones y bases de datos, en MB.</ResponseField>
+    <ResponseField name="max_vcpus_per_app" type="number">El máximo de vCPU que puede usar una aplicación en el plan.</ResponseField>
+    <ResponseField name="price" type="number">El precio mensual en BRL, sin ningún descuento de periodo. El precio de un periodo es `price` por `months` por `(1 - discount_percent / 100)`, redondeado al céntimo.</ResponseField>
+    <ResponseField name="payment_methods" type="string[]">`pix` y `card`.</ResponseField>
+
+    <ResponseField name="limits" type="object">
+      <Expandable title="Toggle object">
+      <ResponseField name="deploys_per_hour" type="integer">Despliegues por hora.</ResponseField>
+      <ResponseField name="requests_per_minute" type="integer">Peticiones a la API por minuto con una clave de API.</ResponseField>
+      <ResponseField name="requests_per_day" type="integer">Peticiones a la API por día con una clave de API.</ResponseField>
+      <ResponseField name="max_domains" type="integer">Dominios personalizados por aplicación.</ResponseField>
+      <ResponseField name="max_domain_ports" type="integer">Puertos además del 80 que puede servir una aplicación con dominios.</ResponseField>
+      <ResponseField name="manual_backups_per_day" type="integer">Copias de seguridad manuales por cuenta y día.</ResponseField>
+      <ResponseField name="workspace_members" type="integer">Miembros de un workspace.</ResponseField>
+      <ResponseField name="workspace_roles" type="integer">Roles personalizados de un workspace.</ResponseField>
+      <ResponseField name="release_versions" type="integer">Versiones guardadas para rollback.</ResponseField>
+      <ResponseField name="release_retention_days" type="integer">Días que se conserva una versión.</ResponseField>
+      <ResponseField name="max_custom_images" type="integer">Imágenes Docker personalizadas. `0` cuando el plan no tiene.</ResponseField>
+      <ResponseField name="blob" type="object">
+        Límites de Blob Storage: `quota_bytes`, `max_rules`, `max_custom_domains`, `image_transformations_per_month` y `s3_requests_per_10s`.
+      </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="features" type="object">
+      Booleanos de lo que incluye el plan: `web_published`, `daily_backups`, `create_backup`, `advanced_metrics`, `create_workspace`, `custom_domain`, `custom_subdomain`, `file_manager`, `database_manager`, `auto_deploy`, `rollback`, `auto_rollback`, `zero_downtime`, `delete_snapshot`, `powered_by_badge`, `blob_metadata`, `blob_share_password`, `blob_unlimited_upload_rate`, `blob_no_cache` y `blob_short_expiration`.
+    </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "grid": "v3",
+    "cycles": [
+      { "months": 1, "discount_percent": 0 },
+      { "months": 3, "discount_percent": 10 },
+      { "months": 6, "discount_percent": 15 },
+      { "months": 12, "discount_percent": 25 }
+    ],
+    "plans": [
+      {
+        "name": "starter-1",
+        "family": "starter",
+        "legacy": false,
+        "memory_mb": 1024,
+        "max_vcpus_per_app": 1,
+        "price": 7.7,
+        "payment_methods": ["pix", "card"],
+        "limits": {
+          "deploys_per_hour": 20,
+          "requests_per_minute": 120,
+          "requests_per_day": 43200,
+          "max_domains": 0,
+          "max_domain_ports": 5,
+          "manual_backups_per_day": 8,
+          "workspace_members": 0,
+          "workspace_roles": 0,
+          "release_versions": 3,
+          "release_retention_days": 7,
+          "max_custom_images": 0,
+          "blob": {
+            "quota_bytes": 10737418240,
+            "max_rules": 5,
+            "max_custom_domains": 0,
+            "image_transformations_per_month": 0,
+            "s3_requests_per_10s": 100
+          }
+        },
+        "features": {
+          "web_published": true,
+          "daily_backups": true,
+          "create_backup": true,
+          "advanced_metrics": true,
+          "create_workspace": false,
+          "custom_domain": false,
+          "custom_subdomain": true,
+          "file_manager": true,
+          "database_manager": false,
+          "auto_deploy": true,
+          "rollback": true,
+          "auto_rollback": false,
+          "zero_downtime": false,
+          "delete_snapshot": true,
+          "powered_by_badge": true,
+          "blob_metadata": false,
+          "blob_share_password": false,
+          "blob_unlimited_upload_rate": false,
+          "blob_no_cache": false,
+          "blob_short_expiration": false
+        }
+      },
+      {
+        "name": "pro-4",
+        "family": "pro",
+        "legacy": false,
+        "memory_mb": 4096,
+        "max_vcpus_per_app": 4,
+        "price": 20.9,
+        "payment_methods": ["pix", "card"],
+        "limits": {
+          "deploys_per_hour": 60,
+          "requests_per_minute": 300,
+          "requests_per_day": 172800,
+          "max_domains": 2,
+          "max_domain_ports": 5,
+          "manual_backups_per_day": 32,
+          "workspace_members": 5,
+          "workspace_roles": 4,
+          "release_versions": 15,
+          "release_retention_days": 30,
+          "max_custom_images": 2,
+          "blob": {
+            "quota_bytes": 53687091200,
+            "max_rules": 5,
+            "max_custom_domains": 1,
+            "image_transformations_per_month": 1500,
+            "s3_requests_per_10s": 400
+          }
+        },
+        "features": {
+          "web_published": true,
+          "daily_backups": true,
+          "create_backup": true,
+          "advanced_metrics": true,
+          "create_workspace": true,
+          "custom_domain": true,
+          "custom_subdomain": true,
+          "file_manager": true,
+          "database_manager": true,
+          "auto_deploy": true,
+          "rollback": true,
+          "auto_rollback": true,
+          "zero_downtime": true,
+          "delete_snapshot": true,
+          "powered_by_badge": false,
+          "blob_metadata": false,
+          "blob_share_password": false,
+          "blob_unlimited_upload_rate": false,
+          "blob_no_cache": false,
+          "blob_short_expiration": false
+        }
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `RATE_LIMIT_EXCEEDED`: Más de 60 peticiones en un minuto desde la misma dirección IP (`429`). `details.retry_after` indica la espera.
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado del servidor.
+</ResponseField>

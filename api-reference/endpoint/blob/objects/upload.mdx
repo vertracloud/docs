@@ -35,7 +35,7 @@ Uploads one file of up to 100 MB in a single `multipart/form-data` request and s
 </ParamField>
 
 <ParamField query="cache_control" type="string">
-  `immutable`, `max-age=<seconds>` or `no-cache` (Enterprise-26 or higher). Default: no value set.
+  `immutable`, `max-age=<seconds>` or `no-cache` (Enterprise plans). Default: no value set.
 </ParamField>
 
 <ParamField query="content_disposition" type="string">
@@ -47,11 +47,11 @@ Uploads one file of up to 100 MB in a single `multipart/form-data` request and s
 </ParamField>
 
 <ParamField query="expires_at" type="string">
-  ISO 8601 timestamp when the object is deleted. Must be at least the plan's minimum from now (7 days, or 1 hour on Enterprise-26 or higher).
+  ISO 8601 timestamp when the object is deleted. Must be at least the plan's minimum from now (7 days, or 1 hour on Enterprise plans).
 </ParamField>
 
 <ParamField query="metadata" type="string">
-  JSON object, URL-encoded: up to 5 keys, each `[a-z0-9-]{1,64}`, 512 bytes in total. Enterprise-12 or higher.
+  JSON object, URL-encoded: up to 5 keys, each `[a-z0-9-]{1,64}`, 512 bytes in total. Business or higher.
 </ParamField>
 
 <ParamField query="checksum_sha256" type="string">
@@ -87,10 +87,10 @@ curl -X POST "https://blob.vertracloud.app/v1/objects?path=images/logo.png&visib
   <ResponseField name="sha256" type="string | null">SHA-256 of the content in hex, when the upload sent a checksum. `null` otherwise.</ResponseField>
   <ResponseField name="visibility" type="string">`public` (readable through its public URL) or `private` (needs a temporary link or a share).</ResponseField>
   <ResponseField name="url" type="string | null">Public URL. `null` while the object is private.</ResponseField>
-  <ResponseField name="cache_control" type="string | null">`immutable`, `max-age=<seconds>` or `no-cache` (`no-cache` needs Enterprise-26 or higher). `null` means the default.</ResponseField>
+  <ResponseField name="cache_control" type="string | null">`immutable`, `max-age=<seconds>` or `no-cache` (`no-cache` needs Enterprise plans). `null` means the default.</ResponseField>
   <ResponseField name="content_disposition" type="string">`inline` (shown by the browser) or `attachment` (downloaded). HTML, SVG and XML are always `attachment`.</ResponseField>
   <ResponseField name="filename" type="string | null">Name suggested on download. `null` uses the last segment of `path`.</ResponseField>
-  <ResponseField name="metadata" type="object">Up to 5 keys, each `[a-z0-9-]{1,64}`, 512 bytes in total. Enterprise-12 or higher; `{}` on other plans.</ResponseField>
+  <ResponseField name="metadata" type="object">Up to 5 keys, each `[a-z0-9-]{1,64}`, 512 bytes in total. Business or higher; `{}` on other plans.</ResponseField>
   <ResponseField name="expires_at" type="string | null">When the object is deleted, as an ISO 8601 timestamp. `null` means no expiration.</ResponseField>
   <ResponseField name="created_at" type="string">ISO 8601 creation time.</ResponseField>
   <ResponseField name="updated_at" type="string">ISO 8601 time of the last change.</ResponseField>
@@ -140,10 +140,10 @@ curl -X POST "https://blob.vertracloud.app/v1/objects?path=images/logo.png&visib
   - `STORAGE_QUOTA_EXCEEDED` (`403`): Storing the file would exceed the plan's blob quota.
   - `BLOCKED_FILE_TYPE` (`422`): The extension is blocked, not allowed by the folder rule or token, or the file is an executable.
   - `BLOB_NAMESPACE_SUSPENDED` (`403`): The account's blob storage is suspended, or its plan expired. Uploads and other writes are refused from the start of the 72-hour grace period.
-  - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` (below Enterprise-12) or `cache_control: no-cache` (below Enterprise-26) isn't included in the plan.
+  - `PLAN_RESTRICTED_FEATURE` (`403`): `metadata` (below Business) or `cache_control: no-cache` (below Enterprise) isn't included in the plan.
   - `BLOB_UPLOAD_TOKEN_CONSTRAINT` (`403`): Only with an upload token: the path, folder or another option the token fixes doesn't match the request.
   - `BLOB_UPLOAD_TOKEN_EXHAUSTED` (`401`): Only with an upload token: it has used all its uses.
-  - `RATE_LIMIT_EXCEEDED` (`429`): Below Enterprise-12, uploads are limited to 1 per second. `details.retry_after` gives the wait.
+  - `RATE_LIMIT_EXCEEDED` (`429`): Below Business, uploads are limited to 1 per second. `details.retry_after` gives the wait.
 </ResponseField>
 
 <ResponseExample>

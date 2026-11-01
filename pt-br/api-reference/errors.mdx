@@ -48,8 +48,13 @@ Todo erro usa o mesmo envelope, descrito na [introdução da API](/pt-br/api-ref
 |---|---|---|
 | 400 | `INVALID_PLAN` / `INVALID_PLAN_NAME` | O slug do plano não é reconhecido. Use um dos listados em [Planos e limites](/pt-br/plans-and-limits). |
 | 400 | `MISSING_PLAN_OR_MONTHS` | `plan` ou `months` está ausente no corpo do pedido. |
-| 400 | `INVALID_MONTHS` | `months` não é 1, 3 ou 12 (o plano Economy aceita apenas 1). |
+| 400 | `INVALID_MONTHS` | `months` não é 1, 3, 6 ou 12. |
 | 400 | `NOT_AN_UPGRADE` | O plano de destino não é um aumento de memória em relação ao atual. |
+| 400 | `PLAN_NOT_FOR_SALE` | O plano não é mais vendido porque não faz parte da grade atual. Escolha um plano de [Listar planos](/pt-br/api-reference/endpoint/plans/list). |
+| 400 | `COUPON_INVALID` | Nenhum cupom ativo tem este código. |
+| 400 | `COUPON_INACTIVE` / `COUPON_NOT_STARTED` / `COUPON_EXPIRED` | O cupom está desativado, ainda não começou ou expirou. |
+| 400 | `COUPON_EXHAUSTED` / `COUPON_USER_LIMIT` | O cupom atingiu o total de usos, ou a conta já o usou o máximo de vezes permitido. |
+| 400 | `COUPON_AUDIENCE` / `COUPON_PLAN` / `COUPON_DURATION` | O cupom não está disponível para esta conta, ou não vale para este plano ou período de cobrança. |
 | 400 | `PLAN_MISMATCH_FOR_RENEWAL` | O plano de um pedido de renovação não corresponde ao plano atual do recurso. |
 | 400 | `BILLING_DETAILS_INCOMPLETE` | O pedido exige dados de cobrança completos (nome, endereço e, no Brasil, CPF/CNPJ). Salve-os com `PUT /v1/users/me/billing` e depois crie o pedido de novo. |
 | 400 | `BILLING_DETAILS_INVALID` | Um campo dos dados de cobrança falhou na validação; o campo está em `details.path`. |
@@ -67,11 +72,11 @@ Todo erro usa o mesmo envelope, descrito na [introdução da API](/pt-br/api-ref
 | 403 | `PLAN_RESTRICTED_FEATURE` | O recurso não está disponível no plano do dono do recurso. |
 | 403 | `PLAN_REQUIRED` | A conta não tem plano ativo, então não pode criar aplicações ou bancos de dados, iniciá-los ou reiniciá-los, fazer deploy ou publicar um site. Assine um plano para continuar. |
 | 403 | `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH` | O tier do plano atual não inclui publicação web. |
-| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN` | Domínios personalizados exigem Intermediary ou superior. |
-| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | Escolher um subdomínio personalizado exige um plano superior; veja [Planos e limites](/pt-br/plans-and-limits). |
-| 403 | `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | O rollback automático exige Intermediary ou superior. Desligá-lo é sempre permitido. |
-| 403 | `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | Forçar deploys sem downtime (`zero_downtime: "on"`) exige Enterprise. `auto` e `off` são sempre permitidos. |
-| 403 | `PLAN_DOES_NOT_SUPPORT_ROLLBACK` | Fazer rollback para uma release anterior exige Pro ou superior; veja [Limites de histórico de deploy e rollback](/pt-br/plans-and-limits#limites-do-histórico-de-deploys-e-do-rollback). |
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_DOMAIN` | Domínios personalizados exigem Starter 2 ou superior. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | O plano não inclui escolher um subdomínio personalizado; todos os planos da grade atual incluem. Veja [Planos e limites](/pt-br/plans-and-limits). |
+| 403 | `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | O rollback automático exige Pro ou superior. Desligá-lo é sempre permitido. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | Forçar deploys sem downtime (`zero_downtime: "on"`) exige Starter 2 ou superior. `auto` e `off` são sempre permitidos. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_ROLLBACK` | O plano não inclui fazer rollback para uma release anterior; todos os planos da grade atual incluem. Veja [Limites de histórico de deploy e rollback](/pt-br/plans-and-limits#limites-do-histórico-de-deploys-e-do-rollback). |
 
 ## Aplicações
 
@@ -179,11 +184,11 @@ Quando um build ou uma instalação falha, `GET /v1/apps/{id}` retorna o código
 | 401 | `BLOB_SHARE_PASSWORD_INVALID` | A senha está errada. Tentativas repetidas do mesmo IP têm limite de taxa. |
 | 409 | `BLOB_RULES_CONFLICT` | O etag de `If-Match` está desatualizado, porque as regras foram salvas depois que você as leu. Leia as regras de novo e tente novamente. |
 | 409 | `BLOB_RULE_LIMIT` | A conta tem mais regras de pasta do que o plano permite (5, 10 ou 20). Exclua uma regra primeiro. |
-| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | O plano inclui domínios personalizados e a conta já tem todos os que ele permite. Abaixo do Enterprise-4, a resposta é `PLAN_RESTRICTED_FEATURE`. |
+| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | O plano inclui domínios personalizados e a conta já tem todos os que ele permite. Abaixo do Pro, a resposta é `PLAN_RESTRICTED_FEATURE`. |
 | 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | O hostname já está em uso. |
 | 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | O domínio não existe ou pertence a outra conta. |
 
-Códigos reaproveitados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDED` (com `retry_after`; também usado para o limite de um upload por segundo abaixo do Enterprise-12), `API_KEY_SCOPE_DENIED`, `WORKSPACE_PERMISSION_DENIED` e `INVALID_CUSTOM_DOMAIN_FORMAT`.
+Códigos reaproveitados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDED` (com `retry_after`; também usado para o limite de um upload por segundo abaixo do Business), `API_KEY_SCOPE_DENIED`, `WORKSPACE_PERMISSION_DENIED` e `INVALID_CUSTOM_DOMAIN_FORMAT`.
 
 ## Rede e domínios
 
@@ -243,15 +248,15 @@ Códigos reaproveitados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LI
 | 400 | `SNAPSHOT_VERSION_NEWER` | O snapshot foi tirado de uma versão major mais nova que a do banco sendo criado ou restaurado; nada foi alterado. |
 | 400 | `SNAPSHOT_TOO_LARGE` | O snapshot excede o tamanho que o plano ou o recurso de destino permite. |
 | 500 | `SNAPSHOT_IMPORT_FAILED` | A restauração falhou ao carregar os dados; o banco fica em execução e vazio, e o snapshot continua disponível para nova tentativa. |
-| 429 | `SNAPSHOT_RATE_LIMITED` | A criação manual de snapshots atingiu seu orçamento por recurso (1 a cada 5 min) ou por conta (10 por hora). |
+| 429 | `SNAPSHOT_RATE_LIMITED` | A criação manual de snapshots atingiu o orçamento por recurso (1 a cada 5 minutos) ou o orçamento diário da conta, que depende do plano. `details.scope` é `resource` (com `retry_after`) ou `account` (com `limit`, `retry_after` e `resets_at`, o momento em que o orçamento do dia zera, em ISO 8601). |
 | 429 | `RESTORE_COOLDOWN` | Uma restauração ou rollback foi pedido cedo demais após outro no mesmo recurso. |
 
 ## Imagens Docker personalizadas
 
 | Status | Código | Significado e correção |
 |---|---|---|
-| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | O plano não inclui imagens Docker personalizadas. Elas estão disponíveis no Enterprise 28, Enterprise 30 e Enterprise 32. |
-| 403 | `MAX_IMAGES_REACHED` | O limite de 20 imagens do plano foi atingido; imagens em qualquer estado contam. Exclua uma. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | O plano não inclui imagens Docker personalizadas. Elas estão disponíveis nos planos Pro, Business e Enterprise. |
+| 403 | `MAX_IMAGES_REACHED` | O limite de imagens do plano foi atingido (2 no Pro, 6 no Business, 20 no Enterprise); imagens em qualquer estado contam. Exclua uma. |
 | 404 | `IMAGE_NOT_FOUND` | A imagem não existe ou você não pode acessá-la. |
 | 404 | `IMAGE_VERSION_NOT_FOUND` | A imagem não tem nenhuma versão com esse ID. |
 | 400 | `DOCKERFILE_NOT_FOUND` | Não há arquivo com o nome exato `Dockerfile` na raiz do contexto de build. |

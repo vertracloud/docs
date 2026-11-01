@@ -10,13 +10,14 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
 </ParamField>
 
 <ParamField body="plan" type="string" required>
-  El slug del plan que se compra, renueva o al que se actualiza.
+  El nombre del plan que se compra, renueva o al que se actualiza, como `starter-1` o `pro-4`. Los nombres están en [Listar planes](/es-es/api-reference/endpoint/plans/list). Un plan que ya no se vende devuelve `PLAN_NOT_FOR_SALE`.
 </ParamField>
 
 <ParamField body="months" type="integer" required>
-  Cuántos meses comprar: `1`, `3` o `12`. El plan Economy solo acepta `1`. Cualquier otro valor
-  devuelve `INVALID_MONTHS`. Un pedido de 3 meses tiene un 5% de descuento y un pedido de 12 meses un 15% de descuento sobre el
-  precio mensual; `price` y `discount` ya lo incluyen.
+  Cuántos meses comprar: `1`, `3`, `6` o `12`. Cualquier otro valor devuelve `INVALID_MONTHS`. Un pedido de
+  3 meses tiene un 10% de descuento, uno de 6 meses un 15% y uno de 12 meses un 25% sobre el precio mensual;
+  `price` y `discount` ya lo incluyen. [Cotizar pedido](/es-es/api-reference/endpoint/billing/quote-order)
+  devuelve el importe exacto antes de crear el pedido.
 </ParamField>
 
 <ParamField body="coupon" type="string">
@@ -74,8 +75,7 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
   </ResponseField>
 
   <ResponseField name="allowed_payment_methods" type="string[]">
-    Los métodos de pago que acepta el pedido. El plan Economy devuelve `["pix"]`; un cupón restringido a
-    un solo método también reduce la lista.
+    Los métodos de pago que acepta el pedido: `pix` y `card`. Un cupón restringido a un solo método reduce la lista.
   </ResponseField>
 
   </Expandable>
@@ -89,12 +89,12 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
     "id": "order-abc123",
     "code": null,
     "status": "unpaid",
-    "plan": "PRO",
+    "plan": "starter-1",
     "duration": 1,
-    "discount": { "percent": null, "coupon": null, "price": 24.9 },
-    "price": 24.9,
+    "discount": { "percent": null, "coupon": null, "price": 7.7 },
+    "price": 7.7,
     "expires_at": "2026-09-22T12:00:00.000Z",
-    "allowed_payment_methods": ["pix"]
+    "allowed_payment_methods": ["pix", "card"]
   }
 }
 ```
@@ -111,8 +111,9 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
   - `INVALID_PAYLOAD`: El cuerpo de la petición no superó la validación.
   - `BILLING_DETAILS_INCOMPLETE`: Los datos de facturación no están completos (nombre, dirección y, en Brasil, CPF/CNPJ). Guárdalos con [Actualizar los datos de facturación](/es-es/api-reference/endpoint/billing/update-billing-details) y vuelve a intentarlo.
   - `MISSING_PLAN_OR_MONTHS`: Falta `plan` o `months`.
-  - `INVALID_MONTHS`: `months` no es `1`, `3` o `12`, o no es `1` para el plan Economy.
-  - `INVALID_PLAN`: El slug del plan no existe.
+  - `INVALID_MONTHS`: `months` no es `1`, `3`, `6` o `12`.
+  - `INVALID_PLAN`: El nombre del plan no existe.
+  - `PLAN_NOT_FOR_SALE`: El plan ya no se vende (`400`).
   - `NOT_AN_UPGRADE`: Para `type: "upgrade"`, el plan indicado no es superior al actual.
   - `PLAN_MISMATCH_FOR_RENEWAL`: Para `type: "renew"`, el plan indicado no coincide con el actual.
   - `PENDING_ORDER_LIMIT_REACHED`: Ya hay demasiados pedidos pendientes de pago abiertos.

@@ -1,0 +1,166 @@
+---
+title: Cotizar pedido
+sidebarTitle: Cotizar pedido
+api: POST https://api.vertracloud.app/v1/orders/quote
+authMethod: bearer
+description: Devuelve el precio exacto de un plan y periodo de facturación, con cupón opcional, sin crear un pedido ni usar el cupón.
+---
+
+{/* @see RESTPostAPIOrderQuoteBody, RESTPostAPIOrderQuoteResponse — @vertracloud/api-types */}
+Devuelve el importe que cobraría a tu cuenta un pedido de un plan y un periodo de facturación, con el descuento del periodo y un cupón opcional ya aplicados. No se crea nada y el cupón no se usa. Llámala antes de [Crear pedido](/es-es/api-reference/endpoint/billing/create-order) para mostrar el precio final.
+
+Requiere el scope `billing:read` cuando se llama con una clave de API. Está limitada a 10 peticiones por minuto.
+
+<ParamField body="plan" type="string" required>
+  El nombre del plan, como `starter-1`, `pro-4` o `business-12`. Los nombres y los precios están en [Listar planes](/es-es/api-reference/endpoint/plans/list).
+</ParamField>
+
+<ParamField body="months" type="integer" required>
+  El periodo de facturación: `1`, `3`, `6` o `12`. Un periodo de 3 meses tiene un 10% de descuento sobre el precio mensual, 6 meses un 15% y 12 meses un 25%.
+</ParamField>
+
+<ParamField body="coupon" type="string">
+  Un código de cupón de descuento opcional. La cotización comprueba el cupón igual que [Crear pedido](/es-es/api-reference/endpoint/billing/create-order).
+</ParamField>
+
+<Note>
+  El precio depende de la cuenta. Si la cuenta tiene un plan anterior a la parrilla actual y compra el equivalente a su propio plan, `legacy_price` es `true` y `total` es el precio que ya paga, hasta `legacy_price_until`. Solo el periodo mensual mantiene ese precio. Los periodos más largos usan el precio actual con el descuento del periodo.
+</Note>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="plan" type="string">
+    El nombre del plan.
+  </ResponseField>
+
+  <ResponseField name="months" type="integer">
+    El periodo de facturación en meses.
+  </ResponseField>
+
+  <ResponseField name="list_price" type="number">
+    El precio mensual del plan por los meses, en BRL, antes de cualquier descuento.
+  </ResponseField>
+
+  <ResponseField name="period_discount_percent" type="number">
+    El descuento del periodo de facturación: 0, 10, 15 o 25.
+  </ResponseField>
+
+  <ResponseField name="coupon" type="object | null">
+    El cupón aplicado, o `null` cuando no enviaste ninguno.
+
+    <Expandable title="Toggle object">
+    <ResponseField name="code" type="string">El código del cupón.</ResponseField>
+    <ResponseField name="discount" type="number">El importe que descuenta el cupón, en BRL.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  <ResponseField name="total" type="number">
+    El precio final en BRL: el importe que cobra un pedido del mismo plan, periodo y cupón.
+  </ResponseField>
+
+  <ResponseField name="legacy_price" type="boolean">
+    `true` cuando `total` es el precio que tenía la cuenta antes de la parrilla actual.
+  </ResponseField>
+
+  <ResponseField name="legacy_price_until" type="string | null" format="date-time">
+    Hasta cuándo vale el precio de la parrilla anterior, en ISO 8601. `null` cuando `legacy_price` es `false`.
+  </ResponseField>
+
+  <ResponseField name="payment_methods" type="string[]">
+    Los métodos de pago que acepta el plan: `pix` y `card`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Sin cupón
+{
+  "response": {
+    "plan": "pro-4",
+    "months": 3,
+    "list_price": 62.7,
+    "period_discount_percent": 10,
+    "coupon": null,
+    "total": 56.43,
+    "legacy_price": false,
+    "legacy_price_until": null,
+    "payment_methods": ["pix", "card"]
+  }
+}
+```
+
+```json Con cupón
+{
+  "response": {
+    "plan": "starter-1",
+    "months": 1,
+    "list_price": 7.7,
+    "period_discount_percent": 0,
+    "coupon": { "code": "WELCOME10", "discount": 0.77 },
+    "total": 6.93,
+    "legacy_price": false,
+    "legacy_price_until": null,
+    "payment_methods": ["pix", "card"]
+  }
+}
+```
+
+```json Con legacy_price
+{
+  "response": {
+    "plan": "starter-1",
+    "months": 1,
+    "list_price": 7.7,
+    "period_discount_percent": 0,
+    "coupon": null,
+    "total": 5.99,
+    "legacy_price": true,
+    "legacy_price_until": "2026-12-01T03:00:00.000Z",
+    "payment_methods": ["pix", "card"]
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://api.vertracloud.app/v1/orders/quote \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "plan": "pro-4", "months": 3, "coupon": "WELCOME10" }'
+```
+
+</RequestExample>
+
+### Respuestas de error
+
+<ResponseField name="code" type="string">
+  El código de error que indica el motivo del fallo. Valores posibles:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta el header `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope `billing:read` (`403`).
+  - `USER_NOT_FOUND`: No se encontró al usuario autenticado.
+  - `INVALID_PAYLOAD`: El cuerpo de la petición no superó la validación.
+  - `INVALID_PLAN`: El nombre del plan no existe.
+  - `INVALID_MONTHS`: `months` no es `1`, `3`, `6` o `12`.
+  - `PLAN_NOT_FOR_SALE`: El plan ya no se vende (`400`).
+  - `COUPON_INVALID`, `COUPON_INACTIVE`, `COUPON_NOT_STARTED`, `COUPON_EXPIRED`, `COUPON_EXHAUSTED`, `COUPON_USER_LIMIT`, `COUPON_AUDIENCE`, `COUPON_PLAN`, `COUPON_DURATION`: El cupón no se puede usar para esta cuenta, plan o periodo (`400`). Los códigos están en [Errores](/es-es/api-reference/errors).
+  - `RATE_LIMIT_EXCEEDED`: Más de 10 peticiones en un minuto (`429`).
+  - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado del servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (400)
+{
+  "code": "PLAN_NOT_FOR_SALE"
+}
+```
+
+</ResponseExample>

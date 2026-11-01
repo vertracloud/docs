@@ -156,8 +156,8 @@ MongoDB: collections, indexes and documents. Redis: keys via `SCAN`, value by ty
 | Rate limit — SQL console | 30/min per user |
 | Rate limit — other data routes | 120/min per user |
 
-**Minimum plan: Intermediary.** The entire tab is
-unlocked from Intermediary up. The gate checks the plan of the database's **owner**, not the
+**Minimum plan: Pro.** The entire tab is
+unlocked from Pro up. The gate checks the plan of the database's **owner**, not the
 plan of whoever is accessing it — a workspace member without a plan can use the Data tab on a database whose owner has the required plan, and
 an owner without a plan doesn't get the feature by inviting someone on a higher plan. Below that the dashboard shows the plan card instead of the explorer.
 
@@ -172,18 +172,38 @@ in the Redis or Mongo console. In SQL the limit is time, size and concurrency.
 
 ## 4. Plans and Pricing
 
-| Plan | Price | RAM | vCPU | Max Projects |
+Vertra Cloud sells 22 plans in four families: **Starter** (1 and 2 GB of RAM), **Pro** (4, 6 and 8 GB), **Business** (12, 16 and 24 GB) and **Enterprise** (14 sizes, from 32 GB to 512 GB). The number in a plan's name is its RAM in GB. Prices are monthly, in reais; the 3, 6 and 12-month discounts are in [Billing Periods and Payment](#billing-periods-and-payment).
+
+| Plan | Price | RAM | vCPU | Blob Storage |
 |-------|:-----:|:---:|:----:|:------------:|
-| Economy | R\$1.99/mo | 256 MB | 0.3 | limited by RAM |
-| Pro | R\$5.99/mo | 1,024 MB | 0.5 | limited by RAM |
-| Scale | R\$10.99/mo | 2,048 MB | 1 | limited by RAM |
-| Intermediary | R\$18.99/mo | 3,072 MB | 1.5 | limited by RAM |
-| Enterprise-4 | R\$23.99/mo | 4,096 MB | 2 | limited by RAM |
-| Enterprise-32 | R\$191.99/mo | 32,768 MB | 12 | limited by RAM |
+| Starter 1 | R\$7.70/mo | 1,024 MB | 1 | 10 GB |
+| Starter 2 | R\$11.90/mo | 2,048 MB | 2 | 15 GB |
+| Pro 4 | R\$20.90/mo | 4,096 MB | 4 | 50 GB |
+| Pro 6 | R\$34.90/mo | 6,144 MB | 4 | 80 GB |
+| Pro 8 | R\$47.90/mo | 8,192 MB | 5 | 100 GB |
+| Business 12 | R\$59.90/mo | 12,288 MB | 6 | 200 GB |
+| Business 16 | R\$94.90/mo | 16,384 MB | 8 | 250 GB |
+| Business 24 | R\$139.90/mo | 24,576 MB | 12 | 300 GB |
+| Enterprise 32 | R\$181.90/mo | 32,768 MB | 16 | 400 GB |
+| Enterprise 48 | R\$272.90/mo | 49,152 MB | 16 | 450 GB |
+| Enterprise 64 | R\$363.90/mo | 65,536 MB | 16 | 500 GB |
+| Enterprise 96 | R\$545.90/mo | 98,304 MB | 16 | 600 GB |
+| Enterprise 128 | R\$727.90/mo | 131,072 MB | 16 | 700 GB |
+| Enterprise 160 | R\$909.90/mo | 163,840 MB | 16 | 750 GB |
+| Enterprise 192 | R\$1,091.90/mo | 196,608 MB | 16 | 800 GB |
+| Enterprise 224 | R\$1,273.90/mo | 229,376 MB | 16 | 900 GB |
+| Enterprise 256 | R\$1,455.90/mo | 262,144 MB | 16 | 1 TB |
+| Enterprise 288 | R\$1,637.90/mo | 294,912 MB | 16 | 1 TB |
+| Enterprise 320 | R\$1,819.90/mo | 327,680 MB | 16 | 1 TB |
+| Enterprise 384 | R\$2,183.90/mo | 393,216 MB | 16 | 1 TB |
+| Enterprise 448 | R\$2,547.90/mo | 458,752 MB | 16 | 1 TB |
+| Enterprise 512 | R\$2,911.90/mo | 524,288 MB | 16 | 1 TB |
 
 **No plan has a count ceiling.** The real limit is the
 **plan's RAM**, and what refuses a creation is
-`MEMORY_LIMIT_EXCEEDED` — a 100 MB app fits 10 times in a Pro plan. Minimums that consume that RAM: application 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1,024 MB.
+`MEMORY_LIMIT_EXCEEDED` — a 100 MB app fits 10 times in Starter 1. Minimums that consume that RAM: application 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1,024 MB.
+
+The public listing of the plans on sale, with the price, RAM, vCPU, Blob and limits of each one and the billing periods with their discounts, is `GET /v1/plans` (no authentication).
 
 ### vCPU per Application
 
@@ -192,16 +212,21 @@ account's projects. Within that ceiling, a project's vCPU grows with the project
 
 - **Growth:** on plans with up to 2 vCPU, +1 vCPU for every 512 MB of RAM; on plans with more than 2 vCPU, +1 vCPU for every 1 GB (1,024 MB).
 - **Floor:** a project with 512 MB or more gets at least 2 vCPU; below 512 MB, at least 1 vCPU.
-- **Ceiling:** never more than the plan's vCPU. Economy (0.3) and Pro (0.5) always give the project the plan's full vCPU.
+- **Ceiling:** never more than the plan's vCPU. Starter 1 (1 vCPU) gives every project 1 vCPU.
 
-The same rule applies to databases. More RAM never results in less vCPU. A change takes effect the next time the project restarts or is deployed.
+The same rule applies to databases. More RAM never results in less vCPU. A change takes effect the next time the project restarts or is deployed: when your plan changes, the new ceiling reaches each application and database on its next restart or deploy, and nothing restarts by itself.
 
-| Plan | Plan vCPU | 256 MB | 512 MB | 1 GB | 2 GB | 4 GB | 8 GB | 12 GB+ |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Scale | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
-| Intermediary | 1.5 | 1 | 1.5 | 1.5 | 1.5 | 1.5 | 1.5 | 1.5 |
-| Enterprise-4 | 2 | 1 | 2 | 2 | 2 | 2 | 2 | 2 |
-| Enterprise-32 | 12 | 1 | 2 | 2 | 2 | 4 | 8 | 12 |
+| Plan | Plan vCPU | 256 MB | 512 MB | 1 GB | 2 GB | 4 GB | 8 GB | 16 GB | 32 GB |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Starter 1 | 1 | 1 | 1 | 1 | — | — | — | — | — |
+| Starter 2 | 2 | 1 | 2 | 2 | 2 | — | — | — | — |
+| Pro 4 | 4 | 1 | 2 | 2 | 2 | 4 | — | — | — |
+| Pro 6 | 4 | 1 | 2 | 2 | 2 | 4 | — | — | — |
+| Pro 8 | 5 | 1 | 2 | 2 | 2 | 4 | 5 | — | — |
+| Business 12 | 6 | 1 | 2 | 2 | 2 | 4 | 6 | — | — |
+| Business 16 | 8 | 1 | 2 | 2 | 2 | 4 | 8 | 8 | — |
+| Business 24 | 12 | 1 | 2 | 2 | 2 | 4 | 8 | 12 | — |
+| Enterprise 32 to 512 | 16 | 1 | 2 | 2 | 2 | 4 | 8 | 16 | 16 |
 
 ### AI Agents (MCP)
 
@@ -209,25 +234,6 @@ Vertra doesn't host chat or an AI model. Connect Claude, Codex, Cursor or anothe
 the official server to operate applications, databases, files, logs and deploys with your API key.
 Internal validations happen during the application's lifecycle, such as deploy, rebuild and
 restart; they are not a separate product surface.
-
-### Enterprise Pricing
-
-| Plan | Price/mo |
-|-------|----------:|
-| Enterprise-4 | R\$23.99 |
-| Enterprise-6 | R\$35.99 |
-| Enterprise-8 | R\$47.99 |
-| Enterprise-12 | R\$71.99 |
-| Enterprise-14 | R\$83.99 |
-| Enterprise-16 | R\$95.99 |
-| Enterprise-18 | R\$107.99 |
-| Enterprise-20 | R\$119.99 |
-| Enterprise-22 | R\$131.99 |
-| Enterprise-24 | R\$143.99 |
-| Enterprise-26 | R\$155.99 |
-| Enterprise-28 | R\$167.99 |
-| Enterprise-30 | R\$179.99 |
-| Enterprise-32 | R\$191.99 |
 
 ### Plan Names
 
@@ -237,64 +243,73 @@ databases and workspaces carry the owner's plan in `owner_plan` (the name, or `n
 
 | Name | Plan |
 |-------|-------|
-| `economy` | Economy |
-| `pro` | Pro |
-| `scale` | Scale |
-| `intermediary` | Intermediary |
-| `enterprise-4` | Enterprise-4 |
-| `enterprise-6` | Enterprise-6 |
-| `enterprise-8` | Enterprise-8 |
-| `enterprise-12` | Enterprise-12 |
-| `enterprise-14` | Enterprise-14 |
-| `enterprise-16` | Enterprise-16 |
-| `enterprise-18` | Enterprise-18 |
-| `enterprise-20` | Enterprise-20 |
-| `enterprise-22` | Enterprise-22 |
-| `enterprise-24` | Enterprise-24 |
-| `enterprise-26` | Enterprise-26 |
-| `enterprise-28` | Enterprise-28 |
-| `enterprise-30` | Enterprise-30 |
-| `enterprise-32` | Enterprise-32 |
+| `starter-1` | Starter 1 |
+| `starter-2` | Starter 2 |
+| `pro-4` | Pro 4 |
+| `pro-6` | Pro 6 |
+| `pro-8` | Pro 8 |
+| `business-12` | Business 12 |
+| `business-16` | Business 16 |
+| `business-24` | Business 24 |
+| `enterprise-32` | Enterprise 32 |
+| `enterprise-48` | Enterprise 48 |
+| `enterprise-64` | Enterprise 64 |
+| `enterprise-96` | Enterprise 96 |
+| `enterprise-128` | Enterprise 128 |
+| `enterprise-160` | Enterprise 160 |
+| `enterprise-192` | Enterprise 192 |
+| `enterprise-224` | Enterprise 224 |
+| `enterprise-256` | Enterprise 256 |
+| `enterprise-288` | Enterprise 288 |
+| `enterprise-320` | Enterprise 320 |
+| `enterprise-384` | Enterprise 384 |
+| `enterprise-448` | Enterprise 448 |
+| `enterprise-512` | Enterprise 512 |
+
+**Names of the previous plan grid.** The plans sold before the current grid (`economy`, `pro`, `scale`, `intermediary` and `enterprise-4` to `enterprise-30`) are accepted for as long as an account still has one, but they are not sold and are not in `GET /v1/plans`; asking to buy one fails with `PLAN_NOT_FOR_SALE`. The name `enterprise-32` now means Enterprise 32 of the current grid (32 GB, 16 vCPU).
 
 Compare plans by name, never by position in this list. Code that read `plan_id`, `plan.id` or `owner_plan_id`
 must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs, CLI and MCP).
 
 ### Features by Plan
 
-| Feature | Economy | Pro | Scale | Intermediary | Enterprise |
-|----------------|:-------:|:---:|:-----:|:------------:|:----------:|
-| Billing periods | 1 month | 1, 3 or 12 months | 1, 3 or 12 months | 1, 3 or 12 months | 1, 3 or 12 months |
-| Payment | PIX | PIX or card | PIX or card | PIX or card | PIX or card |
-| Automatic renewal (card) | — | Yes | Yes | Yes | Yes |
-| Databases | — (Redis minimum 512 MB doesn't fit) | Yes | Yes | Yes | Yes |
-| Web publishing (site with `*.vertraweb.app` subdomain) | — | Yes | Yes | Yes | Yes |
-| Choose the subdomain name | — | — | Yes | Yes | Yes |
-| "Powered by Vertra Cloud" badge on the site | — | Yes | — | — | — |
-| Custom domains per application | — | — | — | 1 | 2–20 (by tier) |
+| Feature | Starter 1 | Starter 2 | Pro | Business | Enterprise |
+|----------------|:-------:|:---------:|:---:|:--------:|:----------:|
+| Sizes | 1 GB | 2 GB | 4, 6 or 8 GB | 12, 16 or 24 GB | 32 to 512 GB |
+| Billing periods | 1, 3, 6 or 12 months | 1, 3, 6 or 12 months | 1, 3, 6 or 12 months | 1, 3, 6 or 12 months | 1, 3, 6 or 12 months |
+| Payment | PIX or card | PIX or card | PIX or card | PIX or card | PIX or card |
+| Automatic renewal (card) | Yes | Yes | Yes | Yes | Yes |
+| Databases | Yes (the engine's minimum RAM applies) | Yes | Yes | Yes | Yes |
+| Web publishing (site with `*.vertraweb.app` subdomain) | Yes | Yes | Yes | Yes | Yes |
+| Choose the subdomain name | Yes | Yes | Yes | Yes | Yes |
+| "Powered by Vertra Cloud" badge on the site | Yes | — | — | — | — |
+| Custom domains per application | — | 1 | 2 | 5 | 20 |
 | Auto-restart | Yes | Yes | Yes | Yes | Yes |
-| File manager | — | Yes | Yes | Yes | Yes |
-| Advanced metrics | — | Yes | Yes | Yes | Yes |
-| Daily backups | — | — | Yes | Yes | Yes |
-| Manual backups | — | — | Yes | Yes | Yes |
-| Safety snapshot when deleting an application | — | Yes | Yes | Yes | Yes |
-| Database data manager | — | — | — | Yes | Yes |
-| Custom Docker images (from your own `Dockerfile`) | — | — | — | — | Enterprise 28, 30 and 32 only: up to 20 images |
+| File manager | Yes | Yes | Yes | Yes | Yes |
+| Advanced metrics | Yes | Yes | Yes | Yes | Yes |
+| Daily backups (kept 30 days) | Yes | Yes | Yes | Yes | Yes |
+| Manual backups per day (account) | 8 | 16 | 32 to 64 | 96 to 192 | 200 |
+| Safety snapshot when deleting an application | Yes | Yes | Yes | Yes | Yes |
+| Database data manager | — | — | Yes | Yes | Yes |
+| Custom Docker images (from your own `Dockerfile`) | — | — | Up to 2 images | Up to 6 images | Up to 20 images |
 | Code templates (the Discord bots of the public catalog; receive share links of code templates) | Yes | Yes | Yes | Yes | Yes |
-| Image templates (n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI, Uptime Kuma; receive share links of image templates) | — | — | — | — | Enterprise 28, 30 and 32 only (follows custom Docker images) |
-| Create private templates and share links | — | — | — | — | Enterprise 28, 30 and 32 only: up to 5 templates (follows custom Docker images) |
-| Auto-deploy (GitHub) | — | — | — | Yes | Yes |
-| Deploy history (Rollbacks tab) | Read-only | Yes | Yes | Yes | Yes |
-| Manual rollback (code + optional environment variables) | — | Yes | Yes | Yes | Yes |
-| Previous versions kept | — | 3 | 5 | 10 | 15–30 (by tier) |
-| Version validity | — | 7 days | 14 days | 30 days | 30 days |
-| Automatic rollback | — | — | — | Yes | Yes |
-| Zero-downtime deploys | — | — | — | — | Yes |
+| Image templates (n8n, OpenClaw, Hermes Agent, Evolution API, Open WebUI, Uptime Kuma; receive share links of image templates) | — | — | Yes (follows custom Docker images) | Yes (follows custom Docker images) | Yes (follows custom Docker images) |
+| Create private templates and share links | — | — | Up to 5 templates (follows custom Docker images) | Up to 5 templates (follows custom Docker images) | Up to 5 templates (follows custom Docker images) |
+| Auto-deploy (GitHub) | Yes | Yes | Yes | Yes | Yes |
+| Deploy history (Rollbacks tab) | Yes | Yes | Yes | Yes | Yes |
+| Manual rollback (code + optional environment variables) | Yes | Yes | Yes | Yes | Yes |
+| Previous versions kept | 3 | 5 | 15 | 25 | 30 |
+| Version validity | 7 days | 14 days | 30 days | 30 days | 30 days |
+| Automatic rollback | — | — | Yes | Yes | Yes |
+| Zero-downtime deploys | — | Yes | Yes | Yes | Yes |
 | Vertra Flow (dashboard canvas) | Yes | Yes | Yes | Yes | Yes |
-| Workspaces (customizable roles, see §10) | — | — | — | — | Yes (5-24 members) |
-| Blob Storage (quota) | 1 GB | 5 GB | 15 GB | 20 GB | 30–250 GB |
-| Support | Specialized | Priority | Priority | Priority | Premium (E-32: dedicated agent + exclusive manager) |
+| Workspaces (customizable roles, see §10) | — | Yes (2 members) | Yes (5 to 10 members) | Yes (15 to 25 members) | Yes (30 to 60 members) |
+| Blob Storage (quota) | 10 GB | 15 GB | 50 to 100 GB | 200 to 300 GB | 400 GB to 1 TB |
+| Support | Discord | Discord | Priority | Priority | Dedicated manager |
 
-> **Previous versions kept** counts the versions besides the one running now. **Version validity** counts from the moment a version stops being the running one; the running version never expires. Enterprise keeps 15 versions on tiers E-4, E-6 and E-8, 20 on E-12, E-14 and E-16, 25 on E-18 to E-24, and 30 on E-26 to E-32.
+> **Previous versions kept** counts the versions besides the one running now. **Version validity** counts from the moment a version stops being the running one; the running version never expires.
+
+> **Manual backups per day** is a limit per account, counted on the calendar day in Brasília time: `(plan RAM in MB ÷ 256) × 2`, up to 200. It is 8 on Starter 1, 16 on Starter 2, 32, 48 and 64 on Pro 4, 6 and 8, and 96, 128 and 192 on Business 12, 16 and 24; every Enterprise size has 200. Daily backups are automatic and don't use this limit.
 
 > **Automatic rollback** and **Zero-downtime deploys** are deploy settings, changed in the application's settings
 > or with `PATCH /v1/apps/{id}/config` (`deploy`). Asking for either on a plan that doesn't include it fails with
@@ -305,31 +320,33 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 
 **Three different things the docs often blur together:**
 
-- **Publish** (Pro+) — having a site: the application gets a `*.vertraweb.app` subdomain and becomes
-  reachable over the internet. On Pro the subdomain is **randomly assigned** by the platform.
-  On Pro, the site's HTML pages also show the **"Powered by Vertra Cloud"** badge in the bottom-right
-  corner; from Scale up it doesn't appear. Switching plans turns the badge on or off
+- **Publish** (every plan) — having a site: the application gets a `*.vertraweb.app` subdomain and becomes
+  reachable over the internet. The site's HTML pages show the **"Powered by Vertra Cloud"** badge in the bottom-right
+  corner on Starter 1 only; from Starter 2 up it doesn't appear. Switching plans turns the badge on or off
   immediately, without a redeploy.
-- **Choose the subdomain** (Scale+) — **choosing** the subdomain name, at creation or later
-  (`PATCH /v1/apps/{id}/network/subdomain`). Without it the user can publish, but can't choose the name.
-- **Custom domains** (Intermediary+) — pointing domains you own to the application, as many as the plan allows (see [Custom Domains](#custom-domains)).
+- **Choose the subdomain** (every plan) — **choosing** the subdomain name, at creation or later
+  (`PATCH /v1/apps/{id}/network/subdomain`).
+- **Custom domains** (Starter 2+) — pointing domains you own to the application, as many as the plan allows (see [Custom Domains](#custom-domains)).
 
 ### Account Without an Active Plan
 
 An account without an active plan can't create applications or databases or publish a site: those requests
-are refused with `PLAN_REQUIRED` (403). Subscribe to a plan, starting at Economy, to continue.
+are refused with `PLAN_REQUIRED` (403). Subscribe to a plan, starting at Starter 1, to continue.
 
 - Projects offline for 30+ days are automatically deleted, with a snapshot taken first
 - Email notifications on days 7, 23 and 27 before deletion
 
 ### Billing Periods and Payment
 
-- **Periods:** 1, 3 or 12 months. A 3-month purchase gets **5% off** and a 12-month purchase gets
-  **15% off** the monthly price. Economy is monthly only.
-- **Payment methods:** PIX or credit card (Visa and Mastercard). Economy accepts **PIX only**, so it
-  never renews by itself. A coupon can restrict an order to one method.
+- **Periods:** 1, 3, 6 or 12 months, on every plan. A 3-month purchase gets **10% off** the monthly price, a
+  6-month purchase **15% off** and a 12-month purchase **25% off**.
+- **Payment methods:** PIX or credit card (Visa and Mastercard), on every plan, Starter 1 included. A coupon can
+  restrict an order to one method.
 - **Prices** are always in R\$. The website shows an approximate US dollar amount next to the price
   (≈ \$) for reference only; the charge is in reais.
+- **The price before you pay.** `POST /v1/orders/quote` returns what will be charged for a plan and period, with an
+  optional coupon: the list price, the period discount, the coupon discount, the total and whether the price is
+  the transition price below. It creates no order and doesn't use the coupon. The checkout shows this same value.
 - **Card = automatic renewal.** A card is saved to the account and the plan renews on the default
   card, with no loyalty period. Three days before the plan expires the card is charged and an
   email is sent the same day. If the charge fails it is retried on each of the next 2 days and on
@@ -359,6 +376,28 @@ are refused with `PLAN_REQUIRED` (403). Subscribe to a plan, starting at Economy
 - **Invoices (NFS-e):** the Brazilian service invoice (NFS-e) is issued automatically for every
   paid order and delivered **by email**, issued in the name and CPF/CNPJ of your billing details. A full refund cancels the invoice.
 
+### Move from the Previous Plan Grid
+
+Accounts on a plan of the previous grid were moved, at no cost, to the equivalent plan of the current grid. Economy is no longer sold: the cheapest plan is Starter 1.
+
+| Previous plan | Now |
+|---|---|
+| Economy, Pro | Starter 1 |
+| Scale | Starter 2 |
+| Intermediary, Enterprise-4 | Pro 4 |
+| Enterprise-6 | Pro 6 |
+| Enterprise-8 | Pro 8 |
+| Enterprise-12 | Business 12 |
+| Enterprise-14, Enterprise-16 | Business 16 |
+| Enterprise-18 to Enterprise-24 | Business 24 |
+| Enterprise-26 to Enterprise-32 | Enterprise 32 |
+
+- **Nothing about the time you paid changes.** The expiration date stays the same, and time paid in advance stays valid. The new price is only charged when the plan expires.
+- **Memory and vCPU.** Each application and database keeps its memory: you choose it. The vCPU ceiling of the new plan reaches each one on its next restart or deploy (see [vCPU per Application](#vcpu-per-application)).
+- **Renewing in the transition period.** Until the date given in the notice e-mail, the **monthly** renewal of your new plan is charged at the price you paid before, or at the new monthly price when that one is lower. Renewals of 3, 6 or 12 months are already charged at the new price, with the discount of the new periods. After that date, every renewal is charged at the new price. A card renewal follows the same rule.
+- **Transition coupon.** The accounts that received the notice e-mail also received, in it, a coupon link for the first monthly purchase of the new plan. The coupon is valid only for that account, only on the monthly period, for one use. See [Discount Coupons](#20-discount-coupons).
+- **Unpaid orders.** An open order created before the change keeps the amount it had, and activates the equivalent plan of the new grid when paid.
+
 ---
 
 ## 5. Application Types
@@ -384,15 +423,15 @@ users need to be told about:
 Publishing requires **512 MB of RAM**. RAM doesn't increase on its own in this flow: with
 less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_mb, minimum_mb }`.
 
-**Applications from a custom Docker image.** On Enterprise 28, Enterprise 30 and Enterprise 32, an application can run from an image built from the customer's own `Dockerfile`. It is created with `POST /v1/apps/image`, and it can be a Bot (`web: false`) or a Website (`web: true`). Rules to state exactly:
+**Applications from a custom Docker image.** On Pro, Business and Enterprise plans, an application can run from an image built from the customer's own `Dockerfile`. It is created with `POST /v1/apps/image`, and it can be a Bot (`web: false`) or a Website (`web: true`). Rules to state exactly:
 
-- Build context: ZIP up to 100 MB, or a GitHub repository, with a file named exactly `Dockerfile` at the root. Up to 20 images per account, counting every state. Platform `linux/amd64`.
+- Build context: ZIP up to 100 MB, or a GitHub repository, with a file named exactly `Dockerfile` at the root. Up to 2 images per account on Pro, 6 on Business and 20 on Enterprise, counting every state. Platform `linux/amd64`.
 - Build: isolated build environment, time limit of 26 minutes, built image up to 10 GB uncompressed (`IMAGE_TOO_LARGE`). `.env*` files are removed from the context.
 - Runtime: always user `1000:1000`. `/app` is the persistent disk; `/tmp`, `/var/tmp` and `/run` are writable but temporary; everything else is read-only. The port is the first `EXPOSE` or `80`, injected as `PORT`.
 - Refused: a `# syntax=` other than the official frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh`, `--mount=type=secret`. Warned: `WORKDIR /app`, `.env*` in the context, `COPY`/`ADD` of `.env`, `VOLUME` outside `/app`.
 - Updates: rebuild by upload, commit (on top of the current context) or push to a linked GitHub branch. A rebuild never restarts apps. Each app keeps 30 releases for 30 days, and rollback uses an already built version.
 - Snapshots hold the data of `/app` and the image version; restore can optionally go back to that version.
-- Deleting an image deletes every application created from it. Plans below Enterprise 28 cannot create or rebuild images; a downgrade to a plan with fewer image slots than the images in use (own and image templates) is refused: delete images first.
+- Deleting an image deletes every application created from it. Starter plans have no image slots and cannot create or rebuild images; a downgrade to a plan with fewer image slots than the images in use (own and image templates) is refused: delete images first.
 
 **Images and templates.** An image template takes **one image slot per distinct image in use**, never one per application: three applications from the same template use one slot, and a new version of the template keeps the same slot. A code template uses none. The slot is released when the last application that uses the image is gone. `POST /v1/apps/image` refuses an image that belongs to a template (`IMAGE_TEMPLATE_ONLY`): the only way to run it is the template. An image that is the source of one of your private templates cannot be deleted before you remove it from the template (`IMAGE_IN_USE`). See [Templates and stacks](#23-templates-and-stacks).
 
@@ -503,17 +542,15 @@ overwritten on download.
 ### Subdomains
 - Format: `your-app.vertraweb.app`
 - Unique per application
-- Web publishing (getting a subdomain) available from the **Pro** plan
-- **Choosing the name** of the subdomain requires the **Scale+** plan; below that the
-  platform assigns a random name
+- Web publishing (getting a subdomain) is available on **every plan**
+- **Choosing the name** of the subdomain is available on every plan, at creation or later
 - Accepted format when choosing: 3 to 50 characters, `^[a-z0-9][a-z0-9-]*[a-z0-9]$`
 - Renamable later via `PATCH /v1/apps/{id}/network/subdomain` (minimum 5 minutes between changes)
 
 ### Custom Domains
 
-- Available from the Intermediary plan. Domains per application (the automatic `www` or root companion does not
-  count): Economy, Pro and Scale 0; **Intermediary 1**; Enterprise-4 to 8: 2; Enterprise-12 to 24: 5;
-  Enterprise-26 to 32: 20
+- Available from the Starter 2 plan. Domains per application (the automatic `www` or root companion does not
+  count): Starter 1: 0; **Starter 2: 1**; Pro: 2; Business: 5; Enterprise: 20
 - The application must be published on the web. Adding, changing or removing a domain does not restart or redeploy it
 - Configure the DNS records shown for the domain (a CNAME and, usually, a certificate validation record). Automatic
   DNS setup is not available yet: `POST /v1/apps/{id}/domains/{domain_id}/connect` always answers
@@ -604,29 +641,29 @@ and when the pause ends.
 
 ## 9. Snapshots
 
-- Manual snapshot creation for apps and databases — at most **1 every 5 minutes on the same
-  project** and **10 per hour across every resource on the account**; exceeding either
-  returns `SNAPSHOT_RATE_LIMITED` (429) with `details: { scope: "resource" | "account", retry_after }`
+- **Daily backup** of applications and databases, on every plan, kept for 30 days like every snapshot. It doesn't use the manual limit below
+- Manual snapshot creation for apps and databases, on every plan — at most **1 every 5 minutes on the same
+  project** and a **daily limit across the whole account** that depends on the plan: `(plan RAM in MB ÷ 256) × 2`,
+  up to 200 (8 on Starter 1, 16 on Starter 2, 32 to 64 on Pro, 96 to 192 on Business, 200 on Enterprise). The day
+  is counted in Brasília time and the limit resets at midnight. Exceeding either returns `SNAPSHOT_RATE_LIMITED` (429)
+  with `details: { scope: "resource" | "account", retry_after }`; the `account` scope also carries `limit` and `resets_at`
 - Restore from any earlier snapshot (30-second cooldown)
 - Download the snapshot content as a ZIP
-- Available from the Scale plan (manual backups)
 - **Deleting or resetting a database automatically takes a safety snapshot before
   destroying the data**, on every plan. If the backup fails, the action is blocked (`SNAPSHOT_FAILED`)
   and the database is neither deleted nor reset. This forced snapshot has its own ceiling, separate from the
   manual-creation one: at most 2 attempts per hour on the same project, and 10 per hour across all
   projects on the account — exceeding either returns `FORCED_SNAPSHOT_RATE_LIMIT` and also
   blocks the action.
-- **Deleting an application takes the same safety snapshot from the Pro plan up** (the owner's plan).
-  If it fails, the application is not deleted (`SNAPSHOT_FAILED`); the same ceiling applies. On Economy the
-  application is deleted right away with no copy, and the dashboard offers to download the
-  project first. Plan expiry still snapshots every project before removing it, on every plan.
+- **Deleting an application takes the same safety snapshot**, on every plan.
+  If it fails, the application is not deleted (`SNAPSHOT_FAILED`); the same ceiling applies. Plan expiry
+  also snapshots every project before removing it.
 
 ---
 
 ## 10. Workspaces
 
-Team collaboration with granular permissions and customizable roles. **Available only
-on the Enterprise plan.** The workspace owner retains control over owner-exclusive management actions.
+Team collaboration with granular permissions and customizable roles. **Available from the Starter 2 plan.** The workspace owner retains control over owner-exclusive management actions.
 
 ### The 20 permissions
 
@@ -668,37 +705,42 @@ the tier ceiling just like any other):
 | Operator | `apps:read`, `apps:lifecycle`, `databases:read`, `databases:lifecycle`, `snapshots:read`, `members:read`, `activities:read` |
 | Viewer | `apps:read`, `databases:read`, `snapshots:read`, `members:read`, `activities:read` |
 
-### Custom role ceiling by tier (Enterprise)
+### Custom role ceiling by plan
 
 The 4 seed roles count toward the ceiling.
 
-| Tier | Role ceiling |
+| Plan | Role ceiling |
 |---|:-:|
-| ENTERPRISE_4 / ENTERPRISE_6 / ENTERPRISE_8 | 4 |
-| ENTERPRISE_12 / ENTERPRISE_14 / ENTERPRISE_16 | 6 |
-| ENTERPRISE_18 / ENTERPRISE_20 / ENTERPRISE_22 / ENTERPRISE_24 | 8 |
-| ENTERPRISE_26 / ENTERPRISE_28 / ENTERPRISE_30 | 10 |
-| ENTERPRISE_32 and above | 12 |
+| Starter 2 | 4 |
+| Pro 4 / Pro 6 / Pro 8 | 4 |
+| Business 12 / Business 16 | 6 |
+| Business 24 | 8 |
+| Enterprise (every size) | 12 |
 
-### Members by tier (Enterprise)
+### Members by plan
 
-The progression never decreases when moving up a tier (5 at the lowest and 24 at the highest). A pending invite counts.
+A pending invite counts. The progression never decreases when moving up a plan.
 
-| Tier | Members |
+| Plan | Members |
 |---|:-:|
-| ENTERPRISE_4 | 5 |
-| ENTERPRISE_6 / ENTERPRISE_8 | 10 |
-| ENTERPRISE_12 | 13 |
-| ENTERPRISE_14 | 14 |
-| ENTERPRISE_16 | 15 |
-| ENTERPRISE_18 | 16 |
-| ENTERPRISE_20 | 17 |
-| ENTERPRISE_22 | 18 |
-| ENTERPRISE_24 | 19 |
-| ENTERPRISE_26 | 20 |
-| ENTERPRISE_28 | 21 |
-| ENTERPRISE_30 | 22 |
-| ENTERPRISE_32 | 24 |
+| Starter 2 | 2 |
+| Pro 4 | 5 |
+| Pro 6 / Pro 8 | 10 |
+| Business 12 | 15 |
+| Business 16 | 20 |
+| Business 24 | 25 |
+| Enterprise 32 | 30 |
+| Enterprise 48 | 33 |
+| Enterprise 64 | 35 |
+| Enterprise 96 | 38 |
+| Enterprise 128 | 41 |
+| Enterprise 160 | 44 |
+| Enterprise 192 | 46 |
+| Enterprise 224 | 49 |
+| Enterprise 256 | 52 |
+| Enterprise 288 | 55 |
+| Enterprise 320 | 57 |
+| Enterprise 384 and above | 60 |
 
 ### Invites
 
@@ -747,13 +789,13 @@ A member who lacks the permission for a sensitive action (`app_delete`, `databas
 ### Retention
 
 Deleting a workspace is a logical deletion: the name becomes available again for a new workspace;
-an expired Enterprise plan **freezes writes** (invite, action, edit), never deletes data.
+an expired plan **freezes writes** (invite, action, edit), never deletes data.
 
 ### Route → permission
 
 | Route | Permission / rule |
 |---|---|
-| `POST /v1/workspaces` | Owner (Enterprise plan) |
+| `POST /v1/workspaces` | Owner (Starter 2 plan or above) |
 | `GET /v1/workspaces` | Any member |
 | `GET /v1/workspaces/:id` | Any member |
 | `PUT /v1/workspaces/:id` | Owner |
@@ -802,7 +844,7 @@ an expired Enterprise plan **freezes writes** (invite, action, edit), never dele
 
 ## 11. File Manager
 
-- Available from the Pro plan
+- Available on every plan
 - Browse and edit files directly in the dashboard
 - Syntax highlighting for all languages
 - Upload via drag-and-drop (files or ZIP); the upload dialog's **Commit destination** starts at the open folder and can point to any other folder, and a ZIP is merged into it
@@ -819,7 +861,7 @@ an expired Enterprise plan **freezes writes** (invite, action, edit), never dele
 ### Methods
 1. **ZIP upload** via dashboard or API
 2. **GitHub integration** — repository selection (including private ones)
-3. **GitHub webhooks** — automatic deploy on push to the chosen branch, `main` or `master` by default (Intermediary+ plans)
+3. **GitHub webhooks** — automatic deploy on push to the chosen branch, `main` or `master` by default (every plan)
 4. **VSCode extension** — deploy straight from the editor
 
 ### Process
@@ -831,7 +873,7 @@ Code upload → Dependency installation → Build (if there's a `build_command`)
 - Maximum build command time: 10 minutes (`BUILD_TIMEOUT` if exceeded)
 - 1 exposed port per application
 
-### Automatic Rollback (Intermediary+)
+### Automatic Rollback (Pro+)
 
 If the new version of an application stops within **60 seconds** after a deploy, the platform goes back to the
 previous version **once** and notifies the owner, with a link to the log of the failed version. Only the code
@@ -840,9 +882,9 @@ and the owner is notified. During those 60 seconds auto-restart does not restart
 don't compete. A crash after the first minute is treated as a normal crash. It is off by default, including
 for applications created before the feature (`deploy.auto_rollback`, `false` by default); the owner turns it on.
 
-### Zero-Downtime Deploys (Enterprise)
+### Zero-Downtime Deploys (Starter 2+)
 
-On Enterprise, a deploy can start the new version next to the running one, wait for it to be healthy, and only
+From Starter 2 up, a deploy can start the new version next to the running one, wait for it to be healthy, and only
 then switch over, so an application that receives web traffic stays reachable during the deploy. The setting is
 `deploy.zero_downtime`, off by default:
 
@@ -877,11 +919,9 @@ restarting and stopping.
 
 | Plan | Deploys/hour |
 |---|---:|
-| Economy | 10 |
-| Pro | 20 |
-| Scale | 40 |
-| Intermediary | 60 |
-| Enterprise (any tier) | 60 |
+| Starter 1 | 20 |
+| Starter 2 | 40 |
+| Pro, Business and Enterprise (any size) | 60 |
 
 If exceeded → `429 DEPLOY_RATE_LIMITED` with `details.limit`, `details.window_seconds` (3,600) and
 `details.retry_after` (seconds until it clears). A GitHub push arriving beyond the limit is
@@ -907,9 +947,9 @@ The dashboard automatically strips from the zip, before uploading: `node_modules
 
 - Available via dashboard or API: `POST /v1/users/me/downgrade`
 - **Formula**: `newDays = remainingDays × (currentPrice / targetPrice)`
-- **Restrictions**: ECONOMY cannot downgrade
+- **Restrictions**: Starter 1 cannot downgrade. A downgrade always moves to the immediately previous plan: Starter 1 → Starter 2 → Pro 4 → Pro 6 → Pro 8 → Business 12 → Business 16 → Business 24 → Enterprise 32 → … → Enterprise 512
 - **Checks**: Memory usage and the Docker images in use (own and image templates) must fit the target plan (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`), rate limit (1x every 3 hours)
-- **Impact**: Reduced memory limit, higher-plan features disabled, workspaces lost when leaving Enterprise. The saved automatic rollback and zero-downtime settings stay on the application but only act on a plan that includes them
+- **Impact**: Reduced memory limit, higher-plan features disabled, workspaces lost when leaving Starter 2 for Starter 1. The saved automatic rollback and zero-downtime settings stay on the application but only act on a plan that includes them
 
 ---
 
@@ -956,8 +996,8 @@ common sets; scopes can also be chosen individually.
 
 | Scope | What it allows |
 |---|---|
-| `billing:read` | List orders and check their status |
-| `billing:write` | Create a plan order (1, 3 or 12 months) and generate a PIX payment |
+| `billing:read` | List orders, check their status and quote the price of an order |
+| `billing:write` | Create a plan order (1, 3, 6 or 12 months) and generate a PIX payment |
 | `redeem:write` | Redeem a promo code |
 | `apps:read` | Check status, metrics, logs, deploys, downloads, network and custom domains for the application |
 | `apps:write` | Create, start, stop, restart, configure, publish, manage custom domains and deploys |
@@ -1005,24 +1045,28 @@ data queries and activity export.
 
 | Plan | Requests/min | Requests/day |
 |---|---:|---:|
-| Economy | 60 | 5,000 |
-| Pro | 120 | 20,000 |
-| Scale | 180 | 86,400 |
-| Intermediary | 240 | 115,200 |
-| Enterprise-4 | 300 | 144,000 |
-| Enterprise-6 | 300 | 180,000 |
-| Enterprise-8 | 300 | 216,000 |
-| Enterprise-12 | 480 | 324,000 |
-| Enterprise-14 | 480 | 378,000 |
-| Enterprise-16 | 480 | 432,000 |
-| Enterprise-18 | 480 | 486,000 |
-| Enterprise-20 | 480 | 540,000 |
-| Enterprise-22 | 480 | 594,000 |
-| Enterprise-24 | 480 | 648,000 |
-| Enterprise-26 | 480 | 702,000 |
-| Enterprise-28 | 480 | 756,000 |
-| Enterprise-30 | 480 | 810,000 |
-| Enterprise-32 | 480 | 864,000 |
+| Starter 1 | 120 | 43,200 |
+| Starter 2 | 180 | 86,400 |
+| Pro 4 | 300 | 172,800 |
+| Pro 6 | 300 | 259,200 |
+| Pro 8 | 300 | 345,600 |
+| Business 12 | 480 | 432,000 |
+| Business 16 | 480 | 432,000 |
+| Business 24 | 480 | 648,000 |
+| Enterprise 32 | 480 | 864,000 |
+| Enterprise 48 | 720 | 1,036,800 |
+| Enterprise 64 | 960 | 1,382,400 |
+| Enterprise 96 | 1,200 | 1,728,000 |
+| Enterprise 128 | 1,600 | 2,304,000 |
+| Enterprise 160 | 2,000 | 2,880,000 |
+| Enterprise 192 | 2,400 | 3,456,000 |
+| Enterprise 224 | 2,800 | 4,032,000 |
+| Enterprise 256 | 3,200 | 4,608,000 |
+| Enterprise 288 | 3,600 | 5,184,000 |
+| Enterprise 320 | 4,000 | 5,760,000 |
+| Enterprise 384 | 4,800 | 6,912,000 |
+| Enterprise 448 | 5,600 | 8,064,000 |
+| Enterprise 512 | 6,400 | 9,216,000 |
 
 ### Response Format
 
@@ -1118,9 +1162,10 @@ data queries and activity export.
 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | Subdomain changed recently |
 | `APP_HAS_NO_SUBDOMAIN` | Application has no published subdomain |
 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_SUBDOMAIN` | Plan doesn't include choosing a subdomain |
-| `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | Plan doesn't include automatic rollback (Intermediary+) |
-| `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | Plan doesn't include forcing zero-downtime deploys (Enterprise) |
+| `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK` | Plan doesn't include automatic rollback (Pro and above) |
+| `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME` | Plan doesn't include forcing zero-downtime deploys (Starter 2 and above) |
 | `PLAN_REQUIRED` | The account has no active plan, so it can't create applications or databases or publish a site (403) |
+| `PLAN_NOT_FOR_SALE` | The plan is no longer sold and the account isn't renewing the plan it already has (400) |
 | `INVALID_CUSTOM_DOMAIN_FORMAT` | Invalid custom domain format (400) |
 | `FORBIDDEN_DOMAIN` | Domain not allowed (400) |
 | `DOMAIN_NOT_FOUND` | The application has no domain with that ID (404) |
@@ -1246,8 +1291,10 @@ The list below corresponds to the public API endpoints. Request and response sch
 
 | Method | Route |
 |---|---|
+| GET | `/v1/plans` |
 | GET | `/v1/orders` |
 | POST | `/v1/orders` |
+| POST | `/v1/orders/quote` |
 | POST | `/v1/orders/{orderId}/initiate/pix` |
 | GET | `/v1/orders/{orderId}/status` |
 
@@ -1298,9 +1345,9 @@ On an account without an active plan, projects that stay offline for more than 3
 - **Dependency installation exceeds 15 minutes (`INSTALL_TIMEOUT`)**: Remove unnecessary dependencies.
 - **Build command exceeds 10 minutes (`BUILD_TIMEOUT`)**: Simplify the `build_command` or the framework's build step.
 - **Site times out**: Bind to `0.0.0.0` (not `localhost`). Use the `PORT` value.
-- **Custom domain doesn't work**: Intermediary+ plan, correct CNAME, wait for DNS propagation. A root domain needs a DNS provider with CNAME flattening. A domain with no DNS for 14 days is removed; delete its CNAME and TXT records at your DNS provider afterwards.
+- **Custom domain doesn't work**: Starter 2+ plan, correct CNAME, wait for DNS propagation. A root domain needs a DNS provider with CNAME flattening. A domain with no DNS for 14 days is removed; delete its CNAME and TXT records at your DNS provider afterwards.
 - **Database connection refused**: TLS is required. Download certificates from the dashboard.
-- **`PLAN_REQUIRED`**: The account has no active plan. Subscribe to a plan (Economy or above) to create applications and databases or publish a site.
+- **`PLAN_REQUIRED`**: The account has no active plan. Subscribe to a plan to create applications and databases or publish a site.
 - **Email not received**: Check spam. Try another method (Discord, GitHub, Google).
 
 ### Node.js / JavaScript
@@ -1359,7 +1406,9 @@ R\$0 (a 100% coupon) is delivered instantly, without PIX. A coupon rejected at c
 codes `COUPON_INVALID`, `COUPON_INACTIVE`, `COUPON_NOT_STARTED`, `COUPON_EXPIRED`,
 `COUPON_EXHAUSTED`, `COUPON_USER_LIMIT`, `COUPON_AUDIENCE`, `COUPON_PLAN`, `COUPON_DURATION`. A coupon
 that excludes the chosen payment method returns `COUPON_PAYMENT_METHOD`. Billing-period discounts
-(3 months −5%, 12 months −15%) are applied before the coupon.
+(3 months −10%, 6 months −15%, 12 months −25%) are applied before the coupon.
+
+**Transition coupons.** The accounts moved from the previous plan grid that received the notice e-mail find a coupon link in it. The coupon is tied to that account, covers the first monthly purchase of the plan the account was moved to, and can be used once. Another account, another plan or another period is refused (`COUPON_AUDIENCE`, `COUPON_PLAN`, `COUPON_DURATION`). See [Move from the Previous Plan Grid](#move-from-the-previous-plan-grid).
 
 ---
 
@@ -1394,35 +1443,47 @@ redemptions and actions started by a connected agent.
 
 Blob Storage keeps files (images, videos, backups and other assets) for your projects. Public files get a
 public URL, private files are read through temporary links or share pages, and the same files can be reached with
-an S3-compatible client. It's available from Economy. Blob usage and its quota belong to
+an S3-compatible client. It's available on every plan. Blob usage and its quota belong to
 the workspace owner, so a workspace uses its owner's quota.
 
 ### Quota and limits by plan
 
 | Plan | Blob quota | Folder rules | Custom domains | Image transformations/month |
 |---|---:|---:|---:|---:|
-| Economy | 1 GB | 5 | 0 | none |
-| Pro | 5 GB | 5 | 0 | none |
-| Scale | 15 GB | 5 | 0 | 600 |
-| Intermediary | 20 GB | 5 | 0 | 1,000 |
-| Enterprise-4 | 30 GB | 5 | 1 | 1,500 |
-| Enterprise-6 | 50 GB | 5 | 1 | 2,000 |
-| Enterprise-8 | 100 GB | 5 | 1 | 2,500 |
-| Enterprise-12 / 14 | 150 GB | 10 | 3 | 4,000 |
-| Enterprise-16 to 24 | 250 GB | 10 | 3 | 5,000 |
-| Enterprise-26 to 32 | 250 GB | 20 | 10 | 10,000 |
+| Starter 1 | 10 GB | 5 | 0 | none |
+| Starter 2 | 15 GB | 5 | 0 | 600 |
+| Pro 4 | 50 GB | 5 | 1 | 1,500 |
+| Pro 6 | 80 GB | 5 | 1 | 2,000 |
+| Pro 8 | 100 GB | 5 | 1 | 2,500 |
+| Business 12 | 200 GB | 10 | 3 | 4,000 |
+| Business 16 | 250 GB | 10 | 3 | 5,000 |
+| Business 24 | 300 GB | 10 | 3 | 5,000 |
+| Enterprise 32 | 400 GB | 20 | 10 | 10,000 |
+| Enterprise 48 | 450 GB | 20 | 10 | 10,000 |
+| Enterprise 64 | 500 GB | 20 | 10 | 10,000 |
+| Enterprise 96 | 600 GB | 20 | 10 | 10,000 |
+| Enterprise 128 | 700 GB | 20 | 10 | 10,000 |
+| Enterprise 160 | 750 GB | 20 | 10 | 10,000 |
+| Enterprise 192 | 800 GB | 20 | 10 | 10,000 |
+| Enterprise 224 | 900 GB | 20 | 10 | 10,000 |
+| Enterprise 256 | 1 TB | 20 | 10 | 10,000 |
+| Enterprise 288 | 1 TB | 20 | 10 | 10,000 |
+| Enterprise 320 | 1 TB | 20 | 10 | 10,000 |
+| Enterprise 384 | 1 TB | 20 | 10 | 10,000 |
+| Enterprise 448 | 1 TB | 20 | 10 | 10,000 |
+| Enterprise 512 | 1 TB | 20 | 10 | 10,000 |
 
 ### Features that depend on the plan
 
 | Feature | Minimum plan |
 |---|---|
-| Custom domains for public files | Enterprise-4 (1 domain on Enterprise-4 to 8, 3 on Enterprise-12 to 24, 10 on Enterprise-26 to 32) |
-| Image transformations (resize, crop, format, quality) | Scale |
-| Uploads without the 1-per-second limit | Enterprise-12 (below it, 1 upload per second) |
-| Object metadata (up to 5 keys, 512 bytes) | Enterprise-12 |
-| Share links with a password | Enterprise-12 |
-| `no-cache` for objects and folder rules | Enterprise-26 |
-| Expiration shorter than 7 days (down to 1 hour) | Enterprise-26 |
+| Custom domains for public files | Pro (1 domain on Pro, 3 on Business, 10 on Enterprise) |
+| Image transformations (resize, crop, format, quality) | Starter 2 |
+| Uploads without the 1-per-second limit | Business (below it, 1 upload per second) |
+| Object metadata (up to 5 keys, 512 bytes) | Business |
+| Share links with a password | Business |
+| `no-cache` for objects and folder rules | Enterprise |
+| Expiration shorter than 7 days (down to 1 hour) | Enterprise |
 
 Image transformations are applied through URL parameters (`w`, `h`, `fit`, `format`, `q`) on public images. Each
 distinct transformation counts once per month. Above the monthly limit the original image is served, without an error.
@@ -1442,13 +1503,13 @@ distinct transformation counts once per month. Above the monthly limit the origi
 - After a downgrade, your files stay. If they use more than the new quota, new uploads are blocked and the excess is charged at R\$0.20 per started GB on the next renewal.
 - When the plan expires, the account enters a **72-hour grace period**: uploads and other writes are blocked (`BLOB_NAMESPACE_SUSPENDED`), while public files, temporary links and share pages keep working. Renewing within those 72 hours reactivates everything. A suspension for abuse is different: the files go offline right away.
 - After the grace period the files are deleted. **Deletion is permanent and there is no backup.**
-- Share pages open on the website. A share can have an expiration, a download limit and, from Enterprise-12, a password. A share doesn't protect a public object.
+- Share pages open on the website. A share can have an expiration, a download limit and, from Business, a password. A share doesn't protect a public object.
 
 ### Access
 
 - **API key scopes:** `blob:read` and `blob:write`. Workspace permissions: `blob:read` and `blob:manage`. A key with only `blob:*` scopes can be **restricted to one folder** (`blob_prefix`, a path ending in `/`): it reaches only objects, uploads and shares inside that folder, and the S3 credentials derived from it inherit the limit. Everything else (rules, domains, statistics) answers `403 BLOB_PREFIX_DENIED`. A stack creates its own restricted key for its Blob folder.
 - **Upload token:** a short-lived `vcup_` token for browsers. It fixes the path or folder, size, extensions and visibility, and it is accepted only on the upload routes.
-- **S3-compatible access:** `GET /v1/s3/credentials`, limited to 10 calls per hour. Revoking the API key that created it cuts S3 access at once. S3 requests per 10 seconds per account: Economy/Pro 100, Scale/Intermediary 200, Enterprise-4 to 8: 400, Enterprise-12+: 600; CopyObject/UploadPartCopy 20. Above it: `503 SlowDown`.
+- **S3-compatible access:** `GET /v1/s3/credentials`, limited to 10 calls per hour. Revoking the API key that created it cuts S3 access at once. S3 requests per 10 seconds per account: Starter 1 100, Starter 2 200, Pro 400, Business and Enterprise 600; CopyObject/UploadPartCopy 20. Above it: `503 SlowDown`.
 - Every route is documented on its own page under **API Reference > Blob Storage**.
 
 ### Blob error codes
@@ -1475,7 +1536,7 @@ distinct transformation counts once per month. Above the monthly limit the origi
 | 401 | `BLOB_SHARE_PASSWORD_INVALID` | The password is wrong. Repeated attempts from the same IP are rate limited. |
 | 409 | `BLOB_RULES_CONFLICT` | The `If-Match` etag is out of date because the rules were saved after you read them. Read the rules again and retry. |
 | 409 | `BLOB_RULE_LIMIT` | The account has more folder rules than its plan allows (5, 10 or 20). Delete a rule first. |
-| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | The plan includes custom domains and the account already has as many as it allows. Below Enterprise-4 the answer is `PLAN_RESTRICTED_FEATURE` instead. |
+| 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | The plan includes custom domains and the account already has as many as it allows. Below Pro the answer is `PLAN_RESTRICTED_FEATURE` instead. |
 | 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | The hostname is already in use. |
 | 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | The domain doesn't exist or belongs to another account. |
 
@@ -1493,7 +1554,7 @@ A **template** is a recipe that creates ready-made software (or a starter projec
 | Community | Contributors, by pull request to the public repository; reviewed and maintained by Vertra | Any account |
 | Private | You (a user or a workspace) | You, and whoever receives a share link |
 
-Users do not publish to the public catalog from the dashboard. Private templates are created on plans that can create Docker images, up to **5 per account**; in a workspace only the owner creates and manages them. A member of a workspace does not deploy templates in it: only the owner does (`WORKSPACE_OWNER_ONLY`).
+Users do not publish to the public catalog from the dashboard. Private templates are created on plans that can create Docker images (Pro and above), up to **5 per account**; in a workspace only the owner creates and manages them. A member of a workspace does not deploy templates in it: only the owner does (`WORKSPACE_OWNER_ONLY`).
 
 ### Code and image templates
 
@@ -1589,14 +1650,14 @@ A private template can be closed: whoever uses it can start, stop, restart, read
 |-------|-----------|
 | Application | A deployed project (bot or website) running on Vertra Cloud |
 | Database | A managed instance (PostgreSQL, MongoDB, Redis, MySQL) |
-| Workspace | A team collaboration space with granular permissions and customizable roles (Enterprise) |
+| Workspace | A team collaboration space with granular permissions and customizable roles (Starter 2 and above) |
 | Permission (workspace) | One of the 20 atomic actions in the catalog (`apps:read`, `members:manage`...) that makes up a role |
 | Role (workspace) | A named set of permissions assigned to a member; 4 seed roles per workspace, customizable |
 | Invite (workspace) | A way to join a workspace, by email (7 days, tied to the address) or link (24h, multi-use) |
 | Action request (workspace) | A request for a sensitive action by a member who lacks the permission, decided by whoever has `members:manage` and the permission for that action |
 | Snapshot | A saved copy of an application's or database's state |
 | MCP | Vertra's Model Context Protocol server (`@vertracloud/mcp` locally or `mcp.vertracloud.app/mcp`): gives the user's AI agent the platform's tools using their API key |
-| Subdomain | An automatically assigned URL: `app-name.vertraweb.app` |
+| Subdomain | The URL of a published application, `app-name.vertraweb.app`, with a name you choose |
 | Custom domain | A user's own domain connected to an application |
 | Auto-restart | Automatic container restart on crash; default on every plan, always on |
 | Crash loop | 5 crashes in 10 minutes — disables auto-restart for 24 hours |
