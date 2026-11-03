@@ -1,0 +1,64 @@
+---
+title: 'Desempenho no Web Analytics: borda × container e percentis'
+sidebarTitle: 'Desempenho'
+description: 'Aprenda a ler p50, p95 e p99, comparar o tempo da borda e do container e descobrir se uma página lenta é problema de código ou de rede.'
+icon: 'bolt'
+---
+
+A sub-aba Desempenho mostra quanto as requisições demoram, dividido entre a borda e o seu container, para você saber se a lentidão vem do código ou do caminho até o visitante. Está disponível no Pro e acima; no Starter o Resumo ainda mostra um número de velocidade (p95).
+
+Os mesmos dados pela API: [Desempenho da aplicação](/pt-br/api-reference/endpoint/apps/analytics/performance).
+
+## Borda e container
+
+Toda requisição tem dois relógios:
+
+| Relógio | O que mede |
+|---|---|
+| **Borda** | O tempo desde a chegada da requisição à rede de borda da Vertra até o primeiro byte da resposta voltar ao visitante. É o que o visitante espera, além da própria conexão dele. |
+| **Container** | O tempo que seu app levou para responder depois que a requisição chegou a ele. |
+
+O tempo da borda inclui o do container. A diferença entre os dois é o custo de tudo o que não é seu código: atravessar a rede, a conexão segura e a fila. Uma requisição atendida pelo cache da borda nem chega ao container.
+
+## O que é um percentil
+
+Se você ordenar mil requisições da mais rápida à mais lenta, um percentil é o tempo em certa posição da fila:
+
+- **p50** (a mediana): metade das requisições foi mais rápida. É a visita típica.
+- **p95**: 95 de cada 100 foram mais rápidas. É o que um visitante um pouco azarado sente.
+- **p99**: 99 de cada 100 foram mais rápidas. A cauda: rara, mas são pessoas reais.
+- **p75, p90, p99.9** são a mesma ideia em outras posições.
+
+A média resume mal, porque poucas requisições muito lentas se perdem entre muitas rápidas. Os percentis mostram o formato completo.
+
+## Como ler p50, p95 e p99
+
+| O que você vê | O que costuma significar |
+|---|---|
+| p50, p95 e p99 próximos | Comportamento estável e previsível. |
+| p50 baixo, p95 e p99 bem mais altos | A maioria está bem, algumas são lentas: uma consulta pesada em certas rotas, caches frios, uma pausa de coleta de lixo ou um momento de sobrecarga. |
+| Tudo alto | Um problema amplo: o app está subdimensionado ou toda requisição faz trabalho caro. |
+| p99 salta, mas p95 não | Poucos casos isolados. Vale olhar se repetir, não é motivo de pânico. |
+
+Procure manter o **p95** saudável: ele reflete a experiência real sem ser dominado por casos isolados.
+
+## Código ou rede?
+
+Compare as duas séries no mesmo intervalo:
+
+- **Container alto, borda só um pouco acima.** O tempo está sendo gasto no seu app: consultas lentas, chamadas externas, renderização pesada ou pouca CPU ou RAM. Olhe as rotas mais lentas e as [métricas](/pt-br/applications#métricas).
+- **Container baixo, borda bem mais alta.** Seu código é rápido e o tempo se perde no caminho: visitantes distantes, respostas grandes ou cache frio. Confira por país e data center, e use cabeçalhos de cache ou respostas amigáveis a CDN.
+- **Os dois baixos, mas visitantes reclamam.** A lentidão provavelmente está no navegador: imagens, scripts ou fontes grandes. O Web Analytics mede o lado do servidor.
+
+## Outras visões da aba
+
+- **Por país e por data center:** mostra se a lentidão se concentra em uma região. Se só um país está lento, é a rede, não o seu código.
+- **Rotas mais lentas:** as rotas com maior p95 e p99, para decidir o que otimizar primeiro.
+- **Problemas por rota:** para cada rota, o número de requisições, a taxa de erro, o tempo médio e o p99, para ordenar pelo impacto real e não pela pior requisição isolada.
+- **Série temporal:** p50, p95 e p99 de borda e container ao longo do período.
+
+<Tip>
+Otimize primeiro a rota com muitas requisições e p95 alto. Uma rota muito lenta que quase ninguém abre importa menos que uma moderadamente lenta que todo visitante acessa.
+</Tip>
+
+Próximo: [Requisições](/pt-br/web-analytics/requests).

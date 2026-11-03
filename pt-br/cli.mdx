@@ -131,6 +131,27 @@ o próprio complemento. Veja [Domínio personalizado](/pt-br/guides/custom-domai
 `app stop`, `db stop`, `app env remove` e os comandos destrutivos pedem confirmação; passe `--yes` em automações.
 Recusar encerra com status 1 e "Operation cancelled." (com `--json`, um erro com o código `CANCELLED`), nunca como sucesso.
 
+## Web Analytics
+
+```bash
+vertra app analytics                     # tráfego da aplicação vinculada, últimas 24 horas
+vertra app analytics errors              # erros por status e rota
+vertra app analytics performance         # latência na borda e no container (Pro ou superior)
+vertra app analytics requests            # log de requisições, uma página por vez (Pro ou superior)
+vertra app analytics --start 2026-11-01T00:00:00Z --end 2026-11-02T00:00:00Z --compare
+vertra app analytics --start 2026-11-01T00:00:00Z --end 2026-11-02T00:00:00Z --compare-start 2026-10-25T00:00:00Z
+vertra app analytics --country BR --status 5xx --breakdowns country,path
+```
+
+Cada comando aceita um ID de aplicação opcional, como os outros comandos de `app`. Sem `--start` e `--end` a janela é de
+24 horas; no máximo 30 dias e dentro do histórico do seu plano. `--compare` soma o período anterior, `--compare-start <data>` (RFC 3339) compara com o período do mesmo tamanho que começa ali, e os filtros são
+`--country`, `--edge-location`, `--host`, `--path`, `--method`, `--status`, `--protocol`, `--device`, `--os`, `--browser`,
+`--referer`, `--asn`, `--ip`, `--content-type`, `--cache-status` e `--bot`. `errors` aceita `--include-4xx`; `requests`
+aceita `--order`, `--limit` e `--cursor`, e indica como pedir a próxima página.
+
+Se o plano não inclui `performance` ou `requests`, o comando avisa. Quando o Analytics está ocupado, ele diz quanto esperar.
+Todos exigem uma chave de API com o escopo `apps:read`.
+
 ## Blob Storage
 
 ```bash

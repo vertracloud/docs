@@ -1,0 +1,320 @@
+---
+title: Errores de la aplicación
+sidebarTitle: Errores
+api: GET https://api.vertracloud.app/v1/apps/{id}/analytics/errors
+authMethod: bearer
+description: "Devuelve los errores 5xx del sitio de una aplicación, y 4xx si se pide: totales, serie temporal, las rutas que más fallan y el reparto por estado."
+---
+
+{/* @see RESTGetAPIApplicationAnalyticsErrorsQuery, APIApplicationAnalyticsErrors — @vertracloud/api-types */}
+Devuelve los errores del sitio de una aplicación: el total y la tasa, una serie temporal, las rutas que más fallan y cómo se reparten los errores entre los códigos de estado. Por defecto solo 5xx cuenta como error, porque 4xx es ruidoso (sobre todo bots y escáneres); envía `include_4xx=true` para contarlo también. Son los datos de [Errores](/es-es/web-analytics/errors).
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación. Si pertenece a un workspace, pasa su ID en el query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID del workspace. Obligatorio para miembros del workspace que actúan sobre una aplicación que no es suya.
+</ParamField>
+
+<ParamField query="start" type="string" format="date-time">
+  Inicio de la ventana (ISO 8601). Por defecto: 24 horas antes de `end`.
+</ParamField>
+
+<ParamField query="end" type="string" format="date-time">
+  Fin de la ventana (ISO 8601). Por defecto: ahora. No puede estar en el futuro.
+</ParamField>
+
+<ParamField query="compare" type="boolean" default="false">
+  Envía también el período anterior, de la misma duración y justo antes de la ventana, en `previous`. Por defecto `false`.
+</ParamField>
+
+<ParamField query="compare_start" type="string" format="date-time">
+  Inicio del periodo a comparar (ISO 8601). El periodo comparado tiene la misma duración que la ventana (`end` menos `start`) y empieza aquí; `previous.start` y `previous.end` en la respuesta muestran cuál fue. Implica `compare=true` y no se puede enviar con `compare=false`. Sin él, `compare=true` compara con el periodo justo antes de la ventana.
+</ParamField>
+
+<ParamField query="include_4xx" type="boolean" default="false">
+  Cuenta 4xx como error también, en `errors`, `error_rate`, `paths` y `statuses`. Por defecto `false`.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Entradas en `paths` y `statuses`, de 1 a 25. Por defecto 10.
+</ParamField>
+
+La ventana dura como máximo 30 días y no puede empezar antes del historial del plan (7 o 30 días, ver [Planes y límites](/es-es/plans-and-limits)).
+
+### Filtros
+
+Cada dimensión de abajo también es un filtro, y todos se pueden combinar: cada uno restringe todas las partes de la respuesta. Cada filtro recibe **un valor**, exactamente como aparece en una entrada de breakdown o en una petición del registro, así que un valor leído en una respuesta se puede reenviar sin cambios. Envía `(none)` para quedarte solo con las peticiones que no tienen nada en la dimensión.
+
+<ParamField query="country" type="string">
+  País del visitante, ISO 3166-1 alfa-2 (`BR`).
+</ParamField>
+
+<ParamField query="edge_location" type="string">
+  Código IATA de la ubicación de borde que respondió (`GRU`).
+</ParamField>
+
+<ParamField query="host" type="string">
+  Hostname que pidió el visitante: el subdominio de la aplicación o uno de sus dominios. Solo se aceptan hosts de la aplicación.
+</ParamField>
+
+<ParamField query="path" type="string">
+  Ruta de la petición, sin la query string. Es un prefijo: `/api` coincide con `/api`, `/api/users` y `/apix`.
+</ParamField>
+
+<ParamField query="method" type="string">
+  Método HTTP (`GET`, `POST`...).
+</ParamField>
+
+<ParamField query="status" type="string">
+  Estado HTTP que recibió el visitante (`404`), o una clase: `2xx`, `3xx`, `4xx` o `5xx`.
+</ParamField>
+
+<ParamField query="protocol" type="string">
+  Versión de HTTP: `HTTP/1.1`, `HTTP/2` o `HTTP/3`.
+</ParamField>
+
+<ParamField query="device" type="string">
+  Tipo de dispositivo: `desktop`, `mobile` o `tablet`.
+</ParamField>
+
+<ParamField query="os" type="string">
+  Sistema operativo del visitante (`Windows`, `iOS`...).
+</ParamField>
+
+<ParamField query="browser" type="string">
+  Navegador del visitante (`Chrome`, `Safari`...).
+</ParamField>
+
+<ParamField query="referer" type="string">
+  Host de la página que llevó a la petición (`google.com`). `(none)` es una visita directa, sin referer.
+</ParamField>
+
+<ParamField query="asn" type="string">
+  Número del sistema autónomo de la red del visitante (`28573`).
+</ParamField>
+
+<ParamField query="ip" type="string">
+  Dirección IP del visitante.
+</ParamField>
+
+<ParamField query="content_type" type="string">
+  Tipo de contenido respondido (`html`, `json`, `css`, `js`, `png`...).
+</ParamField>
+
+<ParamField query="cache_status" type="string">
+  Si la borde respondió desde su caché: `hit`, `miss`, `dynamic`, `bypass`, `expired`, `revalidated`...
+</ParamField>
+
+<ParamField query="bot" type="string">
+  Categoría de un bot verificado (`Search Engine Crawler`...). `(none)` es un visitante que no es un bot verificado.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="start" type="string">
+    Inicio de la ventana realmente leída (ISO 8601). Puede estar redondeado respecto al que enviaste.
+  </ResponseField>
+
+  <ResponseField name="end" type="string">
+    Fin de la ventana realmente leída (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="hosts" type="string[]">
+    Hostnames que se leyeron: el subdominio de la aplicación y sus dominios activos.
+  </ResponseField>
+
+  <ResponseField name="web_published" type="boolean">
+    `false` cuando la aplicación no tiene sitio publicado. La respuesta es entonces un estado vacío, no un error: `hosts` viene vacío y los datos también.
+  </ResponseField>
+
+  <ResponseField name="sampled" type="boolean">
+    `true` cuando el tráfico es lo bastante alto como para que los números se estimen a partir de una muestra.
+  </ResponseField>
+
+  <ResponseField name="stale" type="boolean">
+    `true` cuando no se pudieron leer los datos más recientes y esta es una respuesta anterior. Ver `generated_at`.
+  </ResponseField>
+
+  <ResponseField name="generated_at" type="string">
+    Cuándo se leyeron los datos (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="history_days" type="integer">
+    Cuántos días hacia atrás puede leer el plan del dueño de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="interval" type="string">
+    Tamaño de cada punto de `series`: `1m`, `5m`, `15m` o `1h`. La API lo elige según la duración de la ventana: cuanto más corta, más finos los puntos.
+  </ResponseField>
+
+  <ResponseField name="include_4xx" type="boolean">
+    Si 4xx contó como error en esta respuesta.
+  </ResponseField>
+
+  <ResponseField name="summary" type="object | null">
+    Totales de la ventana. `null` cuando no hubo peticiones en la ventana. `requests`, `errors`, `error_rate`, `errors_4xx`, `errors_5xx`.
+  </ResponseField>
+
+  <ResponseField name="series" type="object[]">
+    Puntos de la serie temporal; `time` es el inicio de cada punto, con `requests`, `errors_4xx` y `errors_5xx`.
+  </ResponseField>
+
+  <ResponseField name="previous" type="object | null">
+    El período anterior, solo con `compare=true`; si no, `null`. Tiene `start`, `end`, un `summary` (`null` cuando no hubo peticiones en él) y una `series` con el mismo `interval` y el mismo número de puntos que la actual, en el mismo orden.
+  </ResponseField>
+
+  <ResponseField name="paths" type="object[]">
+    Rutas con más errores, mayor `errors` primero. `value` es la ruta; envíala como el filtro `path`.
+  </ResponseField>
+
+  <ResponseField name="statuses" type="object[]">
+    Cómo se reparten los errores entre los códigos de estado, mayor `requests` primero. `value` es el estado, como `502`.
+  </ResponseField>
+
+  Campos de `summary`:
+
+  <ResponseField name="requests" type="integer">
+    Peticiones respondidas.
+  </ResponseField>
+  <ResponseField name="errors" type="integer">
+    `errors_5xx`, más `errors_4xx` con `include_4xx=true`.
+  </ResponseField>
+  <ResponseField name="error_rate" type="number">
+    `errors / requests`, de 0 a 1.
+  </ResponseField>
+  <ResponseField name="errors_4xx" type="integer">
+    Peticiones respondidas con estado 4xx.
+  </ResponseField>
+  <ResponseField name="errors_5xx" type="integer">
+    Peticiones respondidas con estado 5xx.
+  </ResponseField>
+
+  Entradas de `paths`: `value`, `requests`, `errors` (cuenta 4xx solo con `include_4xx=true`) y `error_rate`. Entradas de `statuses`: `value`, `label`, `requests`, `visits` y `bytes`.
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "start": "2026-11-02T18:00:00Z",
+    "end": "2026-11-03T18:00:00Z",
+    "hosts": [
+      "my-app.vertraweb.app",
+      "www.example.com"
+    ],
+    "web_published": true,
+    "sampled": false,
+    "stale": false,
+    "generated_at": "2026-11-03T18:01:12Z",
+    "history_days": 7,
+    "interval": "1h",
+    "include_4xx": false,
+    "summary": {
+      "requests": 18420,
+      "errors": 9,
+      "error_rate": 0.0005,
+      "errors_4xx": 214,
+      "errors_5xx": 9
+    },
+    "series": [
+      {
+        "time": "2026-11-02T18:00:00Z",
+        "requests": 702,
+        "errors_4xx": 8,
+        "errors_5xx": 0
+      },
+      {
+        "time": "2026-11-02T19:00:00Z",
+        "requests": 731,
+        "errors_4xx": 11,
+        "errors_5xx": 3
+      }
+    ],
+    "previous": null,
+    "paths": [
+      {
+        "value": "/api/checkout",
+        "requests": 412,
+        "errors": 6,
+        "error_rate": 0.0146
+      },
+      {
+        "value": "/api/users",
+        "requests": 2210,
+        "errors": 3,
+        "error_rate": 0.0014
+      }
+    ],
+    "statuses": [
+      {
+        "value": "502",
+        "label": null,
+        "requests": 5,
+        "visits": 0,
+        "bytes": 2210
+      },
+      {
+        "value": "500",
+        "label": null,
+        "requests": 3,
+        "visits": 0,
+        "bytes": 1880
+      },
+      {
+        "value": "504",
+        "label": null,
+        "requests": 1,
+        "visits": 0,
+        "bytes": 420
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -G "https://api.vertracloud.app/v1/apps/app-abc123def456/analytics/errors" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  --data-urlencode "start=2026-11-02T18:00:00Z" \
+  --data-urlencode "end=2026-11-03T18:00:00Z" \
+  --data-urlencode "include_4xx=false" \
+  --data-urlencode "path=/api" \
+  --data-urlencode "limit=5"
+```
+
+</RequestExample>
+
+### Notas
+
+- Requiere el scope `apps:read` cuando se llama con una API key. Los miembros de un workspace necesitan permiso para leer la aplicación.
+- Todos los planes.
+- **Muestreo.** Con tráfico alto los números se estiman a partir de una muestra y `sampled` viene `true`. Ver [Muestreo y retraso](/es-es/web-analytics/sampling-and-delay).
+- **Retraso.** Los datos se actualizan cada unos 5 minutos, así que las peticiones más nuevas pueden tardar unos minutos en aparecer. Si los datos más recientes no se pueden leer ahora, puede volver una respuesta anterior con `stale: true` (revisa `generated_at`); de lo contrario, la llamada falla con `ANALYTICS_BUSY`.
+- **Privacidad.** Vertra Cloud no guarda nada de los visitantes; guarda solo totales por app (recuentos, visitas, bytes, tasas de error y tiempos de respuesta) hasta 31 días, borrados con la app. No se guarda ninguna IP, ruta, query string ni user agent. `ip` y `query` vuelven sin máscara; enmascararlos es decisión del cliente que los muestra. Ver [Privacidad](/es-es/web-analytics/privacy).
+
+### Respuestas de error
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 401 | `AUTH_TOKEN_MISSING` / `API_KEY_INVALID` / `SESSION_REVOKED` | Falta el header `Authorization`, la API key es inválida o la sesión del panel fue revocada. |
+| 403 | `API_KEY_IP_DENIED` / `API_KEY_SCOPE_DENIED` | La API key se usa desde una IP fuera de su lista permitida, o no tiene el scope `apps:read`. |
+| 403 | `ACCESS_DENIED` | La aplicación pertenece a otra cuenta, o no tienes el permiso de workspace para leerla. |
+| 403 | `PLAN_REQUIRED` | La cuenta no tiene plan activo. |
+| 404 | `APP_NOT_FOUND` | La aplicación no existe. |
+| 400 | `VALIDATION_ERROR` | Un parámetro falló la validación, como `limit` fuera de rango, un `cursor` inválido o una fecha `start`/`end` mal formada; `details.path` nombra el campo. También cuando `compare_start` está mal formado o se envía con `compare=false`. |
+| 400 | `INVALID_RANGE` | `start` es posterior a `end`, `end` está en el futuro o la ventana supera los 30 días. También cuando el periodo que empieza en `compare_start` termina después de `start`, lo que solaparía la ventana. |
+| 400 | `ANALYTICS_RANGE_EXCEEDS_PLAN` | `start` es anterior a lo que el plan puede leer. `details.history_days` trae el límite en días y `details.earliest` el `start` más antiguo aceptado ahora. También cuando `compare_start` es anterior a lo que el plan puede leer. |
+| 429 | `RATE_LIMIT_EXCEEDED` | Demasiadas consultas seguidas. `details.retry_after` indica la espera en segundos; la cabecera `Retry-After` viene siempre con ella. |
+| 503 | `ANALYTICS_BUSY` | Momento de alta demanda y sin respuesta reciente disponible para la consulta. Espera `details.retry_after` segundos e inténtalo de nuevo. |

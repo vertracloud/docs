@@ -169,6 +169,22 @@ they are unless `restore_environment` is true, so run `preview_rollback` first i
 Two existing tools grew: `update_app_config` accepts `zero_downtime`, `auto_rollback` and `health_check_path`
 (plan limits apply), and `deploy_app` accepts a `message` that appears in the deploy history.
 
+## Web Analytics
+
+The assistant can read the Web Analytics of an application's site. See [Web Analytics](/web-analytics/overview) for what each view means.
+
+| Tool | What it does | Scope |
+|---|---|---|
+| `get_app_analytics` | Traffic: requests, visits, bytes, error rates, a time series and the top entries per dimension. Accepts the period, filters, `compare`, `compare_start` and `breakdowns` | `apps:read` |
+| `get_app_analytics_errors` | Errors: totals, error rate, a time series, the paths with the most errors and the spread by status. `include_4xx` adds 4xx | `apps:read` |
+| `get_app_analytics_performance` | Latency at the edge and in the container, slowest paths and problems by path. Needs a plan with the Performance view | `apps:read` |
+| `list_app_analytics_requests` | One page of the request log; `cursor` returns the next page. Needs a plan with the Requests view | `apps:read` |
+
+Paths, referers and network names come from your visitors, so they reach the assistant inside an `untrusted_content` block.
+If the plan does not include a view, the call fails with `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE` or
+`PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_REQUESTS`; a period before the plan's history fails with `ANALYTICS_RANGE_EXCEEDS_PLAN`;
+and `ANALYTICS_BUSY` means to try again after `details.retry_after` seconds.
+
 ## Blob Storage
 
 The assistant can work with your [Blob Storage](/blob/overview) files.

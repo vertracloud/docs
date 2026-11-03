@@ -1,0 +1,416 @@
+---
+title: Application Traffic
+sidebarTitle: Traffic
+api: GET https://api.vertracloud.app/v1/apps/{id}/analytics
+authMethod: bearer
+description: "Returns the traffic of an application site: totals, time series and breakdowns by country, route and device, with filters and a previous-period comparison."
+---
+
+{/* @see RESTGetAPIApplicationAnalyticsQuery, APIApplicationAnalyticsTraffic — @vertracloud/api-types */}
+Returns the traffic of the site of an application: totals, a time series and the top values of each dimension (countries, routes, devices, browsers, referrers...). Every filter applies to every part of the answer, so one call gives the numbers behind a click in the Traffic sub-tab. It is the same data as [Traffic and filters](/web-analytics/traffic), the [Summary](/web-analytics/summary) and [Compare](/web-analytics/compare).
+
+<ParamField path="id" type="string" required>
+  The application ID. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<ParamField query="start" type="string" format="date-time">
+  Start of the window (ISO 8601). Default: 24 hours before `end`.
+</ParamField>
+
+<ParamField query="end" type="string" format="date-time">
+  End of the window (ISO 8601). Default: now. It cannot be in the future.
+</ParamField>
+
+<ParamField query="compare" type="boolean" default="false">
+  Also send the previous period, of the same length and right before the window, in `previous`. Default `false`.
+</ParamField>
+
+<ParamField query="compare_start" type="string" format="date-time">
+  Start of the period to compare with (ISO 8601). The compared period has the same length as the window (`end` minus `start`) and starts here; `previous.start` and `previous.end` in the response show it. Implies `compare=true`, and it cannot be sent with `compare=false`. Without it, `compare=true` compares with the period right before the window.
+</ParamField>
+
+<ParamField query="breakdowns" type="string">
+  Comma-separated dimensions to break down by, such as `country,path`. Omitted: all of them. Empty (`breakdowns=`): none, only the summary and the series, which answers faster. Unknown name: `VALIDATION_ERROR`. The dimensions are listed under Filters.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Entries per breakdown, from 1 to 25. Default 10.
+</ParamField>
+
+The window is at most 30 days long and cannot start earlier than the history of the plan (7 or 30 days, see [Plans and limits](/plans-and-limits)).
+
+### Filters
+
+Every dimension below is also a filter, and all of them can be combined: each one narrows every part of the answer. Each takes **one value**, exactly as it appears in a breakdown entry or a request of the log, so a value you read in a response can be sent back unchanged. Send `(none)` to keep only the requests that have nothing for the dimension.
+
+<ParamField query="country" type="string">
+  Country of the visitor, ISO 3166-1 alpha-2 (`BR`).
+</ParamField>
+
+<ParamField query="edge_location" type="string">
+  IATA code of the edge location that answered (`GRU`).
+</ParamField>
+
+<ParamField query="host" type="string">
+  Hostname the visitor asked for: the subdomain of the application or one of its domains. Only hosts of the application are accepted.
+</ParamField>
+
+<ParamField query="path" type="string">
+  Path of the request, without the query string. It is a prefix: `/api` matches `/api`, `/api/users` and `/apix`.
+</ParamField>
+
+<ParamField query="method" type="string">
+  HTTP method (`GET`, `POST`...).
+</ParamField>
+
+<ParamField query="status" type="string">
+  HTTP status the visitor received (`404`), or a class: `2xx`, `3xx`, `4xx` or `5xx`.
+</ParamField>
+
+<ParamField query="protocol" type="string">
+  HTTP version: `HTTP/1.1`, `HTTP/2` or `HTTP/3`.
+</ParamField>
+
+<ParamField query="device" type="string">
+  Kind of device: `desktop`, `mobile` or `tablet`.
+</ParamField>
+
+<ParamField query="os" type="string">
+  Operating system of the visitor (`Windows`, `iOS`...).
+</ParamField>
+
+<ParamField query="browser" type="string">
+  Browser of the visitor (`Chrome`, `Safari`...).
+</ParamField>
+
+<ParamField query="referer" type="string">
+  Host of the page that linked to the request (`google.com`). `(none)` is a direct visit, with no referer.
+</ParamField>
+
+<ParamField query="asn" type="string">
+  Autonomous system number of the visitor's network (`28573`).
+</ParamField>
+
+<ParamField query="ip" type="string">
+  IP address of the visitor.
+</ParamField>
+
+<ParamField query="content_type" type="string">
+  Kind of content answered (`html`, `json`, `css`, `js`, `png`...).
+</ParamField>
+
+<ParamField query="cache_status" type="string">
+  Whether the edge answered from its cache: `hit`, `miss`, `dynamic`, `bypass`, `expired`, `revalidated`...
+</ParamField>
+
+<ParamField query="bot" type="string">
+  Category of a verified bot (`Search Engine Crawler`...). `(none)` is a visitor that is not a verified bot.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="start" type="string">
+    Start of the window actually read (ISO 8601). It may be rounded from the one you sent.
+  </ResponseField>
+
+  <ResponseField name="end" type="string">
+    End of the window actually read (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="hosts" type="string[]">
+    Hostnames that were read: the subdomain of the application and its active domains.
+  </ResponseField>
+
+  <ResponseField name="web_published" type="boolean">
+    `false` when the application has no site published. The answer is then an empty state, not an error: `hosts` is empty and so is the data.
+  </ResponseField>
+
+  <ResponseField name="sampled" type="boolean">
+    `true` when traffic is high enough that the numbers are estimated from a sample.
+  </ResponseField>
+
+  <ResponseField name="stale" type="boolean">
+    `true` when the latest data could not be read and this is an earlier answer. See `generated_at`.
+  </ResponseField>
+
+  <ResponseField name="generated_at" type="string">
+    When the data was read (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="history_days" type="integer">
+    How many days back the plan of the application's owner can read.
+  </ResponseField>
+
+  <ResponseField name="interval" type="string">
+    Size of each point of `series`: `1m`, `5m`, `15m` or `1h`. The API picks it from the length of the window: the shorter the window, the finer the points.
+  </ResponseField>
+
+  <ResponseField name="summary" type="object | null">
+    Totals of the window. `null` when there was no request in the window.
+  </ResponseField>
+
+  <ResponseField name="series" type="object[]">
+    Points of the time series; `time` is the start of each point.
+  </ResponseField>
+
+  <ResponseField name="previous" type="object | null">
+    The previous period, only with `compare=true`; otherwise `null`. It has `start`, `end`, a `summary` (`null` when there was no request in it) and a `series` with the same `interval` and number of points as the current one, in the same order.
+  </ResponseField>
+
+  <ResponseField name="breakdowns" type="object">
+    Top entries of each dimension, highest `requests` first: only the dimensions asked for in `breakdowns`, or all when it is omitted. The filter you sent is applied to all of them.
+
+    <Expandable title="Toggle entry">
+      <ResponseField name="value" type="string">
+        Value of the dimension; send it as the filter of the same name. `(none)` means the request had no value.
+      </ResponseField>
+      <ResponseField name="label" type="string | null">
+        Readable name when `value` is a code (the network name of an `asn`); `null` otherwise.
+      </ResponseField>
+      <ResponseField name="requests" type="integer">
+        Requests with this value.
+      </ResponseField>
+      <ResponseField name="visits" type="integer">
+        Page visits with this value.
+      </ResponseField>
+      <ResponseField name="bytes" type="integer">
+        Bytes sent to visitors.
+      </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  Fields of `summary`, and of the same totals in `previous.summary`:
+
+  <ResponseField name="requests" type="integer">
+    Requests answered.
+  </ResponseField>
+  <ResponseField name="visits" type="integer">
+    Page visits: requests that start a visit (a page opened directly or from another site).
+  </ResponseField>
+  <ResponseField name="bytes" type="integer">
+    Bytes sent to visitors.
+  </ResponseField>
+  <ResponseField name="errors_4xx" type="integer">
+    Requests answered with a 4xx status.
+  </ResponseField>
+  <ResponseField name="errors_5xx" type="integer">
+    Requests answered with a 5xx status.
+  </ResponseField>
+  <ResponseField name="error_rate_4xx" type="number">
+    `errors_4xx / requests`, from 0 to 1.
+  </ResponseField>
+  <ResponseField name="error_rate_5xx" type="number">
+    `errors_5xx / requests`, from 0 to 1.
+  </ResponseField>
+  <ResponseField name="edge_time_p95_ms" type="number">
+    95th percentile of the edge time (how long the visitor waited for the first byte), in milliseconds. This is the one speed number every plan gets.
+  </ResponseField>
+
+  Fields of each point of `series` (and of `previous.series`): `time`, `requests`, `visits`, `bytes`, `errors_4xx` and `errors_5xx`, with the same meaning as in `summary`.
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "start": "2026-11-02T18:00:00Z",
+    "end": "2026-11-03T18:00:00Z",
+    "hosts": [
+      "my-app.vertraweb.app",
+      "www.example.com"
+    ],
+    "web_published": true,
+    "sampled": false,
+    "stale": false,
+    "generated_at": "2026-11-03T18:01:12Z",
+    "history_days": 7,
+    "interval": "1h",
+    "summary": {
+      "requests": 18420,
+      "visits": 6310,
+      "bytes": 412884113,
+      "errors_4xx": 214,
+      "errors_5xx": 9,
+      "error_rate_4xx": 0.0116,
+      "error_rate_5xx": 0.0005,
+      "edge_time_p95_ms": 412
+    },
+    "series": [
+      {
+        "time": "2026-11-02T18:00:00Z",
+        "requests": 702,
+        "visits": 240,
+        "bytes": 15331004,
+        "errors_4xx": 8,
+        "errors_5xx": 0
+      },
+      {
+        "time": "2026-11-02T19:00:00Z",
+        "requests": 731,
+        "visits": 251,
+        "bytes": 16120987,
+        "errors_4xx": 11,
+        "errors_5xx": 1
+      }
+    ],
+    "previous": {
+      "start": "2026-11-01T18:00:00Z",
+      "end": "2026-11-02T18:00:00Z",
+      "summary": {
+        "requests": 16990,
+        "visits": 5802,
+        "bytes": 380112007,
+        "errors_4xx": 190,
+        "errors_5xx": 4,
+        "error_rate_4xx": 0.0112,
+        "error_rate_5xx": 0.0002,
+        "edge_time_p95_ms": 455
+      },
+      "series": [
+        {
+          "time": "2026-11-01T18:00:00Z",
+          "requests": 650,
+          "visits": 222,
+          "bytes": 14100222,
+          "errors_4xx": 7,
+          "errors_5xx": 0
+        }
+      ]
+    },
+    "breakdowns": {
+      "country": [
+        {
+          "value": "BR",
+          "label": null,
+          "requests": 14210,
+          "visits": 4902,
+          "bytes": 318400221
+        },
+        {
+          "value": "US",
+          "label": null,
+          "requests": 2105,
+          "visits": 760,
+          "bytes": 48112003
+        },
+        {
+          "value": "PT",
+          "label": null,
+          "requests": 611,
+          "visits": 204,
+          "bytes": 13920110
+        }
+      ],
+      "path": [
+        {
+          "value": "/",
+          "label": null,
+          "requests": 5210,
+          "visits": 4100,
+          "bytes": 90211003
+        },
+        {
+          "value": "/pricing",
+          "label": null,
+          "requests": 1902,
+          "visits": 1180,
+          "bytes": 41230991
+        }
+      ],
+      "referer": [
+        {
+          "value": "(none)",
+          "label": null,
+          "requests": 9120,
+          "visits": 3300,
+          "bytes": 201004112
+        },
+        {
+          "value": "google.com",
+          "label": null,
+          "requests": 4410,
+          "visits": 1890,
+          "bytes": 98114003
+        }
+      ],
+      "asn": [
+        {
+          "value": "28573",
+          "label": "CLARO S.A.",
+          "requests": 3300,
+          "visits": 1100,
+          "bytes": 70112008
+        }
+      ],
+      "cache_status": [
+        {
+          "value": "hit",
+          "label": null,
+          "requests": 13011,
+          "visits": 0,
+          "bytes": 301100001
+        },
+        {
+          "value": "dynamic",
+          "label": null,
+          "requests": 4100,
+          "visits": 0,
+          "bytes": 90113002
+        }
+      ]
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -G "https://api.vertracloud.app/v1/apps/app-abc123def456/analytics" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  --data-urlencode "start=2026-11-02T18:00:00Z" \
+  --data-urlencode "end=2026-11-03T18:00:00Z" \
+  --data-urlencode "compare=true" \
+  --data-urlencode "country=BR" \
+  --data-urlencode "status=2xx" \
+  --data-urlencode "path=/api" \
+  --data-urlencode "breakdowns=country,path,referer" \
+  --data-urlencode "limit=5"
+```
+
+</RequestExample>
+
+### Notes
+
+- Requires the `apps:read` scope when called with an API key. Workspace members need permission to read the application.
+- Available on every plan. An account with no active plan gets `PLAN_REQUIRED`.
+- **Sampling.** When traffic is high the numbers are estimated from a sample and `sampled` is `true`. See [Sampling and delay](/web-analytics/sampling-and-delay).
+- **Delay.** Data refreshes about every 5 minutes, so the newest requests can take a few minutes to show up. If the latest data cannot be read right now, an earlier answer may come back with `stale: true` (check `generated_at`); otherwise the call fails with `ANALYTICS_BUSY`.
+- **Privacy.** Vertra Cloud stores nothing about visitors; it keeps only per-app totals (counts, visits, bytes, error rates and response times) for up to 31 days, deleted with the app. No IP, path, query string or user agent is kept. `ip` and `query` come back unmasked; masking is a choice of the client that shows them. See [Privacy](/web-analytics/privacy).
+
+### Error Responses
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `AUTH_TOKEN_MISSING` / `API_KEY_INVALID` / `SESSION_REVOKED` | The `Authorization` header is missing, the API key is invalid or the dashboard session was revoked. |
+| 403 | `API_KEY_IP_DENIED` / `API_KEY_SCOPE_DENIED` | The API key is used from an IP outside its allowlist, or it lacks the `apps:read` scope. |
+| 403 | `ACCESS_DENIED` | The application belongs to another account, or you lack the workspace permission to read it. |
+| 403 | `PLAN_REQUIRED` | The account has no active plan. |
+| 404 | `APP_NOT_FOUND` | The application does not exist. |
+| 400 | `VALIDATION_ERROR` | A parameter failed validation, such as `limit` out of range, an invalid `cursor` or a malformed `start`/`end` date; `details.path` names the field. Also when `compare_start` is malformed or is sent with `compare=false`. |
+| 400 | `INVALID_RANGE` | `start` is after `end`, `end` is in the future or the window is longer than 30 days. Also when the period starting at `compare_start` ends after `start`, so it would overlap the window. |
+| 400 | `ANALYTICS_RANGE_EXCEEDS_PLAN` | `start` is earlier than the plan can read. `details.history_days` has the limit in days and `details.earliest` the earliest `start` accepted right now. Also when `compare_start` is earlier than the plan can read. |
+| 429 | `RATE_LIMIT_EXCEEDED` | Too many queries in a row. `details.retry_after` gives the wait in seconds; the `Retry-After` header always comes with it. |
+| 503 | `ANALYTICS_BUSY` | High-demand moment and no recent answer available for the query. Wait `details.retry_after` seconds and try again. |

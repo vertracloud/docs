@@ -1,0 +1,399 @@
+---
+title: Application Performance
+sidebarTitle: Performance
+api: GET https://api.vertracloud.app/v1/apps/{id}/analytics/performance
+authMethod: bearer
+description: "Returns edge and container times of an application site, p50 to p99.9, by country and edge location, plus slow routes. Pro and above."
+---
+
+{/* @see RESTGetAPIApplicationAnalyticsPerformanceQuery, APIApplicationAnalyticsPerformance — @vertracloud/api-types */}
+Returns how long requests take, split in two clocks: **edge** is the whole time the visitor waited for the first byte, and **container** is the part your application took to answer. Each comes with the average and the percentiles p50, p75, p90, p95, p99 and p99.9. The answer also has the times by country and by edge location, the slowest paths and the health of the most requested paths. It is the data of [Performance](/web-analytics/performance) and **needs a plan with performance details (Pro and above)**.
+
+<ParamField path="id" type="string" required>
+  The application ID. If the application belongs to a workspace, pass its ID in the `workspace_id` query parameter.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
+</ParamField>
+
+<ParamField query="start" type="string" format="date-time">
+  Start of the window (ISO 8601). Default: 24 hours before `end`.
+</ParamField>
+
+<ParamField query="end" type="string" format="date-time">
+  End of the window (ISO 8601). Default: now. It cannot be in the future.
+</ParamField>
+
+<ParamField query="compare" type="boolean" default="false">
+  Also send the previous period, of the same length and right before the window, in `previous`. Default `false`.
+</ParamField>
+
+<ParamField query="compare_start" type="string" format="date-time">
+  Start of the period to compare with (ISO 8601). The compared period has the same length as the window (`end` minus `start`) and starts here; `previous.start` and `previous.end` in the response show it. Implies `compare=true`, and it cannot be sent with `compare=false`. Without it, `compare=true` compares with the period right before the window.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Entries in `countries`, `edge_locations`, `slow_paths` and `path_issues`, from 1 to 25. Default 10.
+</ParamField>
+
+The window is at most 30 days long and cannot start earlier than the history of the plan (7 or 30 days, see [Plans and limits](/plans-and-limits)).
+
+### Filters
+
+Every dimension below is also a filter, and all of them can be combined: each one narrows every part of the answer. Each takes **one value**, exactly as it appears in a breakdown entry or a request of the log, so a value you read in a response can be sent back unchanged. Send `(none)` to keep only the requests that have nothing for the dimension.
+
+<ParamField query="country" type="string">
+  Country of the visitor, ISO 3166-1 alpha-2 (`BR`).
+</ParamField>
+
+<ParamField query="edge_location" type="string">
+  IATA code of the edge location that answered (`GRU`).
+</ParamField>
+
+<ParamField query="host" type="string">
+  Hostname the visitor asked for: the subdomain of the application or one of its domains. Only hosts of the application are accepted.
+</ParamField>
+
+<ParamField query="path" type="string">
+  Path of the request, without the query string. It is a prefix: `/api` matches `/api`, `/api/users` and `/apix`.
+</ParamField>
+
+<ParamField query="method" type="string">
+  HTTP method (`GET`, `POST`...).
+</ParamField>
+
+<ParamField query="status" type="string">
+  HTTP status the visitor received (`404`), or a class: `2xx`, `3xx`, `4xx` or `5xx`.
+</ParamField>
+
+<ParamField query="protocol" type="string">
+  HTTP version: `HTTP/1.1`, `HTTP/2` or `HTTP/3`.
+</ParamField>
+
+<ParamField query="device" type="string">
+  Kind of device: `desktop`, `mobile` or `tablet`.
+</ParamField>
+
+<ParamField query="os" type="string">
+  Operating system of the visitor (`Windows`, `iOS`...).
+</ParamField>
+
+<ParamField query="browser" type="string">
+  Browser of the visitor (`Chrome`, `Safari`...).
+</ParamField>
+
+<ParamField query="referer" type="string">
+  Host of the page that linked to the request (`google.com`). `(none)` is a direct visit, with no referer.
+</ParamField>
+
+<ParamField query="asn" type="string">
+  Autonomous system number of the visitor's network (`28573`).
+</ParamField>
+
+<ParamField query="ip" type="string">
+  IP address of the visitor.
+</ParamField>
+
+<ParamField query="content_type" type="string">
+  Kind of content answered (`html`, `json`, `css`, `js`, `png`...).
+</ParamField>
+
+<ParamField query="cache_status" type="string">
+  Whether the edge answered from its cache: `hit`, `miss`, `dynamic`, `bypass`, `expired`, `revalidated`...
+</ParamField>
+
+<ParamField query="bot" type="string">
+  Category of a verified bot (`Search Engine Crawler`...). `(none)` is a visitor that is not a verified bot.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="start" type="string">
+    Start of the window actually read (ISO 8601). It may be rounded from the one you sent.
+  </ResponseField>
+
+  <ResponseField name="end" type="string">
+    End of the window actually read (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="hosts" type="string[]">
+    Hostnames that were read: the subdomain of the application and its active domains.
+  </ResponseField>
+
+  <ResponseField name="web_published" type="boolean">
+    `false` when the application has no site published. The answer is then an empty state, not an error: `hosts` is empty and so is the data.
+  </ResponseField>
+
+  <ResponseField name="sampled" type="boolean">
+    `true` when traffic is high enough that the numbers are estimated from a sample.
+  </ResponseField>
+
+  <ResponseField name="stale" type="boolean">
+    `true` when the latest data could not be read and this is an earlier answer. See `generated_at`.
+  </ResponseField>
+
+  <ResponseField name="generated_at" type="string">
+    When the data was read (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="history_days" type="integer">
+    How many days back the plan of the application's owner can read.
+  </ResponseField>
+
+  <ResponseField name="interval" type="string">
+    Size of each point of `series`: `1m`, `5m`, `15m` or `1h`. The API picks it from the length of the window: the shorter the window, the finer the points.
+  </ResponseField>
+
+  <ResponseField name="summary" type="object | null">
+    Times of the window. `null` when there was no request in the window. `container` is `null` when no request reached the application (all of them were answered by the cache).
+  </ResponseField>
+
+  <ResponseField name="series" type="object[]">
+    Points of the time series; `time` is the start of each point, with `requests` and the `edge` and `container` times (`avg_ms`, `p50_ms`, `p95_ms`, `p99_ms`). `container` is `null` in a point with no request that reached the application.
+  </ResponseField>
+
+  <ResponseField name="previous" type="object | null">
+    The previous period, only with `compare=true`; otherwise `null`. It has `start`, `end`, a `summary` (`null` when there was no request in it) and a `series` with the same `interval` and number of points as the current one, in the same order.
+  </ResponseField>
+
+  <ResponseField name="countries" type="object[]">
+    Times per country of the visitor, highest `requests` first. Each entry has `value` (send it as the `country` filter), `label`, `requests`, `edge` and `container`.
+  </ResponseField>
+
+  <ResponseField name="edge_locations" type="object[]">
+    Times per edge location, highest `requests` first. Same entry as `countries`.
+  </ResponseField>
+
+  <ResponseField name="slow_paths" type="object[]">
+    Slowest paths by the 95th percentile of the edge time, slowest first. Paths with very few requests are left out. Same entry as `countries`; `value` is the path.
+  </ResponseField>
+
+  <ResponseField name="path_issues" type="object[]">
+    The most requested paths with their health, highest `requests` first. Each entry has `path` (send it as the `path` filter), `requests`, `errors` (5xx), `error_rate` (0 to 1), `avg_ms` and `p99_ms` of the edge time.
+  </ResponseField>
+
+  Fields of `summary.edge` and `summary.container`, all in milliseconds:
+
+  <ResponseField name="avg_ms" type="number">
+    Average time.
+  </ResponseField>
+  <ResponseField name="p50_ms" type="number">
+    Median: half of the requests were faster.
+  </ResponseField>
+  <ResponseField name="p75_ms" type="number">
+    75th percentile.
+  </ResponseField>
+  <ResponseField name="p90_ms" type="number">
+    90th percentile.
+  </ResponseField>
+  <ResponseField name="p95_ms" type="number">
+    95th percentile.
+  </ResponseField>
+  <ResponseField name="p99_ms" type="number">
+    99th percentile.
+  </ResponseField>
+  <ResponseField name="p999_ms" type="number">
+    99.9th percentile.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "start": "2026-11-02T18:00:00Z",
+    "end": "2026-11-03T18:00:00Z",
+    "hosts": [
+      "my-app.vertraweb.app",
+      "www.example.com"
+    ],
+    "web_published": true,
+    "sampled": false,
+    "stale": false,
+    "generated_at": "2026-11-03T18:01:12Z",
+    "history_days": 7,
+    "interval": "1h",
+    "summary": {
+      "requests": 18420,
+      "edge": {
+        "avg_ms": 188,
+        "p50_ms": 96,
+        "p75_ms": 170,
+        "p90_ms": 310,
+        "p95_ms": 412,
+        "p99_ms": 880,
+        "p999_ms": 2100
+      },
+      "container": {
+        "avg_ms": 141,
+        "p50_ms": 70,
+        "p75_ms": 128,
+        "p90_ms": 240,
+        "p95_ms": 330,
+        "p99_ms": 720,
+        "p999_ms": 1800
+      }
+    },
+    "series": [
+      {
+        "time": "2026-11-02T18:00:00Z",
+        "requests": 702,
+        "edge": {
+          "avg_ms": 180,
+          "p50_ms": 92,
+          "p95_ms": 400,
+          "p99_ms": 860
+        },
+        "container": {
+          "avg_ms": 135,
+          "p50_ms": 66,
+          "p95_ms": 320,
+          "p99_ms": 700
+        }
+      },
+      {
+        "time": "2026-11-02T19:00:00Z",
+        "requests": 731,
+        "edge": {
+          "avg_ms": 195,
+          "p50_ms": 101,
+          "p95_ms": 430,
+          "p99_ms": 910
+        },
+        "container": null
+      }
+    ],
+    "previous": null,
+    "countries": [
+      {
+        "value": "BR",
+        "label": null,
+        "requests": 14210,
+        "edge": {
+          "avg_ms": 160,
+          "p50_ms": 88,
+          "p95_ms": 350,
+          "p99_ms": 760
+        },
+        "container": {
+          "avg_ms": 120,
+          "p50_ms": 60,
+          "p95_ms": 280,
+          "p99_ms": 620
+        }
+      },
+      {
+        "value": "US",
+        "label": null,
+        "requests": 2105,
+        "edge": {
+          "avg_ms": 310,
+          "p50_ms": 170,
+          "p95_ms": 640,
+          "p99_ms": 1300
+        },
+        "container": {
+          "avg_ms": 130,
+          "p50_ms": 64,
+          "p95_ms": 300,
+          "p99_ms": 650
+        }
+      }
+    ],
+    "edge_locations": [
+      {
+        "value": "GRU",
+        "label": null,
+        "requests": 11800,
+        "edge": {
+          "avg_ms": 150,
+          "p50_ms": 85,
+          "p95_ms": 330,
+          "p99_ms": 700
+        },
+        "container": {
+          "avg_ms": 118,
+          "p50_ms": 58,
+          "p95_ms": 270,
+          "p99_ms": 600
+        }
+      }
+    ],
+    "slow_paths": [
+      {
+        "value": "/api/report",
+        "label": null,
+        "requests": 210,
+        "edge": {
+          "avg_ms": 1210,
+          "p50_ms": 980,
+          "p95_ms": 2600,
+          "p99_ms": 4100
+        },
+        "container": {
+          "avg_ms": 1180,
+          "p50_ms": 950,
+          "p95_ms": 2540,
+          "p99_ms": 4020
+        }
+      }
+    ],
+    "path_issues": [
+      {
+        "path": "/api/checkout",
+        "requests": 412,
+        "errors": 6,
+        "error_rate": 0.0146,
+        "avg_ms": 402,
+        "p99_ms": 1900
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -G "https://api.vertracloud.app/v1/apps/app-abc123def456/analytics/performance" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  --data-urlencode "start=2026-11-02T18:00:00Z" \
+  --data-urlencode "end=2026-11-03T18:00:00Z" \
+  --data-urlencode "country=BR" \
+  --data-urlencode "limit=5"
+```
+
+</RequestExample>
+
+### Notes
+
+- Requires the `apps:read` scope when called with an API key. Workspace members need permission to read the application.
+- **Pro and above.** On Starter the call fails with `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE`. The plan flag is `features.web_analytics_performance` in [List Plans](/api-reference/endpoint/plans/list). The single p95 speed number of every plan is in `summary.edge_time_p95_ms` of [Application Traffic](/api-reference/endpoint/apps/analytics/traffic).
+- **Sampling.** When traffic is high the numbers are estimated from a sample and `sampled` is `true`. See [Sampling and delay](/web-analytics/sampling-and-delay).
+- **Delay.** Data refreshes about every 5 minutes, so the newest requests can take a few minutes to show up. If the latest data cannot be read right now, an earlier answer may come back with `stale: true` (check `generated_at`); otherwise the call fails with `ANALYTICS_BUSY`.
+- **Privacy.** Vertra Cloud stores nothing about visitors; it keeps only per-app totals (counts, visits, bytes, error rates and response times) for up to 31 days, deleted with the app. No IP, path, query string or user agent is kept. `ip` and `query` come back unmasked; masking is a choice of the client that shows them. See [Privacy](/web-analytics/privacy).
+
+### Error Responses
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `AUTH_TOKEN_MISSING` / `API_KEY_INVALID` / `SESSION_REVOKED` | The `Authorization` header is missing, the API key is invalid or the dashboard session was revoked. |
+| 403 | `API_KEY_IP_DENIED` / `API_KEY_SCOPE_DENIED` | The API key is used from an IP outside its allowlist, or it lacks the `apps:read` scope. |
+| 403 | `ACCESS_DENIED` | The application belongs to another account, or you lack the workspace permission to read it. |
+| 403 | `PLAN_REQUIRED` | The account has no active plan. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE` | The plan does not include performance details (Starter). Upgrade to Pro or higher. |
+| 404 | `APP_NOT_FOUND` | The application does not exist. |
+| 400 | `VALIDATION_ERROR` | A parameter failed validation, such as `limit` out of range, an invalid `cursor` or a malformed `start`/`end` date; `details.path` names the field. Also when `compare_start` is malformed or is sent with `compare=false`. |
+| 400 | `INVALID_RANGE` | `start` is after `end`, `end` is in the future or the window is longer than 30 days. Also when the period starting at `compare_start` ends after `start`, so it would overlap the window. |
+| 400 | `ANALYTICS_RANGE_EXCEEDS_PLAN` | `start` is earlier than the plan can read. `details.history_days` has the limit in days and `details.earliest` the earliest `start` accepted right now. Also when `compare_start` is earlier than the plan can read. |
+| 429 | `RATE_LIMIT_EXCEEDED` | Too many queries in a row. `details.retry_after` gives the wait in seconds; the `Retry-After` header always comes with it. |
+| 503 | `ANALYTICS_BUSY` | High-demand moment and no recent answer available for the query. Wait `details.retry_after` seconds and try again. |

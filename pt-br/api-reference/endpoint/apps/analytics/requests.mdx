@@ -1,0 +1,356 @@
+---
+title: Requisições da aplicação
+sidebarTitle: Requisições
+api: GET https://api.vertracloud.app/v1/apps/{id}/analytics/requests
+authMethod: bearer
+description: "Retorna uma página do log de requisições do site de uma aplicação, uma entrada por requisição, com filtros, ordem e cursor. Pro e acima."
+---
+
+{/* @see RESTGetAPIApplicationAnalyticsRequestsQuery, APIApplicationAnalyticsRequestList — @vertracloud/api-types */}
+Retorna uma página do log de requisições do site de uma aplicação, com uma entrada por requisição: status, tempos, origem, dispositivo e o ID da requisição. Use para inspecionar uma visita ou para achar as requisições exatas por trás de um número em [Erros](/pt-br/web-analytics/errors) ou [Desempenho](/pt-br/web-analytics/performance). Aceita os mesmos filtros das outras rotas de analytics e pagina com cursor. São os dados de [Requisições](/pt-br/web-analytics/requests) e **exige um plano com o log de requisições (Pro e acima)**.
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação. Se ela pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma aplicação que não lhes pertence.
+</ParamField>
+
+<ParamField query="start" type="string" format="date-time">
+  Início da janela (ISO 8601). Padrão: 24 horas antes de `end`.
+</ParamField>
+
+<ParamField query="end" type="string" format="date-time">
+  Fim da janela (ISO 8601). Padrão: agora. Não pode estar no futuro.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  `cursor` opaco da página anterior. Envie com a mesma janela, os mesmos filtros e a mesma ordem; qualquer outro cursor é recusado com `VALIDATION_ERROR`.
+</ParamField>
+
+<ParamField query="order" type="string" default="desc">
+  Ordem por horário: `desc` (mais novas primeiro) ou `asc`. Padrão `desc`.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="50">
+  Requisições por página, de 1 a 100. Padrão 50.
+</ParamField>
+
+A janela tem no máximo 30 dias e não pode começar antes do histórico do plano (7 ou 30 dias, veja [Planos e limites](/pt-br/plans-and-limits)).
+
+### Filtros
+
+Cada dimensão abaixo também é um filtro, e todos podem ser combinados: cada um restringe todas as partes da resposta. Cada filtro recebe **um valor**, exatamente como aparece numa entrada de breakdown ou numa requisição do log, então um valor lido numa resposta pode ser enviado de volta sem mudar. Envie `(none)` para manter só as requisições que não têm nada na dimensão.
+
+<ParamField query="country" type="string">
+  País do visitante, ISO 3166-1 alfa-2 (`BR`).
+</ParamField>
+
+<ParamField query="edge_location" type="string">
+  Código IATA da localização de borda que respondeu (`GRU`).
+</ParamField>
+
+<ParamField query="host" type="string">
+  Hostname que o visitante pediu: o subdomínio da aplicação ou um dos seus domínios. Só são aceitos hosts da aplicação.
+</ParamField>
+
+<ParamField query="path" type="string">
+  Caminho da requisição, sem a query string. É um prefixo: `/api` casa com `/api`, `/api/users` e `/apix`.
+</ParamField>
+
+<ParamField query="method" type="string">
+  Método HTTP (`GET`, `POST`...).
+</ParamField>
+
+<ParamField query="status" type="string">
+  Status HTTP que o visitante recebeu (`404`), ou uma classe: `2xx`, `3xx`, `4xx` ou `5xx`.
+</ParamField>
+
+<ParamField query="protocol" type="string">
+  Versão do HTTP: `HTTP/1.1`, `HTTP/2` ou `HTTP/3`.
+</ParamField>
+
+<ParamField query="device" type="string">
+  Tipo de dispositivo: `desktop`, `mobile` ou `tablet`.
+</ParamField>
+
+<ParamField query="os" type="string">
+  Sistema operacional do visitante (`Windows`, `iOS`...).
+</ParamField>
+
+<ParamField query="browser" type="string">
+  Navegador do visitante (`Chrome`, `Safari`...).
+</ParamField>
+
+<ParamField query="referer" type="string">
+  Host da página que levou à requisição (`google.com`). `(none)` é uma visita direta, sem referer.
+</ParamField>
+
+<ParamField query="asn" type="string">
+  Número do sistema autônomo da rede do visitante (`28573`).
+</ParamField>
+
+<ParamField query="ip" type="string">
+  Endereço IP do visitante.
+</ParamField>
+
+<ParamField query="content_type" type="string">
+  Tipo de conteúdo respondido (`html`, `json`, `css`, `js`, `png`...).
+</ParamField>
+
+<ParamField query="cache_status" type="string">
+  Se a borda respondeu do cache: `hit`, `miss`, `dynamic`, `bypass`, `expired`, `revalidated`...
+</ParamField>
+
+<ParamField query="bot" type="string">
+  Categoria de um bot verificado (`Search Engine Crawler`...). `(none)` é um visitante que não é um bot verificado.
+</ParamField>
+
+### Paginação
+
+Leia a primeira página sem `cursor`. Enquanto a resposta tiver `cursor`, chame de novo com os mesmos `start`, `end`, filtros e `order` mais esse `cursor`. Fixe `start` e `end` durante toda a leitura: com o `end` padrão (agora) a janela se move entre as chamadas. A leitura termina quando `cursor` vem `null`.
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="start" type="string">
+    Início da janela realmente lida (ISO 8601). Pode ser arredondado em relação ao que você enviou.
+  </ResponseField>
+
+  <ResponseField name="end" type="string">
+    Fim da janela realmente lida (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="hosts" type="string[]">
+    Hostnames que foram lidos: o subdomínio da aplicação e seus domínios ativos.
+  </ResponseField>
+
+  <ResponseField name="web_published" type="boolean">
+    `false` quando a aplicação não tem site publicado. A resposta é então um estado vazio, não um erro: `hosts` vem vazio e os dados também.
+  </ResponseField>
+
+  <ResponseField name="sampled" type="boolean">
+    `true` quando o tráfego é alto o bastante para que os números sejam estimados a partir de uma amostra.
+  </ResponseField>
+
+  <ResponseField name="stale" type="boolean">
+    `true` quando os dados mais recentes não puderam ser lidos e esta é uma resposta anterior. Veja `generated_at`.
+  </ResponseField>
+
+  <ResponseField name="generated_at" type="string">
+    Quando os dados foram lidos (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="history_days" type="integer">
+    Quantos dias para trás o plano do dono da aplicação consegue ler.
+  </ResponseField>
+
+  <ResponseField name="order" type="string">
+    Ordem da página: `asc` ou `desc`.
+  </ResponseField>
+
+  <ResponseField name="requests" type="object[]">
+    As requisições da página, na ordem pedida.
+  </ResponseField>
+
+  <ResponseField name="cursor" type="string | null">
+    Envie de volta como `cursor` para obter a próxima página, com a mesma janela, os mesmos filtros e a mesma ordem. `null` na última página.
+  </ResponseField>
+
+  Campos de cada requisição:
+
+  <ResponseField name="time" type="string">
+    Quando a requisição chegou (ISO 8601).
+  </ResponseField>
+  <ResponseField name="request_id" type="string">
+    Identificador da requisição. Cite-o ao falar com o suporte.
+  </ResponseField>
+  <ResponseField name="host" type="string">
+    Hostname que o visitante pediu.
+  </ResponseField>
+  <ResponseField name="path" type="string">
+    Caminho da requisição.
+  </ResponseField>
+  <ResponseField name="query" type="string">
+    Query string sem o `?` inicial; vazia quando a requisição não tinha. Pode carregar tokens: trate como dado sensível.
+  </ResponseField>
+  <ResponseField name="method" type="string">
+    Método HTTP.
+  </ResponseField>
+  <ResponseField name="protocol" type="string">
+    Versão do HTTP.
+  </ResponseField>
+  <ResponseField name="status" type="integer">
+    Status HTTP que o visitante recebeu.
+  </ResponseField>
+  <ResponseField name="container_status" type="integer | null">
+    Status HTTP que a sua aplicação respondeu; `null` quando a requisição não chegou a ela (respondida pelo cache ou pela borda).
+  </ResponseField>
+  <ResponseField name="edge_time_ms" type="number">
+    O tempo todo que o visitante esperou pelo primeiro byte, em milissegundos.
+  </ResponseField>
+  <ResponseField name="container_time_ms" type="number | null">
+    Tempo que a sua aplicação levou para responder, em milissegundos; `null` quando a requisição não chegou a ela.
+  </ResponseField>
+  <ResponseField name="ip" type="string">
+    Endereço IP do visitante. Dado pessoal: trate como sensível.
+  </ResponseField>
+  <ResponseField name="asn" type="integer">
+    Número do sistema autônomo da rede do visitante.
+  </ResponseField>
+  <ResponseField name="asn_name" type="string">
+    Nome da rede do visitante.
+  </ResponseField>
+  <ResponseField name="country" type="string">
+    País do visitante.
+  </ResponseField>
+  <ResponseField name="edge_location" type="string">
+    Localização de borda que respondeu.
+  </ResponseField>
+  <ResponseField name="referer" type="string">
+    Host do referer; `(none)` é uma visita direta.
+  </ResponseField>
+  <ResponseField name="referer_url" type="string | null">
+    URL completa do referer; `null` quando a requisição não tinha.
+  </ResponseField>
+  <ResponseField name="device" type="string">
+    Tipo de dispositivo.
+  </ResponseField>
+  <ResponseField name="os" type="string">
+    Sistema operacional.
+  </ResponseField>
+  <ResponseField name="browser" type="string">
+    Navegador.
+  </ResponseField>
+  <ResponseField name="bot" type="string">
+    Categoria de um bot verificado; `(none)` caso contrário.
+  </ResponseField>
+  <ResponseField name="content_type" type="string">
+    Tipo de conteúdo respondido.
+  </ResponseField>
+  <ResponseField name="cache_status" type="string">
+    Se a borda respondeu do cache.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "start": "2026-11-02T18:00:00Z",
+    "end": "2026-11-03T18:00:00Z",
+    "hosts": [
+      "my-app.vertraweb.app",
+      "www.example.com"
+    ],
+    "web_published": true,
+    "sampled": false,
+    "stale": false,
+    "generated_at": "2026-11-03T18:01:12Z",
+    "history_days": 7,
+    "order": "desc",
+    "requests": [
+      {
+        "time": "2026-11-03T17:58:41Z",
+        "request_id": "req_8f3a2c71d94b",
+        "host": "www.example.com",
+        "path": "/api/checkout",
+        "query": "cart=9f2c",
+        "method": "POST",
+        "protocol": "HTTP/2",
+        "status": 502,
+        "container_status": 502,
+        "edge_time_ms": 1840,
+        "container_time_ms": 1812,
+        "ip": "203.0.113.24",
+        "asn": 28573,
+        "asn_name": "CLARO S.A.",
+        "country": "BR",
+        "edge_location": "GRU",
+        "referer": "www.example.com",
+        "referer_url": "https://www.example.com/cart",
+        "device": "mobile",
+        "os": "Android",
+        "browser": "Chrome",
+        "bot": "(none)",
+        "content_type": "json",
+        "cache_status": "dynamic"
+      },
+      {
+        "time": "2026-11-03T17:58:12Z",
+        "request_id": "req_1b7e40c9a2d5",
+        "host": "www.example.com",
+        "path": "/pricing",
+        "query": "",
+        "method": "GET",
+        "protocol": "HTTP/2",
+        "status": 200,
+        "container_status": null,
+        "edge_time_ms": 38,
+        "container_time_ms": null,
+        "ip": "203.0.113.24",
+        "asn": 28573,
+        "asn_name": "CLARO S.A.",
+        "country": "BR",
+        "edge_location": "GRU",
+        "referer": "google.com",
+        "referer_url": "https://www.google.com/",
+        "device": "mobile",
+        "os": "Android",
+        "browser": "Chrome",
+        "bot": "(none)",
+        "content_type": "html",
+        "cache_status": "hit"
+      }
+    ],
+    "cursor": "c_7Qm2Xk9pLw3RzT5v"
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -G "https://api.vertracloud.app/v1/apps/app-abc123def456/analytics/requests" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  --data-urlencode "start=2026-11-03T17:00:00Z" \
+  --data-urlencode "end=2026-11-03T18:00:00Z" \
+  --data-urlencode "status=5xx" \
+  --data-urlencode "path=/api" \
+  --data-urlencode "order=desc" \
+  --data-urlencode "limit=50"
+```
+
+</RequestExample>
+
+### Observações
+
+- Exige o escopo `apps:read` quando chamada com uma chave de API. Membros de workspace precisam de permissão para ler a aplicação.
+- **Pro e acima.** No Starter a chamada falha com `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_REQUESTS`. O flag do plano é `features.web_analytics_requests` em [Listar planos](/pt-br/api-reference/endpoint/plans/list).
+- **Amostragem.** Com tráfego alto o log é uma **amostra** das requisições, não todas: `sampled` vem `true` e uma requisição específica pode não estar nele.
+- **Atraso.** Os dados se atualizam a cada cerca de 5 minutos, então as requisições mais novas podem levar alguns minutos para aparecer. Se os dados mais recentes não puderem ser lidos agora, uma resposta anterior pode voltar com `stale: true` (veja `generated_at`); caso contrário, a chamada falha com `ANALYTICS_BUSY`.
+- **Privacidade.** A Vertra Cloud não guarda nada sobre os visitantes; guarda apenas totais por app (contagens, visitas, bytes, taxas de erro e tempos de resposta) por até 31 dias, apagados com o app. Nenhum IP, caminho, query string ou user agent é guardado. `ip` e `query` voltam sem máscara; mascarar é uma escolha do cliente que os exibe. Veja [Privacidade](/pt-br/web-analytics/privacy).
+
+### Respostas de erro
+
+| Status | Código | Quando |
+|---|---|---|
+| 401 | `AUTH_TOKEN_MISSING` / `API_KEY_INVALID` / `SESSION_REVOKED` | O header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada. |
+| 403 | `API_KEY_IP_DENIED` / `API_KEY_SCOPE_DENIED` | A chave de API é usada de um IP fora da sua lista de permitidos, ou não tem o escopo `apps:read`. |
+| 403 | `ACCESS_DENIED` | A aplicação pertence a outra conta, ou você não tem a permissão de workspace para lê-la. |
+| 403 | `PLAN_REQUIRED` | A conta não tem plano ativo. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_REQUESTS` | O plano não inclui o log de requisições (Starter). Faça upgrade para Pro ou superior. |
+| 404 | `APP_NOT_FOUND` | A aplicação não existe. |
+| 400 | `VALIDATION_ERROR` | Um parâmetro falhou na validação, como `limit` fora do intervalo, `cursor` inválido ou data `start`/`end` malformada; `details.path` nomeia o campo. |
+| 400 | `INVALID_RANGE` | `start` é posterior a `end`, `end` está no futuro ou a janela passa de 30 dias. |
+| 400 | `ANALYTICS_RANGE_EXCEEDS_PLAN` | `start` é anterior ao que o plano consegue ler. `details.history_days` traz o limite em dias e `details.earliest` o `start` mais antigo aceito agora. |
+| 429 | `RATE_LIMIT_EXCEEDED` | Muitas consultas seguidas. `details.retry_after` informa a espera em segundos; o header `Retry-After` vem sempre junto. |
+| 503 | `ANALYTICS_BUSY` | Momento de alta demanda e sem resposta recente disponível para a consulta. Espere `details.retry_after` segundos e tente de novo. |

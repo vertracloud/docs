@@ -1,0 +1,399 @@
+---
+title: Desempenho da aplicação
+sidebarTitle: Desempenho
+api: GET https://api.vertracloud.app/v1/apps/{id}/analytics/performance
+authMethod: bearer
+description: "Retorna os tempos de borda e de container do site, de p50 a p99.9, por país e localização de borda, além das rotas lentas. Pro e acima."
+---
+
+{/* @see RESTGetAPIApplicationAnalyticsPerformanceQuery, APIApplicationAnalyticsPerformance — @vertracloud/api-types */}
+Retorna quanto tempo as requisições levam, em dois relógios: a **borda** é o tempo todo que o visitante esperou pelo primeiro byte, e o **container** é a parte que a sua aplicação levou para responder. Cada um traz a média e os percentis p50, p75, p90, p95, p99 e p99.9. A resposta também traz os tempos por país e por localização de borda, os caminhos mais lentos e a saúde dos caminhos mais requisitados. São os dados de [Desempenho](/pt-br/web-analytics/performance) e **exige um plano com os detalhes de desempenho (Pro e acima)**.
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação. Se ela pertencer a um workspace, informe o ID dele no query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma aplicação que não lhes pertence.
+</ParamField>
+
+<ParamField query="start" type="string" format="date-time">
+  Início da janela (ISO 8601). Padrão: 24 horas antes de `end`.
+</ParamField>
+
+<ParamField query="end" type="string" format="date-time">
+  Fim da janela (ISO 8601). Padrão: agora. Não pode estar no futuro.
+</ParamField>
+
+<ParamField query="compare" type="boolean" default="false">
+  Envia também o período anterior, do mesmo tamanho e logo antes da janela, em `previous`. Padrão `false`.
+</ParamField>
+
+<ParamField query="compare_start" type="string" format="date-time">
+  Início do período a comparar (ISO 8601). O período comparado tem o mesmo tamanho da janela (`end` menos `start`) e começa aqui; `previous.start` e `previous.end` na resposta mostram qual foi. Implica `compare=true` e não pode ser enviado com `compare=false`. Sem ele, `compare=true` compara com o período logo antes da janela.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Entradas em `countries`, `edge_locations`, `slow_paths` e `path_issues`, de 1 a 25. Padrão 10.
+</ParamField>
+
+A janela tem no máximo 30 dias e não pode começar antes do histórico do plano (7 ou 30 dias, veja [Planos e limites](/pt-br/plans-and-limits)).
+
+### Filtros
+
+Cada dimensão abaixo também é um filtro, e todos podem ser combinados: cada um restringe todas as partes da resposta. Cada filtro recebe **um valor**, exatamente como aparece numa entrada de breakdown ou numa requisição do log, então um valor lido numa resposta pode ser enviado de volta sem mudar. Envie `(none)` para manter só as requisições que não têm nada na dimensão.
+
+<ParamField query="country" type="string">
+  País do visitante, ISO 3166-1 alfa-2 (`BR`).
+</ParamField>
+
+<ParamField query="edge_location" type="string">
+  Código IATA da localização de borda que respondeu (`GRU`).
+</ParamField>
+
+<ParamField query="host" type="string">
+  Hostname que o visitante pediu: o subdomínio da aplicação ou um dos seus domínios. Só são aceitos hosts da aplicação.
+</ParamField>
+
+<ParamField query="path" type="string">
+  Caminho da requisição, sem a query string. É um prefixo: `/api` casa com `/api`, `/api/users` e `/apix`.
+</ParamField>
+
+<ParamField query="method" type="string">
+  Método HTTP (`GET`, `POST`...).
+</ParamField>
+
+<ParamField query="status" type="string">
+  Status HTTP que o visitante recebeu (`404`), ou uma classe: `2xx`, `3xx`, `4xx` ou `5xx`.
+</ParamField>
+
+<ParamField query="protocol" type="string">
+  Versão do HTTP: `HTTP/1.1`, `HTTP/2` ou `HTTP/3`.
+</ParamField>
+
+<ParamField query="device" type="string">
+  Tipo de dispositivo: `desktop`, `mobile` ou `tablet`.
+</ParamField>
+
+<ParamField query="os" type="string">
+  Sistema operacional do visitante (`Windows`, `iOS`...).
+</ParamField>
+
+<ParamField query="browser" type="string">
+  Navegador do visitante (`Chrome`, `Safari`...).
+</ParamField>
+
+<ParamField query="referer" type="string">
+  Host da página que levou à requisição (`google.com`). `(none)` é uma visita direta, sem referer.
+</ParamField>
+
+<ParamField query="asn" type="string">
+  Número do sistema autônomo da rede do visitante (`28573`).
+</ParamField>
+
+<ParamField query="ip" type="string">
+  Endereço IP do visitante.
+</ParamField>
+
+<ParamField query="content_type" type="string">
+  Tipo de conteúdo respondido (`html`, `json`, `css`, `js`, `png`...).
+</ParamField>
+
+<ParamField query="cache_status" type="string">
+  Se a borda respondeu do cache: `hit`, `miss`, `dynamic`, `bypass`, `expired`, `revalidated`...
+</ParamField>
+
+<ParamField query="bot" type="string">
+  Categoria de um bot verificado (`Search Engine Crawler`...). `(none)` é um visitante que não é um bot verificado.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="start" type="string">
+    Início da janela realmente lida (ISO 8601). Pode ser arredondado em relação ao que você enviou.
+  </ResponseField>
+
+  <ResponseField name="end" type="string">
+    Fim da janela realmente lida (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="hosts" type="string[]">
+    Hostnames que foram lidos: o subdomínio da aplicação e seus domínios ativos.
+  </ResponseField>
+
+  <ResponseField name="web_published" type="boolean">
+    `false` quando a aplicação não tem site publicado. A resposta é então um estado vazio, não um erro: `hosts` vem vazio e os dados também.
+  </ResponseField>
+
+  <ResponseField name="sampled" type="boolean">
+    `true` quando o tráfego é alto o bastante para que os números sejam estimados a partir de uma amostra.
+  </ResponseField>
+
+  <ResponseField name="stale" type="boolean">
+    `true` quando os dados mais recentes não puderam ser lidos e esta é uma resposta anterior. Veja `generated_at`.
+  </ResponseField>
+
+  <ResponseField name="generated_at" type="string">
+    Quando os dados foram lidos (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="history_days" type="integer">
+    Quantos dias para trás o plano do dono da aplicação consegue ler.
+  </ResponseField>
+
+  <ResponseField name="interval" type="string">
+    Tamanho de cada ponto de `series`: `1m`, `5m`, `15m` ou `1h`. A API escolhe pelo tamanho da janela: quanto menor a janela, mais finos os pontos.
+  </ResponseField>
+
+  <ResponseField name="summary" type="object | null">
+    Tempos da janela. `null` quando não houve requisição na janela. `container` vem `null` quando nenhuma requisição chegou à aplicação (todas foram respondidas pelo cache).
+  </ResponseField>
+
+  <ResponseField name="series" type="object[]">
+    Pontos da série no tempo; `time` é o início de cada ponto, com `requests` e os tempos `edge` e `container` (`avg_ms`, `p50_ms`, `p95_ms`, `p99_ms`). `container` vem `null` num ponto sem requisição que chegou à aplicação.
+  </ResponseField>
+
+  <ResponseField name="previous" type="object | null">
+    O período anterior, só com `compare=true`; caso contrário `null`. Tem `start`, `end`, um `summary` (`null` quando não houve requisição nele) e uma `series` com o mesmo `interval` e o mesmo número de pontos da atual, na mesma ordem.
+  </ResponseField>
+
+  <ResponseField name="countries" type="object[]">
+    Tempos por país do visitante, maior `requests` primeiro. Cada entrada tem `value` (envie como o filtro `country`), `label`, `requests`, `edge` e `container`.
+  </ResponseField>
+
+  <ResponseField name="edge_locations" type="object[]">
+    Tempos por localização de borda, maior `requests` primeiro. Mesma entrada de `countries`.
+  </ResponseField>
+
+  <ResponseField name="slow_paths" type="object[]">
+    Caminhos mais lentos pelo percentil 95 do tempo de borda, o mais lento primeiro. Caminhos com pouquíssimas requisições ficam de fora. Mesma entrada de `countries`; `value` é o caminho.
+  </ResponseField>
+
+  <ResponseField name="path_issues" type="object[]">
+    Os caminhos mais requisitados com a sua saúde, maior `requests` primeiro. Cada entrada tem `path` (envie como o filtro `path`), `requests`, `errors` (5xx), `error_rate` (0 a 1), `avg_ms` e `p99_ms` do tempo de borda.
+  </ResponseField>
+
+  Campos de `summary.edge` e `summary.container`, todos em milissegundos:
+
+  <ResponseField name="avg_ms" type="number">
+    Tempo médio.
+  </ResponseField>
+  <ResponseField name="p50_ms" type="number">
+    Mediana: metade das requisições foi mais rápida.
+  </ResponseField>
+  <ResponseField name="p75_ms" type="number">
+    Percentil 75.
+  </ResponseField>
+  <ResponseField name="p90_ms" type="number">
+    Percentil 90.
+  </ResponseField>
+  <ResponseField name="p95_ms" type="number">
+    Percentil 95.
+  </ResponseField>
+  <ResponseField name="p99_ms" type="number">
+    Percentil 99.
+  </ResponseField>
+  <ResponseField name="p999_ms" type="number">
+    Percentil 99,9.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "start": "2026-11-02T18:00:00Z",
+    "end": "2026-11-03T18:00:00Z",
+    "hosts": [
+      "my-app.vertraweb.app",
+      "www.example.com"
+    ],
+    "web_published": true,
+    "sampled": false,
+    "stale": false,
+    "generated_at": "2026-11-03T18:01:12Z",
+    "history_days": 7,
+    "interval": "1h",
+    "summary": {
+      "requests": 18420,
+      "edge": {
+        "avg_ms": 188,
+        "p50_ms": 96,
+        "p75_ms": 170,
+        "p90_ms": 310,
+        "p95_ms": 412,
+        "p99_ms": 880,
+        "p999_ms": 2100
+      },
+      "container": {
+        "avg_ms": 141,
+        "p50_ms": 70,
+        "p75_ms": 128,
+        "p90_ms": 240,
+        "p95_ms": 330,
+        "p99_ms": 720,
+        "p999_ms": 1800
+      }
+    },
+    "series": [
+      {
+        "time": "2026-11-02T18:00:00Z",
+        "requests": 702,
+        "edge": {
+          "avg_ms": 180,
+          "p50_ms": 92,
+          "p95_ms": 400,
+          "p99_ms": 860
+        },
+        "container": {
+          "avg_ms": 135,
+          "p50_ms": 66,
+          "p95_ms": 320,
+          "p99_ms": 700
+        }
+      },
+      {
+        "time": "2026-11-02T19:00:00Z",
+        "requests": 731,
+        "edge": {
+          "avg_ms": 195,
+          "p50_ms": 101,
+          "p95_ms": 430,
+          "p99_ms": 910
+        },
+        "container": null
+      }
+    ],
+    "previous": null,
+    "countries": [
+      {
+        "value": "BR",
+        "label": null,
+        "requests": 14210,
+        "edge": {
+          "avg_ms": 160,
+          "p50_ms": 88,
+          "p95_ms": 350,
+          "p99_ms": 760
+        },
+        "container": {
+          "avg_ms": 120,
+          "p50_ms": 60,
+          "p95_ms": 280,
+          "p99_ms": 620
+        }
+      },
+      {
+        "value": "US",
+        "label": null,
+        "requests": 2105,
+        "edge": {
+          "avg_ms": 310,
+          "p50_ms": 170,
+          "p95_ms": 640,
+          "p99_ms": 1300
+        },
+        "container": {
+          "avg_ms": 130,
+          "p50_ms": 64,
+          "p95_ms": 300,
+          "p99_ms": 650
+        }
+      }
+    ],
+    "edge_locations": [
+      {
+        "value": "GRU",
+        "label": null,
+        "requests": 11800,
+        "edge": {
+          "avg_ms": 150,
+          "p50_ms": 85,
+          "p95_ms": 330,
+          "p99_ms": 700
+        },
+        "container": {
+          "avg_ms": 118,
+          "p50_ms": 58,
+          "p95_ms": 270,
+          "p99_ms": 600
+        }
+      }
+    ],
+    "slow_paths": [
+      {
+        "value": "/api/report",
+        "label": null,
+        "requests": 210,
+        "edge": {
+          "avg_ms": 1210,
+          "p50_ms": 980,
+          "p95_ms": 2600,
+          "p99_ms": 4100
+        },
+        "container": {
+          "avg_ms": 1180,
+          "p50_ms": 950,
+          "p95_ms": 2540,
+          "p99_ms": 4020
+        }
+      }
+    ],
+    "path_issues": [
+      {
+        "path": "/api/checkout",
+        "requests": 412,
+        "errors": 6,
+        "error_rate": 0.0146,
+        "avg_ms": 402,
+        "p99_ms": 1900
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -G "https://api.vertracloud.app/v1/apps/app-abc123def456/analytics/performance" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  --data-urlencode "start=2026-11-02T18:00:00Z" \
+  --data-urlencode "end=2026-11-03T18:00:00Z" \
+  --data-urlencode "country=BR" \
+  --data-urlencode "limit=5"
+```
+
+</RequestExample>
+
+### Observações
+
+- Exige o escopo `apps:read` quando chamada com uma chave de API. Membros de workspace precisam de permissão para ler a aplicação.
+- **Pro e acima.** No Starter a chamada falha com `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE`. O flag do plano é `features.web_analytics_performance` em [Listar planos](/pt-br/api-reference/endpoint/plans/list). O número único de velocidade p95 de todos os planos está em `summary.edge_time_p95_ms` de [Tráfego da aplicação](/pt-br/api-reference/endpoint/apps/analytics/traffic).
+- **Amostragem.** Com tráfego alto os números são estimados a partir de uma amostra e `sampled` vem `true`. Veja [Amostragem e atraso](/pt-br/web-analytics/sampling-and-delay).
+- **Atraso.** Os dados se atualizam a cada cerca de 5 minutos, então as requisições mais novas podem levar alguns minutos para aparecer. Se os dados mais recentes não puderem ser lidos agora, uma resposta anterior pode voltar com `stale: true` (veja `generated_at`); caso contrário, a chamada falha com `ANALYTICS_BUSY`.
+- **Privacidade.** A Vertra Cloud não guarda nada sobre os visitantes; guarda apenas totais por app (contagens, visitas, bytes, taxas de erro e tempos de resposta) por até 31 dias, apagados com o app. Nenhum IP, caminho, query string ou user agent é guardado. `ip` e `query` voltam sem máscara; mascarar é uma escolha do cliente que os exibe. Veja [Privacidade](/pt-br/web-analytics/privacy).
+
+### Respostas de erro
+
+| Status | Código | Quando |
+|---|---|---|
+| 401 | `AUTH_TOKEN_MISSING` / `API_KEY_INVALID` / `SESSION_REVOKED` | O header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada. |
+| 403 | `API_KEY_IP_DENIED` / `API_KEY_SCOPE_DENIED` | A chave de API é usada de um IP fora da sua lista de permitidos, ou não tem o escopo `apps:read`. |
+| 403 | `ACCESS_DENIED` | A aplicação pertence a outra conta, ou você não tem a permissão de workspace para lê-la. |
+| 403 | `PLAN_REQUIRED` | A conta não tem plano ativo. |
+| 403 | `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE` | O plano não inclui os detalhes de desempenho (Starter). Faça upgrade para Pro ou superior. |
+| 404 | `APP_NOT_FOUND` | A aplicação não existe. |
+| 400 | `VALIDATION_ERROR` | Um parâmetro falhou na validação, como `limit` fora do intervalo, `cursor` inválido ou data `start`/`end` malformada; `details.path` nomeia o campo. Também quando `compare_start` é malformado ou vem com `compare=false`. |
+| 400 | `INVALID_RANGE` | `start` é posterior a `end`, `end` está no futuro ou a janela passa de 30 dias. Também quando o período que começa em `compare_start` termina depois de `start`, o que sobreporia a janela. |
+| 400 | `ANALYTICS_RANGE_EXCEEDS_PLAN` | `start` é anterior ao que o plano consegue ler. `details.history_days` traz o limite em dias e `details.earliest` o `start` mais antigo aceito agora. Também quando `compare_start` é anterior ao que o plano consegue ler. |
+| 429 | `RATE_LIMIT_EXCEEDED` | Muitas consultas seguidas. `details.retry_after` informa a espera em segundos; o header `Retry-After` vem sempre junto. |
+| 503 | `ANALYTICS_BUSY` | Momento de alta demanda e sem resposta recente disponível para a consulta. Espere `details.retry_after` segundos e tente de novo. |

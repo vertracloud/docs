@@ -313,6 +313,48 @@ CPF/CNPJ); si no, `orders.create` falla con `BILLING_DETAILS_INCOMPLETE`. Léelo
 Para canjear un código promocional, usa `billing.redeem` (`client.billing.redeem(code)` en JavaScript y Python,
 `client.Billing.Redeem(ctx, code)` en Go), con una clave que tenga el scope `redeem:write`.
 
+### Web Analytics
+
+<CodeGroup>
+
+```javascript JavaScript
+const traffic = await client.apps.analytics.traffic("app-abc123", { compare: true });
+const errors = await client.apps.analytics.errors("app-abc123", { include_4xx: true });
+const lastWeek = await client.apps.analytics.errors("app-abc123", { start: "2026-11-02T00:00:00Z", compare_start: "2026-10-26T00:00:00Z" });
+const perf = await client.apps.analytics.performance("app-abc123");
+for await (const request of client.apps.analytics.requestsAll("app-abc123", { status: "5xx" })) {
+  console.log(request.request_id);
+}
+```
+
+```python Python
+traffic = client.apps.analytics.traffic("app-abc123", compare=True)
+errors = client.apps.analytics.errors("app-abc123", include_4xx=True)
+last_week = client.apps.analytics.errors("app-abc123", start="2026-11-02T00:00:00Z", compare_start="2026-10-26T00:00:00Z")
+perf = client.apps.analytics.performance("app-abc123")
+for request in client.apps.analytics.iter_requests("app-abc123", status="5xx"):
+    print(request["request_id"])
+```
+
+```go Go
+analytics := client.Apps.Analytics()
+traffic, err := analytics.Traffic(ctx, "app-abc123", &vertracloud.ApplicationAnalyticsTrafficParams{Compare: true})
+errs, err := analytics.Errors(ctx, "app-abc123", nil)
+lastWeek, err := analytics.Errors(ctx, "app-abc123", &vertracloud.ApplicationAnalyticsErrorsParams{
+    ApplicationAnalyticsRange: vertracloud.ApplicationAnalyticsRange{Start: time.Now().Add(-24 * time.Hour)},
+    CompareStart:              time.Now().Add(-8 * 24 * time.Hour),
+})
+perf, err := analytics.Performance(ctx, "app-abc123", nil)
+it := analytics.RequestsIter("app-abc123", nil)
+for it.Next(ctx) {
+    fmt.Println(it.Request().RequestID)
+}
+```
+
+</CodeGroup>
+
+Las cuatro llamadas requieren `apps:read`. Aceptan el periodo (`start`, `end`), los filtros de cada dimensión y `compare`. `performance` y `requests` fallan con `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE` y `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_REQUESTS` cuando el plan no las incluye; un periodo anterior al historial del plan falla con `ANALYTICS_RANGE_EXCEEDS_PLAN` y un momento de alta demanda con `ANALYTICS_BUSY` (el error tipado expone la espera en segundos).
+
 ## Blob Storage
 
 El almacenamiento de archivos tiene su propio SDK, `@vertracloud/blob`, para Node, navegadores y runtimes de edge

@@ -162,6 +162,22 @@ ejecuta primero `preview_rollback`.
 Dos herramientas existentes ampliaron sus opciones: `update_app_config` acepta `zero_downtime`, `auto_rollback` y
 `health_check_path` (se aplican los límites del plan), y `deploy_app` acepta un `message` que aparece en el historial de despliegues.
 
+## Web Analytics
+
+El asistente puede leer el Web Analytics del sitio de una aplicación. Consulta [Web Analytics](/es-es/web-analytics/overview) para entender cada vista.
+
+| Tool | Qué hace | Scope |
+|---|---|---|
+| `get_app_analytics` | Tráfico: peticiones, visitas, bytes, tasas de error, una serie temporal y los valores principales por dimensión. Acepta periodo, filtros, `compare`, `compare_start` y `breakdowns` | `apps:read` |
+| `get_app_analytics_errors` | Errores: totales, tasa de error, una serie temporal, las rutas con más errores y el reparto por status. `include_4xx` suma los 4xx | `apps:read` |
+| `get_app_analytics_performance` | Latencia en el borde y en el contenedor, rutas más lentas y problemas por ruta. Requiere un plan con la vista de Rendimiento | `apps:read` |
+| `list_app_analytics_requests` | Una página del registro de peticiones; `cursor` devuelve la siguiente. Requiere un plan con la vista de Peticiones | `apps:read` |
+
+Rutas, referers y nombres de red vienen de tus visitantes, así que llegan al asistente dentro de un bloque `untrusted_content`.
+Si el plan no incluye la vista, la llamada falla con `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE` o
+`PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_REQUESTS`; un periodo anterior al historial del plan falla con `ANALYTICS_RANGE_EXCEEDS_PLAN`;
+y `ANALYTICS_BUSY` indica reintentar tras `details.retry_after` segundos.
+
 ## Blob Storage
 
 El asistente puede trabajar con tus archivos de [Blob Storage](/es-es/blob/overview).

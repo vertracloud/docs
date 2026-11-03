@@ -1,0 +1,416 @@
+---
+title: Tráfico de la aplicación
+sidebarTitle: Tráfico
+api: GET https://api.vertracloud.app/v1/apps/{id}/analytics
+authMethod: bearer
+description: "Devuelve el tráfico del sitio de una aplicación: totales, serie temporal y breakdowns por país, ruta y dispositivo, con filtros y comparación."
+---
+
+{/* @see RESTGetAPIApplicationAnalyticsQuery, APIApplicationAnalyticsTraffic — @vertracloud/api-types */}
+Devuelve el tráfico del sitio de una aplicación: totales, una serie temporal y los valores más frecuentes de cada dimensión (países, rutas, dispositivos, navegadores, referers...). Todo filtro vale para todas las partes de la respuesta, así que una llamada da los números detrás de un clic en la subpestaña Tráfico. Son los mismos datos de [Tráfico y filtros](/es-es/web-analytics/traffic), del [Resumen](/es-es/web-analytics/summary) y de [Comparar](/es-es/web-analytics/compare).
+
+<ParamField path="id" type="string" required>
+  El ID de la aplicación. Si pertenece a un workspace, pasa su ID en el query parameter `workspace_id`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Si la aplicación pertenece a un workspace, el ID del workspace. Obligatorio para miembros del workspace que actúan sobre una aplicación que no es suya.
+</ParamField>
+
+<ParamField query="start" type="string" format="date-time">
+  Inicio de la ventana (ISO 8601). Por defecto: 24 horas antes de `end`.
+</ParamField>
+
+<ParamField query="end" type="string" format="date-time">
+  Fin de la ventana (ISO 8601). Por defecto: ahora. No puede estar en el futuro.
+</ParamField>
+
+<ParamField query="compare" type="boolean" default="false">
+  Envía también el período anterior, de la misma duración y justo antes de la ventana, en `previous`. Por defecto `false`.
+</ParamField>
+
+<ParamField query="compare_start" type="string" format="date-time">
+  Inicio del periodo a comparar (ISO 8601). El periodo comparado tiene la misma duración que la ventana (`end` menos `start`) y empieza aquí; `previous.start` y `previous.end` en la respuesta muestran cuál fue. Implica `compare=true` y no se puede enviar con `compare=false`. Sin él, `compare=true` compara con el periodo justo antes de la ventana.
+</ParamField>
+
+<ParamField query="breakdowns" type="string">
+  Dimensiones separadas por coma para desglosar, como `country,path`. Omitido: todos los recortes. Vacío (`breakdowns=`): ninguno, solo el resumen y la serie, con respuesta más rápida. Nombre desconocido: `VALIDATION_ERROR`. Las dimensiones están listadas en Filtros.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10">
+  Entradas por breakdown, de 1 a 25. Por defecto 10.
+</ParamField>
+
+La ventana dura como máximo 30 días y no puede empezar antes del historial del plan (7 o 30 días, ver [Planes y límites](/es-es/plans-and-limits)).
+
+### Filtros
+
+Cada dimensión de abajo también es un filtro, y todos se pueden combinar: cada uno restringe todas las partes de la respuesta. Cada filtro recibe **un valor**, exactamente como aparece en una entrada de breakdown o en una petición del registro, así que un valor leído en una respuesta se puede reenviar sin cambios. Envía `(none)` para quedarte solo con las peticiones que no tienen nada en la dimensión.
+
+<ParamField query="country" type="string">
+  País del visitante, ISO 3166-1 alfa-2 (`BR`).
+</ParamField>
+
+<ParamField query="edge_location" type="string">
+  Código IATA de la ubicación de borde que respondió (`GRU`).
+</ParamField>
+
+<ParamField query="host" type="string">
+  Hostname que pidió el visitante: el subdominio de la aplicación o uno de sus dominios. Solo se aceptan hosts de la aplicación.
+</ParamField>
+
+<ParamField query="path" type="string">
+  Ruta de la petición, sin la query string. Es un prefijo: `/api` coincide con `/api`, `/api/users` y `/apix`.
+</ParamField>
+
+<ParamField query="method" type="string">
+  Método HTTP (`GET`, `POST`...).
+</ParamField>
+
+<ParamField query="status" type="string">
+  Estado HTTP que recibió el visitante (`404`), o una clase: `2xx`, `3xx`, `4xx` o `5xx`.
+</ParamField>
+
+<ParamField query="protocol" type="string">
+  Versión de HTTP: `HTTP/1.1`, `HTTP/2` o `HTTP/3`.
+</ParamField>
+
+<ParamField query="device" type="string">
+  Tipo de dispositivo: `desktop`, `mobile` o `tablet`.
+</ParamField>
+
+<ParamField query="os" type="string">
+  Sistema operativo del visitante (`Windows`, `iOS`...).
+</ParamField>
+
+<ParamField query="browser" type="string">
+  Navegador del visitante (`Chrome`, `Safari`...).
+</ParamField>
+
+<ParamField query="referer" type="string">
+  Host de la página que llevó a la petición (`google.com`). `(none)` es una visita directa, sin referer.
+</ParamField>
+
+<ParamField query="asn" type="string">
+  Número del sistema autónomo de la red del visitante (`28573`).
+</ParamField>
+
+<ParamField query="ip" type="string">
+  Dirección IP del visitante.
+</ParamField>
+
+<ParamField query="content_type" type="string">
+  Tipo de contenido respondido (`html`, `json`, `css`, `js`, `png`...).
+</ParamField>
+
+<ParamField query="cache_status" type="string">
+  Si la borde respondió desde su caché: `hit`, `miss`, `dynamic`, `bypass`, `expired`, `revalidated`...
+</ParamField>
+
+<ParamField query="bot" type="string">
+  Categoría de un bot verificado (`Search Engine Crawler`...). `(none)` es un visitante que no es un bot verificado.
+</ParamField>
+
+### Respuesta
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="start" type="string">
+    Inicio de la ventana realmente leída (ISO 8601). Puede estar redondeado respecto al que enviaste.
+  </ResponseField>
+
+  <ResponseField name="end" type="string">
+    Fin de la ventana realmente leída (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="hosts" type="string[]">
+    Hostnames que se leyeron: el subdominio de la aplicación y sus dominios activos.
+  </ResponseField>
+
+  <ResponseField name="web_published" type="boolean">
+    `false` cuando la aplicación no tiene sitio publicado. La respuesta es entonces un estado vacío, no un error: `hosts` viene vacío y los datos también.
+  </ResponseField>
+
+  <ResponseField name="sampled" type="boolean">
+    `true` cuando el tráfico es lo bastante alto como para que los números se estimen a partir de una muestra.
+  </ResponseField>
+
+  <ResponseField name="stale" type="boolean">
+    `true` cuando no se pudieron leer los datos más recientes y esta es una respuesta anterior. Ver `generated_at`.
+  </ResponseField>
+
+  <ResponseField name="generated_at" type="string">
+    Cuándo se leyeron los datos (ISO 8601).
+  </ResponseField>
+
+  <ResponseField name="history_days" type="integer">
+    Cuántos días hacia atrás puede leer el plan del dueño de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="interval" type="string">
+    Tamaño de cada punto de `series`: `1m`, `5m`, `15m` o `1h`. La API lo elige según la duración de la ventana: cuanto más corta, más finos los puntos.
+  </ResponseField>
+
+  <ResponseField name="summary" type="object | null">
+    Totales de la ventana. `null` cuando no hubo peticiones en la ventana.
+  </ResponseField>
+
+  <ResponseField name="series" type="object[]">
+    Puntos de la serie temporal; `time` es el inicio de cada punto.
+  </ResponseField>
+
+  <ResponseField name="previous" type="object | null">
+    El período anterior, solo con `compare=true`; si no, `null`. Tiene `start`, `end`, un `summary` (`null` cuando no hubo peticiones en él) y una `series` con el mismo `interval` y el mismo número de puntos que la actual, en el mismo orden.
+  </ResponseField>
+
+  <ResponseField name="breakdowns" type="object">
+    Entradas más frecuentes de cada dimensión, mayor `requests` primero: solo las dimensiones pedidas en `breakdowns`, o todas si se omite. El filtro enviado vale para todas.
+
+    <Expandable title="Toggle entry">
+      <ResponseField name="value" type="string">
+        Valor de la dimensión; envíalo como el filtro del mismo nombre. `(none)` significa que la petición no tenía valor.
+      </ResponseField>
+      <ResponseField name="label" type="string | null">
+        Nombre legible cuando `value` es un código (el nombre de la red de un `asn`); `null` en otro caso.
+      </ResponseField>
+      <ResponseField name="requests" type="integer">
+        Peticiones con este valor.
+      </ResponseField>
+      <ResponseField name="visits" type="integer">
+        Visitas a páginas con este valor.
+      </ResponseField>
+      <ResponseField name="bytes" type="integer">
+        Bytes enviados a los visitantes.
+      </ResponseField>
+    </Expandable>
+  </ResponseField>
+
+  Campos de `summary`, y de los mismos totales en `previous.summary`:
+
+  <ResponseField name="requests" type="integer">
+    Peticiones respondidas.
+  </ResponseField>
+  <ResponseField name="visits" type="integer">
+    Visitas a páginas: peticiones que inician una visita (una página abierta directamente o desde otro sitio).
+  </ResponseField>
+  <ResponseField name="bytes" type="integer">
+    Bytes enviados a los visitantes.
+  </ResponseField>
+  <ResponseField name="errors_4xx" type="integer">
+    Peticiones respondidas con estado 4xx.
+  </ResponseField>
+  <ResponseField name="errors_5xx" type="integer">
+    Peticiones respondidas con estado 5xx.
+  </ResponseField>
+  <ResponseField name="error_rate_4xx" type="number">
+    `errors_4xx / requests`, de 0 a 1.
+  </ResponseField>
+  <ResponseField name="error_rate_5xx" type="number">
+    `errors_5xx / requests`, de 0 a 1.
+  </ResponseField>
+  <ResponseField name="edge_time_p95_ms" type="number">
+    Percentil 95 del tiempo de borde (cuánto esperó el visitante el primer byte), en milisegundos. Es el único número de velocidad que reciben todos los planes.
+  </ResponseField>
+
+  Campos de cada punto de `series` (y de `previous.series`): `time`, `requests`, `visits`, `bytes`, `errors_4xx` y `errors_5xx`, con el mismo significado que en `summary`.
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "start": "2026-11-02T18:00:00Z",
+    "end": "2026-11-03T18:00:00Z",
+    "hosts": [
+      "my-app.vertraweb.app",
+      "www.example.com"
+    ],
+    "web_published": true,
+    "sampled": false,
+    "stale": false,
+    "generated_at": "2026-11-03T18:01:12Z",
+    "history_days": 7,
+    "interval": "1h",
+    "summary": {
+      "requests": 18420,
+      "visits": 6310,
+      "bytes": 412884113,
+      "errors_4xx": 214,
+      "errors_5xx": 9,
+      "error_rate_4xx": 0.0116,
+      "error_rate_5xx": 0.0005,
+      "edge_time_p95_ms": 412
+    },
+    "series": [
+      {
+        "time": "2026-11-02T18:00:00Z",
+        "requests": 702,
+        "visits": 240,
+        "bytes": 15331004,
+        "errors_4xx": 8,
+        "errors_5xx": 0
+      },
+      {
+        "time": "2026-11-02T19:00:00Z",
+        "requests": 731,
+        "visits": 251,
+        "bytes": 16120987,
+        "errors_4xx": 11,
+        "errors_5xx": 1
+      }
+    ],
+    "previous": {
+      "start": "2026-11-01T18:00:00Z",
+      "end": "2026-11-02T18:00:00Z",
+      "summary": {
+        "requests": 16990,
+        "visits": 5802,
+        "bytes": 380112007,
+        "errors_4xx": 190,
+        "errors_5xx": 4,
+        "error_rate_4xx": 0.0112,
+        "error_rate_5xx": 0.0002,
+        "edge_time_p95_ms": 455
+      },
+      "series": [
+        {
+          "time": "2026-11-01T18:00:00Z",
+          "requests": 650,
+          "visits": 222,
+          "bytes": 14100222,
+          "errors_4xx": 7,
+          "errors_5xx": 0
+        }
+      ]
+    },
+    "breakdowns": {
+      "country": [
+        {
+          "value": "BR",
+          "label": null,
+          "requests": 14210,
+          "visits": 4902,
+          "bytes": 318400221
+        },
+        {
+          "value": "US",
+          "label": null,
+          "requests": 2105,
+          "visits": 760,
+          "bytes": 48112003
+        },
+        {
+          "value": "PT",
+          "label": null,
+          "requests": 611,
+          "visits": 204,
+          "bytes": 13920110
+        }
+      ],
+      "path": [
+        {
+          "value": "/",
+          "label": null,
+          "requests": 5210,
+          "visits": 4100,
+          "bytes": 90211003
+        },
+        {
+          "value": "/pricing",
+          "label": null,
+          "requests": 1902,
+          "visits": 1180,
+          "bytes": 41230991
+        }
+      ],
+      "referer": [
+        {
+          "value": "(none)",
+          "label": null,
+          "requests": 9120,
+          "visits": 3300,
+          "bytes": 201004112
+        },
+        {
+          "value": "google.com",
+          "label": null,
+          "requests": 4410,
+          "visits": 1890,
+          "bytes": 98114003
+        }
+      ],
+      "asn": [
+        {
+          "value": "28573",
+          "label": "CLARO S.A.",
+          "requests": 3300,
+          "visits": 1100,
+          "bytes": 70112008
+        }
+      ],
+      "cache_status": [
+        {
+          "value": "hit",
+          "label": null,
+          "requests": 13011,
+          "visits": 0,
+          "bytes": 301100001
+        },
+        {
+          "value": "dynamic",
+          "label": null,
+          "requests": 4100,
+          "visits": 0,
+          "bytes": 90113002
+        }
+      ]
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+<RequestExample>
+
+```bash cURL
+curl -G "https://api.vertracloud.app/v1/apps/app-abc123def456/analytics" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  --data-urlencode "start=2026-11-02T18:00:00Z" \
+  --data-urlencode "end=2026-11-03T18:00:00Z" \
+  --data-urlencode "compare=true" \
+  --data-urlencode "country=BR" \
+  --data-urlencode "status=2xx" \
+  --data-urlencode "path=/api" \
+  --data-urlencode "breakdowns=country,path,referer" \
+  --data-urlencode "limit=5"
+```
+
+</RequestExample>
+
+### Notas
+
+- Requiere el scope `apps:read` cuando se llama con una API key. Los miembros de un workspace necesitan permiso para leer la aplicación.
+- Disponible en todos los planes. Una cuenta sin plan activo recibe `PLAN_REQUIRED`.
+- **Muestreo.** Con tráfico alto los números se estiman a partir de una muestra y `sampled` viene `true`. Ver [Muestreo y retraso](/es-es/web-analytics/sampling-and-delay).
+- **Retraso.** Los datos se actualizan cada unos 5 minutos, así que las peticiones más nuevas pueden tardar unos minutos en aparecer. Si los datos más recientes no se pueden leer ahora, puede volver una respuesta anterior con `stale: true` (revisa `generated_at`); de lo contrario, la llamada falla con `ANALYTICS_BUSY`.
+- **Privacidad.** Vertra Cloud no guarda nada de los visitantes; guarda solo totales por app (recuentos, visitas, bytes, tasas de error y tiempos de respuesta) hasta 31 días, borrados con la app. No se guarda ninguna IP, ruta, query string ni user agent. `ip` y `query` vuelven sin máscara; enmascararlos es decisión del cliente que los muestra. Ver [Privacidad](/es-es/web-analytics/privacy).
+
+### Respuestas de error
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 401 | `AUTH_TOKEN_MISSING` / `API_KEY_INVALID` / `SESSION_REVOKED` | Falta el header `Authorization`, la API key es inválida o la sesión del panel fue revocada. |
+| 403 | `API_KEY_IP_DENIED` / `API_KEY_SCOPE_DENIED` | La API key se usa desde una IP fuera de su lista permitida, o no tiene el scope `apps:read`. |
+| 403 | `ACCESS_DENIED` | La aplicación pertenece a otra cuenta, o no tienes el permiso de workspace para leerla. |
+| 403 | `PLAN_REQUIRED` | La cuenta no tiene plan activo. |
+| 404 | `APP_NOT_FOUND` | La aplicación no existe. |
+| 400 | `VALIDATION_ERROR` | Un parámetro falló la validación, como `limit` fuera de rango, un `cursor` inválido o una fecha `start`/`end` mal formada; `details.path` nombra el campo. También cuando `compare_start` está mal formado o se envía con `compare=false`. |
+| 400 | `INVALID_RANGE` | `start` es posterior a `end`, `end` está en el futuro o la ventana supera los 30 días. También cuando el periodo que empieza en `compare_start` termina después de `start`, lo que solaparía la ventana. |
+| 400 | `ANALYTICS_RANGE_EXCEEDS_PLAN` | `start` es anterior a lo que el plan puede leer. `details.history_days` trae el límite en días y `details.earliest` el `start` más antiguo aceptado ahora. También cuando `compare_start` es anterior a lo que el plan puede leer. |
+| 429 | `RATE_LIMIT_EXCEEDED` | Demasiadas consultas seguidas. `details.retry_after` indica la espera en segundos; la cabecera `Retry-After` viene siempre con ella. |
+| 503 | `ANALYTICS_BUSY` | Momento de alta demanda y sin respuesta reciente disponible para la consulta. Espera `details.retry_after` segundos e inténtalo de nuevo. |

@@ -1,0 +1,64 @@
+---
+title: 'Rendimiento en Web Analytics: borde frente a contenedor y percentiles'
+sidebarTitle: 'Rendimiento'
+description: 'Aprende a leer p50, p95 y p99, comparar el tiempo del borde y del contenedor y saber si una página lenta es un problema de código o de red.'
+icon: 'bolt'
+---
+
+La subpestaña Rendimiento muestra cuánto tardan las peticiones, dividido entre el borde y tu contenedor, para que sepas si la lentitud viene del código o del camino hasta el visitante. Está disponible en Pro y superiores; en Starter el Resumen sigue mostrando un número de velocidad (p95).
+
+Los mismos datos por la API: [Rendimiento de la aplicación](/es-es/api-reference/endpoint/apps/analytics/performance).
+
+## Borde y contenedor
+
+Toda petición tiene dos relojes:
+
+| Reloj | Qué mide |
+|---|---|
+| **Borde** | El tiempo desde que la petición llega a la red de borde de Vertra hasta que el primer byte de la respuesta vuelve al visitante. Es lo que espera el visitante, aparte de su propia conexión. |
+| **Contenedor** | El tiempo que tardó tu app en responder una vez que la petición llegó a ella. |
+
+El tiempo del borde incluye el del contenedor. La diferencia entre ambos es el coste de todo lo que no es tu código: cruzar la red, la conexión segura y la cola. Una petición atendida desde la caché del borde ni siquiera llega al contenedor.
+
+## Qué es un percentil
+
+Si ordenas mil peticiones de la más rápida a la más lenta, un percentil es el tiempo en cierta posición de la fila:
+
+- **p50** (la mediana): la mitad de las peticiones fue más rápida. Es la visita típica.
+- **p95**: 95 de cada 100 fueron más rápidas. Es lo que siente un visitante algo desafortunado.
+- **p99**: 99 de cada 100 fueron más rápidas. La cola: rara, pero son personas reales.
+- **p75, p90, p99.9** son la misma idea en otras posiciones.
+
+La media resume mal, porque unas pocas peticiones muy lentas se pierden entre muchas rápidas. Los percentiles muestran la forma completa.
+
+## Cómo leer p50, p95 y p99
+
+| Lo que ves | Lo que suele significar |
+|---|---|
+| p50, p95 y p99 cercanos | Comportamiento estable y predecible. |
+| p50 bajo, p95 y p99 mucho más altos | La mayoría va bien, algunas son lentas: una consulta pesada en ciertas rutas, cachés frías, una pausa de recolección de basura o un momento de sobrecarga. |
+| Todo alto | Un problema general: la app está infradimensionada o cada petición hace trabajo costoso. |
+| p99 se dispara pero p95 no | Unos pocos casos aislados. Merece la pena mirarlo si se repite, no es motivo de pánico. |
+
+Procura mantener sano el **p95**: refleja la experiencia real sin estar dominado por casos aislados.
+
+## ¿Código o red?
+
+Compara las dos series en el mismo intervalo:
+
+- **Contenedor alto, borde solo algo por encima.** El tiempo se gasta en tu app: consultas lentas, llamadas externas, renderizado pesado o poca CPU o RAM. Mira las rutas más lentas y las [métricas](/es-es/applications#métricas).
+- **Contenedor bajo, borde mucho más alto.** Tu código es rápido y el tiempo se pierde por el camino: visitantes lejanos, respuestas grandes o caché fría. Revisa por país y centro de datos, y usa cabeceras de caché o respuestas aptas para CDN.
+- **Ambos bajos, pero los visitantes se quejan.** La lentitud probablemente está en el navegador: imágenes, scripts o fuentes grandes. Web Analytics mide el lado del servidor.
+
+## Otras vistas de la pestaña
+
+- **Por país y por centro de datos:** muestra si la lentitud se concentra en una región. Si solo un país va lento, es la red, no tu código.
+- **Rutas más lentas:** las rutas con mayor p95 y p99, para decidir qué optimizar primero.
+- **Problemas por ruta:** para cada ruta, el número de peticiones, la tasa de error, el tiempo medio y el p99, para ordenar por impacto real y no por la peor petición aislada.
+- **Serie temporal:** p50, p95 y p99 de borde y contenedor a lo largo del periodo.
+
+<Tip>
+Optimiza primero la ruta con muchas peticiones y p95 alto. Una ruta muy lenta que casi nadie abre importa menos que una moderadamente lenta que visita todo el mundo.
+</Tip>
+
+Siguiente: [Peticiones](/es-es/web-analytics/requests).

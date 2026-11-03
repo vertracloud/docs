@@ -312,6 +312,48 @@ escopos `billing:read` e `billing:write`.
 Para resgatar um código promocional, use `billing.redeem` (`client.billing.redeem(code)` em JavaScript e
 Python, `client.Billing.Redeem(ctx, code)` em Go), com uma chave que tenha o escopo `redeem:write`.
 
+### Web Analytics
+
+<CodeGroup>
+
+```javascript JavaScript
+const traffic = await client.apps.analytics.traffic("app-abc123", { compare: true });
+const errors = await client.apps.analytics.errors("app-abc123", { include_4xx: true });
+const lastWeek = await client.apps.analytics.errors("app-abc123", { start: "2026-11-02T00:00:00Z", compare_start: "2026-10-26T00:00:00Z" });
+const perf = await client.apps.analytics.performance("app-abc123");
+for await (const request of client.apps.analytics.requestsAll("app-abc123", { status: "5xx" })) {
+  console.log(request.request_id);
+}
+```
+
+```python Python
+traffic = client.apps.analytics.traffic("app-abc123", compare=True)
+errors = client.apps.analytics.errors("app-abc123", include_4xx=True)
+last_week = client.apps.analytics.errors("app-abc123", start="2026-11-02T00:00:00Z", compare_start="2026-10-26T00:00:00Z")
+perf = client.apps.analytics.performance("app-abc123")
+for request in client.apps.analytics.iter_requests("app-abc123", status="5xx"):
+    print(request["request_id"])
+```
+
+```go Go
+analytics := client.Apps.Analytics()
+traffic, err := analytics.Traffic(ctx, "app-abc123", &vertracloud.ApplicationAnalyticsTrafficParams{Compare: true})
+errs, err := analytics.Errors(ctx, "app-abc123", nil)
+lastWeek, err := analytics.Errors(ctx, "app-abc123", &vertracloud.ApplicationAnalyticsErrorsParams{
+    ApplicationAnalyticsRange: vertracloud.ApplicationAnalyticsRange{Start: time.Now().Add(-24 * time.Hour)},
+    CompareStart:              time.Now().Add(-8 * 24 * time.Hour),
+})
+perf, err := analytics.Performance(ctx, "app-abc123", nil)
+it := analytics.RequestsIter("app-abc123", nil)
+for it.Next(ctx) {
+    fmt.Println(it.Request().RequestID)
+}
+```
+
+</CodeGroup>
+
+As quatro chamadas exigem `apps:read`. Aceitam o período (`start`, `end`), os filtros de cada dimensão e `compare`. `performance` e `requests` falham com `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE` e `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_REQUESTS` quando o plano não as inclui; um período anterior ao histórico do plano falha com `ANALYTICS_RANGE_EXCEEDS_PLAN` e um momento de alta demanda com `ANALYTICS_BUSY` (o erro tipado expõe a espera em segundos).
+
 ## Blob Storage
 
 O armazenamento de arquivos tem SDK próprio, `@vertracloud/blob`, para Node, navegadores e runtimes de borda (`npm install @vertracloud/blob`). Em Python e Go ele é um recurso do mesmo cliente: `client.blob` e `client.Blob`. Veja [SDK JavaScript](/pt-br/blob/sdk-javascript) e [SDKs Python e Go](/pt-br/blob/sdk-python-go).

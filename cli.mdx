@@ -133,6 +133,27 @@ remove is the companion itself. See [Custom domain](/guides/custom-domain) for h
 `app stop`, `db stop`, `app env remove` and the destructive commands ask for confirmation; pass `--yes` in automation.
 Declining exits with status 1 and "Operation cancelled." (with `--json`, an error with code `CANCELLED`), never as success.
 
+## Web Analytics
+
+```bash
+vertra app analytics                     # traffic of the linked application, last 24 hours
+vertra app analytics errors              # errors by status and path
+vertra app analytics performance         # edge and container latency (Pro and above)
+vertra app analytics requests            # request log, one page at a time (Pro and above)
+vertra app analytics --start 2026-11-01T00:00:00Z --end 2026-11-02T00:00:00Z --compare
+vertra app analytics --start 2026-11-01T00:00:00Z --end 2026-11-02T00:00:00Z --compare-start 2026-10-25T00:00:00Z
+vertra app analytics --country BR --status 5xx --breakdowns country,path
+```
+
+Each command takes an optional application ID, like the other `app` commands. Without `--start` and `--end` the window is the
+last 24 hours; it can be at most 30 days and within the history of your plan. `--compare` adds the previous period, `--compare-start <date>` (RFC 3339) compares with the period of the same length that starts there instead, and the
+filters are `--country`, `--edge-location`, `--host`, `--path`, `--method`, `--status`, `--protocol`, `--device`, `--os`,
+`--browser`, `--referer`, `--asn`, `--ip`, `--content-type`, `--cache-status` and `--bot`. `errors` adds `--include-4xx`;
+`requests` takes `--order`, `--limit` and `--cursor`, and shows how to ask for the next page.
+
+If the plan does not include `performance` or `requests`, the command says so. When Analytics is busy it tells you how long to wait.
+All of them need an API key with the `apps:read` scope.
+
 ## Blob Storage
 
 ```bash

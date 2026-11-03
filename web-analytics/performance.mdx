@@ -1,0 +1,64 @@
+---
+title: 'Web Analytics Performance: Edge vs Container and Percentiles'
+sidebarTitle: 'Performance'
+description: 'Learn to read p50, p95 and p99, compare edge and container time, and find out whether a slow page is a code problem or a network problem.'
+icon: 'bolt'
+---
+
+The Performance sub-tab shows how long requests take, split between the edge and your container, so you can tell whether slowness comes from your code or from the path to the visitor. It is available on Pro and above; on Starter the Summary still shows one speed number (p95).
+
+Same data through the API: [Application performance](/api-reference/endpoint/apps/analytics/performance).
+
+## Edge and container
+
+Every request has two clocks:
+
+| Clock | What it measures |
+|---|---|
+| **Edge** | The time from the request arriving at Vertra's edge network until the first byte of the answer goes back to the visitor. It is what the visitor waits, apart from their own connection. |
+| **Container** | The time your app took to answer once the request reached it. |
+
+The edge time includes the container time. The difference between the two is the cost of everything that is not your code: crossing the network, the secure connection and queueing. A request answered from the edge cache never reaches the container at all.
+
+## What a percentile is
+
+If you sort a thousand requests from fastest to slowest, a percentile is the time at a given position in the line:
+
+- **p50** (the median): half the requests were faster. This is the typical visit.
+- **p95**: 95 of every 100 were faster. This is what a slightly unlucky visitor feels.
+- **p99**: 99 of every 100 were faster. The tail: rare, but real people.
+- **p75, p90, p99.9** are the same idea at other positions.
+
+The average is a poor summary, because a few very slow requests are drowned out by many fast ones. Percentiles show the whole shape.
+
+## How to read p50, p95 and p99
+
+| What you see | What it usually means |
+|---|---|
+| p50, p95 and p99 all close together | Stable, predictable behavior. |
+| p50 low, p95 and p99 much higher | Most requests are fine, some are slow: a heavy query on certain routes, cold caches, a garbage collection pause or an overloaded moment. |
+| Everything high | A broad problem: the app is undersized, or every request does expensive work. |
+| p99 jumps but p95 does not | A few outliers. Worth a look if it repeats, not a reason to panic. |
+
+Aim to keep **p95** healthy: it reflects real experience without being dominated by one-off outliers.
+
+## Code or network?
+
+Compare the two series on the same time range:
+
+- **Container is high, edge is only slightly higher.** The time is spent in your app: slow queries, external calls, heavy rendering or too little CPU or RAM. Look at the slowest routes and at [metrics](/applications#metrics).
+- **Container is low, edge is much higher.** Your code is fast and the time is lost on the way: distant visitors, big responses or a cold cache. Check by country and data center, and use cache headers or a CDN-friendly response.
+- **Both are low but visitors complain.** The slowness is probably in the browser: large images, scripts or fonts. Web Analytics measures the server side.
+
+## Other views in the tab
+
+- **By country and by data center:** shows whether slowness is concentrated in one region. If only one country is slow, it is the network, not your code.
+- **Slowest routes:** the routes with the highest p95 and p99, to decide what to optimize first.
+- **Problems by route:** for each route, the number of requests, the error rate, the average time and the p99, so you can rank by real impact rather than by the worst single request.
+- **Time series:** p50, p95 and p99 for edge and container over the period.
+
+<Tip>
+Optimize the route with many requests and a high p95 first. A route that is very slow but almost never opened matters less than a moderately slow one every visitor hits.
+</Tip>
+
+Next: [Requests](/web-analytics/requests).
