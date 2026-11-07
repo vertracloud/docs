@@ -1,0 +1,119 @@
+---
+title: 'Faça deploy e depure na Vertra Cloud com seu agente de IA'
+sidebarTitle: 'Fluxos do dia a dia'
+description: 'Prompts que funcionam com o servidor MCP da Vertra Cloud: primeiro deploy, investigação de crash, banco de dados, rollback, analytics e mudanças seguras.'
+icon: 'list-check'
+---
+
+Depois que seu agente está conectado ao [servidor MCP da Vertra Cloud](/pt-br/mcp), você pede em linguagem natural e ele encadeia as
+ferramentas para você. Esta página mostra os pedidos que funcionam melhor, quais ferramentas eles executam e quais escopos de chave exigem.
+
+<Tip>
+  Cite a aplicação no pedido ("`orders-api`", não "meu app") e diga o que espera no final ("até ficar
+  online"). O agente encontra o ID com `list_apps` e para quando o objetivo é atingido.
+</Tip>
+
+## Faça o deploy de um projeto pela primeira vez
+
+Criar uma aplicação envia uma pasta do seu computador, então exige o servidor **local** (Claude Code, Codex,
+Claude Desktop, Cursor e outros clientes que executam `npx @vertracloud/mcp`). Inicie o agente na pasta do projeto.
+
+> Faça deploy desta pasta na Vertra Cloud como um app Node chamado `support-bot`, com 512 MB, e espere até ficar online.
+
+| Passo | Ferramenta | Escopo |
+|---|---|---|
+| Escolher o runtime e a versão | `list_runtimes` | `apps:read` |
+| Compactar a pasta (ignorando `node_modules`, `.git` e o que está em `.vertraignore`) e criar o app | `create_app` | `apps:write` |
+| Esperar o build terminar | `wait_for_app` | `apps:read` |
+| Em caso de falha, ler o motivo | `get_app`, `get_logs` | `apps:read` |
+
+A criação é assíncrona: o app começa em `building` e passa para `up` ou `down`. Se terminar em `down`,
+`last_build_error` diz o motivo e o agente pode corrigir o código e tentar de novo. Para atualizações seguintes:
+
+> Faça deploy da pasta atual no `support-bot` com a mensagem "fix login timeout".
+
+Isso executa `deploy_app` (`apps:files`), que mantém o histórico de releases para você poder fazer rollback.
+
+## Descubra por que uma aplicação caiu
+
+> Por que o `orders-api` caiu? Leia as últimas 300 linhas de log e o uso de memória, e me diga a causa antes de
+> mudar qualquer coisa.
+
+| Passo | Ferramenta | Escopo |
+|---|---|---|
+| Status, último erro e reinícios | `get_app`, `get_app_status` | `apps:read` |
+| Logs recentes | `get_logs` | `apps:read` |
+| CPU e memória | `get_metrics` | `apps:read` |
+| Deploys recentes | `list_releases` | `apps:read` |
+
+Tudo aqui é só leitura, então uma chave só com `apps:read` basta. As linhas de log chegam ao agente marcadas como conteúdo
+não confiável: uma linha impressa pela sua aplicação é lida como dado, nunca como instrução. Pedir a causa **antes** de qualquer
+mudança impede que o agente reinicie ou faça redeploy por conta própria. O
+[guia de depuração de crash](/pt-br/guides/debug-crashing-app) explica as causas comuns.
+
+Se o agente estiver rodando na pasta do projeto, o pedido seguinte fecha o ciclo:
+
+> Corrija a causa no código, rode os testes e faça deploy no `orders-api`.
+
+## Crie um banco de dados e conecte a uma aplicação
+
+> Crie um PostgreSQL de 1 GB chamado `orders-db`, defina `DB_HOST`, `DB_PORT` e `DB_USER` no `orders-api` e me mostre
+> como o código deve se conectar.
+
+| Passo | Ferramenta | Escopo |
+|---|---|---|
+| Versões disponíveis | `list_database_versions` | `databases:read` |
+| Criar o banco de dados | `create_database` | `databases:write` |
+| Host, porta, usuário, certificado da CA e uma string de conexão | `get_connection_info` | `databases:credentials` |
+| Salvar as variáveis no app | `set_env` | `apps:envs` |
+
+A string de conexão vem com um placeholder `<password>`: a API nunca retorna a senha do banco de dados, então ela não
+entra na conversa. Copie-a da página do banco de dados no dashboard e adicione você mesmo como variável (por
+exemplo `DB_PASSWORD`). O app também precisa do certificado de cliente do banco de dados: veja
+[Conectar um banco de dados](/pt-br/guides/connect-database).
+
+## Volte para a versão anterior
+
+> O `orders-api` começou a falhar depois do último deploy. Mostre o histórico de releases e o que um rollback mudaria,
+> depois faça rollback para a última versão que funcionava.
+
+| Passo | Ferramenta | Escopo |
+|---|---|---|
+| Histórico de versões | `list_releases` | `apps:read` |
+| Por que uma versão falhou | `get_release_log` | `apps:read` |
+| Quais variáveis mudariam (só nomes) | `preview_rollback` | `apps:envs` |
+| Fazer o rollback | `rollback_app` | `apps:write` |
+
+`rollback_app` é marcada como destrutiva, então o cliente pede que você confirme antes de ela executar. Veja
+[Rollback e deploys sem downtime](/pt-br/guides/rollback-and-zero-downtime-deploys).
+
+## Tire um snapshot antes de uma mudança arriscada
+
+> Tire um snapshot do `orders-db` antes de eu rodar a migração. Se a migração falhar, restaure.
+
+`create_snapshot` e `restore_snapshot` usam `snapshots:write`; `list_snapshots` usa `snapshots:read`. Restaurar
+substitui os dados atuais, então o cliente pede que você confirme. Veja [Backups e snapshots](/pt-br/guides/backups-snapshots).
+
+## Leia o tráfego do seu site
+
+> Compare o tráfego desta semana no `shop-web` com o da semana passada. Quais caminhos têm mais erros 5xx?
+
+`get_app_analytics` e `get_app_analytics_errors` usam `apps:read`. Caminhos e referers vêm dos seus visitantes e também
+chegam ao agente como conteúdo não confiável. Veja [Web Analytics](/pt-br/web-analytics/overview).
+
+## Consulte como a plataforma funciona
+
+> Segundo a documentação da Vertra Cloud, quanto armazenamento um PostgreSQL de 2 GB recebe?
+
+`get_docs` lê esta documentação e não precisa de escopo. É assim que o agente confere um limite ou um código de erro em vez de
+chutar.
+
+## Mantenha o agente seguro
+
+- **Comece com escopos de leitura.** `apps:read`, `databases:read` e `snapshots:read` cobrem a investigação. Adicione escopos de escrita
+  quando precisar, de preferência em uma chave separada.
+- **Deixe as confirmações de ações destrutivas ligadas.** Excluir, parar, reiniciar, sobrescrever um arquivo, alterar uma variável e
+  fazer rollback são marcados como destrutivos, e o cliente pergunta antes de cada um. Não os permita de forma permanente.
+- **Os valores das variáveis nunca chegam ao agente.** `list_envs` retorna só os nomes, e `set_env` não repete o valor.
+- **Revogue o que não usa mais.** Cada chave, inclusive a criada por uma conexão OAuth, aparece em
+  **Configurações → Chaves de API**. Uma conta tem até 10 chaves.

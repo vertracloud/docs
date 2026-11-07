@@ -1,0 +1,181 @@
+---
+title: 'Use Vertra Cloud from Claude Code, Claude Desktop and claude.ai'
+sidebarTitle: 'Claude'
+description: 'Connect Claude Code, Claude Desktop or claude.ai to Vertra Cloud through MCP: sign-in, local server for deploys, permissions and first prompts.'
+icon: 'terminal'
+---
+
+Claude reaches Vertra Cloud through the official MCP server. In Claude Code you get every tool, including deploying the
+folder you're working in; in claude.ai and Claude Desktop you connect your account in the browser, with nothing to
+install. See [MCP](/mcp) for what the server can and can't do.
+
+## Claude Code
+
+### Which server should I add?
+
+- **Local server**: every tool, including `create_app` and `deploy_app`, which zip and upload the project folder. It
+  uses an API key. Pick it if you'll deploy from Claude Code.
+- **Remote server**: you sign in with your Vertra account in the browser and no key goes into a file. Deploying from a
+  folder isn't available. Pick it to investigate, operate and configure.
+
+You can add both under different names, but one is usually enough.
+
+### Add the local server
+
+<Steps>
+  <Step title="Create an API key">
+    In the dashboard, go to **Settings → API keys**, create a key with the scopes you need and copy it. To deploy, check
+    `apps:read`, `apps:write` and `apps:files`. To investigate only, `apps:read` is enough.
+  </Step>
+  <Step title="Export the key in your shell">
+    Add it to your shell profile (`~/.zshrc`, `~/.bashrc`) so it doesn't live in a project file:
+
+    ```bash
+    export VERTRA_API_KEY="your_key"
+    ```
+
+    Open a new terminal afterwards.
+  </Step>
+  <Step title="Add the server to the project">
+    Create `.mcp.json` at the project root. Claude Code replaces `${VERTRA_API_KEY}` with the value from your shell, so
+    the file can be committed without the key:
+
+    ```json .mcp.json
+    {
+      "mcpServers": {
+        "vertracloud": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@vertracloud/mcp"],
+          "env": { "VERTRA_API_KEY": "${VERTRA_API_KEY}" }
+        }
+      }
+    }
+    ```
+
+    The first time you open Claude Code in the project, approve the server when asked.
+  </Step>
+  <Step title="Check the connection">
+    Run `claude mcp list` in the terminal, or `/mcp` inside Claude Code. The server shows as connected.
+  </Step>
+</Steps>
+
+To have the server in every project, add it to your user instead:
+
+```bash
+claude mcp add --transport stdio --scope user -e VERTRA_API_KEY=your_key vertracloud -- npx -y @vertracloud/mcp
+```
+
+This form saves the key in plain text in `~/.claude.json`. The server only touches files inside the folder where Claude
+Code was started; see [Local files stay in the project folder](/mcp#local-files-stay-in-the-project-folder).
+
+### Add the remote server
+
+```bash
+claude mcp add --transport http --scope user vertracloud https://mcp.vertracloud.app/mcp
+```
+
+Open Claude Code, run `/mcp`, select `vertracloud` and choose **Authenticate**. The browser opens Vertra's consent
+screen, which shows the destination as **App on your computer**: check the scopes you want to grant and confirm. On
+a machine without a browser (over SSH), run `claude mcp login vertracloud --no-browser` and open the link it prints.
+
+The sign-in creates an API key with an `oauth:` prefix under **Settings → API keys**. To disconnect, run
+`claude mcp logout vertracloud` and revoke the key in the dashboard.
+
+### Skip the prompt for read-only tools
+
+Claude Code asks before running each MCP tool. To let it read without asking, while still confirming every change,
+allow only read tools in `.claude/settings.json`:
+
+```json .claude/settings.json
+{
+  "permissions": {
+    "allow": [
+      "mcp__vertracloud__list_apps",
+      "mcp__vertracloud__get_app",
+      "mcp__vertracloud__get_app_status",
+      "mcp__vertracloud__get_logs",
+      "mcp__vertracloud__get_metrics",
+      "mcp__vertracloud__list_releases",
+      "mcp__vertracloud__wait_for_app",
+      "mcp__vertracloud__get_docs"
+    ]
+  }
+}
+```
+
+Don't allow `mcp__vertracloud__*`: that also skips confirmation for deleting, stopping and rolling back.
+
+### Tell Claude about your project
+
+Add a few lines to the project's `CLAUDE.md` so Claude knows which Vertra resources the code belongs to:
+
+```markdown CLAUDE.md
+## Deploy (Vertra Cloud)
+- This repo is the Vertra Cloud application `orders-api`; its database is `orders-db` (PostgreSQL).
+- Deploy with the `vertracloud` MCP server (`deploy_app` on this folder, with a message), then `wait_for_app`.
+- Before restarting, rolling back or changing variables, show me the logs and ask.
+```
+
+## claude.ai and Claude Desktop
+
+<Steps>
+  <Step title="Add the connector">
+    In **Settings → Connectors** (in some versions, **Customize → Connectors**), choose **Add custom connector** and
+    enter `https://mcp.vertracloud.app/mcp`. On Team and Enterprise plans, an owner adds it in the organization's
+    connector settings and each member connects their own account.
+  </Step>
+  <Step title="Sign in">
+    Click **Connect** and sign in to your Vertra account. The consent screen shows `claude.ai` as a verified
+    destination; check the scopes you want to grant and confirm.
+  </Step>
+  <Step title="Use it in a conversation">
+    Turn the connector on in the conversation's tools menu and ask, for example, "list my apps on Vertra".
+  </Step>
+</Steps>
+
+The connector is the remote server, so tools that read or write files on your computer are left out. Claude asks
+before running a tool, and you can allow tools one by one.
+
+### Claude Desktop with the local server
+
+To deploy folders from Claude Desktop, add the local server to `claude_desktop_config.json` (**Settings → Developer →
+Edit Config**) and restart the app:
+
+```json claude_desktop_config.json
+{
+  "mcpServers": {
+    "vertracloud": {
+      "command": "npx",
+      "args": ["-y", "@vertracloud/mcp"],
+      "env": {
+        "VERTRA_API_KEY": "your_key",
+        "VERTRA_MCP_ROOT": "/Users/you/projects/orders-api"
+      }
+    }
+  }
+}
+```
+
+The file is at `~/Library/Application Support/Claude/` on macOS and `%APPDATA%\Claude\` on Windows. The key stays in
+plain text in it, so create a key just for this, with the fewest scopes. `VERTRA_MCP_ROOT` is needed because Claude
+Desktop doesn't start the server inside your project.
+
+## First prompts
+
+- "List my apps on Vertra and tell me which ones are down."
+- "Why did `orders-api` go down? Read the last 300 log lines before changing anything."
+- "Deploy this folder to `orders-api` with the message 'fix checkout timeout' and wait until it's online."
+
+More in [Everyday workflows](/mcp/workflows).
+
+## Troubleshooting
+
+| What shows up | What to do |
+|---|---|
+| `! Needs authentication` in `claude mcp list` | Run `/mcp`, select `vertracloud` and choose **Authenticate** |
+| `✘ Failed to connect` on the local server | Check that `node -v` is 18 or newer and that `VERTRA_API_KEY` is exported in the terminal that started Claude Code |
+| `claude mcp list` warns that `VERTRA_API_KEY` isn't set | Export the variable and open a new terminal |
+| `create_app` and `deploy_app` don't appear | You're on the remote server; add the local one |
+| `API_KEY_SCOPE_DENIED` | Create a key with the tool's scope, or sign in again checking it |
+| `ROOT_TOO_BROAD` in Claude Desktop | Set `VERTRA_MCP_ROOT` to the project folder |

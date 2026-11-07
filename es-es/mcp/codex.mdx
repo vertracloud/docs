@@ -1,0 +1,135 @@
+---
+title: 'Usa Vertra Cloud desde Codex (CLI, extensión del IDE y app)'
+sidebarTitle: 'Codex'
+description: 'Conecta Codex a Vertra Cloud mediante MCP: inicia sesión con tu cuenta o usa una clave de API, despliega desde tu carpeta, aprobaciones y primeros prompts.'
+icon: 'code'
+---
+
+Codex llega a Vertra Cloud a través del servidor MCP oficial. La CLI de Codex, la extensión del IDE y la app de Codex leen el
+mismo `~/.codex/config.toml`, así que lo configuras una sola vez. Consulta [MCP](/es-es/mcp) para saber qué puede y qué no puede hacer el servidor.
+
+## ¿Qué servidor debo añadir?
+
+- **Servidor remoto**: inicias sesión con tu cuenta de Vertra en el navegador y ninguna clave va a un archivo. No permite
+  desplegar desde una carpeta. Elígelo para investigar, operar y configurar.
+- **Servidor local**: todas las herramientas, incluidas `create_app` y `deploy_app`, que comprimen y suben la carpeta del
+  proyecto. Usa una clave de API. Elígelo si vas a desplegar desde Codex.
+
+## Añade el servidor remoto
+
+<Steps>
+  <Step title="Añádelo a la configuración">
+    En `~/.codex/config.toml`:
+
+    ```toml ~/.codex/config.toml
+    [mcp_servers.vertracloud]
+    url = "https://mcp.vertracloud.app/mcp"
+    ```
+  </Step>
+  <Step title="Inicia sesión">
+    ```bash
+    codex mcp login vertracloud
+    ```
+
+    El navegador abre la pantalla de consentimiento de Vertra, que muestra el destino como **App en tu computadora**. Marca
+    los alcances que quieres conceder y confirma. En una máquina sin navegador, añade `--no-browser` y abre el enlace que
+    imprime.
+  </Step>
+  <Step title="Comprueba la conexión">
+    Ejecuta `codex mcp list` en el terminal, o `/mcp` dentro de Codex. En la extensión del IDE, la lista de servidores MCP
+    lo muestra como activado.
+  </Step>
+</Steps>
+
+El inicio de sesión crea una clave de API con el prefijo `oauth:` en **Configuraciones → Claves de API**; revócala ahí para desconectar.
+
+### Servidor remoto con una clave de API
+
+Si prefieres no iniciar sesión por el navegador, envía una clave de API en la cabecera. Exporta la clave en tu shell y apunta
+Codex a la variable:
+
+```toml ~/.codex/config.toml
+[mcp_servers.vertracloud]
+url = "https://mcp.vertracloud.app/mcp"
+bearer_token_env_var = "VERTRA_API_KEY"
+```
+
+## Añade el servidor local
+
+<Steps>
+  <Step title="Crea una clave de API">
+    En el panel, ve a **Configuraciones → Claves de API**, crea una clave con los alcances que necesites y cópiala. Para
+    desplegar, marca `apps:read`, `apps:write` y `apps:files`. Solo para investigar, basta con `apps:read`.
+  </Step>
+  <Step title="Exporta la clave en tu shell">
+    Añádela al perfil de tu shell (`~/.zshrc`, `~/.bashrc`) y abre un terminal nuevo:
+
+    ```bash
+    export VERTRA_API_KEY="your_key"
+    ```
+  </Step>
+  <Step title="Añade el servidor">
+    `env_vars` pasa la variable de tu shell al servidor, así que la clave no va al archivo.
+    `startup_timeout_sec` da tiempo a `npx` para descargar el paquete en la primera ejecución (por defecto son 10 segundos):
+
+    ```toml ~/.codex/config.toml
+    [mcp_servers.vertracloud]
+    command = "npx"
+    args = ["-y", "@vertracloud/mcp"]
+    env_vars = ["VERTRA_API_KEY"]
+    startup_timeout_sec = 30
+    ```
+  </Step>
+  <Step title="Comprueba la conexión">
+    Inicia Codex en la carpeta del proyecto y ejecuta `/mcp`. El servidor solo toca archivos dentro de la carpeta donde se
+    inició; consulta [Los archivos locales se quedan en la carpeta del proyecto](/es-es/mcp#los-archivos-locales-se-quedan-en-la-carpeta-del-proyecto).
+  </Step>
+</Steps>
+
+`codex mcp add vertracloud --env VERTRA_API_KEY=your_key -- npx -y @vertracloud/mcp` hace lo mismo desde el terminal,
+pero guarda la clave en texto plano en `config.toml`.
+
+Para tener el servidor solo en un proyecto, pon el mismo bloque en `.codex/config.toml` en la raíz del proyecto. Codex lo lee
+en los proyectos que hayas marcado como de confianza.
+
+## Pregunta antes de cada cambio
+
+Cada herramienta de Vertra le dice al cliente si solo lee. Con `writes`, Codex ejecuta las lecturas por su cuenta y pregunta antes de
+cualquier cosa que cambie tu cuenta, como desplegar, reiniciar, eliminar o definir una variable:
+
+```toml ~/.codex/config.toml
+[mcp_servers.vertracloud]
+url = "https://mcp.vertracloud.app/mcp"
+default_tools_approval_mode = "writes"
+```
+
+## Cuéntale a Codex sobre tu proyecto
+
+Añade unas líneas al `AGENTS.md` del proyecto para que Codex sepa a qué recursos de Vertra pertenece el código:
+
+```markdown AGENTS.md
+## Despliegue (Vertra Cloud)
+- Este repo es la aplicación `orders-api` de Vertra Cloud; su base de datos es `orders-db` (PostgreSQL).
+- Despliega con el servidor MCP `vertracloud` (`deploy_app` sobre esta carpeta, con un mensaje) y después `wait_for_app`.
+- Antes de reiniciar, hacer rollback o cambiar variables, muéstrame los logs y pregúntame.
+```
+
+## Primeros prompts
+
+- "Lista mis apps en Vertra y dime cuáles están caídas."
+- "¿Por qué se cayó `orders-api`? Lee las últimas 300 líneas de log antes de cambiar nada."
+- "Despliega esta carpeta en `orders-api` con el mensaje 'fix checkout timeout' y espera hasta que esté online."
+
+Más en [Flujos de trabajo del día a día](/es-es/mcp/workflows).
+
+## Solución de problemas
+
+| Qué aparece | Qué hacer |
+|---|---|
+| El servidor no aparece en `/mcp` | Revisa `codex mcp list`; Codex lee el `.codex/config.toml` del proyecto solo en proyectos de confianza |
+| El servidor local agota el tiempo al arrancar | Aumenta `startup_timeout_sec` y comprueba que `node -v` es 18 o superior |
+| `NOT_AUTHENTICATED` en el servidor local | `VERTRA_API_KEY` no está exportada en el terminal que inició Codex, o falta en `env_vars` |
+| `NOT_AUTHENTICATED` en la app de Codex o en la extensión del IDE | Una app abierta fuera del terminal puede no ver las variables del perfil del shell: ábrela desde el terminal o usa el servidor remoto |
+| `NOT_AUTHENTICATED` en el servidor remoto | Vuelve a ejecutar `codex mcp login vertracloud` |
+| `create_app` y `deploy_app` no aparecen | Estás en el servidor remoto; añade el local |
+| `API_KEY_SCOPE_DENIED` | Crea una clave con el alcance de la herramienta, o vuelve a iniciar sesión marcándolo |

@@ -1,0 +1,119 @@
+---
+title: 'Deploy and Debug on Vertra Cloud with Your AI Agent'
+sidebarTitle: 'Everyday workflows'
+description: 'Prompts that work with the Vertra Cloud MCP server: first deploy, crash investigation, database setup, rollback, analytics and safe changes.'
+icon: 'list-check'
+---
+
+Once your agent is connected to the [Vertra Cloud MCP server](/mcp), you ask in plain language and it chains the tools
+for you. This page shows the requests that work best, which tools they run and which key scopes they need.
+
+<Tip>
+  Name the application in the request ("`orders-api`", not "my app") and say what you expect at the end ("until it is
+  online"). The agent finds the ID with `list_apps` and stops when the goal is met.
+</Tip>
+
+## Deploy a project for the first time
+
+Creating an application uploads a folder from your computer, so it needs the **local** server (Claude Code, Codex,
+Claude Desktop, Cursor and other clients that run `npx @vertracloud/mcp`). Start the agent in the project folder.
+
+> Deploy this folder to Vertra Cloud as a Node app called `support-bot`, with 512 MB, and wait until it's online.
+
+| Step | Tool | Scope |
+|---|---|---|
+| Pick the runtime and version | `list_runtimes` | `apps:read` |
+| Zip the folder (skipping `node_modules`, `.git` and what's in `.vertraignore`) and create the app | `create_app` | `apps:write` |
+| Wait for the build to finish | `wait_for_app` | `apps:read` |
+| On failure, read why | `get_app`, `get_logs` | `apps:read` |
+
+Creation is asynchronous: the app starts in `building` and becomes `up` or `down`. If it ends `down`,
+`last_build_error` says why and the agent can fix the code and try again. For later updates:
+
+> Deploy the current folder to `support-bot` with the message "fix login timeout".
+
+That runs `deploy_app` (`apps:files`), which keeps the release history so you can roll back.
+
+## Find out why an application went down
+
+> Why did `orders-api` go down? Read the last 300 log lines and the memory usage, and tell me the cause before
+> changing anything.
+
+| Step | Tool | Scope |
+|---|---|---|
+| Status, last error and restarts | `get_app`, `get_app_status` | `apps:read` |
+| Recent logs | `get_logs` | `apps:read` |
+| CPU and memory | `get_metrics` | `apps:read` |
+| Recent deploys | `list_releases` | `apps:read` |
+
+Everything here is read-only, so a key with only `apps:read` is enough. Log lines reach the agent marked as untrusted
+content: a line printed by your app is read as data, never as an instruction. Asking for the cause **before** any
+change keeps the agent from restarting or redeploying on its own. The
+[crash debugging guide](/guides/debug-crashing-app) explains the common causes.
+
+If the agent is running in the project folder, the next request closes the loop:
+
+> Fix the cause in the code, run the tests, and deploy to `orders-api`.
+
+## Create a database and connect it to an application
+
+> Create a 1 GB PostgreSQL called `orders-db`, set `DB_HOST`, `DB_PORT` and `DB_USER` in `orders-api`, and show me
+> how the code should connect.
+
+| Step | Tool | Scope |
+|---|---|---|
+| Versions on offer | `list_database_versions` | `databases:read` |
+| Create the database | `create_database` | `databases:write` |
+| Host, port, user, CA certificate and a connection string | `get_connection_info` | `databases:credentials` |
+| Save the variables in the app | `set_env` | `apps:envs` |
+
+The connection string comes with a `<password>` placeholder: the API never returns the database password, so it doesn't
+enter the conversation. Copy it from the database page in the dashboard and add it yourself as a variable (for
+example `DB_PASSWORD`). The app also needs the database's client certificate: see
+[Connect a database](/guides/connect-database).
+
+## Go back to the previous version
+
+> `orders-api` started failing after the last deploy. Show me the release history and what a rollback would change,
+> then roll back to the last version that worked.
+
+| Step | Tool | Scope |
+|---|---|---|
+| Version history | `list_releases` | `apps:read` |
+| Why a version failed | `get_release_log` | `apps:read` |
+| Which variables would change (names only) | `preview_rollback` | `apps:envs` |
+| Roll back | `rollback_app` | `apps:write` |
+
+`rollback_app` is marked destructive, so the client asks you to confirm before it runs. See
+[Rollback and zero-downtime deploys](/guides/rollback-and-zero-downtime-deploys).
+
+## Take a snapshot before a risky change
+
+> Take a snapshot of `orders-db` before I run the migration. If the migration fails, restore it.
+
+`create_snapshot` and `restore_snapshot` use `snapshots:write`; `list_snapshots` uses `snapshots:read`. Restoring
+replaces the current data, so the client asks you to confirm. See [Backups and snapshots](/guides/backups-snapshots).
+
+## Read your site's traffic
+
+> Compare this week's traffic on `shop-web` with last week's. Which paths have the most 5xx errors?
+
+`get_app_analytics` and `get_app_analytics_errors` use `apps:read`. Paths and referers come from your visitors and also
+reach the agent as untrusted content. See [Web Analytics](/web-analytics/overview).
+
+## Look up how the platform works
+
+> According to the Vertra Cloud docs, how much storage does a 2 GB PostgreSQL get?
+
+`get_docs` reads this documentation and needs no scope. It's how the agent checks a limit or an error code instead of
+guessing.
+
+## Keep the agent safe
+
+- **Start with read scopes.** `apps:read`, `databases:read` and `snapshots:read` cover investigation. Add write scopes
+  when you need them, preferably in a separate key.
+- **Leave destructive confirmations on.** Deleting, stopping, restarting, overwriting a file, changing a variable and
+  rolling back are marked destructive, and the client asks before each one. Don't allow them permanently.
+- **Variable values never reach the agent.** `list_envs` returns only names, and `set_env` doesn't echo the value.
+- **Revoke what you no longer use.** Each key, including one created by an OAuth connection, appears under
+  **Settings → API keys**. An account has up to 10 keys.

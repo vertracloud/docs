@@ -1,0 +1,135 @@
+---
+title: 'Use a Vertra Cloud no Codex (CLI, extensão de IDE e app)'
+sidebarTitle: 'Codex'
+description: 'Conecte o Codex à Vertra Cloud via MCP: entre com sua conta ou use uma chave de API, faça deploy da sua pasta, aprovações e primeiros prompts.'
+icon: 'code'
+---
+
+O Codex acessa a Vertra Cloud pelo servidor MCP oficial. A CLI do Codex, a extensão de IDE e o app do Codex leem o
+mesmo `~/.codex/config.toml`, então você configura uma vez só. Veja [MCP](/pt-br/mcp) para saber o que o servidor pode e não pode fazer.
+
+## Qual servidor devo adicionar?
+
+- **Servidor remoto**: você entra com sua conta Vertra no navegador e nenhuma chave vai para um arquivo. Fazer deploy a partir de uma
+  pasta não está disponível. Escolha-o para investigar, operar e configurar.
+- **Servidor local**: todas as ferramentas, incluindo `create_app` e `deploy_app`, que compactam e enviam a pasta do projeto. Ele
+  usa uma chave de API. Escolha-o se for fazer deploy pelo Codex.
+
+## Adicione o servidor remoto
+
+<Steps>
+  <Step title="Adicione à configuração">
+    Em `~/.codex/config.toml`:
+
+    ```toml ~/.codex/config.toml
+    [mcp_servers.vertracloud]
+    url = "https://mcp.vertracloud.app/mcp"
+    ```
+  </Step>
+  <Step title="Entre">
+    ```bash
+    codex mcp login vertracloud
+    ```
+
+    O navegador abre a tela de consentimento da Vertra, que mostra o destino como **App no seu computador**. Marque os
+    escopos que quer conceder e confirme. Em uma máquina sem navegador, adicione `--no-browser` e abra o link que ele
+    imprime.
+  </Step>
+  <Step title="Confira a conexão">
+    Execute `codex mcp list` no terminal, ou `/mcp` dentro do Codex. Na extensão de IDE, a lista de servidores MCP mostra o servidor como
+    ativado.
+  </Step>
+</Steps>
+
+O login cria uma chave de API com o prefixo `oauth:` em **Configurações → Chaves de API**; revogue-a lá para desconectar.
+
+### Servidor remoto com uma chave de API
+
+Se preferir não entrar pelo navegador, envie uma chave de API no header. Exporte a chave no seu shell e aponte o
+Codex para a variável:
+
+```toml ~/.codex/config.toml
+[mcp_servers.vertracloud]
+url = "https://mcp.vertracloud.app/mcp"
+bearer_token_env_var = "VERTRA_API_KEY"
+```
+
+## Adicione o servidor local
+
+<Steps>
+  <Step title="Crie uma chave de API">
+    No dashboard, vá em **Configurações → Chaves de API**, crie uma chave com os escopos de que precisa e copie. Para fazer deploy, marque
+    `apps:read`, `apps:write` e `apps:files`. Para só investigar, `apps:read` basta.
+  </Step>
+  <Step title="Exporte a chave no seu shell">
+    Adicione ao perfil do seu shell (`~/.zshrc`, `~/.bashrc`) e abra um novo terminal:
+
+    ```bash
+    export VERTRA_API_KEY="your_key"
+    ```
+  </Step>
+  <Step title="Adicione o servidor">
+    `env_vars` repassa a variável do seu shell para o servidor, então a chave não vai para o arquivo.
+    `startup_timeout_sec` dá ao `npx` tempo para baixar o pacote na primeira execução (o padrão é 10 segundos):
+
+    ```toml ~/.codex/config.toml
+    [mcp_servers.vertracloud]
+    command = "npx"
+    args = ["-y", "@vertracloud/mcp"]
+    env_vars = ["VERTRA_API_KEY"]
+    startup_timeout_sec = 30
+    ```
+  </Step>
+  <Step title="Confira a conexão">
+    Inicie o Codex na pasta do projeto e execute `/mcp`. O servidor só mexe em arquivos dentro da pasta em que foi
+    iniciado; veja [Os arquivos locais ficam na pasta do projeto](/pt-br/mcp#os-arquivos-locais-ficam-na-pasta-do-projeto).
+  </Step>
+</Steps>
+
+`codex mcp add vertracloud --env VERTRA_API_KEY=your_key -- npx -y @vertracloud/mcp` faz o mesmo pelo terminal,
+mas grava a chave em texto puro no `config.toml`.
+
+Para manter o servidor em um único projeto, coloque o mesmo bloco em `.codex/config.toml` na raiz do projeto. O Codex lê esse arquivo
+em projetos que você marcou como confiáveis.
+
+## Pergunte antes de toda alteração
+
+Toda ferramenta da Vertra informa ao cliente se ela só lê. Com `writes`, o Codex executa as leituras sozinho e pergunta antes de
+qualquer coisa que altere sua conta, como fazer deploy, reiniciar, excluir ou definir uma variável:
+
+```toml ~/.codex/config.toml
+[mcp_servers.vertracloud]
+url = "https://mcp.vertracloud.app/mcp"
+default_tools_approval_mode = "writes"
+```
+
+## Conte ao Codex sobre o seu projeto
+
+Adicione algumas linhas ao `AGENTS.md` do projeto para que o Codex saiba a quais recursos da Vertra o código pertence:
+
+```markdown AGENTS.md
+## Deploy (Vertra Cloud)
+- Este repositório é a aplicação `orders-api` da Vertra Cloud; o banco de dados dela é `orders-db` (PostgreSQL).
+- Faça o deploy com o servidor MCP `vertracloud` (`deploy_app` nesta pasta, com uma mensagem) e depois `wait_for_app`.
+- Antes de reiniciar, fazer rollback ou alterar variáveis, mostre os logs e me pergunte.
+```
+
+## Primeiros prompts
+
+- "Liste meus apps na Vertra e diga quais estão down."
+- "Por que o `orders-api` caiu? Leia as últimas 300 linhas de log antes de mudar qualquer coisa."
+- "Faça deploy desta pasta no `orders-api` com a mensagem 'fix checkout timeout' e espere até ficar online."
+
+Mais em [Fluxos do dia a dia](/pt-br/mcp/workflows).
+
+## Solução de problemas
+
+| O que aparece | O que fazer |
+|---|---|
+| O servidor não aparece em `/mcp` | Confira `codex mcp list`; o Codex só lê o `.codex/config.toml` do projeto em projetos confiáveis |
+| O servidor local expira ao iniciar | Aumente `startup_timeout_sec` e confira se `node -v` é 18 ou mais novo |
+| `NOT_AUTHENTICATED` no servidor local | `VERTRA_API_KEY` não está exportada no terminal que iniciou o Codex, ou está faltando em `env_vars` |
+| `NOT_AUTHENTICATED` no app do Codex ou na extensão da IDE | Um app aberto fora do terminal pode não enxergar as variáveis do perfil do shell: abra-o pelo terminal ou use o servidor remoto |
+| `NOT_AUTHENTICATED` no servidor remoto | Execute `codex mcp login vertracloud` de novo |
+| `create_app` e `deploy_app` não aparecem | Você está no servidor remoto; adicione o local |
+| `API_KEY_SCOPE_DENIED` | Crie uma chave com o escopo da ferramenta, ou entre de novo marcando-o |

@@ -1,103 +1,160 @@
 ---
 title: 'Connecting Vertra Cloud to AI Agents (MCP)'
 sidebarTitle: 'MCP'
-description: 'Official Vertra Cloud MCP server: gives your agent (Claude, Cursor, Codex) tools to operate apps, databases and logs with your API key.'
+description: 'Connect Claude Code, Codex, Claude, Cursor, VS Code or Gemini CLI to Vertra Cloud through MCP, remotely with your account or locally with an API key.'
 icon: 'robot'
 ---
 
 ## What it is
 
-Vertra Cloud's official MCP server (`@vertracloud/mcp`) gives your AI assistant — Claude, Cursor,
-VS Code, n8n, and any other client that speaks the MCP protocol — the tools to deploy
+Vertra Cloud's official MCP server (`@vertracloud/mcp`) gives your AI agent (Claude Code, Codex, Claude, Cursor,
+VS Code, Gemini CLI and any other client that speaks the MCP protocol) the tools to deploy
 applications, read logs, create databases and restore snapshots, always on your account and with
-your API key. The assistant acts within what the key allows; nothing beyond that.
+your API key. The agent acts within what the key allows; nothing beyond that.
 
 Vertra doesn't host chat or an AI model: MCP is the official way for the agent **you** already use
 to read context and operate the platform. To call the API directly from your own code, instead of
 through an agent, use the [official SDKs](/sdks) (JavaScript, Python and Go).
 
-## Install locally
+## How do I connect my agent?
 
-Prerequisite: **Node 18 or newer**.
+There are two ways, and you can use both:
 
-1. In the dashboard, go to **Settings → API keys**, create a key, and check the scopes the
-   assistant will need (start with read scopes).
-2. Copy the key — it's shown only once.
-3. Configure your client:
+| | Remote server | Local server |
+|---|---|---|
+| Address | `https://mcp.vertracloud.app/mcp` | `npx -y @vertracloud/mcp` on your computer |
+| Sign-in | Your Vertra account in the browser (OAuth), or an API key in a header | An API key in `VERTRA_API_KEY` |
+| Needs | Nothing installed | Node 18 or newer |
+| Files on your computer | No: creating and deploying from a folder, downloads and uploads are left out | Yes, inside the project folder |
+| Best for | Investigating, operating and configuring | Deploying the project you're working on |
 
-<CodeGroup>
+Signing in through the browser creates an API key named after your agent with an `oauth:` prefix, visible and
+revocable under **Settings → API keys** like any other key. An account has up to 10 keys.
 
-```bash Claude Code
-claude mcp add vertracloud -e VERTRA_API_KEY=your_key -- npx -y @vertracloud/mcp
-```
+To use an API key instead, go to **Settings → API keys** in the dashboard, create a key with the scopes the agent will
+need (start with read scopes) and copy it: it's shown only once.
 
-```json Claude Desktop (claude_desktop_config.json)
-{
-  "mcpServers": {
-    "vertracloud": {
-      "command": "npx",
-      "args": ["-y", "@vertracloud/mcp"],
-      "env": { "VERTRA_API_KEY": "your_key" }
+## Set up your client
+
+Step-by-step guides with first prompts and troubleshooting: [Claude Code, Claude Desktop and claude.ai](/mcp/claude) and
+[Codex](/mcp/codex). The summary for each client:
+
+<Tabs>
+  <Tab title="Claude Code">
+    Remote, signing in through the browser:
+
+    ```bash
+    claude mcp add --transport http vertracloud https://mcp.vertracloud.app/mcp
+    ```
+
+    Then run `/mcp` inside Claude Code and choose **Authenticate**. To deploy from your folder, add the local server
+    as well. See the [Claude guide](/mcp/claude).
+  </Tab>
+  <Tab title="Codex">
+    Remote, in `~/.codex/config.toml`:
+
+    ```toml
+    [mcp_servers.vertracloud]
+    url = "https://mcp.vertracloud.app/mcp"
+    ```
+
+    Then sign in with `codex mcp login vertracloud`. The Codex CLI, the IDE extension and the app read the same file.
+    See the [Codex guide](/mcp/codex).
+  </Tab>
+  <Tab title="claude.ai and Claude Desktop">
+    Open **Settings → Connectors → Add custom connector**, enter `https://mcp.vertracloud.app/mcp`, click
+    **Connect** and sign in to your Vertra account. See the [Claude guide](/mcp/claude#claude-ai-and-claude-desktop).
+  </Tab>
+  <Tab title="Cursor">
+    Local server, in `~/.cursor/mcp.json` (all projects) or `.cursor/mcp.json` (one project). Export
+    `VERTRA_API_KEY` in your shell and open Cursor from the terminal (`cursor .`), so it reads the variable with `${env:...}`:
+
+    ```json
+    {
+      "mcpServers": {
+        "vertracloud": {
+          "command": "npx",
+          "args": ["-y", "@vertracloud/mcp"],
+          "env": { "VERTRA_API_KEY": "${env:VERTRA_API_KEY}" }
+        }
+      }
     }
-  }
-}
-```
+    ```
 
-```json Cursor (.cursor/mcp.json)
-{
-  "mcpServers": {
-    "vertracloud": {
-      "command": "npx",
-      "args": ["-y", "@vertracloud/mcp"],
-      "env": { "VERTRA_API_KEY": "your_key" }
+    Remote with an API key: `"vertracloud": { "url": "https://mcp.vertracloud.app/mcp", "headers": { "Authorization": "Bearer ${env:VERTRA_API_KEY}" } }`.
+  </Tab>
+  <Tab title="VS Code">
+    In `.vscode/mcp.json`. VS Code asks for the key the first time and stores it securely:
+
+    ```json
+    {
+      "inputs": [
+        { "type": "promptString", "id": "vertra-key", "description": "Vertra Cloud API key", "password": true }
+      ],
+      "servers": {
+        "vertracloud": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@vertracloud/mcp"],
+          "env": { "VERTRA_API_KEY": "${input:vertra-key}" }
+        }
+      }
     }
-  }
-}
-```
+    ```
 
-```json VS Code (.vscode/mcp.json)
-{
-  "servers": {
-    "vertracloud": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@vertracloud/mcp"],
-      "env": { "VERTRA_API_KEY": "your_key" }
+    Check it with the **MCP: List Servers** command.
+  </Tab>
+  <Tab title="Gemini CLI">
+    In `~/.gemini/settings.json` (all projects) or `.gemini/settings.json` (one project), with `VERTRA_API_KEY`
+    exported in your shell:
+
+    ```json
+    {
+      "mcpServers": {
+        "vertracloud": {
+          "command": "npx",
+          "args": ["-y", "@vertracloud/mcp"],
+          "env": { "VERTRA_API_KEY": "$VERTRA_API_KEY" }
+        }
+      }
     }
-  }
-}
-```
+    ```
 
-</CodeGroup>
+    Check it with `gemini mcp list`.
+  </Tab>
+  <Tab title="Other clients">
+    Any MCP client works. For the local server, run `npx -y @vertracloud/mcp` with `VERTRA_API_KEY` in its
+    environment. For the remote one, use the URL `https://mcp.vertracloud.app/mcp` (Streamable HTTP) with the header
+    `Authorization: Bearer <your API key>`, or let the client sign in through OAuth if it supports dynamic client
+    registration.
+  </Tab>
+</Tabs>
 
-Restart the client and ask for something like "list my apps on Vertra".
+Then ask for something like "list my apps on Vertra". For prompts that work well, see
+[Everyday workflows](/mcp/workflows).
 
-## Connect via claude.ai
+### Which consent screen is safe?
 
-Nothing to install in the browser:
-
-1. Open **Settings → Connectors → Add custom connector**.
-2. Enter the URL `https://mcp.vertracloud.app/mcp`.
-3. Click **Connect** and sign in to your Vertra account.
-4. A consent screen lists the requested scopes; check the ones you want to grant and confirm.
-
-Connecting this way creates a new API key, named after the connector with an `oauth:` prefix,
-visible and revocable under **Settings → API keys** like any other key.
-
-The consent screen always shows where access goes after you authorize (`claude.ai` for the browser
-connector, marked as verified). If it shows any other address with an **Unverified app** warning,
-don't authorize unless you started that connection yourself. Scopes that reach secrets, your
-content, billing or hard-to-undo actions are shown highlighted and **unchecked by default** — you
-have to check them on purpose: `apps:envs`, `databases:credentials`, `apps:files`, `snapshots:read`,
-`blob:read`, `apps:delete`, `databases:delete`, `images:delete`, `stacks:delete`, `billing:write`,
-`redeem:write`, `workspaces:delete` and `workspaces:invites`.
+The consent screen always shows where access goes after you authorize: `claude.ai` and `chatgpt.com` marked as
+verified, or **App on your computer** for agents that run locally (Claude Code, Codex). If it shows any other address
+with an **Unverified app** warning, don't authorize unless you started that connection yourself. Scopes that reach
+secrets, your content, billing or hard-to-undo actions are shown highlighted and **unchecked by default**: you have to
+check them on purpose: `apps:envs`, `databases:credentials`, `apps:files`, `snapshots:read`, `blob:read`,
+`apps:delete`, `databases:delete`, `images:delete`, `stacks:delete`, `billing:write`, `redeem:write`,
+`workspaces:delete` and `workspaces:invites`.
 
 <Note>
-  A few tools don't appear in the browser connector because they read or write files on your
-  computer, which only makes sense in Claude Desktop, Claude Code, or Cursor: `create_app`,
-  `deploy_app`, `download_app`, `upload_files`, `upload_blob`, `download_snapshot`, `create_image`
-  and `rebuild_image`.
+  The remote server leaves out the tools that read or write files on your computer: `create_app`, `deploy_app`,
+  `download_app`, `upload_files`, `upload_blob`, `download_snapshot`, `create_image` and `rebuild_image`. Use the local
+  server for them.
 </Note>
+
+### Local files stay in the project folder
+
+Tools that read or write files on your computer only work **inside the folder the server was started in**. If your
+client starts the server at the system root or your user folder, set `VERTRA_MCP_ROOT` to the project folder, next to
+`VERTRA_API_KEY`. Files outside it, and credential folders such as `.ssh` and `.aws`, are refused even if the agent asks
+for them. Nothing is overwritten.
 
 ## What the key and scope control
 
@@ -123,7 +180,7 @@ claude.ai's OAuth flow.
 - **Switching to a lower plan (downgrade) isn't a tool.** It remains a dashboard-only action, with
   or without an API key.
 - **Tools that delete, overwrite, stop, restart or change access are marked destructive** for the client,
-  so Claude, Cursor and similar clients ask you to confirm before running them. Examples: `delete_app`,
+  so most clients ask you to confirm before running them. Examples: `delete_app`,
   `stop_app`, `restart_app`, `unpublish_app`, `remove_domain`, `set_env`, `write_file`, `upload_blob`
   and `set_blob_visibility`.
 - **Content that comes from your applications is marked as untrusted.** Logs, file contents, release
@@ -224,12 +281,15 @@ the boundary of everything the assistant can do. These are always left out of ev
 
 | What shows up | What it is | What to do |
 |---|---|---|
-| `NOT_AUTHENTICATED` | No key was sent | Check `VERTRA_API_KEY` in the client's configuration |
-| `API_KEY_INVALID` | The key is wrong or was revoked | Locally, check `VERTRA_API_KEY`; on claude.ai, connect the connector again to sign in and create a new key |
-| `API_KEY_SCOPE_DENIED` | The key doesn't have that tool's scope | Create a new key checking the needed scope |
+| `NOT_AUTHENTICATED` | No key was sent | Check `VERTRA_API_KEY` in the client's configuration, or sign in again on the remote server |
+| `API_KEY_INVALID` | The key is wrong or was revoked | Locally, check `VERTRA_API_KEY`; on the remote server, sign in again to create a new key |
+| `API_KEY_SCOPE_DENIED` | The key doesn't have that tool's scope | Create a new key, or sign in again, checking the needed scope |
 | `RATE_LIMIT_EXCEEDED` / `DAILY_QUOTA_EXCEEDED` | The plan's per-minute or per-day request limit | Wait for `retry_after` seconds and try again |
-| The upload tool doesn't show up | You're on the browser connector | Uploading files is local-only (Claude Desktop, Claude Code, Cursor) |
-| The server won't start | Node below 18 | Update Node |
+| `PATH_OUTSIDE_ROOT` or `ROOT_TOO_BROAD` | The file is outside the allowed folder | Set `VERTRA_MCP_ROOT` to the project folder |
+| `DEST_EXISTS` | A file already exists at that path | Choose another name; nothing is overwritten |
+| `create_app` or `deploy_app` doesn't show up | You're on the remote server | Add the local server too |
+| The local server doesn't start, or times out on the first run | Node below 18, or `npx` still downloading the package | Update Node; on Codex, raise `startup_timeout_sec` |
+| The key limit was reached | An account has up to 10 API keys, and each OAuth sign-in creates one | Revoke unused keys under **Settings → API keys** |
 
 <Info>
   The package is open source: [`@vertracloud/mcp`](https://www.npmjs.com/package/@vertracloud/mcp)

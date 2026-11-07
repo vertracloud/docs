@@ -1,0 +1,135 @@
+---
+title: 'Use Vertra Cloud from Codex (CLI, IDE extension and app)'
+sidebarTitle: 'Codex'
+description: 'Connect Codex to Vertra Cloud through MCP: sign in with your account or use an API key, deploy from your folder, approvals and first prompts.'
+icon: 'code'
+---
+
+Codex reaches Vertra Cloud through the official MCP server. The Codex CLI, the IDE extension and the Codex app read the
+same `~/.codex/config.toml`, so you configure it once. See [MCP](/mcp) for what the server can and can't do.
+
+## Which server should I add?
+
+- **Remote server**: you sign in with your Vertra account in the browser and no key goes into a file. Deploying from a
+  folder isn't available. Pick it to investigate, operate and configure.
+- **Local server**: every tool, including `create_app` and `deploy_app`, which zip and upload the project folder. It
+  uses an API key. Pick it if you'll deploy from Codex.
+
+## Add the remote server
+
+<Steps>
+  <Step title="Add it to the configuration">
+    In `~/.codex/config.toml`:
+
+    ```toml ~/.codex/config.toml
+    [mcp_servers.vertracloud]
+    url = "https://mcp.vertracloud.app/mcp"
+    ```
+  </Step>
+  <Step title="Sign in">
+    ```bash
+    codex mcp login vertracloud
+    ```
+
+    The browser opens Vertra's consent screen, which shows the destination as **App on your computer**. Check the
+    scopes you want to grant and confirm. On a machine without a browser, add `--no-browser` and open the link it
+    prints.
+  </Step>
+  <Step title="Check the connection">
+    Run `codex mcp list` in the terminal, or `/mcp` inside Codex. In the IDE extension, the MCP server list shows it as
+    enabled.
+  </Step>
+</Steps>
+
+The sign-in creates an API key with an `oauth:` prefix under **Settings → API keys**; revoke it there to disconnect.
+
+### Remote server with an API key
+
+If you'd rather not sign in through the browser, send an API key in the header. Export the key in your shell and point
+Codex to the variable:
+
+```toml ~/.codex/config.toml
+[mcp_servers.vertracloud]
+url = "https://mcp.vertracloud.app/mcp"
+bearer_token_env_var = "VERTRA_API_KEY"
+```
+
+## Add the local server
+
+<Steps>
+  <Step title="Create an API key">
+    In the dashboard, go to **Settings → API keys**, create a key with the scopes you need and copy it. To deploy, check
+    `apps:read`, `apps:write` and `apps:files`. To investigate only, `apps:read` is enough.
+  </Step>
+  <Step title="Export the key in your shell">
+    Add it to your shell profile (`~/.zshrc`, `~/.bashrc`) and open a new terminal:
+
+    ```bash
+    export VERTRA_API_KEY="your_key"
+    ```
+  </Step>
+  <Step title="Add the server">
+    `env_vars` passes the variable from your shell to the server, so the key doesn't go into the file.
+    `startup_timeout_sec` gives `npx` time to download the package on the first run (the default is 10 seconds):
+
+    ```toml ~/.codex/config.toml
+    [mcp_servers.vertracloud]
+    command = "npx"
+    args = ["-y", "@vertracloud/mcp"]
+    env_vars = ["VERTRA_API_KEY"]
+    startup_timeout_sec = 30
+    ```
+  </Step>
+  <Step title="Check the connection">
+    Start Codex in the project folder and run `/mcp`. The server only touches files inside the folder where it was
+    started; see [Local files stay in the project folder](/mcp#local-files-stay-in-the-project-folder).
+  </Step>
+</Steps>
+
+`codex mcp add vertracloud --env VERTRA_API_KEY=your_key -- npx -y @vertracloud/mcp` does the same from the terminal,
+but saves the key in plain text in `config.toml`.
+
+To keep the server in one project only, put the same block in `.codex/config.toml` at the project root. Codex reads it
+in projects you've marked as trusted.
+
+## Ask before every change
+
+Every Vertra tool tells the client whether it only reads. With `writes`, Codex runs reads on its own and asks before
+anything that changes your account, such as deploying, restarting, deleting or setting a variable:
+
+```toml ~/.codex/config.toml
+[mcp_servers.vertracloud]
+url = "https://mcp.vertracloud.app/mcp"
+default_tools_approval_mode = "writes"
+```
+
+## Tell Codex about your project
+
+Add a few lines to the project's `AGENTS.md` so Codex knows which Vertra resources the code belongs to:
+
+```markdown AGENTS.md
+## Deploy (Vertra Cloud)
+- This repo is the Vertra Cloud application `orders-api`; its database is `orders-db` (PostgreSQL).
+- Deploy with the `vertracloud` MCP server (`deploy_app` on this folder, with a message), then `wait_for_app`.
+- Before restarting, rolling back or changing variables, show me the logs and ask.
+```
+
+## First prompts
+
+- "List my apps on Vertra and tell me which ones are down."
+- "Why did `orders-api` go down? Read the last 300 log lines before changing anything."
+- "Deploy this folder to `orders-api` with the message 'fix checkout timeout' and wait until it's online."
+
+More in [Everyday workflows](/mcp/workflows).
+
+## Troubleshooting
+
+| What shows up | What to do |
+|---|---|
+| The server doesn't appear in `/mcp` | Check `codex mcp list`; Codex reads the project's `.codex/config.toml` only in trusted projects |
+| The local server times out on start | Raise `startup_timeout_sec`, and check that `node -v` is 18 or newer |
+| `NOT_AUTHENTICATED` on the local server | `VERTRA_API_KEY` isn't exported in the terminal that started Codex, or it's missing from `env_vars` |
+| `NOT_AUTHENTICATED` in the Codex app or the IDE extension | An app opened outside the terminal may not see the variables from your shell profile: start it from the terminal, or use the remote server |
+| `NOT_AUTHENTICATED` on the remote server | Run `codex mcp login vertracloud` again |
+| `create_app` and `deploy_app` don't appear | You're on the remote server; add the local one |
+| `API_KEY_SCOPE_DENIED` | Create a key with the tool's scope, or sign in again checking it |

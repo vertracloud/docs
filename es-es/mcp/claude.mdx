@@ -1,0 +1,182 @@
+---
+title: 'Usa Vertra Cloud desde Claude Code, Claude Desktop y claude.ai'
+sidebarTitle: 'Claude'
+description: 'Conecta Claude Code, Claude Desktop o claude.ai a Vertra Cloud mediante MCP: inicio de sesión, servidor local para despliegues, permisos y primeros prompts.'
+icon: 'terminal'
+---
+
+Claude llega a Vertra Cloud a través del servidor MCP oficial. En Claude Code tienes todas las herramientas, incluido
+desplegar la carpeta en la que trabajas; en claude.ai y Claude Desktop conectas tu cuenta en el navegador, sin nada que
+instalar. Consulta [MCP](/es-es/mcp) para saber qué puede y qué no puede hacer el servidor.
+
+## Claude Code
+
+### ¿Qué servidor debo añadir?
+
+- **Servidor local**: todas las herramientas, incluidas `create_app` y `deploy_app`, que comprimen y suben la carpeta del
+  proyecto. Usa una clave de API. Elígelo si vas a desplegar desde Claude Code.
+- **Servidor remoto**: inicias sesión con tu cuenta de Vertra en el navegador y ninguna clave va a un archivo. No permite
+  desplegar desde una carpeta. Elígelo para investigar, operar y configurar.
+
+Puedes añadir los dos con nombres distintos, pero normalmente basta con uno.
+
+### Añade el servidor local
+
+<Steps>
+  <Step title="Crea una clave de API">
+    En el panel, ve a **Configuraciones → Claves de API**, crea una clave con los alcances que necesites y cópiala. Para
+    desplegar, marca `apps:read`, `apps:write` y `apps:files`. Solo para investigar, basta con `apps:read`.
+  </Step>
+  <Step title="Exporta la clave en tu shell">
+    Añádela al perfil de tu shell (`~/.zshrc`, `~/.bashrc`) para que no viva en un archivo del proyecto:
+
+    ```bash
+    export VERTRA_API_KEY="your_key"
+    ```
+
+    Abre un terminal nuevo después.
+  </Step>
+  <Step title="Añade el servidor al proyecto">
+    Crea `.mcp.json` en la raíz del proyecto. Claude Code sustituye `${VERTRA_API_KEY}` por el valor de tu shell, así que
+    el archivo se puede subir al repositorio sin la clave:
+
+    ```json .mcp.json
+    {
+      "mcpServers": {
+        "vertracloud": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@vertracloud/mcp"],
+          "env": { "VERTRA_API_KEY": "${VERTRA_API_KEY}" }
+        }
+      }
+    }
+    ```
+
+    La primera vez que abras Claude Code en el proyecto, aprueba el servidor cuando te lo pida.
+  </Step>
+  <Step title="Comprueba la conexión">
+    Ejecuta `claude mcp list` en el terminal, o `/mcp` dentro de Claude Code. El servidor aparece como conectado.
+  </Step>
+</Steps>
+
+Para tener el servidor en todos los proyectos, añádelo a tu usuario:
+
+```bash
+claude mcp add --transport stdio --scope user -e VERTRA_API_KEY=your_key vertracloud -- npx -y @vertracloud/mcp
+```
+
+Esta forma guarda la clave en texto plano en `~/.claude.json`. El servidor solo toca archivos dentro de la carpeta donde se
+inició Claude Code; consulta [Los archivos locales se quedan en la carpeta del proyecto](/es-es/mcp#los-archivos-locales-se-quedan-en-la-carpeta-del-proyecto).
+
+### Añade el servidor remoto
+
+```bash
+claude mcp add --transport http --scope user vertracloud https://mcp.vertracloud.app/mcp
+```
+
+Abre Claude Code, ejecuta `/mcp`, selecciona `vertracloud` y elige **Authenticate**. El navegador abre la pantalla de
+consentimiento de Vertra, que muestra el destino como **App en tu computadora**: marca los alcances que quieres conceder y
+confirma. En una máquina sin navegador (por SSH), ejecuta `claude mcp login vertracloud --no-browser` y abre el enlace que
+imprime.
+
+El inicio de sesión crea una clave de API con el prefijo `oauth:` en **Configuraciones → Claves de API**. Para desconectar, ejecuta
+`claude mcp logout vertracloud` y revoca la clave en el panel.
+
+### Evita la pregunta en las herramientas de solo lectura
+
+Claude Code pregunta antes de ejecutar cada herramienta MCP. Para que pueda leer sin preguntar y siga pidiendo confirmación en cada
+cambio, permite solo las herramientas de lectura en `.claude/settings.json`:
+
+```json .claude/settings.json
+{
+  "permissions": {
+    "allow": [
+      "mcp__vertracloud__list_apps",
+      "mcp__vertracloud__get_app",
+      "mcp__vertracloud__get_app_status",
+      "mcp__vertracloud__get_logs",
+      "mcp__vertracloud__get_metrics",
+      "mcp__vertracloud__list_releases",
+      "mcp__vertracloud__wait_for_app",
+      "mcp__vertracloud__get_docs"
+    ]
+  }
+}
+```
+
+No permitas `mcp__vertracloud__*`: eso también omite la confirmación al eliminar, detener y hacer rollback.
+
+### Cuéntale a Claude sobre tu proyecto
+
+Añade unas líneas al `CLAUDE.md` del proyecto para que Claude sepa a qué recursos de Vertra pertenece el código:
+
+```markdown CLAUDE.md
+## Despliegue (Vertra Cloud)
+- Este repo es la aplicación `orders-api` de Vertra Cloud; su base de datos es `orders-db` (PostgreSQL).
+- Despliega con el servidor MCP `vertracloud` (`deploy_app` sobre esta carpeta, con un mensaje) y después `wait_for_app`.
+- Antes de reiniciar, hacer rollback o cambiar variables, muéstrame los logs y pregúntame.
+```
+
+## claude.ai y Claude Desktop
+
+<Steps>
+  <Step title="Añade el conector">
+    En **Settings → Connectors** (en algunas versiones, **Customize → Connectors**), elige **Add custom connector** e
+    introduce `https://mcp.vertracloud.app/mcp`. En los planes Team y Enterprise, un propietario lo añade en los ajustes de
+    conectores de la organización y cada miembro conecta su propia cuenta.
+  </Step>
+  <Step title="Inicia sesión">
+    Haz clic en **Connect** e inicia sesión en tu cuenta de Vertra. La pantalla de consentimiento muestra `claude.ai` como
+    destino verificado; marca los alcances que quieres conceder y confirma.
+  </Step>
+  <Step title="Úsalo en una conversación">
+    Activa el conector en el menú de herramientas de la conversación y pide, por ejemplo, "lista mis apps en Vertra".
+  </Step>
+</Steps>
+
+El conector es el servidor remoto, así que las herramientas que leen o escriben archivos de tu ordenador quedan fuera. Claude
+pregunta antes de ejecutar una herramienta, y puedes permitirlas una a una.
+
+### Claude Desktop con el servidor local
+
+Para desplegar carpetas desde Claude Desktop, añade el servidor local a `claude_desktop_config.json` (**Settings → Developer →
+Edit Config**) y reinicia la app:
+
+```json claude_desktop_config.json
+{
+  "mcpServers": {
+    "vertracloud": {
+      "command": "npx",
+      "args": ["-y", "@vertracloud/mcp"],
+      "env": {
+        "VERTRA_API_KEY": "your_key",
+        "VERTRA_MCP_ROOT": "/Users/you/projects/orders-api"
+      }
+    }
+  }
+}
+```
+
+El archivo está en `~/Library/Application Support/Claude/` en macOS y en `%APPDATA%\Claude\` en Windows. La clave queda en
+texto plano dentro de él, así que crea una clave solo para esto, con los mínimos alcances. `VERTRA_MCP_ROOT` es necesaria porque
+Claude Desktop no inicia el servidor dentro de tu proyecto.
+
+## Primeros prompts
+
+- "Lista mis apps en Vertra y dime cuáles están caídas."
+- "¿Por qué se cayó `orders-api`? Lee las últimas 300 líneas de log antes de cambiar nada."
+- "Despliega esta carpeta en `orders-api` con el mensaje 'fix checkout timeout' y espera hasta que esté online."
+
+Más en [Flujos de trabajo del día a día](/es-es/mcp/workflows).
+
+## Solución de problemas
+
+| Qué aparece | Qué hacer |
+|---|---|
+| `! Needs authentication` en `claude mcp list` | Ejecuta `/mcp`, selecciona `vertracloud` y elige **Authenticate** |
+| `✘ Failed to connect` en el servidor local | Comprueba que `node -v` es 18 o superior y que `VERTRA_API_KEY` está exportada en el terminal que inició Claude Code |
+| `claude mcp list` avisa de que `VERTRA_API_KEY` no está definida | Exporta la variable y abre un terminal nuevo |
+| `create_app` y `deploy_app` no aparecen | Estás en el servidor remoto; añade el local |
+| `API_KEY_SCOPE_DENIED` | Crea una clave con el alcance de la herramienta, o vuelve a iniciar sesión marcándolo |
+| `ROOT_TOO_BROAD` en Claude Desktop | Define `VERTRA_MCP_ROOT` con la carpeta del proyecto |

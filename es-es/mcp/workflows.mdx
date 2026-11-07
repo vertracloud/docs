@@ -1,0 +1,119 @@
+---
+title: 'Despliega y depura en Vertra Cloud con tu agente de IA'
+sidebarTitle: 'Flujos de trabajo del día a día'
+description: 'Prompts que funcionan con el servidor MCP de Vertra Cloud: primer despliegue, investigar una caída, bases de datos, rollback, analytics y cambios seguros.'
+icon: 'list-check'
+---
+
+Cuando tu agente está conectado al [servidor MCP de Vertra Cloud](/es-es/mcp), pides en lenguaje natural y él encadena las
+herramientas por ti. Esta página muestra las peticiones que mejor funcionan, qué herramientas ejecutan y qué alcances de clave necesitan.
+
+<Tip>
+  Nombra la aplicación en la petición ("`orders-api`", no "mi app") e indica qué esperas al final ("hasta que esté
+  online"). El agente encuentra el ID con `list_apps` y se detiene cuando se cumple el objetivo.
+</Tip>
+
+## Despliega un proyecto por primera vez
+
+Crear una aplicación sube una carpeta de tu ordenador, así que necesita el servidor **local** (Claude Code, Codex,
+Claude Desktop, Cursor y otros clientes que ejecutan `npx @vertracloud/mcp`). Inicia el agente en la carpeta del proyecto.
+
+> Despliega esta carpeta en Vertra Cloud como una app Node llamada `support-bot`, con 512 MB, y espera hasta que esté online.
+
+| Paso | Herramienta | Alcance |
+|---|---|---|
+| Elegir el runtime y la versión | `list_runtimes` | `apps:read` |
+| Comprimir la carpeta (sin `node_modules`, `.git` ni lo que esté en `.vertraignore`) y crear la app | `create_app` | `apps:write` |
+| Esperar a que termine el build | `wait_for_app` | `apps:read` |
+| Si falla, leer por qué | `get_app`, `get_logs` | `apps:read` |
+
+La creación es asíncrona: la app empieza en `building` y pasa a `up` o `down`. Si acaba en `down`,
+`last_build_error` dice por qué y el agente puede corregir el código y volver a intentarlo. Para las actualizaciones posteriores:
+
+> Despliega la carpeta actual en `support-bot` con el mensaje "fix login timeout".
+
+Eso ejecuta `deploy_app` (`apps:files`), que conserva el historial de releases para que puedas hacer rollback.
+
+## Averigua por qué se cayó una aplicación
+
+> ¿Por qué se cayó `orders-api`? Lee las últimas 300 líneas de log y el uso de memoria, y dime la causa antes de
+> cambiar nada.
+
+| Paso | Herramienta | Alcance |
+|---|---|---|
+| Estado, último error y reinicios | `get_app`, `get_app_status` | `apps:read` |
+| Logs recientes | `get_logs` | `apps:read` |
+| CPU y memoria | `get_metrics` | `apps:read` |
+| Despliegues recientes | `list_releases` | `apps:read` |
+
+Todo esto es de solo lectura, así que basta una clave solo con `apps:read`. Las líneas de log llegan al agente marcadas como contenido
+no fiable: una línea impresa por tu app se lee como dato, nunca como instrucción. Pedir la causa **antes** de cualquier
+cambio evita que el agente reinicie o vuelva a desplegar por su cuenta. La
+[guía para depurar caídas](/es-es/guides/debug-crashing-app) explica las causas habituales.
+
+Si el agente se está ejecutando en la carpeta del proyecto, la siguiente petición cierra el ciclo:
+
+> Corrige la causa en el código, ejecuta los tests y despliega en `orders-api`.
+
+## Crea una base de datos y conéctala a una aplicación
+
+> Crea un PostgreSQL de 1 GB llamado `orders-db`, define `DB_HOST`, `DB_PORT` y `DB_USER` en `orders-api` y muéstrame
+> cómo debe conectarse el código.
+
+| Paso | Herramienta | Alcance |
+|---|---|---|
+| Versiones disponibles | `list_database_versions` | `databases:read` |
+| Crear la base de datos | `create_database` | `databases:write` |
+| Host, puerto, usuario, certificado CA y una cadena de conexión | `get_connection_info` | `databases:credentials` |
+| Guardar las variables en la app | `set_env` | `apps:envs` |
+
+La cadena de conexión viene con un marcador `<password>`: la API nunca devuelve la contraseña de la base de datos, así que no
+entra en la conversación. Cópiala desde la página de la base de datos en el panel y añádela tú como variable (por
+ejemplo `DB_PASSWORD`). La app también necesita el certificado de cliente de la base de datos: consulta
+[Conectar una base de datos](/es-es/guides/connect-database).
+
+## Vuelve a la versión anterior
+
+> `orders-api` empezó a fallar tras el último despliegue. Muéstrame el historial de releases y qué cambiaría un rollback,
+> y luego haz rollback a la última versión que funcionaba.
+
+| Paso | Herramienta | Alcance |
+|---|---|---|
+| Historial de versiones | `list_releases` | `apps:read` |
+| Por qué falló una versión | `get_release_log` | `apps:read` |
+| Qué variables cambiarían (solo nombres) | `preview_rollback` | `apps:envs` |
+| Hacer rollback | `rollback_app` | `apps:write` |
+
+`rollback_app` está marcada como destructiva, así que el cliente te pide confirmación antes de ejecutarla. Consulta
+[Rollback y despliegues sin downtime](/es-es/guides/rollback-and-zero-downtime-deploys).
+
+## Haz un snapshot antes de un cambio arriesgado
+
+> Haz un snapshot de `orders-db` antes de ejecutar la migración. Si la migración falla, restáuralo.
+
+`create_snapshot` y `restore_snapshot` usan `snapshots:write`; `list_snapshots` usa `snapshots:read`. Restaurar
+reemplaza los datos actuales, así que el cliente te pide confirmación. Consulta [Backups y snapshots](/es-es/guides/backups-snapshots).
+
+## Lee el tráfico de tu sitio
+
+> Compara el tráfico de esta semana en `shop-web` con el de la semana pasada. ¿Qué rutas tienen más errores 5xx?
+
+`get_app_analytics` y `get_app_analytics_errors` usan `apps:read`. Las rutas y los referers vienen de tus visitantes y también
+llegan al agente como contenido no fiable. Consulta [Web Analytics](/es-es/web-analytics/overview).
+
+## Consulta cómo funciona la plataforma
+
+> Según la documentación de Vertra Cloud, ¿cuánto almacenamiento tiene un PostgreSQL de 2 GB?
+
+`get_docs` lee esta documentación y no necesita alcance. Así es como el agente comprueba un límite o un código de error en lugar de
+adivinar.
+
+## Mantén seguro al agente
+
+- **Empieza con alcances de lectura.** `apps:read`, `databases:read` y `snapshots:read` cubren la investigación. Añade alcances de escritura
+  cuando los necesites, preferiblemente en una clave aparte.
+- **Deja activadas las confirmaciones destructivas.** Eliminar, detener, reiniciar, sobrescribir un archivo, cambiar una variable y
+  hacer rollback están marcados como destructivos, y el cliente pregunta antes de cada uno. No los permitas de forma permanente.
+- **Los valores de las variables nunca llegan al agente.** `list_envs` devuelve solo nombres, y `set_env` no devuelve el valor.
+- **Revoca lo que ya no uses.** Cada clave, incluida la creada por una conexión OAuth, aparece en
+  **Configuraciones → Claves de API**. Una cuenta tiene hasta 10 claves.

@@ -1,187 +1,252 @@
 ---
 title: 'Conectar Vertra Cloud a agentes de IA (MCP)'
 sidebarTitle: 'MCP'
-description: 'Servidor MCP oficial de Vertra Cloud: da a tu agente (Claude, Cursor, Codex) herramientas para operar apps, bases de datos y logs con tu clave de API.'
+description: 'Conecta Claude Code, Codex, Claude, Cursor, VS Code o Gemini CLI a Vertra Cloud mediante MCP, en remoto con tu cuenta o en local con una clave de API.'
 icon: 'robot'
 ---
 
 ## Qué es
 
-El servidor MCP oficial de Vertra Cloud (`@vertracloud/mcp`) da a tu asistente de IA —Claude, Cursor,
-VS Code, n8n y cualquier otro cliente que hable el protocolo MCP— las herramientas para desplegar
-aplicaciones, leer logs, crear bases de datos y restaurar snapshots, siempre en tu cuenta y con tu clave de API.
-El asistente actúa dentro de lo que permite la clave, y nada más.
+El servidor MCP oficial de Vertra Cloud (`@vertracloud/mcp`) da a tu agente de IA (Claude Code, Codex, Claude, Cursor,
+VS Code, Gemini CLI y cualquier otro cliente que hable el protocolo MCP) las herramientas para desplegar
+aplicaciones, leer logs, crear bases de datos y restaurar snapshots, siempre en tu cuenta y con
+tu clave de API. El agente actúa dentro de lo que permite la clave; nada más.
 
 Vertra no aloja chat ni un modelo de IA: MCP es la vía oficial para que el agente que **ya usas** lea el contexto y
 opere la plataforma. Para llamar a la API directamente desde tu propio código, en lugar de hacerlo a través de un agente,
 usa los [SDK oficiales](/es-es/sdks) (JavaScript, Python y Go).
 
-## Instalación local
+## ¿Cómo conecto mi agente?
 
-Requisito previo: **Node 18 o superior**.
+Hay dos formas, y puedes usar las dos:
 
-1. En el panel, ve a **Ajustes → Claves de API**, crea una clave y revisa los alcances que necesitará el asistente
-   (empieza con los de lectura).
-2. Copia la clave: solo se muestra una vez.
-3. Configura tu cliente:
+| | Servidor remoto | Servidor local |
+|---|---|---|
+| Dirección | `https://mcp.vertracloud.app/mcp` | `npx -y @vertracloud/mcp` en tu ordenador |
+| Inicio de sesión | Tu cuenta de Vertra en el navegador (OAuth), o una clave de API en una cabecera | Una clave de API en `VERTRA_API_KEY` |
+| Requisitos | Nada instalado | Node 18 o superior |
+| Archivos de tu ordenador | No: crear y desplegar desde una carpeta, las descargas y las subidas quedan fuera | Sí, dentro de la carpeta del proyecto |
+| Ideal para | Investigar, operar y configurar | Desplegar el proyecto en el que estás trabajando |
 
-<CodeGroup>
+Iniciar sesión por el navegador crea una clave de API con el nombre de tu agente y el prefijo `oauth:`, visible y
+revocable en **Configuraciones → Claves de API** como cualquier otra clave. Una cuenta tiene hasta 10 claves.
 
-```bash Claude Code
-claude mcp add vertracloud -e VERTRA_API_KEY=your_key -- npx -y @vertracloud/mcp
-```
+Para usar una clave de API, ve a **Configuraciones → Claves de API** en el panel, crea una clave con los alcances que
+necesitará el agente (empieza por los de lectura) y cópiala: solo se muestra una vez.
 
-```json Claude Desktop (claude_desktop_config.json)
-{
-  "mcpServers": {
-    "vertracloud": {
-      "command": "npx",
-      "args": ["-y", "@vertracloud/mcp"],
-      "env": { "VERTRA_API_KEY": "your_key" }
+## Configura tu cliente
+
+Guías paso a paso con primeros prompts y solución de problemas: [Claude Code, Claude Desktop y claude.ai](/es-es/mcp/claude) y
+[Codex](/es-es/mcp/codex). El resumen de cada cliente:
+
+<Tabs>
+  <Tab title="Claude Code">
+    En remoto, iniciando sesión por el navegador:
+
+    ```bash
+    claude mcp add --transport http vertracloud https://mcp.vertracloud.app/mcp
+    ```
+
+    Después ejecuta `/mcp` dentro de Claude Code y elige **Authenticate**. Para desplegar desde tu carpeta, añade también
+    el servidor local. Consulta la [guía de Claude](/es-es/mcp/claude).
+  </Tab>
+  <Tab title="Codex">
+    En remoto, en `~/.codex/config.toml`:
+
+    ```toml
+    [mcp_servers.vertracloud]
+    url = "https://mcp.vertracloud.app/mcp"
+    ```
+
+    Luego inicia sesión con `codex mcp login vertracloud`. La CLI de Codex, la extensión del IDE y la app leen el mismo archivo.
+    Consulta la [guía de Codex](/es-es/mcp/codex).
+  </Tab>
+  <Tab title="claude.ai y Claude Desktop">
+    Abre **Settings → Connectors → Add custom connector**, introduce `https://mcp.vertracloud.app/mcp`, haz clic en
+    **Connect** e inicia sesión en tu cuenta de Vertra. Consulta la [guía de Claude](/es-es/mcp/claude#claude-ai-y-claude-desktop).
+  </Tab>
+  <Tab title="Cursor">
+    Servidor local, en `~/.cursor/mcp.json` (todos los proyectos) o `.cursor/mcp.json` (un proyecto). Exporta
+    `VERTRA_API_KEY` en tu shell y abre Cursor desde el terminal (`cursor .`), para que lea la variable con `${env:...}`:
+
+    ```json
+    {
+      "mcpServers": {
+        "vertracloud": {
+          "command": "npx",
+          "args": ["-y", "@vertracloud/mcp"],
+          "env": { "VERTRA_API_KEY": "${env:VERTRA_API_KEY}" }
+        }
+      }
     }
-  }
-}
-```
+    ```
 
-```json Cursor (.cursor/mcp.json)
-{
-  "mcpServers": {
-    "vertracloud": {
-      "command": "npx",
-      "args": ["-y", "@vertracloud/mcp"],
-      "env": { "VERTRA_API_KEY": "your_key" }
+    Remoto con una clave de API: `"vertracloud": { "url": "https://mcp.vertracloud.app/mcp", "headers": { "Authorization": "Bearer ${env:VERTRA_API_KEY}" } }`.
+  </Tab>
+  <Tab title="VS Code">
+    En `.vscode/mcp.json`. VS Code pide la clave la primera vez y la guarda de forma segura:
+
+    ```json
+    {
+      "inputs": [
+        { "type": "promptString", "id": "vertra-key", "description": "Vertra Cloud API key", "password": true }
+      ],
+      "servers": {
+        "vertracloud": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@vertracloud/mcp"],
+          "env": { "VERTRA_API_KEY": "${input:vertra-key}" }
+        }
+      }
     }
-  }
-}
-```
+    ```
 
-```json VS Code (.vscode/mcp.json)
-{
-  "servers": {
-    "vertracloud": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@vertracloud/mcp"],
-      "env": { "VERTRA_API_KEY": "your_key" }
+    Compruébalo con el comando **MCP: List Servers**.
+  </Tab>
+  <Tab title="Gemini CLI">
+    En `~/.gemini/settings.json` (todos los proyectos) o `.gemini/settings.json` (un proyecto), con `VERTRA_API_KEY`
+    exportada en tu shell:
+
+    ```json
+    {
+      "mcpServers": {
+        "vertracloud": {
+          "command": "npx",
+          "args": ["-y", "@vertracloud/mcp"],
+          "env": { "VERTRA_API_KEY": "$VERTRA_API_KEY" }
+        }
+      }
     }
-  }
-}
-```
+    ```
 
-</CodeGroup>
+    Compruébalo con `gemini mcp list`.
+  </Tab>
+  <Tab title="Otros clientes">
+    Sirve cualquier cliente MCP. Para el servidor local, ejecuta `npx -y @vertracloud/mcp` con `VERTRA_API_KEY` en su
+    entorno. Para el remoto, usa la URL `https://mcp.vertracloud.app/mcp` (Streamable HTTP) con la cabecera
+    `Authorization: Bearer <your API key>`, o deja que el cliente inicie sesión por OAuth si admite el registro dinámico
+    de clientes.
+  </Tab>
+</Tabs>
 
-Reinicia el cliente y pide algo como «lista mis apps en Vertra».
+Después pide algo como "lista mis apps en Vertra". Para ver prompts que funcionan bien, consulta
+[Flujos de trabajo del día a día](/es-es/mcp/workflows).
 
-## Conectar desde claude.ai
+### ¿Qué pantalla de consentimiento es segura?
 
-No hay nada que instalar en el navegador:
-
-1. Abre **Settings → Connectors → Add custom connector**.
-2. Introduce la URL `https://mcp.vertracloud.app/mcp`.
-3. Haz clic en **Connect** e inicia sesión en tu cuenta de Vertra.
-4. La pantalla de consentimiento lista los alcances solicitados; marca los que quieras conceder y confirma.
-
-Conectar así crea una clave de API nueva, con el nombre del conector y el prefijo `oauth:`, visible y revocable en
-**Ajustes → Claves de API** como cualquier otra clave.
-
-La pantalla de consentimiento siempre muestra adónde va el acceso después de autorizar (`claude.ai` en el conector del
-navegador, marcado como verificado). Si muestra otra dirección con el aviso **App no verificada**, no autorices a menos que
-hayas iniciado esa conexión tú mismo. Los alcances que llegan a secretos, a tu contenido, a cobros o a acciones difíciles de
-deshacer aparecen resaltados y **desmarcados por defecto**, y tienes que marcarlos de forma deliberada: `apps:envs`,
-`databases:credentials`, `apps:files`, `snapshots:read`, `blob:read`, `apps:delete`, `databases:delete`, `images:delete`,
-`stacks:delete`, `billing:write`, `redeem:write`, `workspaces:delete` y `workspaces:invites`.
+La pantalla de consentimiento siempre muestra adónde va el acceso después de autorizar: `claude.ai` y `chatgpt.com`
+marcados como verificados, o **App en tu computadora** para los agentes que se ejecutan en local (Claude Code, Codex). Si
+muestra cualquier otra dirección con el aviso **App no verificada**, no autorices a menos que hayas iniciado tú esa
+conexión. Los alcances que llegan a secretos, a tu contenido, a la facturación o a acciones difíciles de deshacer se
+muestran resaltados y **desmarcados por defecto**: tienes que marcarlos a propósito: `apps:envs`, `databases:credentials`,
+`apps:files`, `snapshots:read`, `blob:read`, `apps:delete`, `databases:delete`, `images:delete`, `stacks:delete`,
+`billing:write`, `redeem:write`, `workspaces:delete` y `workspaces:invites`.
 
 <Note>
-  Algunas herramientas no aparecen en el conector del navegador porque leen o escriben archivos en tu ordenador, lo que
-  solo tiene sentido en Claude Desktop, Claude Code o Cursor: `create_app`, `deploy_app`, `download_app`, `upload_files`,
-  `upload_blob`, `download_snapshot`, `create_image` y `rebuild_image`.
+  El servidor remoto deja fuera las herramientas que leen o escriben archivos de tu ordenador: `create_app`, `deploy_app`,
+  `download_app`, `upload_files`, `upload_blob`, `download_snapshot`, `create_image` y `rebuild_image`. Usa el servidor
+  local para ellas.
 </Note>
 
-## Lo que controlan la clave y los alcances
+### Los archivos locales se quedan en la carpeta del proyecto
 
-Cada herramienta requiere un alcance específico de la clave (consulta [Alcances](/es-es/api-reference/introduction#scopes)
-para la lista completa). Sin el alcance, la llamada falla con `API_KEY_SCOPE_DENIED` en lugar de actuar sobre el recurso.
-Esto se aplica igual a una clave pegada manualmente y a una clave creada mediante el flujo OAuth de claude.ai.
+Las herramientas que leen o escriben archivos de tu ordenador solo funcionan **dentro de la carpeta donde se inició el
+servidor**. Si tu cliente inicia el servidor en la raíz del sistema o en tu carpeta de usuario, define `VERTRA_MCP_ROOT`
+con la carpeta del proyecto, junto a `VERTRA_API_KEY`. Los archivos fuera de ella y las carpetas de credenciales como
+`.ssh` y `.aws` se rechazan aunque el agente los pida. No se sobrescribe nada.
 
-- **`list_envs` nunca devuelve el valor de una variable de entorno**: solo los nombres. No hay ninguna herramienta que lea el
-  valor de una variable o la cadena de conexión de una base de datos sin tener marcado explícitamente el alcance
-  `databases:credentials`.
-- **Pedidos y canje de códigos** usan los alcances de facturación: `billing:read` lista los pedidos, consulta su estado y lee tus
-  datos de facturación; `billing:write` crea un pedido de plan, genera el código PIX y guarda tus datos de facturación (nombre,
-  dirección y CPF/CNPJ, solo cuando los proporcionas); `redeem:write` canjea un código promocional. Quien paga el PIX eres tú, en
-  la app de tu banco: el asistente nunca paga nada. Los pedidos son de 1, 3, 6 o 12 meses. `list_plans` lee los planes a la venta directamente de la API, sin
-  alcance, y `quote_order` (`billing:read`) calcula el precio de un plan y un periodo, con un cupón opcional, sin crear un
-  pedido. Los pagos con tarjeta y las tarjetas guardadas solo están disponibles en el panel.
-- **Workspaces**: `delete_workspace` requiere `workspaces:delete`; listar y revocar, ver, aceptar y rechazar una invitación
-  requieren `workspaces:invites`. Ambos alcances solo entran con el preset `full` (o con una selección personalizada) y aparecen
-  desmarcados en la pantalla de autorización de claude.ai.
-- **Cambiar a un plan inferior (downgrade) no es una herramienta.** Sigue siendo una acción solo del panel, con o sin clave de API.
-- **Las herramientas que eliminan, sobrescriben, detienen, reinician o cambian accesos están marcadas como destructivas** para el
-  cliente, así que Claude, Cursor y clientes similares te piden confirmación antes de ejecutarlas. Por ejemplo: `delete_app`,
-  `stop_app`, `restart_app`, `unpublish_app`, `remove_domain`, `set_env`, `write_file`, `upload_blob` y `set_blob_visibility`.
-- **El contenido que viene de tus aplicaciones se marca como no confiable.** Los logs, el contenido de archivos, los logs de
-  releases, los mensajes de despliegue y las rutas de blobs llegan al asistente dentro de un bloque `untrusted_content`, así que una
-  línea escrita por tu aplicación se lee como dato, no como instrucción.
+## Qué controlan la clave y los alcances
+
+Cada herramienta exige un alcance concreto de la clave (consulta [Scopes](/api-reference/introduction#scopes) para ver
+la lista completa). Sin el alcance, la llamada falla con `API_KEY_SCOPE_DENIED` en lugar de actuar sobre el
+recurso. Esto vale igual para una clave pegada a mano y para una clave creada mediante el flujo OAuth de
+claude.ai.
+
+- **`list_envs` nunca devuelve el valor de una variable de entorno**, solo los nombres. No hay ninguna
+  herramienta que lea el valor de una variable o la cadena de conexión de una base de datos sin que el alcance
+  `databases:credentials` esté marcado de forma explícita.
+- **Pedidos y canje de códigos** usan los alcances de facturación: `billing:read` lista pedidos, consulta el
+  estado y lee tus datos de facturación, `billing:write` crea un pedido de plan, genera el código PIX
+  y guarda tus datos de facturación (nombre, dirección y CPF/CNPJ, solo cuando los proporcionas), `redeem:write` canjea
+  un código promocional. Eres tú quien paga el PIX, en la app de tu banco: el asistente nunca paga
+  nada. Los pedidos son de 1, 3, 6 o 12 meses. `list_plans` lee los planes a la venta directamente de la API, sin
+  alcance, y `quote_order` (`billing:read`) calcula el precio de un plan y un periodo, con un cupón opcional, sin crear
+  un pedido. Los pagos con tarjeta y las tarjetas guardadas solo están disponibles en el panel.
+- **Workspaces**: `delete_workspace` exige `workspaces:delete`; listar/revocar, ver,
+  aceptar y rechazar una invitación exigen `workspaces:invites`. Ambos alcances solo entran mediante
+  el preajuste `full` (o una selección personalizada) y aparecen desmarcados en la pantalla de autorización de
+  claude.ai.
+- **Cambiar a un plan inferior (downgrade) no es una herramienta.** Sigue siendo una acción solo del panel, con
+  o sin clave de API.
+- **Las herramientas que eliminan, sobrescriben, detienen, reinician o cambian accesos se marcan como destructivas** para el cliente,
+  así que la mayoría de los clientes te piden confirmación antes de ejecutarlas. Ejemplos: `delete_app`,
+  `stop_app`, `restart_app`, `unpublish_app`, `remove_domain`, `set_env`, `write_file`, `upload_blob`
+  y `set_blob_visibility`.
+- **El contenido que viene de tus aplicaciones se marca como no fiable.** Los logs, el contenido de archivos, los logs de
+  release, los mensajes de despliegue y las rutas de blob llegan al asistente dentro de un bloque `untrusted_content`, de modo que una
+  línea escrita por tu app se lee como dato, no como instrucción.
 - **El servidor nunca sigue redirecciones**, así que tu clave de API solo se envía a la API de Vertra Cloud.
 
-## Organizar carpetas y favoritos
+## Organiza carpetas y favoritos
 
-MCP también puede organizar aplicaciones y bases de datos con carpetas y favoritos guardados en la cuenta. La organización
-personal usa `account:read`/`account:write`; la organización dentro de un workspace usa `workspaces:read`/`workspaces:write`.
+MCP también puede organizar aplicaciones y bases de datos con carpetas y favoritos guardados en la
+cuenta. La organización personal usa `account:read`/`account:write`; la organización dentro de un
+workspace usa `workspaces:read`/`workspaces:write`.
 
-Esta organización es individual. Una acción hecha por MCP solo cambia la vista del usuario autenticado dentro del ámbito elegido.
-MCP no mezcla carpetas con grupos de Flow: los grupos siguen siendo elementos del lienzo local y no se sincronizan ni se migran.
+Esta organización es individual. Una acción hecha por MCP solo cambia la vista del usuario autenticado
+dentro del ámbito elegido. MCP no mezcla carpetas con grupos de Flow: los grupos siguen siendo elementos del
+lienzo local y no se sincronizan ni se migran.
 
-Crear, renombrar, cambiar el color o eliminar una carpeta, mover una aplicación o una base de datos, y marcar o desmarcar favoritos
-genera una actividad. La herramienta no recibe ni inventa `origin` ni `author_id`; la API registra la llamada con la clave de API
-automáticamente.
+Crear, renombrar, cambiar el color o eliminar una carpeta, mover una aplicación o una base de datos, y
+marcar o desmarcar un favorito genera una actividad. La herramienta no recibe ni inventa `origin` ni
+`author_id`; la API registra la llamada por clave de API automáticamente.
 
 ## Crear aplicaciones
 
-Crear una aplicación es asíncrono: `create_app` responde de inmediato con la aplicación en `building`, y la instalación y el build
-continúan en segundo plano.
+Crear una aplicación es asíncrono: `create_app` responde enseguida con la aplicación en
+`building`, y la instalación y el build continúan en segundo plano.
 
 | Herramienta | Qué hace | Alcance |
 |---|---|---|
-| `wait_for_app` | Espera hasta `timeout_seconds` (1–25) a que una aplicación deje `building`. Devuelve la aplicación: `up` (lista), `down` (el build falló; `last_build_error` indica el motivo y `get_logs` tiene el detalle) o todavía `building` (vuelve a llamar). Acepta `workspace_id` | `apps:read` |
+| `wait_for_app` | Espera hasta `timeout_seconds` (1–25) a que una aplicación salga de `building`. Devuelve la aplicación: `up` (lista), `down` (el build falló; `last_build_error` dice por qué, y `get_logs` tiene el detalle) o aún en `building` (vuelve a llamar). Acepta `workspace_id` | `apps:read` |
 
-Mientras una aplicación está en build, iniciar, detener, reiniciar, desplegar, hacer rollback y acciones similares devuelven
-`409 APP_BUILDING`. Llama antes a `wait_for_app`.
+Mientras una aplicación está en build, start, stop, restart, deploy, rollback y acciones similares devuelven
+`409 APP_BUILDING`. Llama primero a `wait_for_app`.
 
 ## Releases, rollback y ajustes de despliegue
 
 El asistente puede leer el historial de despliegues de una aplicación y volver a una versión anterior. Consulta la
-[guía de rollbacks y despliegues sin interrupción](/es-es/guides/rollback-and-zero-downtime-deploys) para saber cómo funcionan las releases.
+[guía de rollback y despliegues sin downtime](/es-es/guides/rollback-and-zero-downtime-deploys) para saber cómo funcionan las releases.
 
 | Herramienta | Qué hace | Alcance |
 |---|---|---|
-| `list_releases` | Versiones de una aplicación, de la más reciente a la más antigua, con estado, mensaje, autor y si cada una puede restaurarse | `apps:read` |
-| `get_release_log` | Log registrado para una versión que falló | `apps:read` |
-| `preview_rollback` | Muestra qué variables de entorno añadiría, cambiaría o eliminaría un rollback. Solo nombres, nunca valores | `apps:envs` |
-| `rollback_app` | Devuelve el código a una versión anterior y reinicia. Los datos que la aplicación escribió mientras se ejecutaba se mantienen | `apps:write` (más `apps:envs` con `restore_environment`) |
+| `list_releases` | Versiones de una aplicación, de la más reciente a la más antigua, con estado, mensaje, autor y si cada una se puede restaurar | `apps:read` |
+| `get_release_log` | Log registrado de una versión que falló | `apps:read` |
+| `preview_rollback` | Muestra qué variables de entorno añadiría, cambiaría o quitaría un rollback. Solo nombres, nunca valores | `apps:envs` |
+| `rollback_app` | Devuelve el código a una versión anterior y reinicia. Los datos que la app escribió mientras se ejecutaba se conservan | `apps:write` (más `apps:envs` con `restore_environment`) |
 
-`rollback_app` es destructiva, así que el cliente te pide confirmación antes de ejecutarla. El rollback está disponible en todos
-los planes. Las variables de entorno se mantienen tal como están salvo que `restore_environment` sea `true`, así que en ese caso
-ejecuta primero `preview_rollback`.
+`rollback_app` es destructiva, así que el cliente te pide confirmación antes de ejecutarla. El rollback está disponible en todos los planes. Las variables de entorno se mantienen
+tal como están salvo que `restore_environment` sea true, así que en ese caso ejecuta primero `preview_rollback`.
 
-Dos herramientas existentes ampliaron sus opciones: `update_app_config` acepta `zero_downtime`, `auto_rollback` y
-`health_check_path` (se aplican los límites del plan), y `deploy_app` acepta un `message` que aparece en el historial de despliegues.
+Dos herramientas existentes han crecido: `update_app_config` acepta `zero_downtime`, `auto_rollback` y `health_check_path`
+(se aplican los límites del plan), y `deploy_app` acepta un `message` que aparece en el historial de despliegues.
 
 ## Web Analytics
 
-El asistente puede leer el Web Analytics del sitio de una aplicación. Consulta [Web Analytics](/es-es/web-analytics/overview) para entender cada vista.
+El asistente puede leer el Web Analytics del sitio de una aplicación. Consulta [Web Analytics](/es-es/web-analytics/overview) para saber qué significa cada vista.
 
-| Tool | Qué hace | Scope |
+| Herramienta | Qué hace | Alcance |
 |---|---|---|
-| `get_app_analytics` | Tráfico: peticiones, visitas, bytes, tasas de error, una serie temporal y los valores principales por dimensión. Acepta periodo, filtros, `compare`, `compare_start` y `breakdowns` | `apps:read` |
-| `get_app_analytics_errors` | Errores: totales, tasa de error, una serie temporal, las rutas con más errores y el reparto por status. `include_4xx` suma los 4xx | `apps:read` |
-| `get_app_analytics_performance` | Latencia en el borde y en el contenedor, rutas más lentas y problemas por ruta. Requiere un plan con la vista de Rendimiento | `apps:read` |
-| `list_app_analytics_requests` | Una página del registro de peticiones; `cursor` devuelve la siguiente. Requiere un plan con la vista de Peticiones | `apps:read` |
+| `get_app_analytics` | Tráfico: peticiones, visitas, bytes, tasas de error, una serie temporal y las entradas principales por dimensión. Acepta el periodo, filtros, `compare`, `compare_start` y `breakdowns` | `apps:read` |
+| `get_app_analytics_errors` | Errores: totales, tasa de error, una serie temporal, las rutas con más errores y el reparto por estado. `include_4xx` añade los 4xx | `apps:read` |
+| `get_app_analytics_performance` | Latencia en el edge y en el contenedor, rutas más lentas y problemas por ruta. Necesita un plan con la vista Performance | `apps:read` |
+| `list_app_analytics_requests` | Una página del log de peticiones; `cursor` devuelve la siguiente página. Necesita un plan con la vista Requests | `apps:read` |
 
-Rutas, referers y nombres de red vienen de tus visitantes, así que llegan al asistente dentro de un bloque `untrusted_content`.
-Si el plan no incluye la vista, la llamada falla con `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE` o
+Las rutas, los referers y los nombres de red vienen de tus visitantes, así que llegan al asistente dentro de un bloque `untrusted_content`.
+Si el plan no incluye una vista, la llamada falla con `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_PERFORMANCE` o
 `PLAN_DOES_NOT_SUPPORT_WEB_ANALYTICS_REQUESTS`; un periodo anterior al historial del plan falla con `ANALYTICS_RANGE_EXCEEDS_PLAN`;
-y `ANALYTICS_BUSY` indica reintentar tras `details.retry_after` segundos.
+y `ANALYTICS_BUSY` significa que vuelvas a intentarlo pasados `details.retry_after` segundos.
 
 ## Blob Storage
 
@@ -191,39 +256,42 @@ El asistente puede trabajar con tus archivos de [Blob Storage](/es-es/blob/overv
 |---|---|---|
 | `list_blob_objects` | Lista archivos, opcionalmente dentro de una carpeta (`prefix`) | `blob:read` |
 | `get_blob_object` | Ruta, tamaño, tipo, visibilidad y URL pública de un archivo | `blob:read` |
-| `blob_download_url` | Enlace de descarga temporal, también para archivos privados. Caduca y no puede revocarse | `blob:read` |
+| `blob_download_url` | Enlace de descarga temporal, también para archivos privados. Caduca y no se puede revocar | `blob:read` |
 | `blob_stats` | Espacio usado y total, y los límites del plan | `blob:read` |
-| `upload_blob` | Sube un archivo desde tu ordenador, hasta 100 MB, privado por defecto. `rename_on_conflict` guarda un nombre ocupado como `name-1.ext` | `blob:write` |
+| `upload_blob` | Sube un archivo de tu ordenador, hasta 100 MB, privado por defecto. `rename_on_conflict` guarda un nombre ya ocupado como `name-1.ext` | `blob:write` |
 | `set_blob_visibility` | Cambia un archivo entre público y privado | `blob:write` |
 | `delete_blob_object` | Elimina un archivo; su URL pública deja de funcionar | `blob:write` |
 
-`upload_blob` es solo local, como el resto de herramientas de subida, y rechaza archivos secretos y de credenciales como `.env`,
+`upload_blob` es solo local, como las demás herramientas de subida, y rechaza archivos secretos y de credenciales como `.env`,
 claves y `.git`.
 
-## Lo que queda fuera
+## Qué queda fuera
 
-El servidor solo se comunica con la API pública de Vertra Cloud y no tiene permisos propios: la clave es el límite de todo lo que
-puede hacer el asistente. Estas funciones quedan siempre fuera de todas las herramientas:
+El servidor solo habla con la API pública de Vertra Cloud y no tiene permisos propios: la clave es
+el límite de todo lo que puede hacer el asistente. Esto queda siempre fuera de todas las herramientas:
 
-- **Terminal del contenedor** y ejecución de comandos dentro de la aplicación.
-- **La pestaña Data de la base de datos** (consola SQL, colecciones, claves): solo en el panel.
-- **Crear una invitación a un workspace, transferir la propiedad y aprobar o rechazar solicitudes de acción**: solo en el panel.
-  El asistente puede listar y revocar invitaciones, aceptarlas o rechazarlas, eliminar un workspace y *solicitar* una acción, pero
-  una persona siempre decide la solicitud.
-- **Vinculación con GitHub** (autorizar, desautorizar, elegir el repositorio de despliegue automático).
+- **El terminal del contenedor** y ejecutar comandos dentro de la aplicación.
+- **La pestaña Datos de la base de datos** (consola SQL, colecciones, claves): solo en el panel.
+- **Crear una invitación a un workspace, transferir la propiedad y aprobar/rechazar solicitudes de
+  acción**: solo en el panel. El asistente puede listar y revocar invitaciones, aceptar o rechazar una
+  invitación, eliminar un workspace y *solicitar* una acción, pero una persona siempre decide la solicitud.
+- **La vinculación con GitHub** (autorizar, desautorizar, elegir el repositorio de despliegue automático).
 
-## Problemas comunes
+## Problemas habituales
 
-| Lo que aparece | Qué es | Qué hacer |
+| Qué aparece | Qué es | Qué hacer |
 |---|---|---|
-| `NOT_AUTHENTICATED` | No se envió ninguna clave | Revisa `VERTRA_API_KEY` en la configuración del cliente |
-| `API_KEY_INVALID` | La clave es incorrecta o fue revocada | En local, revisa `VERTRA_API_KEY`; en claude.ai, vuelve a conectar el conector para iniciar sesión y crear una clave nueva |
-| `API_KEY_SCOPE_DENIED` | La clave no tiene el alcance de esa herramienta | Crea una clave nueva marcando el alcance necesario |
-| `RATE_LIMIT_EXCEEDED` / `DAILY_QUOTA_EXCEEDED` | El límite de peticiones por minuto o por día de tu plan | Espera los segundos de `retry_after` y vuelve a intentarlo |
-| La herramienta de subida no aparece | Estás usando el conector del navegador | Subir archivos es solo local (Claude Desktop, Claude Code, Cursor) |
-| El servidor no arranca | Node por debajo de 18 | Actualiza Node |
+| `NOT_AUTHENTICATED` | No se envió ninguna clave | Revisa `VERTRA_API_KEY` en la configuración del cliente, o vuelve a iniciar sesión en el servidor remoto |
+| `API_KEY_INVALID` | La clave es incorrecta o fue revocada | En local, revisa `VERTRA_API_KEY`; en el servidor remoto, vuelve a iniciar sesión para crear una clave nueva |
+| `API_KEY_SCOPE_DENIED` | La clave no tiene el alcance de esa herramienta | Crea una clave nueva, o vuelve a iniciar sesión, comprobando el alcance necesario |
+| `RATE_LIMIT_EXCEEDED` / `DAILY_QUOTA_EXCEEDED` | El límite de peticiones por minuto o por día del plan | Espera `retry_after` segundos y vuelve a intentarlo |
+| `PATH_OUTSIDE_ROOT` o `ROOT_TOO_BROAD` | El archivo está fuera de la carpeta permitida | Define `VERTRA_MCP_ROOT` con la carpeta del proyecto |
+| `DEST_EXISTS` | Ya existe un archivo en esa ruta | Elige otro nombre; no se sobrescribe nada |
+| `create_app` o `deploy_app` no aparece | Estás en el servidor remoto | Añade también el servidor local |
+| El servidor local no arranca, o se agota el tiempo en la primera ejecución | Node anterior a 18, o `npx` aún descargando el paquete | Actualiza Node; en Codex, aumenta `startup_timeout_sec` |
+| Se alcanzó el límite de claves | Una cuenta tiene hasta 10 claves de API, y cada inicio de sesión OAuth crea una | Revoca las claves sin usar en **Configuraciones → Claves de API** |
 
 <Info>
-  El paquete es de código abierto: [`@vertracloud/mcp`](https://www.npmjs.com/package/@vertracloud/mcp) en npm, con la lista
-  completa de herramientas en el README del repositorio.
+  El paquete es de código abierto: [`@vertracloud/mcp`](https://www.npmjs.com/package/@vertracloud/mcp)
+  en npm, con la lista completa de herramientas en el README del repositorio.
 </Info>
