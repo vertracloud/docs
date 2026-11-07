@@ -3,7 +3,7 @@ title: Descargar snapshot de la aplicación
 sidebarTitle: Descargar snapshot
 api: GET https://api.vertracloud.app/v1/users/{id}/snapshots/{snapshot_id}/download
 authMethod: bearer
-description: Descarga el archivo ZIP de un snapshot concreto de una aplicación o base de datos.
+description: Descarga el archivo ZIP de un snapshot concreto de una aplicación o base de datos. Responde con una redirección a un enlace temporal, o devuelve el enlace en JSON.
 ---
 
 {/* @see binary — @vertracloud/api-types */}
@@ -19,11 +19,45 @@ description: Descarga el archivo ZIP de un snapshot concreto de una aplicación 
   El tipo de recurso. Valores posibles: `applications`, `databases`.
 </ParamField>
 
+<ParamField query="redirect" type="boolean" default="true">
+  Con `true` (por defecto), la respuesta es el ZIP, entregado directamente o mediante una redirección `302 Found` según el tamaño. Envía `false` para recibir siempre el enlace temporal en JSON, sea cual sea el tamaño.
+</ParamField>
+
 ### Respuesta
 
-<ResponseField name="response" type="file">
-  El archivo ZIP con el snapshot de la aplicación o de la base de datos, devuelto como descarga binaria con `Content-Disposition: attachment`.
+La respuesta es el archivo ZIP. Los snapshots de hasta 100 MB se entregan directamente (`200` con el ZIP); los más grandes responden `302 Found` con una cabecera `Location` que apunta a un enlace temporal que sirve el ZIP. El enlace es válido durante unos minutos y no necesita la cabecera `Authorization`. Sigue las redirecciones (navegadores, `fetch`, los SDK oficiales y `curl -L` lo hacen), y se pueden descargar snapshots de cualquier tamaño. `curl` sin `-L` se detiene en el `302` con los snapshots más grandes.
+
+```bash
+curl -L -o snapshot.zip \
+  -H "Authorization: Bearer $VERTRA_API_KEY" \
+  "https://api.vertracloud.app/v1/users/{id}/snapshots/{snapshot_id}/download?scope=applications"
+```
+
+Con `redirect=false` la ruta responde `200` con el enlace y su caducidad:
+
+<ResponseField name="response.url" type="string">
+  El enlace temporal de descarga.
 </ResponseField>
+
+<ResponseField name="response.expires_at" type="string">
+  Cuándo caduca el enlace, como fecha ISO 8601.
+</ResponseField>
+
+<ResponseField name="response.filename" type="string">
+  El nombre de archivo sugerido, con el formato `snapshot-<nombre>-<id>.zip`.
+</ResponseField>
+
+```json Response (redirect=false)
+{
+  "response": {
+    "url": "https://...",
+    "expires_at": "2026-11-07T15:00:00.000Z",
+    "filename": "snapshot-my-app-1a2b3c.zip"
+  }
+}
+```
+
+Requiere el scope `snapshots:read`.
 
 ### Respuestas de error
 
@@ -33,6 +67,8 @@ description: Descarga el archivo ZIP de un snapshot concreto de una aplicación 
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
   - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
   - `ACCESS_DENIED`: El snapshot no pertenece al usuario autenticado.
+  - `TEMPLATE_CLOSED`: El snapshot es de una aplicación de una [plantilla cerrada](/es-es/templates/use/closed-templates) y no se puede descargar (`403`).
+  - `SNAPSHOT_TYPE_MISMATCH`: El tipo de recurso del snapshot no coincide con el `scope` solicitado (`400`).
   - `SNAPSHOT_NOT_FOUND`: El snapshot indicado no existe.
   - `INTERNAL_SERVER_ERROR`: Se produjo un error inesperado en el servidor.
 </ResponseField>

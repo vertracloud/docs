@@ -697,7 +697,7 @@ responden `403` con el error `APP_SHIELD_COOLDOWN`, y `details` incluye el motiv
   se cuenta en hora de Brasilia y el límite se restablece a medianoche. Superar cualquiera de los dos devuelve `SNAPSHOT_RATE_LIMITED` (429)
   con `details: { scope: "resource" | "account", retry_after }`; el ámbito `account` incluye además `limit` y `resets_at`
 - Restauración desde cualquier snapshot anterior (enfriamiento de 30 segundos)
-- Descarga el contenido del snapshot como ZIP
+- Descarga el contenido del snapshot como ZIP, de cualquier tamaño. Los snapshots de hasta 100 MB llegan directamente en la respuesta; los más grandes redirigen (`302`) a un enlace temporal, así que sigue las redirecciones (`curl -L`). `redirect=false` devuelve siempre el enlace en JSON. La descarga directa del proyecto (`GET /v1/apps/{id}/download`) está limitada a 300 MB de archivos (`DOWNLOAD_TOO_LARGE`): por encima de eso, descarga un snapshot
 - **Eliminar o restablecer una base de datos hace automáticamente un snapshot de seguridad antes de destruir los datos**,
   en todos los planes. Si la copia falla, la acción se bloquea (`SNAPSHOT_FAILED`) y la base de datos ni se elimina ni se
   restablece. Este snapshot forzado tiene su propio límite, separado del de creación manual: como máximo 2 intentos por
@@ -1207,6 +1207,7 @@ datos y la exportación de actividad.
 | `WORKSPACE_ROLE_NOT_FOUND` | Rol no encontrado en este workspace |
 | `ARCHIVE_TOO_LARGE` | El contenido descomprimido del ZIP supera el límite |
 | `ARCHIVE_TOO_MANY_ENTRIES` | El ZIP supera el límite de número de archivos |
+| `DOWNLOAD_TOO_LARGE` | El proyecto tiene más de 300 MB de archivos y no se puede descargar directamente como ZIP (HTTP 413). Descarga un snapshot |
 | `NO_FIELDS_TO_UPDATE` | La petición no contiene campos que actualizar |
 | `TARGET_IS_DIRECTORY` | La ruta seleccionada es una carpeta |
 | `INSTALL_SHIELD_BLOCKED` | La instalación de dependencias está pausada por los límites de protección de Shield |

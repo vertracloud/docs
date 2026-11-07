@@ -21,3 +21,11 @@ At runtime `/app` is the app's persistent disk, mounted over the image, so what 
 
 - **Site:** on your first visit, the site opens in Portuguese when you access it from Brazil or another Portuguese-speaking country, and in Spanish from a Spanish-speaking country, even when the browser is set to another language. Elsewhere, the browser language still decides. A language you pick in the language selector always wins and is remembered.
 - **Account and emails:** a new account now keeps the language of the page where it was created, so the sign-in email and every later email arrive in that language. Existing accounts that never chose a language are updated on the next sign-in. You can always change it in your account settings.
+
+### Snapshots of any size can be downloaded
+
+Downloading a snapshot no longer has a size limit. [`GET /v1/users/:id/snapshots/:snapshot_id/download`](/api-reference/endpoint/apps/snapshots/download) still returns the ZIP directly for snapshots of up to 100 MB; larger ones now respond `302 Found` with a link, valid for a few minutes, that serves the ZIP. Browsers, `fetch`, the official SDKs and `curl -L` follow it and receive the file as before; `curl` without `-L` stops at the redirect on larger snapshots, so use `curl -L -o snapshot.zip`. With `redirect=false` the route returns the link, its expiration and the file name as JSON.
+
+### Very large projects show a clear message
+
+Downloading a project that has more than 300 MB of files directly as a ZIP now returns `DOWNLOAD_TOO_LARGE` (HTTP 413) and the panel asks you to download a snapshot instead, which has no size limit. See [Download Application](/api-reference/endpoint/apps/download).
