@@ -72,8 +72,16 @@ Needs the `images:read` scope when called with an API key.
     Port suggested for a new app on this image: the first `EXPOSE` of the `Dockerfile` of the latest build context, or `80`. `null` for an image created before this field existed.
   </ResponseField>
 
+  <ResponseField name="warnings" type="object[]">
+    The warnings of the Dockerfile check of the latest build, each with `code` and `line` (the same codes as [Check Dockerfile](/api-reference/endpoint/images/check)). Empty when there are none. A `workdir_app` warning means the final stage uses `WORKDIR /app`, which the app's persistent disk hides at runtime: use another directory (such as `/srv`) and build again.
+  </ResponseField>
+
   <ResponseField name="apps" type="object[]">
     The applications created from this image. Each has `id`, `name`, `version_id` (the image version it runs, or `null`) and `outdated` (`true` when the image has a newer version; the app moves to it on the next restart or deploy you ask for).
+  </ResponseField>
+
+  <ResponseField name="auto_update_apps" type="boolean">
+    `true`: after every successful build (GitHub push, upload or manual rebuild) the apps of this image that are running restart on the new version. Stopped apps stay stopped. `false`: apps move only when you restart or deploy them. Images created from GitHub start with `true`, all others with `false`.
   </ResponseField>
 
   <ResponseField name="github" type="object | null">
@@ -110,6 +118,7 @@ Needs the `images:read` scope when called with an API key.
     "uncompressed_bytes": 187432960,
     "layer_count": 9,
     "suggested_port": 3000,
+    "warnings": [{ "code": "workdir_app", "line": 3 }],
     "apps": [
       {
         "id": "app-abc123def456",
@@ -118,6 +127,7 @@ Needs the `images:read` scope when called with an API key.
         "outdated": false
       }
     ],
+    "auto_update_apps": false,
     "github": null,
     "current_version_id": "imgv-111aaa222bbb",
     "created_at": "2026-10-23T14:02:00Z",

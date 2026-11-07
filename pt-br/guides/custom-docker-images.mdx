@@ -61,6 +61,30 @@ Antes do build, o `Dockerfile` é verificado, no painel e de novo no servidor. *
 | `COPY` ou `ADD` de um arquivo `.env` | O arquivo não está no contexto de build, então o build falha nessa linha. |
 | `VOLUME` fora de `/app` | Esse caminho vira uma pasta temporária de 64 MB, apagada a cada reinício. Só `/app` mantém dados. |
 
+<Warning>
+  **Não use `WORKDIR /app` no estágio final do seu `Dockerfile`.** Em runtime `/app` é o disco persistente do app, montado por cima da imagem: o que a imagem coloca ali fica oculto, e o app pode não achar os próprios arquivos. O aviso vale só para o **estágio final**: um `WORKDIR /app` em um estágio de build de um multi-stage não gera aviso.
+
+  Antes (os arquivos do app ficam ocultos quando ele roda):
+
+  ```dockerfile
+  FROM node:22-slim
+  WORKDIR /app
+  COPY . .
+  CMD ["node", "server.js"]
+  ```
+
+  Depois (use outro diretório e faça um novo build da imagem):
+
+  ```dockerfile
+  FROM node:22-slim
+  WORKDIR /srv
+  COPY . .
+  CMD ["node", "server.js"]
+  ```
+
+  O painel mostra o aviso na página da imagem e na aba Deploys dos apps que usam a imagem, e pede confirmação ao criar um app a partir dela. Todo build guarda os próprios avisos, inclusive os builds disparados por push no GitHub.
+</Warning>
+
 Você pode rodar a mesma verificação pela API com [Verificar Dockerfile](/pt-br/api-reference/endpoint/images/check).
 
 ## Como a aplicação roda
@@ -135,15 +159,27 @@ um segundo pedido responde `IMAGE_BUILD_IN_PROGRESS`.
 - **GitHub Action.** Use o input `image-id` em vez de `app-id` para reconstruir uma imagem no seu workflow. Com o `app-id` de
   um app que roda a partir de uma imagem, o deploy é um commit, como descrito acima. Veja [GitHub Actions](/pt-br/github-actions).
 
-Um rebuild **nunca reinicia as suas aplicações**. Um build que falha não muda a versão atual: os apps continuam rodando a
+A menos que você ligue a [atualização automática dos apps](#atualização-automática-dos-apps), um rebuild **não reinicia as suas aplicações**. Um build que falha não muda a versão atual: os apps continuam rodando a
 última que deu certo. Você pode ler o contexto atual com [Baixar contexto da imagem](/pt-br/api-reference/endpoint/images/context).
 
 ### Quando um app passa para uma nova versão
 
-Um app só muda de versão quando você pede: um restart ou deploy pelo painel, pela API ou pela CLI (incluindo `--restart`
-em um commit). Tudo o que a plataforma faz sozinha, como recuperar-se de uma falha, recriar o container ou fazer um rollback
+Um app muda de versão quando você pede (um restart ou deploy pelo painel, pela API ou pela CLI, incluindo `--restart`
+em um commit) ou quando a imagem tem a [atualização automática dos apps](#atualização-automática-dos-apps) ligada. Tudo o que a plataforma faz sozinha, como recuperar-se de uma falha, recriar o container ou fazer um rollback
 automático, mantém a versão da release atual. Enquanto o app estiver atrasado, o painel mostra que há uma versão mais nova
 disponível, e a API marca isso com `outdated: true`.
+
+### Atualização automática dos apps
+
+A opção da imagem **Atualizar os apps automaticamente após cada build** (`auto_update_apps`) reinicia os seus apps na versão nova assim que um build dá certo.
+
+- **Quando roda.** Depois de todo build bem-sucedido da imagem: um push na branch vinculada do GitHub, um upload ou um rebuild manual.
+- **Quais apps.** Só os apps dessa imagem que estão rodando. Apps parados continuam parados e passam para a versão nova na próxima vez que você os iniciar.
+- **Se um falhar.** Um app que falha ao atualizar não impede os outros, e a falha aparece nas atividades.
+- **Padrão.** Uma imagem criada a partir do GitHub começa com a opção ligada; as demais começam desligadas.
+- **Onde mudar.** Na página da imagem ou com [Atualizar imagem](/pt-br/api-reference/endpoint/images/update) (`PATCH /v1/images/:image_id` com `auto_update_apps`). [Obter imagem](/pt-br/api-reference/endpoint/images/get) devolve o campo.
+
+Essas atualizações são deploys normais do app e seguem as mesmas regras: [deploy sem downtime e rollback automático](/pt-br/guides/rollback-and-zero-downtime-deploys) valem quando o seu plano inclui. Na aba **Deploys** de um app que roda a partir de uma imagem, o painel mostra de qual imagem o deploy vem e se a atualização automática está ligada. O vínculo com o GitHub fica na imagem, não no app.
 
 ## Versões e rollback
 

@@ -60,6 +60,30 @@ Antes de construir, el `Dockerfile` se revisa, en el panel y de nuevo en el serv
 | `COPY` o `ADD` de un archivo `.env` | El archivo no está en el contexto de build, así que el build falla en esa línea. |
 | `VOLUME` fuera de `/app` | Esa ruta se convierte en una carpeta temporal de 64 MB que se borra en cada reinicio. Solo `/app` conserva los datos. |
 
+<Warning>
+  **No uses `WORKDIR /app` en la etapa final de tu `Dockerfile`.** En ejecución `/app` es el disco persistente de la aplicación, montado encima de la imagen: lo que la imagen ponga ahí queda oculto, y la aplicación puede no encontrar sus propios archivos. El aviso solo vale para la **etapa final**: un `WORKDIR /app` en una etapa de build de un multi-stage no genera aviso.
+
+  Antes (los archivos de la aplicación quedan ocultos cuando se ejecuta):
+
+  ```dockerfile
+  FROM node:22-slim
+  WORKDIR /app
+  COPY . .
+  CMD ["node", "server.js"]
+  ```
+
+  Después (usa otro directorio y vuelve a construir la imagen):
+
+  ```dockerfile
+  FROM node:22-slim
+  WORKDIR /srv
+  COPY . .
+  CMD ["node", "server.js"]
+  ```
+
+  El panel muestra el aviso en la página de la imagen y en la pestaña Deploys de las aplicaciones que usan la imagen, y pide confirmación al crear una aplicación a partir de ella. Cada build guarda sus avisos, incluidos los builds lanzados por un push a GitHub.
+</Warning>
+
 Puedes ejecutar la misma revisión por la API con [Comprobar Dockerfile](/es-es/api-reference/endpoint/images/check).
 
 ## Cómo se ejecuta la aplicación
@@ -116,11 +140,23 @@ Cada build correcto se convierte en una nueva **versión** de la misma imagen, c
 - **GitHub.** [Vincula la imagen](/es-es/api-reference/endpoint/images/github-link) a un repositorio de tus instalaciones de la GitHub App. La rama es opcional (por defecto: la rama predeterminada del repositorio). Solo el propietario de la imagen puede vincularla o desvincularla (en un workspace, los miembros reciben `403`). Cada push a esa rama reconstruye la imagen, igual que una reconstrucción manual. Una imagen construida una vez desde un repositorio público no queda vinculada hasta que hagas esto. [Desvincúlala](/es-es/api-reference/endpoint/images/github-unlink) en cualquier momento.
 - **GitHub Action.** Usa la entrada `image-id` en lugar de `app-id` para reconstruir una imagen desde tu workflow. Con el `app-id` de una aplicación que se ejecuta desde una imagen, el despliegue es un commit como el descrito arriba. Consulta [GitHub Actions](/es-es/github-actions).
 
-Una reconstrucción **nunca reinicia tus aplicaciones**. Un build fallido no cambia la versión actual: las aplicaciones siguen ejecutando la última que funcionó. Puedes leer el contexto actual con [Descargar contexto de imagen](/es-es/api-reference/endpoint/images/context).
+A menos que actives la [actualización automática de las aplicaciones](#actualización-automática-de-las-aplicaciones), una reconstrucción **no reinicia tus aplicaciones**. Un build fallido no cambia la versión actual: las aplicaciones siguen ejecutando la última que funcionó. Puedes leer el contexto actual con [Descargar contexto de imagen](/es-es/api-reference/endpoint/images/context).
 
 ### Cuándo pasa una aplicación a una nueva versión
 
-Una aplicación cambia de versión solo cuando tú lo pides: un reinicio o despliegue desde el panel, la API o la CLI (incluido `--restart` en un commit). Lo que hace la plataforma por su cuenta, como recuperarse de una caída, recrear el contenedor o un rollback automático, mantiene la versión del release actual. Mientras la aplicación vaya por detrás, el panel muestra que hay una versión más nueva disponible, y la API la marca con `outdated: true`.
+Una aplicación cambia de versión cuando tú lo pides (un reinicio o despliegue desde el panel, la API o la CLI, incluido `--restart` en un commit) o cuando la imagen tiene activada la [actualización automática de las aplicaciones](#actualización-automática-de-las-aplicaciones). Lo que hace la plataforma por su cuenta, como recuperarse de una caída, recrear el contenedor o un rollback automático, mantiene la versión del release actual. Mientras la aplicación vaya por detrás, el panel muestra que hay una versión más nueva disponible, y la API la marca con `outdated: true`.
+
+### Actualización automática de las aplicaciones
+
+La opción de la imagen **Actualizar las aplicaciones automáticamente tras cada build** (`auto_update_apps`) reinicia tus aplicaciones en la versión nueva en cuanto un build termina bien.
+
+- **Cuándo se ejecuta.** Después de cada build correcto de la imagen: un push a la rama vinculada de GitHub, una subida o una reconstrucción manual.
+- **Qué aplicaciones.** Solo las de esa imagen que están en ejecución. Las aplicaciones detenidas siguen detenidas y pasan a la versión nueva la próxima vez que las inicies.
+- **Si una falla.** Una aplicación que falla al actualizarse no impide que se actualicen las demás, y el fallo aparece en las actividades.
+- **Valor por defecto.** Una imagen creada desde GitHub empieza con la opción activada; las demás empiezan desactivada.
+- **Dónde cambiarla.** En la página de la imagen o con [Actualizar imagen](/es-es/api-reference/endpoint/images/update) (`PATCH /v1/images/:image_id` con `auto_update_apps`). [Obtener imagen](/es-es/api-reference/endpoint/images/get) devuelve el campo.
+
+Estas actualizaciones son despliegues normales de la aplicación y siguen las mismas reglas: el [despliegue sin downtime y el rollback automático](/es-es/guides/rollback-and-zero-downtime-deploys) se aplican cuando tu plan los incluye. En la pestaña **Deploys** de una aplicación que se ejecuta desde una imagen, el panel muestra de qué imagen viene el despliegue y si la actualización automática está activada. El vínculo con GitHub pertenece a la imagen, no a la aplicación.
 
 ## Versiones y rollback
 

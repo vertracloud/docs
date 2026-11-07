@@ -1,0 +1,23 @@
+### Atualização automática dos apps de uma imagem Docker
+
+As imagens ganharam a opção **Atualizar os apps automaticamente após cada build**. Quando está ligada, todo build bem-sucedido da imagem (um push no GitHub, um upload ou um rebuild manual) reinicia na versão nova os apps dessa imagem que estão rodando. Apps parados continuam parados, e um app que falha ao atualizar não impede os outros: a falha aparece nas atividades. Veja [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images#atualização-automática-dos-apps).
+
+- **Padrão:** uma imagem criada a partir do GitHub começa com a opção ligada; as demais começam desligadas. Mude na página da imagem.
+- **Aba Deploys:** um app que roda a partir de uma imagem agora mostra de qual imagem o deploy vem e se a atualização automática está ligada. O vínculo com o GitHub fica na imagem, não no app.
+- **Mesmas regras de qualquer deploy:** deploy sem downtime e rollback automático valem quando o seu plano inclui.
+
+#### Aviso mais visível sobre `WORKDIR /app`
+
+Em runtime `/app` é o disco persistente do app, montado por cima da imagem, então o que a imagem coloca ali fica oculto. A verificação agora avisa sobre `WORKDIR /app` só no **estágio final** do `Dockerfile` (um estágio de build de um multi-stage não gera mais aviso), e os avisos de cada build, inclusive os disparados por push no GitHub, ficam guardados na imagem. O painel mostra uma faixa na página da imagem e um aviso na aba Deploys dos apps que usam a imagem, e pede confirmação ao criar um app a partir dela. Para corrigir, use outro diretório (como `WORKDIR /srv`) e faça um novo build. Veja [Imagens Docker próprias](/pt-br/guides/custom-docker-images#o-que-%C3%A9-recusado-e-o-que-gera-aviso).
+
+- **`warnings`** (lista de `{ code, line }`) é devolvido por [`GET /v1/images/:image_id`](/pt-br/api-reference/endpoint/images/get) e pela listagem de imagens.
+
+#### API e MCP
+
+- **`auto_update_apps`** (booleano) é devolvido por [`GET /v1/images/:image_id`](/pt-br/api-reference/endpoint/images/get) e aceito por [`PATCH /v1/images/:image_id`](/pt-br/api-reference/endpoint/images/update).
+- A tool `update_image` do MCP aceita `auto_update_apps`.
+
+### Idioma do site e dos e-mails
+
+- **Site:** no primeiro acesso, o site abre em português quando você acessa do Brasil ou de outro país de língua portuguesa, e em espanhol a partir de um país de língua espanhola, mesmo com o navegador em outro idioma. Nos demais países, continua valendo o idioma do navegador. O idioma que você escolher no seletor de idioma sempre vale e fica guardado.
+- **Conta e e-mails:** uma conta nova agora guarda o idioma da página em que foi criada, então o e-mail de acesso e todos os seguintes chegam nesse idioma. Contas que nunca escolheram um idioma são atualizadas no próximo login. Você pode trocar a qualquer momento nas configurações da conta.

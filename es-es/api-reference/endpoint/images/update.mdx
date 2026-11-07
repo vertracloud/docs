@@ -7,7 +7,7 @@ description: Renombra una imagen Docker personalizada o cambia su descripción, 
 ---
 
 {/* @see RESTPatchAPICustomImageBody, RESTPatchAPICustomImageResult — @vertracloud/api-types */}
-Cambia el `name` y/o la `description` de la imagen. No se construye ni se reinicia nada: la imagen conserva su ID y sus versiones, y las aplicaciones creadas a partir de ella siguen ejecutándose. Envía solo los campos que quieras cambiar; se necesita al menos uno. Las imágenes de la plataforma (`owner: "system"`) no se pueden modificar.
+Cambia el `name`, la `description` y/o el `auto_update_apps` de la imagen. Esta llamada no construye ni reinicia nada (activar la actualización automática vale desde el siguiente build correcto): la imagen conserva su ID y sus versiones, y las aplicaciones creadas a partir de ella siguen ejecutándose. Envía solo los campos que quieras cambiar; se necesita al menos uno. Las imágenes de la plataforma (`owner: "system"`) no se pueden modificar.
 
 Requiere el scope `images:write` cuando se llama con una clave de API. En un workspace, necesitas permiso para gestionar las aplicaciones del workspace.
 
@@ -25,6 +25,10 @@ Requiere el scope `images:write` cuando se llama con una clave de API. En un wor
 
 <ParamField body="description" type="string | null">
   La nueva descripción, de hasta 128 caracteres (texto libre). `null` o una cadena vacía la elimina.
+</ParamField>
+
+<ParamField body="auto_update_apps" type="boolean">
+  `true`: después de cada build correcto (push a GitHub, subida o reconstrucción manual), las aplicaciones de esta imagen que están en ejecución se reinician en la versión nueva. Las aplicaciones detenidas siguen detenidas. `false`: las aplicaciones solo pasan a la versión nueva cuando las reinicias o las despliegas. Las imágenes creadas desde GitHub empiezan con `true`; las demás, con `false`.
 </ParamField>
 
 ### Response
@@ -75,6 +79,10 @@ Requiere el scope `images:write` cuando se llama con una clave de API. En un wor
     Las aplicaciones creadas a partir de esta imagen. Cada una tiene `id`, `name`, `version_id` (la versión de la imagen que ejecuta, o `null`) y `outdated` (`true` cuando la imagen tiene una versión más nueva; la aplicación pasa a ella en el siguiente reinicio o despliegue que pidas).
   </ResponseField>
 
+  <ResponseField name="auto_update_apps" type="boolean">
+    `true`: después de cada build correcto (push a GitHub, subida o reconstrucción manual), las aplicaciones de esta imagen que están en ejecución se reinician en la versión nueva. Las aplicaciones detenidas siguen detenidas. `false`: las aplicaciones solo pasan a la versión nueva cuando las reinicias o las despliegas. Las imágenes creadas desde GitHub empiezan con `true`; las demás, con `false`.
+  </ResponseField>
+
   <ResponseField name="github" type="object | null">
     El repositorio y la rama de GitHub vinculados (`repository` como `owner/name`, `branch`), o `null` si la imagen no está vinculada.
   </ResponseField>
@@ -116,6 +124,7 @@ Requiere el scope `images:write` cuando se llama con una clave de API. En un wor
         "outdated": false
       }
     ],
+    "auto_update_apps": false,
     "github": null,
     "current_version_id": "imgv-111aaa222bbb",
     "created_at": "2026-10-23T14:02:00Z",

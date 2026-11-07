@@ -61,6 +61,30 @@ Before building, the `Dockerfile` is checked, in the panel and again on the serv
 | `COPY` or `ADD` of a `.env` file | The file is not in the build context, so the build fails on that line. |
 | `VOLUME` outside `/app` | That path becomes a temporary 64 MB folder, erased on every restart. Only `/app` keeps data. |
 
+<Warning>
+  **Do not use `WORKDIR /app` in the final stage of your `Dockerfile`.** At runtime `/app` is the app's persistent disk, mounted over the image: whatever the image puts there is hidden, and the app may not find its own files. The warning only applies to the **final stage**: a `WORKDIR /app` in a build stage of a multi-stage build does not trigger it.
+
+  Before (the app's files are hidden when it runs):
+
+  ```dockerfile
+  FROM node:22-slim
+  WORKDIR /app
+  COPY . .
+  CMD ["node", "server.js"]
+  ```
+
+  After (use another directory and build the image again):
+
+  ```dockerfile
+  FROM node:22-slim
+  WORKDIR /srv
+  COPY . .
+  CMD ["node", "server.js"]
+  ```
+
+  The panel shows the warning on the image page, on the Deploys tab of the apps that use the image, and asks you to confirm before creating an app from it. Every build keeps its warnings, including builds started by a push to GitHub.
+</Warning>
+
 You can run the same check through the API with [Check Dockerfile](/api-reference/endpoint/images/check).
 
 ## How the application runs
@@ -133,15 +157,27 @@ image: a second request answers `IMAGE_BUILD_IN_PROGRESS`.
 - **GitHub Action.** Use the `image-id` input instead of `app-id` to rebuild an image from your workflow. With the `app-id` of an
   app that runs from an image, the deploy is a commit as described above. See [GitHub Actions](/github-actions).
 
-A rebuild **never restarts your applications**. A failed build does not change the current version: apps keep running the
+Unless you turn on [automatic app updates](#automatic-app-updates), a rebuild **does not restart your applications**. A failed build does not change the current version: apps keep running the
 last good one. You can read the current context with [Download Image Context](/api-reference/endpoint/images/context).
 
 ### When an app moves to a new version
 
-An app changes version only when you ask: a restart or deploy from the panel, the API or the CLI (including `--restart`
-on a commit). Anything the platform does on its own, such as recovering from a crash, recreating the container or an
+An app changes version when you ask (a restart or deploy from the panel, the API or the CLI, including `--restart`
+on a commit) or when the image has [automatic app updates](#automatic-app-updates) turned on. Anything the platform does on its own, such as recovering from a crash, recreating the container or an
 automatic rollback, keeps the version of the current release. While the app is behind, the panel shows that a newer version
 is available and the API marks it with `outdated: true`.
+
+### Automatic app updates
+
+The image option **Update apps automatically after every build** (`auto_update_apps`) restarts your apps on the new version as soon as a build succeeds.
+
+- **When it runs.** After every successful build of the image: a push to the linked GitHub branch, an upload or a manual rebuild.
+- **Which apps.** Only the apps of that image that are running. Stopped apps stay stopped and move to the new version the next time you start them.
+- **If one fails.** An app that fails to update does not stop the others, and the failure appears in the activity log.
+- **Default.** An image created from GitHub starts with the option on; every other image starts with it off.
+- **Where to change it.** On the image page, or with [Update Image](/api-reference/endpoint/images/update) (`PATCH /v1/images/:image_id` with `auto_update_apps`). [Get Image](/api-reference/endpoint/images/get) returns the field.
+
+These updates are normal deploys of the app, so they follow the same rules: [zero-downtime deploys and automatic rollback](/guides/rollback-and-zero-downtime-deploys) apply when your plan includes them. On the app's **Deploys** tab, an app that runs from an image shows which image the deploy comes from and whether automatic updates are on. The GitHub link belongs to the image, not to the app.
 
 ## Versions and rollback
 

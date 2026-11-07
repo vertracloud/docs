@@ -7,7 +7,7 @@ description: Renomeia uma imagem Docker personalizada e/ou altera a descrição 
 ---
 
 {/* @see RESTPatchAPICustomImageBody, RESTPatchAPICustomImageResult — @vertracloud/api-types */}
-Altera o `name` e/ou a `description` da imagem. Nada é construído nem reiniciado: a imagem mantém o ID e as versões, e os apps criados a partir dela continuam rodando. Envie apenas os campos que quer alterar; pelo menos um é obrigatório. Imagens da plataforma (`owner: "system"`) não podem ser alteradas.
+Altera o `name`, a `description` e/ou o `auto_update_apps` da imagem. Nada é construído nem reiniciado por esta chamada (ligar a atualização automática vale a partir do próximo build bem-sucedido): a imagem mantém o ID e as versões, e os apps criados a partir dela continuam rodando. Envie apenas os campos que quer alterar; pelo menos um é obrigatório. Imagens da plataforma (`owner: "system"`) não podem ser alteradas.
 
 Precisa do escopo `images:write` quando chamado com uma chave de API. Em um workspace, você precisa de permissão para gerenciar os apps do workspace.
 
@@ -25,6 +25,10 @@ Precisa do escopo `images:write` quando chamado com uma chave de API. Em um work
 
 <ParamField body="description" type="string | null">
   A nova descrição, de até 128 caracteres (texto livre). `null` ou uma string vazia a remove.
+</ParamField>
+
+<ParamField body="auto_update_apps" type="boolean">
+  `true`: depois de todo build bem-sucedido (push no GitHub, upload ou rebuild manual), os apps dessa imagem que estão rodando reiniciam na versão nova. Apps parados continuam parados. `false`: os apps só passam para a versão nova quando você os reinicia ou faz deploy. Imagens criadas a partir do GitHub começam com `true`; as demais, com `false`.
 </ParamField>
 
 ### Resposta
@@ -75,6 +79,10 @@ Precisa do escopo `images:write` quando chamado com uma chave de API. Em um work
     Os apps criados a partir desta imagem. Cada um tem `id`, `name`, `version_id` (a versão da imagem que ele executa, ou `null`) e `outdated` (`true` quando a imagem tem uma versão mais nova; o app passa para ela no próximo restart ou deploy que você pedir).
   </ResponseField>
 
+  <ResponseField name="auto_update_apps" type="boolean">
+    `true`: depois de todo build bem-sucedido (push no GitHub, upload ou rebuild manual), os apps dessa imagem que estão rodando reiniciam na versão nova. Apps parados continuam parados. `false`: os apps só passam para a versão nova quando você os reinicia ou faz deploy. Imagens criadas a partir do GitHub começam com `true`; as demais, com `false`.
+  </ResponseField>
+
   <ResponseField name="github" type="object | null">
     O repositório e a branch do GitHub vinculados (`repository` no formato `owner/name`, `branch`), ou `null` quando a imagem não está vinculada.
   </ResponseField>
@@ -116,6 +124,7 @@ Precisa do escopo `images:write` quando chamado com uma chave de API. Em um work
         "outdated": false
       }
     ],
+    "auto_update_apps": false,
     "github": null,
     "current_version_id": "imgv-111aaa222bbb",
     "created_at": "2026-10-23T14:02:00Z",

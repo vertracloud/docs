@@ -7,7 +7,7 @@ description: Renames a custom Docker image and/or changes its description, witho
 ---
 
 {/* @see RESTPatchAPICustomImageBody, RESTPatchAPICustomImageResult — @vertracloud/api-types */}
-Changes the image's `name` and/or `description`. Nothing is built or restarted: the image keeps its ID and versions, and the applications created from it keep running. Send only the fields you want to change; at least one is required. Platform images (`owner: "system"`) cannot be changed.
+Changes the image's `name`, `description` and/or `auto_update_apps`. Nothing is built or restarted by this call (turning automatic updates on affects the next successful build): the image keeps its ID and versions, and the applications created from it keep running. Send only the fields you want to change; at least one is required. Platform images (`owner: "system"`) cannot be changed.
 
 Needs the `images:write` scope when called with an API key. In a workspace, you need permission to manage the workspace's apps.
 
@@ -25,6 +25,10 @@ Needs the `images:write` scope when called with an API key. In a workspace, you 
 
 <ParamField body="description" type="string | null">
   The new description, up to 128 characters (free text). `null` or an empty string removes it.
+</ParamField>
+
+<ParamField body="auto_update_apps" type="boolean">
+  `true`: after every successful build (GitHub push, upload or manual rebuild) the apps of this image that are running restart on the new version. Stopped apps stay stopped. `false`: apps move only when you restart or deploy them. Images created from GitHub start with `true`, all others with `false`.
 </ParamField>
 
 ### Response
@@ -75,6 +79,10 @@ Needs the `images:write` scope when called with an API key. In a workspace, you 
     The applications created from this image. Each has `id`, `name`, `version_id` (the image version it runs, or `null`) and `outdated` (`true` when the image has a newer version; the app moves to it on the next restart or deploy you ask for).
   </ResponseField>
 
+  <ResponseField name="auto_update_apps" type="boolean">
+    `true`: after every successful build (GitHub push, upload or manual rebuild) the apps of this image that are running restart on the new version. Stopped apps stay stopped. `false`: apps move only when you restart or deploy them. Images created from GitHub start with `true`, all others with `false`.
+  </ResponseField>
+
   <ResponseField name="github" type="object | null">
     The linked GitHub repository and branch (`repository` as `owner/name`, `branch`), or `null` when the image is not linked.
   </ResponseField>
@@ -116,6 +124,7 @@ Needs the `images:write` scope when called with an API key. In a workspace, you 
         "outdated": false
       }
     ],
+    "auto_update_apps": false,
     "github": null,
     "current_version_id": "imgv-111aaa222bbb",
     "created_at": "2026-10-23T14:02:00Z",
