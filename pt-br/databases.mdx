@@ -53,6 +53,21 @@ Bancos criados antes disso mantêm o usuário padrão do motor: `postgres` (banc
 `default` no MongoDB e no Redis, e `root` (banco `default`) no MySQL. O campo `username` em
 [Obter banco de dados](/pt-br/api-reference/endpoint/databases/get) sempre indica qual usar.
 
+## Quais extensões do PostgreSQL eu posso usar?
+
+Todas as extensões que vêm com o PostgreSQL e são marcadas como confiáveis (trusted): o seu próprio usuário as
+ativa com `CREATE EXTENSION` num banco do qual é dono, sem superuser e sem abrir chamado. Migrações que criam as
+próprias extensões (Flyway, Prisma, Alembic, Rails) rodam como estão.
+
+`btree_gin`, `btree_gist`, `citext`, `cube`, `dict_int`, `fuzzystrmatch`, `hstore`, `intarray`, `isn`, `lo`,
+`ltree`, `pg_trgm`, `pgcrypto`, `seg`, `tablefunc`, `tcn`, `tsm_system_rows`, `tsm_system_time`, `unaccent` e `uuid-ossp`. O `plpgsql` já vem instalado, então funções, triggers e constraint triggers funcionam.
+
+Extensões que exigem superuser, como `dblink`, `postgres_fdw`, `file_fdw` e `pg_stat_statements`, não estão
+disponíveis, nem as de terceiros, como PostGIS ou `pgvector`. Para listar o que o seu banco aceita, rode
+`SELECT DISTINCT name FROM pg_available_extension_versions WHERE trusted;`.
+
+Collations ICU também funcionam, por exemplo `CREATE COLLATION pt_br_icu (provider = icu, locale = 'pt-BR');`.
+
 ## O que preciso para me conectar?
 
 São quatro itens, todos na página do banco no painel (ou pela API):

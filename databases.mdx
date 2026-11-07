@@ -51,6 +51,21 @@ Databases created before that keep the engine's user: `postgres` (database `post
 MongoDB and Redis, and `root` (database `default`) on MySQL. The `username` field in
 [Get Database](/api-reference/endpoint/databases/get) always tells you which one to use.
 
+## Which PostgreSQL extensions can I use?
+
+Every extension that ships with PostgreSQL and is marked as trusted: your own user turns it on with
+`CREATE EXTENSION` in a database it owns, with no superuser and no support ticket. Migrations that create their
+own extensions (Flyway, Prisma, Alembic, Rails) run as they are.
+
+`btree_gin`, `btree_gist`, `citext`, `cube`, `dict_int`, `fuzzystrmatch`, `hstore`, `intarray`, `isn`, `lo`,
+`ltree`, `pg_trgm`, `pgcrypto`, `seg`, `tablefunc`, `tcn`, `tsm_system_rows`, `tsm_system_time`, `unaccent` and `uuid-ossp`. `plpgsql` is already installed, so functions, triggers and constraint triggers work.
+
+Extensions that need a superuser, such as `dblink`, `postgres_fdw`, `file_fdw` and `pg_stat_statements`, aren't
+available, and neither are third-party ones such as PostGIS or `pgvector`. To list what your database accepts, run
+`SELECT DISTINCT name FROM pg_available_extension_versions WHERE trusted;`.
+
+ICU collations work too, for example `CREATE COLLATION pt_br_icu (provider = icu, locale = 'pt-BR');`.
+
 ## What do I need to connect?
 
 Four things, all on the database page in the dashboard (or through the API):

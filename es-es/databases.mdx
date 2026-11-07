@@ -54,6 +54,21 @@ Las bases de datos creadas antes conservan el usuario por defecto del motor: `po
 `postgres`) en PostgreSQL, `default` en MongoDB y Redis, y `root` (base de datos `default`) en MySQL. El campo
 `username` de [Obtener base de datos](/es-es/api-reference/endpoint/databases/get) siempre indica cuál usar.
 
+## ¿Qué extensiones de PostgreSQL puedo usar?
+
+Todas las extensiones que vienen con PostgreSQL y están marcadas como confiables (trusted): tu propio usuario las
+activa con `CREATE EXTENSION` en una base de datos de la que es propietario, sin superusuario y sin abrir un ticket.
+Las migraciones que crean sus propias extensiones (Flyway, Prisma, Alembic, Rails) funcionan tal cual.
+
+`btree_gin`, `btree_gist`, `citext`, `cube`, `dict_int`, `fuzzystrmatch`, `hstore`, `intarray`, `isn`, `lo`,
+`ltree`, `pg_trgm`, `pgcrypto`, `seg`, `tablefunc`, `tcn`, `tsm_system_rows`, `tsm_system_time`, `unaccent` y `uuid-ossp`. `plpgsql` ya viene instalado, así que funciones, triggers y constraint triggers funcionan.
+
+Las extensiones que requieren superusuario, como `dblink`, `postgres_fdw`, `file_fdw` y `pg_stat_statements`, no
+están disponibles, ni las de terceros, como PostGIS o `pgvector`. Para listar lo que acepta tu base de datos, ejecuta
+`SELECT DISTINCT name FROM pg_available_extension_versions WHERE trusted;`.
+
+Las collations ICU también funcionan, por ejemplo `CREATE COLLATION pt_br_icu (provider = icu, locale = 'pt-BR');`.
+
 ## ¿Qué necesito para conectarme?
 
 Cuatro datos, todos en la página de la base de datos del panel (o a través de la API):
