@@ -21,7 +21,7 @@ description: Toma ahora un snapshot del volumen de una aplicación o base de dat
   snapshots, entre todos sus recursos, que depende del plan (8 en Starter 1, hasta 200 en Enterprise). El día sigue la
   hora de Brasilia. Si se supera cualquiera de los dos límites, la API responde
   `429 SNAPSHOT_RATE_LIMITED` con `details.scope` (`resource` o `account`) y
-  `details.retry_after` en segundos; con `account`, `details` incluye también `limit` y `resets_at`, el momento en que se restablece el presupuesto, en ISO 8601. Los snapshots que toma la plataforma por su cuenta (antes de un borrado o de un reset) no cuentan. Consulta [Límite de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
+  `details.retry_after` en segundos; con `account`, `details` incluye también `limit` y `resets_at`, el momento en que se restablece el presupuesto, en ISO 8601. Los snapshots que toma la plataforma por su cuenta (antes de un reset o de eliminar un stack o una imagen) no cuentan. Un snapshot puede tener como máximo 4 GB (el archivo comprimido). Consulta [Límite de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
 </Note>
 
 ### Respuesta
@@ -94,6 +94,7 @@ description: Toma ahora un snapshot del volumen de una aplicación o base de dat
   - `PLAN_NOT_ALLOWED`: El plan de la cuenta no incluye los snapshots manuales (`403`).
   - `DATABASE_NOT_RUNNING`: La base de datos debe estar en ejecución para tomar un snapshot (`409`). Redis no tiene este requisito.
   - `SNAPSHOT_RATE_LIMITED`: El recurso tiene un snapshot de hace menos de 5 minutos, o la cuenta ya usó el presupuesto diario de snapshots manuales (`429`). Viene con `details.scope` y `details.retry_after`; con `account`, también `details.limit` y `details.resets_at`.
+  - `SNAPSHOT_TOO_LARGE`: El archivo del snapshot superaría el límite de 4 GB (`413`).
   - `OPERATION_IN_PROGRESS`: Otra operación de ciclo de vida sobre el mismo recurso ya está en curso (`409`). No se tomó ningún snapshot; espera unos segundos y vuelve a intentarlo.
   - `INTERNAL_SERVER_ERROR`: No se pudo guardar el snapshot, o se produjo un fallo inesperado (`500`). Vuelve a intentarlo más tarde.
 </ResponseField>

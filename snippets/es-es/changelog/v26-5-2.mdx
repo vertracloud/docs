@@ -29,3 +29,14 @@ La descarga de snapshots ya no tiene límite de tamaño. [`GET /v1/users/:id/sna
 ### Los proyectos muy grandes muestran un mensaje claro
 
 Descargar directamente como ZIP un proyecto con más de 300 MB de archivos ahora devuelve `DOWNLOAD_TOO_LARGE` (HTTP 413) y el panel pide descargar un snapshot, que no tiene límite de tamaño. Consulta [Descargar aplicación](/es-es/api-reference/endpoint/apps/download).
+
+### El snapshot antes de eliminar ahora es opcional
+
+Eliminar una aplicación o una base de datos ya no crea un snapshot automáticamente. El diálogo de eliminación del panel ahora tiene la opción **Crear snapshot antes de borrar**, desmarcada por defecto (aparece en los planes con copia de seguridad manual). Marcada, el panel crea el snapshot y solo elimina si sale bien; desmarcada, el recurso se elimina directamente.
+
+- **API:** [`DELETE /v1/apps/:id`](/api-reference/endpoint/apps/delete) y [`DELETE /v1/databases/:id`](/api-reference/endpoint/databases/delete) eliminan directamente. Para conservar una copia, [crea un snapshot](/api-reference/endpoint/apps/snapshots/create) antes.
+- **Sin cambios:** eliminar un stack completo o una imagen Docker propia (lo que elimina sus aplicaciones) sigue haciendo un snapshot de seguridad antes. Cuando la plataforma elimina proyectos por su cuenta (plan vencido o cuenta sin plan), la copia sigue siendo obligatoria: si falla, el proyecto se detiene y se conserva, no se elimina. Consulta [Copias de seguridad y restauración con snapshots](/es-es/guides/backups-snapshots#snapshot-antes-de-eliminar).
+
+### Límite de tamaño del snapshot
+
+Un snapshot puede tener como máximo **4 GB** (el tamaño del archivo del snapshot, ya comprimido). Por encima de eso, la creación se rechaza con `SNAPSHOT_TOO_LARGE` (HTTP 413) en lugar de un error genérico. El límite vale para snapshots manuales, diarios y de seguridad. La descarga no tiene ese límite: se puede descargar cualquier snapshot existente. Consulta [Copias de seguridad y restauración con snapshots](/es-es/guides/backups-snapshots#límite-de-tamaño-del-snapshot).

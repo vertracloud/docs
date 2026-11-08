@@ -24,8 +24,19 @@ At runtime `/app` is the app's persistent disk, mounted over the image, so what 
 
 ### Snapshots of any size can be downloaded
 
-Downloading a snapshot no longer has a size limit. [`GET /v1/users/:id/snapshots/:snapshot_id/download`](/api-reference/endpoint/apps/snapshots/download) now returns the ZIP for snapshots of any size, in a single response.
+Downloading a snapshot no longer has a size limit. [`GET /v1/users/:id/snapshots/:snapshot_id/download`](/api-reference/endpoint/apps/snapshots/download) now returns the ZIP for any existing snapshot, in a single response.
 
 ### Very large projects show a clear message
 
 Downloading a project that has more than 300 MB of files directly as a ZIP now returns `DOWNLOAD_TOO_LARGE` (HTTP 413) and the panel asks you to download a snapshot instead, which has no size limit. See [Download Application](/api-reference/endpoint/apps/download).
+
+### Snapshot before deleting is now optional
+
+Deleting an application or a database no longer creates a snapshot automatically. The delete dialog in the panel now has the option **Create snapshot before deleting**, off by default (shown on plans with manual backups). When it is on, the panel creates the snapshot and deletes only if it succeeds; when it is off, the resource is deleted right away.
+
+- **API:** [`DELETE /v1/apps/:id`](/api-reference/endpoint/apps/delete) and [`DELETE /v1/databases/:id`](/api-reference/endpoint/databases/delete) delete right away. To keep a backup, [create a snapshot](/api-reference/endpoint/apps/snapshots/create) first.
+- **Unchanged:** deleting a whole stack or a custom Docker image (which deletes its apps) still takes a safety snapshot first. When the platform removes projects on its own (an expired plan or an account without a plan), the backup is still required: if it fails, the project is stopped and kept, not deleted. See [Back up and restore with snapshots](/guides/backups-snapshots#snapshot-before-deleting).
+
+### Snapshot size limit
+
+A snapshot can have at most **4 GB** (the size of the snapshot file, already compressed). Above that, creating it is refused with `SNAPSHOT_TOO_LARGE` (HTTP 413) instead of a generic error. The limit applies to manual, daily and safety snapshots. Downloading has no such limit: any existing snapshot can be downloaded. See [Back up and restore with snapshots](/guides/backups-snapshots#snapshot-size-limit).

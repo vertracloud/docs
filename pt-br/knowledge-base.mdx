@@ -304,7 +304,7 @@ deve ler `plan.name` e `owner_plan` (quebra de compatibilidade da API, dos SDKs,
 | Histórico do Web Analytics | 7 dias | 7 dias | 7 dias | 30 dias | 30 dias |
 | Backups diários (mantidos por 30 dias) | Sim | Sim | Sim | Sim | Sim |
 | Backups manuais por dia (conta) | 8 | 16 | 32 a 64 | 96 a 192 | 200 |
-| Snapshot de segurança ao excluir uma aplicação | Sim | Sim | Sim | Sim | Sim |
+| Snapshot opcional antes de excluir uma aplicação ou um banco pelo painel | Sim | Sim | Sim | Sim | Sim |
 | Gerenciador de dados do banco | — | — | Sim | Sim | Sim |
 | Imagens Docker personalizadas (a partir do seu próprio `Dockerfile`) | — | — | Até 2 imagens | Até 6 imagens | Até 20 imagens |
 | Templates de código (os bots do Discord do catálogo público; receba links de compartilhamento de templates de código) | Sim | Sim | Sim | Sim | Sim |
@@ -676,14 +676,21 @@ alterações de configuração e exclusão da aplicação aguardam o fim da paus
   com `details: { scope: "resource" | "account", retry_after }`; o escopo `account` também traz `limit` e `resets_at`
 - Restauração de qualquer snapshot anterior (cooldown de 30 segundos)
 - Download do conteúdo do snapshot como ZIP, de qualquer tamanho. O download direto do projeto (`GET /v1/apps/{id}/download`) é limitado a 300 MB de arquivos (`DOWNLOAD_TOO_LARGE`): acima disso, baixe um snapshot
-- **Excluir ou redefinir um banco faz automaticamente um snapshot de segurança antes de destruir os dados**, em todos
-  os planos. Se o backup falhar, a ação é bloqueada (`SNAPSHOT_FAILED`) e o banco não é excluído nem redefinido. Este
+- **Redefinir um banco faz automaticamente um snapshot de segurança antes de destruir os dados**, em todos
+  os planos. Se o backup falhar, a ação é bloqueada (`SNAPSHOT_FAILED`) e o banco não é redefinido. Este
   snapshot forçado tem um teto próprio, separado do da criação manual: no máximo 2 tentativas por hora no mesmo
   projeto, e 10 por hora em todos os projetos da conta — ao exceder qualquer um dos dois, a resposta é
   `FORCED_SNAPSHOT_RATE_LIMIT` e a ação também é bloqueada.
-- **Excluir uma aplicação faz o mesmo snapshot de segurança**, em todos os planos. Se ele falhar, a
-  aplicação não é excluída (`SNAPSHOT_FAILED`); o mesmo teto se aplica. A expiração do plano
-  também faz snapshot de todos os projetos antes de removê-los.
+- **Excluir uma aplicação ou um banco não cria snapshot sozinho.** O diálogo de exclusão do painel tem a opção
+  **Criar snapshot antes de apagar**, desmarcada por padrão (aparece nos planos com backup manual): marcada, o painel
+  cria o snapshot e só apaga se ele der certo; desmarcada, apaga direto. Pela API, o `DELETE` de uma aplicação ou
+  de um banco apaga direto: para ter um backup, crie um snapshot antes.
+- **Excluir uma stack inteira ou uma imagem Docker própria** (o que apaga os apps dela) continua fazendo o snapshot
+  de segurança automaticamente, com o mesmo teto. As exclusões que a plataforma faz por conta própria (plano vencido,
+  conta sem plano) também fazem snapshot de cada projeto antes; se ele falhar, o recurso é parado e preservado, não apagado.
+- **Limite de tamanho do snapshot: 4 GB** (o tamanho do arquivo do snapshot, já compactado). Acima disso, a criação é
+  recusada com `SNAPSHOT_TOO_LARGE` (`413`), em vez de um erro genérico. Vale para snapshot manual, diário e de segurança.
+  O download não tem esse limite: qualquer snapshot existente pode ser baixado.
 
 ---
 
@@ -1140,6 +1147,7 @@ alterações de subdomínio, consultas de dados e exportação de atividades.
 | `DEPLOY_RATE_LIMITED` | Limite de deploys atingido |
 | `OPERATION_IN_PROGRESS` | Outra operação no recurso ainda está em andamento |
 | `SNAPSHOT_FAILED` | O snapshot de segurança falhou; o recurso não foi alterado |
+| `SNAPSHOT_TOO_LARGE` | O snapshot passaria de 4 GB (`413`, na criação); o snapshot não é criado |
 | `APP_SHIELD_COOLDOWN` | Aplicação pausada temporariamente pelo Vertra Shield; start, restart, deploy, alterações de configuração e exclusão respondem `403` até o fim da pausa |
 | `STORAGE_ABOVE_NEW_LIMIT` | O armazenamento atual excede o novo limite |
 | `RATE_LIMIT_EXCEEDED` | Limite de requisições atingido |

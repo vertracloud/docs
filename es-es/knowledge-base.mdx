@@ -315,7 +315,7 @@ API, los SDK, la CLI y el MCP).
 | Historial de Web Analytics | 7 días | 7 días | 7 días | 30 días | 30 días |
 | Copias de seguridad diarias (se conservan 30 días) | Sí | Sí | Sí | Sí | Sí |
 | Copias de seguridad manuales al día (cuenta) | 8 | 16 | 32 a 64 | 96 a 192 | 200 |
-| Snapshot de seguridad al eliminar una aplicación | Sí | Sí | Sí | Sí | Sí |
+| Snapshot opcional antes de eliminar una aplicación o una base de datos desde el panel | Sí | Sí | Sí | Sí | Sí |
 | Gestor de datos de bases de datos | — | — | Sí | Sí | Sí |
 | Imágenes Docker personalizadas (desde tu propio `Dockerfile`) | — | — | Hasta 2 imágenes | Hasta 6 imágenes | Hasta 20 imágenes |
 | Plantillas de código (los bots de Discord del catálogo público; recibir enlaces para compartir de plantillas de código) | Sí | Sí | Sí | Sí | Sí |
@@ -698,14 +698,22 @@ responden `403` con el error `APP_SHIELD_COOLDOWN`, y `details` incluye el motiv
   con `details: { scope: "resource" | "account", retry_after }`; el ámbito `account` incluye además `limit` y `resets_at`
 - Restauración desde cualquier snapshot anterior (enfriamiento de 30 segundos)
 - Descarga el contenido del snapshot como ZIP, de cualquier tamaño. La descarga directa del proyecto (`GET /v1/apps/{id}/download`) está limitada a 300 MB de archivos (`DOWNLOAD_TOO_LARGE`): por encima de eso, descarga un snapshot
-- **Eliminar o restablecer una base de datos hace automáticamente un snapshot de seguridad antes de destruir los datos**,
-  en todos los planes. Si la copia falla, la acción se bloquea (`SNAPSHOT_FAILED`) y la base de datos ni se elimina ni se
+- **Restablecer una base de datos hace automáticamente un snapshot de seguridad antes de destruir los datos**,
+  en todos los planes. Si la copia falla, la acción se bloquea (`SNAPSHOT_FAILED`) y la base de datos no se
   restablece. Este snapshot forzado tiene su propio límite, separado del de creación manual: como máximo 2 intentos por
   hora en el mismo proyecto, y 10 por hora entre todos los proyectos de la cuenta; superar cualquiera de los dos devuelve
   `FORCED_SNAPSHOT_RATE_LIMIT` y también bloquea la acción.
-- **Eliminar una aplicación hace el mismo snapshot de seguridad**, en todos los planes.
-  Si falla, la aplicación no se elimina (`SNAPSHOT_FAILED`); se aplica el mismo límite. Al caducar el plan,
-  también se hace snapshot de cada proyecto antes de eliminarlo.
+- **Eliminar una aplicación o una base de datos no crea un snapshot por sí solo.** El diálogo de eliminación del panel
+  tiene la opción **Crear snapshot antes de borrar**, desmarcada por defecto (aparece en los planes con copia de seguridad
+  manual): marcada, el panel crea el snapshot y solo elimina si sale bien; desmarcada, elimina directamente. Por la API,
+  el `DELETE` de una aplicación o de una base de datos elimina directamente: para tener una copia, crea antes un snapshot.
+- **Eliminar un stack completo o una imagen Docker propia** (lo que elimina sus aplicaciones) sigue haciendo el snapshot
+  de seguridad automáticamente, con el mismo límite. Las eliminaciones que hace la plataforma por su cuenta (plan
+  vencido, cuenta sin plan) también hacen un snapshot de cada proyecto antes; si falla, el recurso se detiene y se
+  conserva, no se elimina.
+- **Límite de tamaño del snapshot: 4 GB** (el tamaño del archivo del snapshot, ya comprimido). Por encima de eso, la
+  creación se rechaza con `SNAPSHOT_TOO_LARGE` (`413`), en lugar de un error genérico. Vale para snapshots manuales,
+  diarios y de seguridad. La descarga no tiene ese límite: se puede descargar cualquier snapshot existente.
 
 ---
 
@@ -1158,6 +1166,7 @@ datos y la exportación de actividad.
 | `DEPLOY_RATE_LIMITED` | Se alcanzó el límite de despliegues |
 | `OPERATION_IN_PROGRESS` | Otra operación sobre el recurso sigue en curso |
 | `SNAPSHOT_FAILED` | El snapshot de seguridad falló; el recurso no se modificó |
+| `SNAPSHOT_TOO_LARGE` | El snapshot superaría 4 GB (`413`, al crearlo); el snapshot no se crea |
 | `APP_SHIELD_COOLDOWN` | Aplicación pausada temporalmente por Vertra Shield; iniciar, reiniciar, desplegar, cambiar la configuración y eliminar responden `403` hasta que termine la pausa |
 | `STORAGE_ABOVE_NEW_LIMIT` | El almacenamiento actual supera el nuevo límite |
 | `RATE_LIMIT_EXCEEDED` | Se alcanzó el límite de peticiones |

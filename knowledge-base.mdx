@@ -298,7 +298,7 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 | Web Analytics history | 7 days | 7 days | 7 days | 30 days | 30 days |
 | Daily backups (kept 30 days) | Yes | Yes | Yes | Yes | Yes |
 | Manual backups per day (account) | 8 | 16 | 32 to 64 | 96 to 192 | 200 |
-| Safety snapshot when deleting an application | Yes | Yes | Yes | Yes | Yes |
+| Optional snapshot before deleting an application or database from the panel | Yes | Yes | Yes | Yes | Yes |
 | Database data manager | — | — | Yes | Yes | Yes |
 | Custom Docker images (from your own `Dockerfile`) | — | — | Up to 2 images | Up to 6 images | Up to 20 images |
 | Code templates (the Discord bots of the public catalog; receive share links of code templates) | Yes | Yes | Yes | Yes | Yes |
@@ -658,15 +658,22 @@ and when the pause ends.
   with `details: { scope: "resource" | "account", retry_after }`; the `account` scope also carries `limit` and `resets_at`
 - Restore from any earlier snapshot (30-second cooldown)
 - Download the snapshot content as a ZIP, of any size. Downloading the project directly (`GET /v1/apps/{id}/download`) is limited to 300 MB of files (`DOWNLOAD_TOO_LARGE`): above that, download a snapshot
-- **Deleting or resetting a database automatically takes a safety snapshot before
+- **Resetting a database automatically takes a safety snapshot before
   destroying the data**, on every plan. If the backup fails, the action is blocked (`SNAPSHOT_FAILED`)
-  and the database is neither deleted nor reset. This forced snapshot has its own ceiling, separate from the
+  and the database is not reset. This forced snapshot has its own ceiling, separate from the
   manual-creation one: at most 2 attempts per hour on the same project, and 10 per hour across all
   projects on the account — exceeding either returns `FORCED_SNAPSHOT_RATE_LIMIT` and also
   blocks the action.
-- **Deleting an application takes the same safety snapshot**, on every plan.
-  If it fails, the application is not deleted (`SNAPSHOT_FAILED`); the same ceiling applies. Plan expiry
-  also snapshots every project before removing it.
+- **Deleting an application or a database does not create a snapshot on its own.** The panel's delete dialog has the
+  option **Create snapshot before deleting**, off by default (shown on plans with manual backups): when on, the panel
+  creates the snapshot and deletes only if it succeeds; when off, it deletes right away. Through the API, `DELETE` on an
+  application or database deletes right away: to keep a backup, create a snapshot first.
+- **Deleting a whole stack or a custom Docker image** (which deletes its apps) still takes the safety snapshot
+  automatically, with the same ceiling. Deletions the platform makes on its own (expired plan, account without a plan)
+  also snapshot every project first; if the snapshot fails, the resource is stopped and kept, not deleted.
+- **Snapshot size limit: 4 GB** (the size of the snapshot file, already compressed). Above that, creation is refused
+  with `SNAPSHOT_TOO_LARGE` (`413`) instead of a generic error. It applies to manual, daily and safety snapshots.
+  Downloading has no such limit: any existing snapshot can be downloaded.
 
 ---
 
@@ -1117,6 +1124,7 @@ data queries and activity export.
 | `DEPLOY_RATE_LIMITED` | Deploy limit reached |
 | `OPERATION_IN_PROGRESS` | Another operation on the resource is still in progress |
 | `SNAPSHOT_FAILED` | Safety snapshot failed; the resource was not changed |
+| `SNAPSHOT_TOO_LARGE` | The snapshot would exceed 4 GB (`413`, on creation); the snapshot is not created |
 | `APP_SHIELD_COOLDOWN` | Application temporarily paused by Vertra Shield; start, restart, deploy, configuration changes and delete answer `403` until the pause ends |
 | `STORAGE_ABOVE_NEW_LIMIT` | Current storage exceeds the new limit |
 | `RATE_LIMIT_EXCEEDED` | Request limit reached |

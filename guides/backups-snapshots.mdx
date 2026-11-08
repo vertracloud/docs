@@ -39,11 +39,24 @@ changes (`INVALID_ZIP_STRUCTURE`): the application's files and the running datab
 includes a `vertracloud.config` with its current settings, so it can be uploaded again as a new
 project exactly as it was. Snapshots of any size can be downloaded. Downloading a very large project directly is refused with a clear message (`DOWNLOAD_TOO_LARGE`, above 300 MB of files): take a snapshot and download that instead.
 
-## Automatic safety snapshot before deleting
+## Snapshot before deleting
 
-Deleting or resetting a database always takes a snapshot first, and so does deleting an application,
-on every plan. If that snapshot fails, the delete or reset is blocked (`SNAPSHOT_FAILED`)
-and nothing is lost. The snapshot is kept for 30 days and can be downloaded from **Snapshots**.
+The delete dialog for an application or a database has the option **Create snapshot before deleting**, off by default
+(it appears on plans with manual backups). When it is on, the panel creates the snapshot and deletes only if it
+succeeds; when it is off, the resource is deleted right away. Through the API, `DELETE` deletes right away: call
+[Create snapshot](/api-reference/endpoint/apps/snapshots/create) first if you want a backup. The snapshot is kept for
+30 days and can be downloaded from **Snapshots**.
+
+Resetting a database, deleting a whole stack and deleting a custom Docker image (which deletes its apps) still take a
+safety snapshot automatically; if it fails, nothing is changed (`SNAPSHOT_FAILED`). When the platform deletes projects on
+its own (an expired plan or an account without a plan), it also takes a snapshot first; if that fails, the project is
+stopped and kept, not deleted.
+
+## Snapshot size limit
+
+A snapshot can have at most **4 GB** (the size of the snapshot file, already compressed). Above that, creating it is
+refused with `SNAPSHOT_TOO_LARGE` (HTTP 413). The limit applies to manual, daily and safety snapshots. Downloading
+has no limit: any existing snapshot can be downloaded.
 
 ## Automate it
 

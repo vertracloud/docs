@@ -39,11 +39,24 @@ um intervalo de 30 segundos entre si. Um arquivo de snapshot danificado é recus
 `vertracloud.config` com as configurações atuais, então ele pode ser enviado novamente como um novo projeto exatamente
 como estava. Snapshots de qualquer tamanho podem ser baixados. O download direto de um projeto muito grande é recusado com uma mensagem clara (`DOWNLOAD_TOO_LARGE`, acima de 300 MB de arquivos): crie um snapshot e baixe o snapshot.
 
-## Snapshot automático de segurança antes de excluir
+## Snapshot antes de excluir
 
-Excluir ou resetar um banco sempre cria um snapshot antes, e excluir uma aplicação também cria um,
-em todos os planos. Se esse snapshot falhar, a exclusão ou o reset é bloqueado (`SNAPSHOT_FAILED`) e nada se perde. O snapshot é mantido
-por 30 dias e pode ser baixado em **Snapshots**.
+O diálogo de exclusão de uma aplicação ou de um banco tem a opção **Criar snapshot antes de apagar**, desmarcada por padrão
+(aparece nos planos com backup manual). Marcada, o painel cria o snapshot e só apaga se ele der certo; desmarcada, o
+recurso é apagado direto. Pela API, o `DELETE` apaga direto: chame antes
+[Criar snapshot](/api-reference/endpoint/apps/snapshots/create) se quiser um backup. O snapshot é mantido por 30 dias e
+pode ser baixado em **Snapshots**.
+
+Resetar um banco, excluir uma stack inteira e excluir uma imagem Docker própria (o que apaga os apps dela) continuam
+fazendo um snapshot de segurança automaticamente; se ele falhar, nada é alterado (`SNAPSHOT_FAILED`). Quando a
+plataforma exclui projetos por conta própria (plano vencido ou conta sem plano), ela também faz um snapshot antes; se
+ele falhar, o projeto é parado e preservado, não apagado.
+
+## Limite de tamanho do snapshot
+
+Um snapshot pode ter no máximo **4 GB** (o tamanho do arquivo do snapshot, já compactado). Acima disso, a criação é
+recusada com `SNAPSHOT_TOO_LARGE` (HTTP 413). O limite vale para snapshot manual, diário e de segurança. O download
+não tem limite: qualquer snapshot existente pode ser baixado.
 
 ## Automatize
 

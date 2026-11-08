@@ -29,3 +29,14 @@ O download de snapshot não tem mais limite de tamanho. [`GET /v1/users/:id/snap
 ### Projetos muito grandes mostram uma mensagem clara
 
 Baixar diretamente como ZIP um projeto com mais de 300 MB de arquivos agora retorna `DOWNLOAD_TOO_LARGE` (HTTP 413) e o painel pede para baixar um snapshot, que não tem limite de tamanho. Veja [Baixar aplicação](/pt-br/api-reference/endpoint/apps/download).
+
+### Snapshot antes de excluir agora é opcional
+
+Excluir uma aplicação ou um banco não cria mais um snapshot automaticamente. O diálogo de exclusão do painel agora tem a opção **Criar snapshot antes de apagar**, desmarcada por padrão (aparece nos planos com backup manual). Marcada, o painel cria o snapshot e só apaga se ele der certo; desmarcada, o recurso é apagado direto.
+
+- **API:** [`DELETE /v1/apps/:id`](/api-reference/endpoint/apps/delete) e [`DELETE /v1/databases/:id`](/api-reference/endpoint/databases/delete) apagam direto. Para ter um backup, [crie um snapshot](/api-reference/endpoint/apps/snapshots/create) antes.
+- **Sem mudança:** excluir uma stack inteira ou uma imagem Docker própria (o que apaga os apps dela) continua fazendo um snapshot de segurança antes. Quando a plataforma remove projetos por conta própria (plano vencido ou conta sem plano), o backup continua obrigatório: se ele falhar, o projeto é parado e preservado, não apagado. Veja [Backup e restauração com snapshots](/pt-br/guides/backups-snapshots#snapshot-antes-de-excluir).
+
+### Limite de tamanho do snapshot
+
+Um snapshot pode ter no máximo **4 GB** (o tamanho do arquivo do snapshot, já compactado). Acima disso, a criação é recusada com `SNAPSHOT_TOO_LARGE` (HTTP 413), em vez de um erro genérico. O limite vale para snapshot manual, diário e de segurança. O download não tem esse limite: qualquer snapshot existente pode ser baixado. Veja [Backup e restauração com snapshots](/pt-br/guides/backups-snapshots#limite-de-tamanho-do-snapshot).

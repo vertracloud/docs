@@ -37,11 +37,24 @@ periodo de espera de 30 segundos entre una y otra. Un archivo de snapshot dañad
 **Descarga** cualquier snapshot como `.zip` y guárdalo en otro lugar. La descarga de una aplicación incluye un `vertracloud.config`
 con su configuración actual, así que puede volver a subirse como un proyecto nuevo exactamente como estaba. Se pueden descargar snapshots de cualquier tamaño. La descarga directa de un proyecto muy grande se rechaza con un mensaje claro (`DOWNLOAD_TOO_LARGE`, por encima de 300 MB de archivos): crea un snapshot y descarga el snapshot.
 
-## Snapshot de seguridad automático antes de eliminar
+## Snapshot antes de eliminar
 
-Eliminar o restablecer una base de datos siempre toma antes un snapshot. Eliminar una aplicación también lo hace,
-en todos los planes. Si ese snapshot falla, el borrado o el restablecimiento se bloquea (`SNAPSHOT_FAILED`) y no se pierde nada. El
-snapshot se conserva durante 30 días y se puede descargar desde **Snapshots**.
+El diálogo de eliminación de una aplicación o de una base de datos tiene la opción **Crear snapshot antes de borrar**,
+desmarcada por defecto (aparece en los planes con copia de seguridad manual). Marcada, el panel crea el snapshot y solo
+elimina si sale bien; desmarcada, el recurso se elimina directamente. Por la API, el `DELETE` elimina directamente:
+llama antes a [Crear snapshot](/api-reference/endpoint/apps/snapshots/create) si quieres una copia. El snapshot se
+conserva durante 30 días y se puede descargar desde **Snapshots**.
+
+Restablecer una base de datos, eliminar un stack completo y eliminar una imagen Docker propia (lo que elimina sus
+aplicaciones) siguen haciendo un snapshot de seguridad automáticamente; si falla, no se cambia nada
+(`SNAPSHOT_FAILED`). Cuando la plataforma elimina proyectos por su cuenta (plan vencido o cuenta sin plan), también
+hace un snapshot antes; si falla, el proyecto se detiene y se conserva, no se elimina.
+
+## Límite de tamaño del snapshot
+
+Un snapshot puede tener como máximo **4 GB** (el tamaño del archivo del snapshot, ya comprimido). Por encima de eso,
+la creación se rechaza con `SNAPSHOT_TOO_LARGE` (HTTP 413). El límite vale para snapshots manuales, diarios y de
+seguridad. La descarga no tiene límite: se puede descargar cualquier snapshot existente.
 
 ## Automatízalo
 
