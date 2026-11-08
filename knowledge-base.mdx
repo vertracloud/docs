@@ -297,7 +297,7 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 | Web Analytics: performance and requests | — | — | Yes | Yes | Yes |
 | Web Analytics history | 7 days | 7 days | 7 days | 30 days | 30 days |
 | Daily backups (kept 30 days) | Yes | Yes | Yes | Yes | Yes |
-| Manual backups per day (account) | 8 | 16 | 32 to 64 | 96 to 192 | 200 |
+| Manual backups per day (account) | 1 | 2 | 4 to 8 | 12 to 24 | 32 |
 | Optional snapshot before deleting an application or database from the panel | Yes | Yes | Yes | Yes | Yes |
 | Database data manager | — | — | Yes | Yes | Yes |
 | Custom Docker images (from your own `Dockerfile`) | — | — | Up to 2 images | Up to 6 images | Up to 20 images |
@@ -318,7 +318,7 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 
 > **Previous versions kept** counts the versions besides the one running now. **Version validity** counts from the moment a version stops being the running one; the running version never expires.
 
-> **Manual backups per day** is a limit per account, counted on the calendar day in Brasília time: `(plan RAM in MB ÷ 256) × 2`, up to 200. It is 8 on Starter 1, 16 on Starter 2, 32, 48 and 64 on Pro 4, 6 and 8, and 96, 128 and 192 on Business 12, 16 and 24; every Enterprise size has 200. Daily backups are automatic and don't use this limit.
+> **Manual backups per day** is a limit per account, counted on the calendar day in Brasília time: 1 per GB of plan RAM, up to 32. It is 1 on Starter 1, 2 on Starter 2, 4, 6 and 8 on Pro 4, 6 and 8, and 12, 16 and 24 on Business 12, 16 and 24; every Enterprise size has 32. Daily backups are automatic and don't use this limit.
 
 > **Automatic rollback** and **Zero-downtime deploys** are deploy settings, changed in the application's settings
 > or with `PATCH /v1/apps/{id}/config` (`deploy`). Asking for either on a plan that doesn't include it fails with
@@ -652,8 +652,8 @@ and when the pause ends.
 
 - **Daily backup** of applications and databases, on every plan, kept for 30 days like every snapshot. It doesn't use the manual limit below
 - Manual snapshot creation for apps and databases, on every plan — at most **1 every 5 minutes on the same
-  project** and a **daily limit across the whole account** that depends on the plan: `(plan RAM in MB ÷ 256) × 2`,
-  up to 200 (8 on Starter 1, 16 on Starter 2, 32 to 64 on Pro, 96 to 192 on Business, 200 on Enterprise). The day
+  project** and a **daily limit across the whole account** that depends on the plan: 1 per GB of plan RAM,
+  up to 32 (1 on Starter 1, 2 on Starter 2, 4 to 8 on Pro, 12 to 24 on Business, 32 on Enterprise). The day
   is counted in Brasília time and the limit resets at midnight. Exceeding either returns `SNAPSHOT_RATE_LIMITED` (429)
   with `details: { scope: "resource" | "account", retry_after }`; the `account` scope also carries `limit` and `resets_at`
 - Restore from any earlier snapshot (30-second cooldown)
