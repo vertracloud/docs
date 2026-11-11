@@ -438,7 +438,7 @@ less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_
 - Build: isolated build environment, time limit of 26 minutes, built image up to 10 GB uncompressed (`IMAGE_TOO_LARGE`). `.env*` files are removed from the context.
 - Runtime: always user `1000:1000`. `/app` is the persistent disk; `/tmp`, `/var/tmp` and `/run` are writable but temporary; everything else is read-only. The port is the first `EXPOSE` or `80`, injected as `PORT`.
 - Refused: a `# syntax=` other than the official frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh`, `--mount=type=secret`. Warned: `WORKDIR /app`, `.env*` in the context, `COPY`/`ADD` of `.env`, `VOLUME` outside `/app`.
-- Updates: rebuild by upload, commit (on top of the current context) or push to a linked GitHub branch. A rebuild restarts apps only when the image option `auto_update_apps` is on (on for images created from GitHub, off for the others; change it on the image page or with `PATCH /v1/images/:image_id`): then every successful build restarts the image's running apps on the new version, stopped apps stay stopped and a failing app does not block the others. Each app keeps 30 releases for 30 days, and rollback uses an already built version.
+- Updates: rebuild by upload, rebuild from the current source (`POST /v1/images/:image_id/rebuild`: the tip of the linked branch, or the context of the last build), commit (on top of the current context) or push to a linked GitHub branch. A rebuild restarts apps only when the image option `auto_update_apps` is on (on for images created from GitHub, off for the others; change it on the image page or with `PATCH /v1/images/:image_id`): then every successful build restarts the image's running apps on the new version, stopped apps stay stopped and a failing app does not block the others. Each app keeps 30 releases for 30 days, and rollback uses an already built version.
 - Snapshots hold the data of `/app` and the image version; restore can optionally go back to that version.
 - Deleting an image deletes every application created from it. Starter plans have no image slots and cannot create or rebuild images; a downgrade to a plan with fewer image slots than the images in use (own and image templates) is refused: delete images first.
 
@@ -1112,7 +1112,7 @@ data queries and activity export.
 | `FILE_TOO_LARGE` | File above the upload limit |
 | `INVALID_ZIP` | Uploaded file is not a valid ZIP |
 | `INVALID_ZIP_STRUCTURE` | The ZIP is damaged, empty or has an invalid structure; on a restore, nothing is changed |
-| `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while fetching a repository (HTTP 502) |
+| `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while fetching a repository (HTTP 502); when creating or rebuilding an image, also HTTP 404 when GitHub did not return the repository archive (for example, the branch no longer exists) |
 | `INVALID_LANGUAGE` | The language isn't supported (HTTP 400). See [Supported Languages](#2-supported-languages) |
 | `MAIN_FILE_NOT_FOUND` | Main file not found |
 | `INSTALL_TIMEOUT` | Dependency installation exceeded the time limit |

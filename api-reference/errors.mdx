@@ -151,7 +151,7 @@ When a build or install fails, `GET /v1/apps/{id}` returns the code in `last_bui
 | 409 | `REPO_ALREADY_LINKED` | That repository is already linked to another application. Unlink it first. |
 | 404 | `INSTALLATION_NOT_FOUND` | The GitHub App installation for this account/repository wasn't found. Reconnect GitHub. When creating a Docker image from GitHub, it also means the repository is private or doesn't exist (or the branch doesn't) and isn't in your installations; public repositories outside them are built once with no link. |
 | 413 | `FILE_TOO_LARGE` | A single file from the repository exceeds the size the GitHub file endpoint allows. |
-| 502 | `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while the repository was fetched or checked. Try again in a few minutes. |
+| 502 | `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while the repository was fetched or checked. Try again in a few minutes. When creating or rebuilding an image, it is also `404` when GitHub did not return the repository archive, for example because the branch no longer exists. |
 | 400 / 403 | `FORBIDDEN_PATH` | The requested repository path is outside what the app is allowed to read (400 as a generic rejection, 403 when it's specifically a forbidden path). |
 
 ## Files
@@ -275,11 +275,11 @@ Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDE
 | 400 | `DOCKERFILE_REFUSED` | The `Dockerfile` has a refused instruction (`# syntax=` other than the official frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh` or `--mount=type=secret`). `details` lists the findings; see [Check Dockerfile](/api-reference/endpoint/images/check). |
 | 413 | `IMAGE_CONTEXT_TOO_LARGE` | The build context is over one of its four limits: 100 MB compressed, 512 MB uncompressed, 50,000 entries, or a `Dockerfile` larger than 1 MB. Remove files (for example with a `.dockerignore`) and send it again. |
 | 409 | `IMAGE_BUILD_IN_PROGRESS` | The image already has a build running. Wait for it to end. Also returned when you try to delete the image during a build. |
-| 409 | `IMAGE_NOT_READY` | The image has no successful build yet, so apps cannot be created from it. |
+| 409 | `IMAGE_NOT_READY` | The image has no successful build yet, so apps cannot be created from it. When rebuilding from the current source, it means the image has no stored build context: send the files with a rebuild by upload. |
 | 400 | `IMAGE_NAME_MISMATCH` | `confirm_name` is not the image name. |
 | 403 / 409 | `IMAGE_TEMPLATE_ONLY` | The image belongs to a template and can only be used through it. Creating an application from it answers 403; rebuilding, committing to, linking a repository to or editing the context of it answers 409. |
 | 409 | `IMAGE_IN_USE` | The image is the source of the current version of one of your private templates. `details.templates` lists them. Remove or replace it in the template first. |
-| 503 | `IMAGE_BUILDER_UNAVAILABLE` | No host can build images right now. Try again later. |
+| 503 / 409 | `IMAGE_BUILDER_UNAVAILABLE` | No host can build images right now (503), or the build could not be started (409). Try again later. |
 | 400 | `IMAGE_APP_FIELD_NOT_APPLICABLE` | You sent `main_file`, `language`, `version`, `start_command` or `build_command` for an application that runs a custom image. These come from the image; leave them out. |
 | 409 | `IMAGE_APP_CODE_NOT_APPLICABLE` | The application runs a custom image, so code cannot be written into `/app` or deployed from GitHub on it. Update the image instead. |
 | 400 | `IMAGE_APP_PORT_REQUIRED` | The application runs a custom image and has no port yet (it was created without web). Send `port` when publishing it. See [Publish Application](/api-reference/endpoint/apps/network/publish). |

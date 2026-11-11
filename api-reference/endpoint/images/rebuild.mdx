@@ -7,7 +7,7 @@ description: Rebuilds an image by replacing the whole build context with a new Z
 ---
 
 {/* @see APICustomImage, RESTPutAPICustomImageBody, RESTPutAPICustomImageResult — @vertracloud/api-types */}
-The request is `multipart/form-data`. The rebuild keeps the same image ID and, when it succeeds, adds a new [version](/api-reference/endpoint/images/versions). **A rebuild never restarts applications**: each app moves to the new version on the next restart or deploy you ask for. A failed rebuild keeps the current version. Rebuilds do not count against the image limit. Plans without custom images cannot rebuild, but can still delete.
+The request is `multipart/form-data`. The rebuild keeps the same image ID and, when it succeeds, adds a new [version](/api-reference/endpoint/images/versions). **A rebuild restarts applications only when the image has automatic app updates on** (`auto_update_apps`); otherwise each app moves to the new version on the next restart or deploy you ask for. To build again without sending files, use [Rebuild Image from Current Source](/api-reference/endpoint/images/rebuild-source). A failed rebuild keeps the current version. Rebuilds do not count against the image limit. Plans without custom images cannot rebuild, but can still delete.
 
 Needs the `images:write` scope when called with an API key.
 
@@ -126,7 +126,7 @@ Needs the `images:write` scope when called with an API key.
   - `DOCKERFILE_NOT_FOUND`: There is no file named exactly `Dockerfile` at the root of the context (`400`).
   - `DOCKERFILE_REFUSED`: The `Dockerfile` has a refused instruction; `details` lists the findings (`400`).
   - `IMAGE_CONTEXT_TOO_LARGE`: The build context is over a limit: more than 100 MB compressed, more than 512 MB uncompressed, more than 50,000 entries, or a `Dockerfile` larger than 1 MB (`413`).
-  - `IMAGE_BUILDER_UNAVAILABLE`: No host can build images right now; try again later (`503`).
+  - `IMAGE_BUILDER_UNAVAILABLE`: No host can build images right now; try again later (`503`). Also returned when the build could not be started (`409`).
   - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
 </ResponseField>
 

@@ -154,7 +154,7 @@ Cuando un build o una instalación fallan, `GET /v1/apps/{id}` devuelve el códi
 | 409 | `REPO_ALREADY_LINKED` | Ese repositorio ya está vinculado a otra aplicación. Desvincúlalo primero. |
 | 404 | `INSTALLATION_NOT_FOUND` | No se encontró la instalación de la GitHub App para esta cuenta o repositorio. Vuelve a conectar GitHub. Al crear una imagen de Docker desde GitHub, también significa que el repositorio es privado o no existe (o que la rama no existe) y no está en tus instalaciones; los repositorios públicos fuera de ellas se construyen una vez, sin vínculo. |
 | 413 | `FILE_TOO_LARGE` | Un archivo individual del repositorio supera el tamaño que permite el endpoint de archivos de GitHub. |
-| 502 | `FETCH_ZIP_ERROR` | No se pudo contactar con GitHub, o estaba limitando las peticiones mientras se obtenía o comprobaba el repositorio. Inténtalo de nuevo en unos minutos. |
+| 502 | `FETCH_ZIP_ERROR` | No se pudo contactar con GitHub, o estaba limitando las peticiones mientras se obtenía o comprobaba el repositorio. Inténtalo de nuevo en unos minutos. Al crear o reconstruir una imagen, también sale como `404` cuando GitHub no devolvió el archivo del repositorio, por ejemplo porque la rama ya no existe. |
 | 400 / 403 | `FORBIDDEN_PATH` | La ruta del repositorio solicitada está fuera de lo que la aplicación puede leer (400 como rechazo genérico, 403 cuando es específicamente una ruta prohibida). |
 
 ## Archivos
@@ -278,11 +278,11 @@ Códigos reutilizados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMI
 | 400 | `DOCKERFILE_REFUSED` | El `Dockerfile` tiene una instrucción rechazada (`# syntax=` distinto del frontend oficial, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh` o `--mount=type=secret`). `details` enumera los hallazgos; ver [Comprobar Dockerfile](/es-es/api-reference/endpoint/images/check). |
 | 413 | `IMAGE_CONTEXT_TOO_LARGE` | El contexto de build supera uno de sus cuatro límites: 100 MB comprimidos, 512 MB descomprimidos, 50.000 entradas, o un `Dockerfile` de más de 1 MB. Elimina archivos (por ejemplo, con un `.dockerignore`) y envíalo de nuevo. |
 | 409 | `IMAGE_BUILD_IN_PROGRESS` | La imagen ya tiene un build en curso. Espera a que termine. También se devuelve si intentas eliminar la imagen durante un build. |
-| 409 | `IMAGE_NOT_READY` | La imagen todavía no tiene ningún build correcto, así que no se pueden crear aplicaciones a partir de ella. |
+| 409 | `IMAGE_NOT_READY` | La imagen todavía no tiene ningún build correcto, así que no se pueden crear aplicaciones a partir de ella. Al reconstruir desde la fuente actual, significa que la imagen no tiene un contexto de build guardado: envía los archivos con una reconstrucción por subida. |
 | 400 | `IMAGE_NAME_MISMATCH` | `confirm_name` no es el nombre de la imagen. |
 | 403 / 409 | `IMAGE_TEMPLATE_ONLY` | La imagen pertenece a una plantilla y solo se puede usar a través de ella. Crear una aplicación a partir de ella responde 403; reconstruirla, hacer commit en ella, vincularle un repositorio o editar su contexto responde 409. |
 | 409 | `IMAGE_IN_USE` | La imagen es el origen de la versión actual de una de tus plantillas privadas. `details.templates` las enumera. Quítala o reemplázala primero en la plantilla. |
-| 503 | `IMAGE_BUILDER_UNAVAILABLE` | Ningún host puede construir imágenes en este momento. Inténtalo más tarde. |
+| 503 / 409 | `IMAGE_BUILDER_UNAVAILABLE` | Ningún host puede construir imágenes en este momento (503), o el build no pudo iniciarse (409). Inténtalo más tarde. |
 | 400 | `IMAGE_APP_FIELD_NOT_APPLICABLE` | Enviaste `main_file`, `language`, `version`, `start_command` o `build_command` para una aplicación que ejecuta una imagen personalizada. Estos valores vienen de la imagen; omítelos. |
 | 409 | `IMAGE_APP_CODE_NOT_APPLICABLE` | La aplicación ejecuta una imagen personalizada, así que no se puede escribir código en `/app` ni desplegar desde GitHub. Actualiza la imagen en su lugar. |
 | 400 | `IMAGE_APP_PORT_REQUIRED` | La aplicación ejecuta una imagen personalizada y todavía no tiene puerto (se creó sin web). Envía `port` al publicarla. Ver [Publicar aplicación](/es-es/api-reference/endpoint/apps/network/publish). |

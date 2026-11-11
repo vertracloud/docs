@@ -32,7 +32,7 @@ Needs the `images:write` scope when called with an API key. Check a `Dockerfile`
 </ParamField>
 
 <ParamField body="github_branch" type="string">
-  The branch of `github_repository` to build from. Optional: without it, the repository's default branch is used (`main`, `master` or whatever the repository sets). When the repository is linked, this is also the branch whose pushes rebuild the image. A branch that does not exist fails with `INSTALLATION_NOT_FOUND`.
+  The branch of `github_repository` to build from. Optional: without it, the repository's default branch is used (`main`, `master` or whatever the repository sets). When the repository is linked, this is also the branch whose pushes rebuild the image. A branch that does not exist fails with `FETCH_ZIP_ERROR` (`404`).
 </ParamField>
 
 <ParamField body="workspace_id" type="string">
@@ -142,10 +142,10 @@ Needs the `images:write` scope when called with an API key. Check a `Dockerfile`
   - `DOCKERFILE_NOT_FOUND`: There is no file named exactly `Dockerfile` at the root of the context (`400`).
   - `DOCKERFILE_REFUSED`: The `Dockerfile` has a refused instruction; `details` lists the findings (`400`). See [Check Dockerfile](/api-reference/endpoint/images/check).
   - `IMAGE_CONTEXT_TOO_LARGE`: The build context is over a limit: more than 100 MB compressed, more than 512 MB uncompressed, more than 50,000 entries, or a `Dockerfile` larger than 1 MB (`413`).
-  - `IMAGE_BUILDER_UNAVAILABLE`: No host can build images right now; try again later (`503`).
-  - `INSTALLATION_NOT_FOUND`: The repository is private or does not exist, and it is not in your GitHub App installations; or the branch does not exist (`404`).
+  - `IMAGE_BUILDER_UNAVAILABLE`: No host can build images right now; try again later (`503`). Also returned when the build could not be started (`409`).
+  - `INSTALLATION_NOT_FOUND`: The repository is private or does not exist, and it is not in your GitHub App installations (`404`).
   - `REPO_ALREADY_LINKED`: The repository is already linked to another image or application (`409`).
-  - `FETCH_ZIP_ERROR`: GitHub could not be reached or was limiting requests while the repository was fetched (`502`). Try again in a few minutes.
+  - `FETCH_ZIP_ERROR`: GitHub did not return the repository archive, for example because the branch does not exist (`404`); or GitHub could not be reached or was limiting requests (`502`), in which case try again in a few minutes.
   - `INTERNAL_SERVER_ERROR`: Unexpected failure (`500`).
 </ResponseField>
 

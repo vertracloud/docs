@@ -7,7 +7,7 @@ description: Reconstruye una imagen sustituyendo todo el contexto de build por u
 ---
 
 {/* @see APICustomImage, RESTPutAPICustomImageBody, RESTPutAPICustomImageResult — @vertracloud/api-types */}
-La petición es `multipart/form-data`. La reconstrucción mantiene el mismo ID de imagen y, si tiene éxito, añade una nueva [versión](/es-es/api-reference/endpoint/images/versions). **Una reconstrucción nunca reinicia las aplicaciones**: cada aplicación pasa a la nueva versión en el siguiente reinicio o despliegue que pidas. Una reconstrucción fallida conserva la versión actual. Las reconstrucciones no cuentan contra el límite de imágenes. Los planes sin imágenes personalizadas no pueden reconstruir, pero sí eliminar.
+La petición es `multipart/form-data`. La reconstrucción mantiene el mismo ID de imagen y, si tiene éxito, añade una nueva [versión](/es-es/api-reference/endpoint/images/versions). **Una reconstrucción solo reinicia las aplicaciones cuando la imagen tiene activada la actualización automática de las aplicaciones** (`auto_update_apps`); si no, cada aplicación pasa a la nueva versión en el siguiente reinicio o despliegue que pidas. Para volver a hacer el build sin enviar archivos, usa [Reconstruir imagen desde la fuente actual](/es-es/api-reference/endpoint/images/rebuild-source). Una reconstrucción fallida conserva la versión actual. Las reconstrucciones no cuentan contra el límite de imágenes. Los planes sin imágenes personalizadas no pueden reconstruir, pero sí eliminar.
 
 Requiere el scope `images:write` cuando se llama con una clave de API.
 
@@ -126,7 +126,7 @@ Requiere el scope `images:write` cuando se llama con una clave de API.
   - `DOCKERFILE_NOT_FOUND`: No hay ningún archivo llamado exactamente `Dockerfile` en la raíz del contexto (`400`).
   - `DOCKERFILE_REFUSED`: El `Dockerfile` tiene una instrucción no admitida; `details` enumera los hallazgos (`400`).
   - `IMAGE_CONTEXT_TOO_LARGE`: El contexto de build supera un límite: más de 100 MB comprimido, más de 512 MB sin comprimir, más de 50.000 entradas, o un `Dockerfile` de más de 1 MB (`413`).
-  - `IMAGE_BUILDER_UNAVAILABLE`: Ningún host puede construir imágenes en este momento; inténtalo más tarde (`503`).
+  - `IMAGE_BUILDER_UNAVAILABLE`: Ningún host puede construir imágenes en este momento; inténtalo más tarde (`503`). También se devuelve cuando el build no pudo iniciarse (`409`).
   - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
 </ResponseField>
 

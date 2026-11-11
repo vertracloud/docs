@@ -150,7 +150,7 @@ Quando um build ou uma instalação falha, `GET /v1/apps/{id}` retorna o código
 | 409 | `REPO_ALREADY_LINKED` | Esse repositório já está vinculado a outra aplicação. Desvincule-o primeiro. |
 | 404 | `INSTALLATION_NOT_FOUND` | A instalação do GitHub App para esta conta/repositório não foi encontrada. Reconecte o GitHub. Ao criar uma imagem Docker a partir do GitHub, isso também significa que o repositório é privado ou não existe (ou que a branch não existe) e não está nas suas instalações; repositórios públicos fora delas são construídos uma única vez, sem vínculo. |
 | 413 | `FILE_TOO_LARGE` | Um único arquivo do repositório excede o tamanho permitido pelo endpoint de arquivos do GitHub. |
-| 502 | `FETCH_ZIP_ERROR` | O GitHub não pôde ser acessado, ou estava limitando requisições, enquanto o repositório era baixado ou verificado. Tente de novo em alguns minutos. |
+| 502 | `FETCH_ZIP_ERROR` | O GitHub não pôde ser acessado, ou estava limitando requisições, enquanto o repositório era baixado ou verificado. Tente de novo em alguns minutos. Ao criar ou refazer o build de uma imagem, também sai como `404` quando o GitHub não devolveu o arquivo do repositório, por exemplo porque a branch não existe mais. |
 | 400 / 403 | `FORBIDDEN_PATH` | O caminho do repositório pedido está fora do que a aplicação pode ler (400 como rejeição genérica; 403 quando é especificamente um caminho proibido). |
 
 ## Arquivos
@@ -274,11 +274,11 @@ Códigos reaproveitados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LI
 | 400 | `DOCKERFILE_REFUSED` | O `Dockerfile` tem uma instrução recusada (`# syntax=` diferente do frontend oficial, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh` ou `--mount=type=secret`). `details` lista os achados; veja [Verificar Dockerfile](/pt-br/api-reference/endpoint/images/check). |
 | 413 | `IMAGE_CONTEXT_TOO_LARGE` | O contexto de build ultrapassa um dos seus quatro limites: 100 MB compactado, 512 MB descompactado, 50.000 entradas, ou um `Dockerfile` maior que 1 MB. Remova arquivos (por exemplo, com um `.dockerignore`) e envie de novo. |
 | 409 | `IMAGE_BUILD_IN_PROGRESS` | A imagem já tem um build em execução. Aguarde o fim. Também é retornado quando você tenta excluir a imagem durante um build. |
-| 409 | `IMAGE_NOT_READY` | A imagem ainda não tem um build bem-sucedido, então não é possível criar aplicações a partir dela. |
+| 409 | `IMAGE_NOT_READY` | A imagem ainda não tem um build bem-sucedido, então não é possível criar aplicações a partir dela. No rebuild a partir da fonte atual, significa que a imagem não tem contexto de build guardado: envie os arquivos com um rebuild por upload. |
 | 400 | `IMAGE_NAME_MISMATCH` | `confirm_name` não é o nome da imagem. |
 | 403 / 409 | `IMAGE_TEMPLATE_ONLY` | A imagem pertence a um template e só pode ser usada por meio dele. Criar uma aplicação a partir dela responde 403; reconstruí-la, fazer commit nela, vincular um repositório a ela ou editar o contexto dela responde 409. |
 | 409 | `IMAGE_IN_USE` | A imagem é a origem da versão atual de um dos seus templates privados. `details.templates` lista quais. Remova-a ou substitua-a no template primeiro. |
-| 503 | `IMAGE_BUILDER_UNAVAILABLE` | Nenhum host consegue construir imagens agora. Tente de novo mais tarde. |
+| 503 / 409 | `IMAGE_BUILDER_UNAVAILABLE` | Nenhum host consegue construir imagens agora (503), ou o build não pôde ser iniciado (409). Tente de novo mais tarde. |
 | 400 | `IMAGE_APP_FIELD_NOT_APPLICABLE` | Você enviou `main_file`, `language`, `version`, `start_command` ou `build_command` para uma aplicação que roda uma imagem personalizada. Esses valores vêm da imagem; deixe-os de fora. |
 | 409 | `IMAGE_APP_CODE_NOT_APPLICABLE` | A aplicação roda uma imagem personalizada, então código não pode ser gravado em `/app` nem feito deploy a partir do GitHub nela. Atualize a imagem. |
 | 400 | `IMAGE_APP_PORT_REQUIRED` | A aplicação roda uma imagem personalizada e ainda não tem porta (foi criada sem web). Envie `port` ao publicá-la. Veja [Publicar aplicação](/pt-br/api-reference/endpoint/apps/network/publish). |

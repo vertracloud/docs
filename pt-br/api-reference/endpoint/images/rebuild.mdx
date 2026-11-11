@@ -7,7 +7,7 @@ description: Reconstrói uma imagem substituindo todo o contexto de build por um
 ---
 
 {/* @see APICustomImage, RESTPutAPICustomImageBody, RESTPutAPICustomImageResult — @vertracloud/api-types */}
-A requisição é `multipart/form-data`. A reconstrução mantém o mesmo ID da imagem e, quando dá certo, adiciona uma nova [versão](/pt-br/api-reference/endpoint/images/versions). **Uma reconstrução nunca reinicia apps**: cada app passa para a nova versão no próximo restart ou deploy que você pedir. Uma reconstrução que falha mantém a versão atual. Reconstruções não contam no limite de imagens. Planos sem imagens personalizadas não podem reconstruir, mas ainda podem apagar.
+A requisição é `multipart/form-data`. A reconstrução mantém o mesmo ID da imagem e, quando dá certo, adiciona uma nova [versão](/pt-br/api-reference/endpoint/images/versions). **Uma reconstrução só reinicia apps quando a imagem tem a atualização automática dos apps ligada** (`auto_update_apps`); senão, cada app passa para a nova versão no próximo restart ou deploy que você pedir. Para refazer o build sem enviar arquivos, use [Reconstruir imagem da fonte atual](/pt-br/api-reference/endpoint/images/rebuild-source). Uma reconstrução que falha mantém a versão atual. Reconstruções não contam no limite de imagens. Planos sem imagens personalizadas não podem reconstruir, mas ainda podem apagar.
 
 Precisa do escopo `images:write` quando chamado com uma chave de API.
 
@@ -126,7 +126,7 @@ Precisa do escopo `images:write` quando chamado com uma chave de API.
   - `DOCKERFILE_NOT_FOUND`: Não existe um arquivo com o nome exato `Dockerfile` na raiz do contexto (`400`).
   - `DOCKERFILE_REFUSED`: O `Dockerfile` tem uma instrução recusada; `details` lista os achados (`400`).
   - `IMAGE_CONTEXT_TOO_LARGE`: O contexto de build passou de um limite: mais de 100 MB compactado, mais de 512 MB descompactado, mais de 50.000 entradas, ou um `Dockerfile` maior que 1 MB (`413`).
-  - `IMAGE_BUILDER_UNAVAILABLE`: Nenhum host consegue construir imagens agora; tente de novo mais tarde (`503`).
+  - `IMAGE_BUILDER_UNAVAILABLE`: Nenhum host consegue construir imagens agora; tente de novo mais tarde (`503`). Também é retornado quando o build não pôde ser iniciado (`409`).
   - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
 </ResponseField>
 
