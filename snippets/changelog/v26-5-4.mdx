@@ -1,0 +1,27 @@
+### Faster Docker image builds
+
+Rebuilding a custom Docker image is now much faster. The next build of the same image reuses the layers of the previous one, so dependencies and base images that did not change are not downloaded and unpacked again, and the end of the build takes seconds instead of minutes.
+
+- **What you notice:** a push that changes only your code builds in about half the time it took before, and large images gain the most. In our tests, a one-line change went from 85 to 43 seconds, and an image that took 20 to 26 minutes now builds in about 7.
+- **Fewer queue errors:** application deploys no longer compete with image builds for the same build slots, and there is more room for builds on each server, so `INSTALL_QUEUE_FULL` is much rarer.
+- **Nothing changes in how you use images:** limits, versions, rollback and the build log work as before. The size shown for an image and the 10 GB limit are counted the same way.
+
+### Fixed: long image builds failing at the end
+
+An image build that ran for more than 30 minutes could fail in its last step with an authentication error, even after the image itself had been built, and the new version was not published. Builds now keep their access for the whole build time limit. Saving the build cache also no longer fails a build: if it cannot be saved, the version is still published and the next build simply starts with less cache.
+
+### Rebuild an image from its current source
+
+You can now build an image again without uploading anything, for example to retry a build that failed:
+
+- **Panel:** **Try again** on the failed build card, or **Rebuild** in the image menu.
+- **API:** [Rebuild Image from Current Source](/api-reference/endpoint/images/rebuild-source) (`POST /v1/images/{image_id}/rebuild`, scope `images:write`).
+- **SDKs, CLI and MCP:** `images.rebuildFromSource` (JavaScript), `images.rebuild_from_source` (Python), `Images.RebuildFromSource` (Go), `vertra image rebuild <id> --from-source`, and the MCP tool `rebuild_image_from_source`.
+
+An image linked to GitHub builds the tip of its linked branch; any other image builds the context of its last build, even if that build failed. It counts as one deploy, like any other rebuild. When GitHub does not return the repository (for example, the linked branch was deleted) the answer is `FETCH_ZIP_ERROR` with `404`; when GitHub cannot be reached it is `502`, and you can try again in a few minutes. See [Custom Docker images](/guides/custom-docker-images).
+
+### Templates
+
+- **Faster failure when the app stops at startup.** Creating from a template now fails within seconds when the application stops right after starting, and shows the end of its log. Before, it waited for the whole health check window.
+- **Time of each step.** The creation progress shows how long each step took, and the running step counts live.
+- **Uptime Kuma 1.0.2.** The Uptime Kuma template failed to start (`Cannot find module` in 1.0.0, and the administrator account was not created in 1.0.1). Version 1.0.2 starts normally and creates the administrator at deploy.

@@ -1,0 +1,27 @@
+### Builds de imagens Docker mais rápidos
+
+Refazer o build de uma imagem Docker personalizada ficou bem mais rápido. O build seguinte da mesma imagem reaproveita as camadas do anterior, então dependências e imagens base que não mudaram não são baixadas nem descompactadas de novo, e o fim do build leva segundos em vez de minutos.
+
+- **O que você nota:** um push que muda só o seu código faz o build em mais ou menos metade do tempo de antes, e as imagens grandes são as que mais ganham. Nos nossos testes, uma mudança de uma linha foi de 85 para 43 segundos, e uma imagem que levava de 20 a 26 minutos agora faz o build em cerca de 7.
+- **Menos erros de fila:** o deploy de aplicações não disputa mais as mesmas vagas de build com os builds de imagem, e há mais espaço para builds em cada servidor, então o `INSTALL_QUEUE_FULL` ficou bem mais raro.
+- **Nada muda no uso das imagens:** limites, versões, rollback e o log do build funcionam como antes. O tamanho exibido de uma imagem e o limite de 10 GB são contados do mesmo jeito.
+
+### Corrigido: builds longos de imagem falhando no fim
+
+Um build de imagem com mais de 30 minutos podia falhar na última etapa com um erro de autenticação, mesmo depois de a imagem já ter sido construída, e a versão nova não era publicada. Agora o build mantém o acesso durante todo o tempo máximo de build. Salvar o cache do build também não faz mais o build falhar: se o cache não puder ser salvo, a versão é publicada mesmo assim e o build seguinte só começa com menos cache.
+
+### Refazer o build de uma imagem a partir da fonte atual
+
+Agora você pode fazer o build de uma imagem de novo sem enviar nada, por exemplo para repetir um build que falhou:
+
+- **Painel:** **Tentar de novo** no cartão do build que falhou, ou **Refazer build** no menu da imagem.
+- **API:** [Reconstruir imagem da fonte atual](/pt-br/api-reference/endpoint/images/rebuild-source) (`POST /v1/images/{image_id}/rebuild`, escopo `images:write`).
+- **SDKs, CLI e MCP:** `images.rebuildFromSource` (JavaScript), `images.rebuild_from_source` (Python), `Images.RebuildFromSource` (Go), `vertra image rebuild <id> --from-source`, e a ferramenta do MCP `rebuild_image_from_source`.
+
+Uma imagem vinculada ao GitHub faz o build da ponta da branch vinculada; as demais fazem o build do contexto do último build, mesmo que ele tenha falhado. Conta como um deploy, como qualquer outro rebuild. Quando o GitHub não devolve o repositório (por exemplo, a branch vinculada foi apagada), a resposta é `FETCH_ZIP_ERROR` com `404`; quando o GitHub não responde, é `502`, e dá para tentar de novo em alguns minutos. Veja [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images).
+
+### Templates
+
+- **Falha mais rápida quando o app para ao iniciar.** Criar a partir de um template agora falha em segundos quando a aplicação para logo depois de iniciar, e mostra o fim do log dela. Antes, a criação esperava o prazo inteiro da verificação de saúde.
+- **Tempo de cada etapa.** O progresso da criação mostra quanto tempo cada etapa levou, e a etapa em andamento conta ao vivo.
+- **Uptime Kuma 1.0.2.** O template do Uptime Kuma não iniciava (`Cannot find module` na 1.0.0, e a conta de administrador não era criada na 1.0.1). A versão 1.0.2 inicia normalmente e cria o administrador no deploy.
