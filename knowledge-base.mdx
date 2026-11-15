@@ -356,6 +356,16 @@ are refused with `PLAN_REQUIRED` (403). Subscribe to a plan, starting at Starter
 - **The price before you pay.** `POST /v1/orders/quote` returns what will be charged for a plan and period, with an
   optional coupon: the list price, the period discount, the coupon discount, the total and whether the price is
   the transition price below. It creates no order and doesn't use the coupon. The checkout shows this same value.
+- **Upgrading to a bigger plan.** With an active plan whose current period was paid by Pix or card and **more than 14 days** left until it expires, an
+  upgrade charges only the **difference** between the price of the new plan and the price of your current plan, in your
+  billing cycle (period discount included), proportional to the time left. The expiration date doesn't change and the
+  next renewal is already on the new plan, in the same cycle. A valid coupon applies to the difference, with its usual
+  rules (the period is your billing cycle); the first-purchase referral discount doesn't apply to it, and referral
+  balance can cover part of it. In that case `POST /v1/orders/quote` and `POST /v1/orders` return a `proration` object
+  (current plan, billing cycle, days left, expiration date and the price of the next renewal), the `months` you send is
+  ignored and `GET /v1/orders` and `GET /v1/orders/:id/status` mark the order with `prorated: true`. With **14 days or
+  fewer** left, or when the current period was not paid by Pix or card (a redeemed code, a courtesy or a zero-value order), the upgrade is a regular purchase of
+  the new plan for the period you choose, and the value of the remaining days becomes additional time on the new plan.
 - **Card = automatic renewal.** A card is saved to the account and the plan renews on the default
   card, with no loyalty period. Three days before the plan expires the card is charged and an
   email is sent the same day. If the charge fails it is retried on each of the next 2 days and on
@@ -961,11 +971,12 @@ The dashboard automatically strips from the zip, before uploading: `node_modules
 
 ## 13. Plan Downgrade
 
-- Available via dashboard or API: `POST /v1/users/me/downgrade`
-- **Formula**: `newDays = remainingDays × (currentPrice / targetPrice)`
+- Available from the dashboard. `POST /v1/users/me/downgrade` accepts only a dashboard session; an API key is refused with `API_KEY_SCOPE_DENIED`
+- **Effect**: immediate, to the plan right below the current one. The **expiration date stays the same**; the difference for the remaining days doesn't become credit, additional time or a refund. The next renewal is already on the smaller plan, at its price, in the same billing cycle
+- **Open renewal**: an automatic renewal already created for the old plan is cancelled and the next one is created on the smaller plan; while that renewal is being charged, the downgrade answers `OPERATION_IN_PROGRESS` (wait a few seconds and retry)
 - **Restrictions**: Starter 1 cannot downgrade. A downgrade always moves to the immediately previous plan: Starter 1 → Starter 2 → Pro 4 → Pro 6 → Pro 8 → Business 12 → Business 16 → Business 24 → Enterprise 32 → … → Enterprise 512
-- **Checks**: Memory usage and the Docker images in use (own and image templates) must fit the target plan (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`), rate limit (1x every 3 hours)
-- **Impact**: Reduced memory limit, higher-plan features disabled, workspaces lost when leaving Starter 2 for Starter 1. The saved automatic rollback and zero-downtime settings stay on the application but only act on a plan that includes them
+- **Checks**: Memory usage and the Docker images in use (own and image templates) must fit the target plan (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`), rate limit (1x every 3 hours), and the confirmation code sent by email
+- **Impact**: Reduced memory limit and higher-plan features disabled. Custom domains, workspace members and roles above the new plan's limit stay, but new ones are blocked until you are within the limit. Workspaces on a plan without workspaces (Starter 1) are frozen (read-only), not deleted. The saved automatic rollback and zero-downtime settings stay on the application but only act on a plan that includes them
 
 ---
 

@@ -17,7 +17,7 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
   Cuántos meses comprar: `1`, `3`, `6` o `12`. Cualquier otro valor devuelve `INVALID_MONTHS`. Un pedido de
   3 meses tiene un 10% de descuento, uno de 6 meses un 15% y uno de 12 meses un 25% sobre el precio mensual;
   `price` y `discount` ya lo incluyen. [Cotizar pedido](/es-es/api-reference/endpoint/billing/quote-order)
-  devuelve el importe exacto antes de crear el pedido.
+  devuelve el importe exacto antes de crear el pedido. Se ignora cuando el upgrade cobra solo la diferencia (consulta la nota de abajo): se usa el ciclo de facturación de la cuenta.
 </ParamField>
 
 <ParamField body="coupon" type="string">
@@ -31,6 +31,17 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
 <Note>
   Un pedido `renew` requiere que el plan indicado coincida con el plan actual de la cuenta; un pedido `upgrade`
   requiere que sea estrictamente superior. Usa `type: "purchase"` cuando todavía no exista un plan activo de ese tipo.
+</Note>
+
+<Note>
+  **Upgrade que cobra solo la diferencia.** Cuando la cuenta tiene un plan activo pagado con Pix o tarjeta con **más de 14 días**
+  restantes y el pedido es para un plan mayor, pagas solo la diferencia entre el precio del plan nuevo y el del plan
+  actual, en el ciclo de facturación de la cuenta y de forma proporcional a los días restantes. El vencimiento no cambia
+  y la siguiente renovación ya sale en el plan nuevo, en el mismo ciclo. La respuesta incluye `proration`. Un cupón se
+  aplica sobre la diferencia con sus reglas habituales, y el periodo es el ciclo de la cuenta; el descuento de primera
+  compra de referidos no se aplica a ella. Con **14 días o menos** restantes, o cuando el periodo actual no se pagó con Pix o tarjeta (código canjeado, cortesía o pedido de valor cero), el pedido es una compra normal del plan nuevo por `months`, y el valor de los días
+  restantes se convierte en tiempo adicional. La plataforma lo decide al crear el pedido: la misma petición se
+  calcula como compra normal cuando la cuenta no cumple las condiciones.
 </Note>
 
 ### Respuesta
@@ -55,7 +66,7 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
   </ResponseField>
 
   <ResponseField name="duration" type="integer">
-    Duración en meses.
+    Duración en días: los meses del pedido por 30. En un upgrade que cobra solo la diferencia, los días restantes hasta el vencimiento actual.
   </ResponseField>
 
   <ResponseField name="discount" type="object">
@@ -83,6 +94,18 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
     Los métodos de pago que acepta el pedido: `pix` y `card`. Un cupón restringido a un solo método reduce la lista.
   </ResponseField>
 
+  <ResponseField name="proration" type="object | null">
+    Presente cuando el upgrade cobra solo la diferencia entre los dos planes (consulta la nota de arriba); ausente o `null` en una compra normal. `duration` pasa a ser los días restantes hasta `expires_at`, `price` es la diferencia ya con el descuento y el periodo del pedido es el ciclo de facturación de la cuenta.
+
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="current_plan" type="string">El plan en el que está la cuenta antes del upgrade.</ResponseField>
+    <ResponseField name="cycle_months" type="integer">El ciclo de facturación de la cuenta, en meses: `1`, `3`, `6` o `12`. La próxima renovación lo sigue.</ResponseField>
+    <ResponseField name="remaining_days" type="number">Días restantes hasta `expires_at`, con dos decimales.</ResponseField>
+    <ResponseField name="expires_at" type="string" format="date-time">El vencimiento actual, en ISO 8601. El upgrade lo mantiene.</ResponseField>
+    <ResponseField name="renewal_price" type="number">El precio de la próxima renovación en el plan nuevo, en BRL, para `cycle_months`, antes de cualquier cupón.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -95,11 +118,34 @@ description: Crea un pedido para comprar, renovar o actualizar un plan.
     "code": null,
     "status": "unpaid",
     "plan": "starter-1",
-    "duration": 1,
+    "duration": 30,
     "discount": { "percent": null, "coupon": null, "price": 7.7 },
     "price": 7.7,
     "expires_at": "2026-09-22T12:00:00.000Z",
     "allowed_payment_methods": ["pix", "card"]
+  }
+}
+```
+
+```json Upgrade que cobra solo la diferencia
+{
+  "response": {
+    "id": "order-def456",
+    "code": null,
+    "status": "unpaid",
+    "plan": "pro-4",
+    "duration": 46,
+    "discount": { "percent": null, "coupon": null, "price": 12.29 },
+    "price": 12.29,
+    "expires_at": "2026-11-18T12:00:00.000Z",
+    "allowed_payment_methods": ["pix", "card"],
+    "proration": {
+      "current_plan": "starter-2",
+      "cycle_months": 3,
+      "remaining_days": 45.5,
+      "expires_at": "2026-12-31T00:00:00.000Z",
+      "renewal_price": 56.43
+    }
   }
 }
 ```

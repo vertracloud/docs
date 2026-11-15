@@ -1,40 +1,30 @@
 ---
 title: 'How Plan Downgrade Works on Vertra Cloud'
 sidebarTitle: 'Plan Downgrade'
-description: 'Downgrading a Vertra Cloud plan converts your remaining days to the cheaper plan by price ratio, so no paid time is lost. Formula and example.'
+description: 'A Vertra Cloud downgrade is immediate, moves one plan down and keeps your expiration date. What changes, what is checked first and how to do it.'
 icon: 'arrow-down'
 ---
 
 ## How Downgrades Work
 
-When you downgrade a Vertra Cloud plan, your **remaining days are converted** into equivalent days on the cheaper plan, in proportion to the price difference, up to **365 days** on the target plan — no paid time is lost.
+A downgrade on Vertra Cloud takes effect **immediately**: your account moves to the **plan right below** the current one and **keeps its expiration date**. The difference for the remaining days does not become credit, additional time or a refund, and your next renewal is charged at the price of the smaller plan.
 
-The unused value of the current plan is converted by the price ratio. Because the target plan costs less, you always end up with more days than you had.
+<Tip>
+  The less time is left until your expiration date, the less of the bigger plan you leave unused. To make the most of what you already paid, downgrade close to your expiration date.
+</Tip>
 
 <Info>
   Downgrades always move to the **immediately previous plan** in the hierarchy. You cannot skip plans.
 </Info>
 
-## Conversion Formula
+Before you confirm, the dashboard shows the new plan and your expiration date.
 
-Your remaining time is converted proportionally:
+## Expiration Date and Renewal
 
-```
-newDays = remainingDays × (currentPlanPrice / targetPlanPrice)
-```
-
-Since the target plan is cheaper, you always get **more days** than you had remaining.
-
-### Example
-
-<Card title="Pro 4 → Starter 2" icon="calculator">
-  | | Value |
-  |---|---|
-  | **Current plan** | Pro 4 (R\$20.90/mo) |
-  | **Target plan** | Starter 2 (R\$11.90/mo) |
-  | **Days remaining** | 15 days |
-  | **Converted days** | 15 × (20.90 ÷ 11.90) ≈ **26.3 days** on Starter 2 (the new expiration keeps the fraction of the day) |
-</Card>
+- **The expiration date does not change.** You keep the days you already paid for, now on the smaller plan.
+- **The next renewal is on the smaller plan,** at its price and in the same billing cycle.
+- **An automatic renewal already created for the old plan is cancelled.** The next one is created on the smaller plan. If that renewal is being charged at that very moment, the downgrade asks you to wait a few seconds and try again.
+- **No credit, no extra days, no refund** for the difference between the two plans.
 
 ## Plan Hierarchy
 
@@ -66,6 +56,9 @@ The system will check the following before processing:
   <Step title="Rate limit">
     You can only downgrade once every **3 hours** to prevent abuse.
   </Step>
+  <Step title="Email confirmation">
+    The dashboard asks for a code sent to your email before it downgrades the plan.
+  </Step>
 </Steps>
 
 ## What Changes on Downgrade
@@ -78,10 +71,13 @@ The system will check the following before processing:
   </Accordion>
   <Accordion title="Features">
     - Features exclusive to higher plans are immediately disabled
-    - For example: custom domains, zero-downtime deploys, the database data manager, etc.
+    - For example: zero-downtime deploys, the database data manager, etc.
+  </Accordion>
+  <Accordion title="Domains, members and roles">
+    If you have more custom domains, workspace members or roles than the smaller plan allows, the ones you already have stay, but you cannot add new ones until you are back within the limit.
   </Accordion>
   <Accordion title="Workspaces">
-    If downgrading from **Starter 2** to **Starter 1**, you will **lose the ability to create and manage workspaces**. Existing workspaces will be affected.
+    If you go from **Starter 2** to **Starter 1**, which has no workspaces, your workspaces are **frozen, not deleted**: members, projects and roles stay, and you can still read, leave, remove members or projects and delete the workspace. Changes such as renaming, inviting, changing a role or linking a project are refused until your plan is Starter 2 or above again. See [Frozen workspaces](/workspaces#frozen-workspaces).
   </Accordion>
 </AccordionGroup>
 
@@ -97,24 +93,19 @@ Your application's automatic rollback and zero-downtime settings are not erased 
 
 ## How to Downgrade
 
-<Tabs>
-  <Tab title="Via Dashboard">
-    1. Go to **Dashboard → Settings → Account**
-    2. Scroll to the **Downgrade Plan** section
-    3. Review the target plan and confirm
-  </Tab>
-  <Tab title="Via API">
-    ```bash
-    curl -X POST \
-      -H "Authorization: Bearer $VERTRA_API_KEY" \
-      https://api.vertracloud.app/v1/users/me/downgrade
-    ```
+1. Go to **Dashboard → Settings → Account**
+2. Scroll to the **Downgrade Plan** section
+3. Review the new plan and your expiration date, then confirm with the code sent to your email
 
-    **Possible responses:**
-    - `200` — Downgrade successful
-    - `400 DOWNGRADE_NOT_AVAILABLE` — Already on STARTER 1
-    - `400 INSUFFICIENT_MEMORY_FOR_DOWNGRADE` — Reduce resource usage first
-    - `400 INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE` — The lower plan holds fewer Docker images than you use (image templates count): delete images or image template apps first
-    - `429` — Rate limited (wait 3 hours)
-  </Tab>
-</Tabs>
+<Note>
+  Downgrading is a dashboard-only action: a request made with an API key is refused with `403 API_KEY_SCOPE_DENIED`, whatever its scopes.
+</Note>
+
+## If the Downgrade Is Refused
+
+- `DOWNGRADE_NOT_AVAILABLE` — you are already on STARTER 1
+- `INSUFFICIENT_MEMORY_FOR_DOWNGRADE` — reduce resource usage first
+- `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE` — the lower plan holds fewer Docker images than you use (image templates count): delete images or image template apps first
+- `429` — rate limited, wait 3 hours
+
+Moving to a bigger plan works differently: see [How do I change my plan?](/plans-and-limits#how-do-i-change-my-plan).
