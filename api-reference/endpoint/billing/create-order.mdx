@@ -17,7 +17,8 @@ description: Creates an order to purchase, renew or upgrade a plan.
   How many months to purchase: `1`, `3`, `6` or `12`. Any other value returns `INVALID_MONTHS`. A
   3-month order gets 10% off, a 6-month order 15% off and a 12-month order 25% off the monthly price;
   `price` and `discount` already include it. [Quote Order](/api-reference/endpoint/billing/quote-order)
-  returns the exact amount before you create the order.
+  returns the exact amount before you create the order. It is ignored when the upgrade charges only the
+  difference (see the note below): the account's billing cycle is used instead.
 </ParamField>
 
 <ParamField body="coupon" type="string">
@@ -32,6 +33,17 @@ description: Creates an order to purchase, renew or upgrade a plan.
   A `renew` order requires the target plan to match the account's current plan; an `upgrade`
   order requires it to be strictly larger. Use `type: "purchase"` when there's no active plan of
   that kind yet.
+</Note>
+
+<Note>
+  **Upgrade that charges only the difference.** When the account has an active plan paid by Pix or card with **more than 14 days**
+  left and the order is for a bigger plan, you pay only the difference between the price of the new plan and the
+  price of the current plan, in the account's billing cycle and proportional to the days left. The expiration date
+  does not change and the next renewal is already on the new plan, in the same cycle. The response carries
+  `proration`. A coupon applies to the difference with its usual rules, with the period being the account's cycle;
+  the first-purchase referral discount does not apply to it. With **14 days or fewer** left, or when the current period was not paid by Pix or card (a redeemed code, a courtesy or a zero-value order), the order is a regular purchase of the new plan for `months`, and
+  the value of the remaining days becomes additional time. The platform decides this when the order is created: the
+  same request is priced as a regular purchase when the account does not qualify.
 </Note>
 
 ### Response
@@ -56,7 +68,7 @@ description: Creates an order to purchase, renew or upgrade a plan.
   </ResponseField>
 
   <ResponseField name="duration" type="integer">
-    Duration in months.
+    Duration in days: the months of the order times 30. For an upgrade that charges only the difference, the days left until the current expiration date.
   </ResponseField>
 
   <ResponseField name="discount" type="object">
@@ -85,6 +97,18 @@ description: Creates an order to purchase, renew or upgrade a plan.
     the list.
   </ResponseField>
 
+  <ResponseField name="proration" type="object | null">
+    Present when the upgrade charges only the difference between the two plans (see the note above); absent or `null` for a regular purchase. `duration` is then the days left until `expires_at`, `price` is the difference after the discount and the order's period is the account's billing cycle.
+
+    <Expandable title="Toggle object">
+    <ResponseField name="current_plan" type="string">The plan the account is on before the upgrade.</ResponseField>
+    <ResponseField name="cycle_months" type="integer">The billing cycle of the account, in months: `1`, `3`, `6` or `12`. The next renewal follows it.</ResponseField>
+    <ResponseField name="remaining_days" type="number">Days left until `expires_at`, with two decimals.</ResponseField>
+    <ResponseField name="expires_at" type="string" format="date-time">The current expiration date, in ISO 8601. The upgrade keeps it.</ResponseField>
+    <ResponseField name="renewal_price" type="number">The price of the next renewal on the new plan, in BRL, for `cycle_months`, before any coupon.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -97,11 +121,34 @@ description: Creates an order to purchase, renew or upgrade a plan.
     "code": null,
     "status": "unpaid",
     "plan": "starter-1",
-    "duration": 1,
+    "duration": 30,
     "discount": { "percent": null, "coupon": null, "price": 7.7 },
     "price": 7.7,
     "expires_at": "2026-09-22T12:00:00.000Z",
     "allowed_payment_methods": ["pix", "card"]
+  }
+}
+```
+
+```json Upgrade that charges only the difference
+{
+  "response": {
+    "id": "order-def456",
+    "code": null,
+    "status": "unpaid",
+    "plan": "pro-4",
+    "duration": 46,
+    "discount": { "percent": null, "coupon": null, "price": 12.29 },
+    "price": 12.29,
+    "expires_at": "2026-11-18T12:00:00.000Z",
+    "allowed_payment_methods": ["pix", "card"],
+    "proration": {
+      "current_plan": "starter-2",
+      "cycle_months": 3,
+      "remaining_days": 45.5,
+      "expires_at": "2026-12-31T00:00:00.000Z",
+      "renewal_price": 56.43
+    }
   }
 }
 ```

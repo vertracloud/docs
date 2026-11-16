@@ -16,7 +16,7 @@ Requiere el scope `billing:read` cuando se llama con una clave de API. Está lim
 </ParamField>
 
 <ParamField body="months" type="integer" required>
-  El periodo de facturación: `1`, `3`, `6` o `12`. Un periodo de 3 meses tiene un 10% de descuento sobre el precio mensual, 6 meses un 15% y 12 meses un 25%.
+  El periodo de facturación: `1`, `3`, `6` o `12`. Un periodo de 3 meses tiene un 10% de descuento sobre el precio mensual, 6 meses un 15% y 12 meses un 25%. Se ignora cuando la cotización es de un upgrade que cobra solo la diferencia (consulta la nota de abajo): se usa el ciclo de facturación de la cuenta.
 </ParamField>
 
 <ParamField body="coupon" type="string">
@@ -25,6 +25,10 @@ Requiere el scope `billing:read` cuando se llama con una clave de API. Está lim
 
 <Note>
   El precio depende de la cuenta. Si la cuenta tiene un plan anterior a la parrilla actual y compra el equivalente a su propio plan, `legacy_price` es `true` y `total` es el precio que ya paga, hasta `legacy_price_until`. Solo el periodo mensual mantiene ese precio. Los periodos más largos usan el precio actual con el descuento del periodo.
+</Note>
+
+<Note>
+  **Upgrade que cobra solo la diferencia.** Cuando la cuenta tiene un plan activo pagado con Pix o tarjeta con más de 14 días restantes y `plan` es mayor que el actual, la cotización es la diferencia entre el precio del plan nuevo y el del plan actual, en el ciclo de facturación de la cuenta y de forma proporcional a los días restantes, y `proration` viene rellenado. `months` en la respuesta es el ciclo de facturación de la cuenta, `list_price` es la diferencia antes de cualquier cupón, `period_discount_percent` es `0` (el descuento del periodo ya está en los precios de los dos planes) y `referral_discount` es `null`. Un cupón se aplica sobre la diferencia con sus reglas habituales, y el periodo es el ciclo de la cuenta. Con 14 días o menos restantes, o cuando el periodo actual no se pagó con Pix o tarjeta (código canjeado, cortesía o pedido de valor cero), la cotización es el precio normal y `proration` es `null` o no aparece.
 </Note>
 
 ### Respuesta
@@ -85,6 +89,18 @@ Requiere el scope `billing:read` cuando se llama con una clave de API. Está lim
     Los métodos de pago que acepta el plan: `pix` y `card`.
   </ResponseField>
 
+  <ResponseField name="proration" type="object | null">
+    Presente cuando el upgrade cobra solo la diferencia entre los dos planes (consulta la nota de arriba); ausente o `null` en una compra normal. `total` es entonces la diferencia.
+
+    <Expandable title="Mostrar objeto">
+    <ResponseField name="current_plan" type="string">El plan en el que está la cuenta antes del upgrade.</ResponseField>
+    <ResponseField name="cycle_months" type="integer">El ciclo de facturación de la cuenta, en meses: `1`, `3`, `6` o `12`. La próxima renovación lo sigue.</ResponseField>
+    <ResponseField name="remaining_days" type="number">Días restantes hasta `expires_at`, con dos decimales.</ResponseField>
+    <ResponseField name="expires_at" type="string" format="date-time">El vencimiento actual, en ISO 8601. El upgrade lo mantiene.</ResponseField>
+    <ResponseField name="renewal_price" type="number">El precio de la próxima renovación en el plan nuevo, en BRL, para `cycle_months`, antes de cualquier cupón.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -118,6 +134,32 @@ Requiere el scope `billing:read` cuando se llama con una clave de API. Está lim
     "legacy_price": false,
     "legacy_price_until": null,
     "payment_methods": ["pix", "card"]
+  }
+}
+```
+
+```json Upgrade que cobra solo la diferencia
+{
+  "response": {
+    "plan": "pro-4",
+    "months": 3,
+    "list_price": 12.29,
+    "period_discount_percent": 0,
+    "coupon": null,
+    "referral_discount": null,
+    "referral_balance_applied": 0,
+    "discount_source": null,
+    "total": 12.29,
+    "legacy_price": false,
+    "legacy_price_until": null,
+    "payment_methods": ["pix", "card"],
+    "proration": {
+      "current_plan": "starter-2",
+      "cycle_months": 3,
+      "remaining_days": 45.5,
+      "expires_at": "2026-12-31T00:00:00.000Z",
+      "renewal_price": 56.43
+    }
   }
 }
 ```

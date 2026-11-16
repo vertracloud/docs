@@ -16,7 +16,7 @@ Needs the `billing:read` scope when called with an API key. It is limited to 10 
 </ParamField>
 
 <ParamField body="months" type="integer" required>
-  The billing period: `1`, `3`, `6` or `12`. A 3-month period gets 10% off the monthly price, 6 months get 15% off and 12 months get 25% off.
+  The billing period: `1`, `3`, `6` or `12`. A 3-month period gets 10% off the monthly price, 6 months get 15% off and 12 months get 25% off. It is ignored when the quote is an upgrade that charges only the difference (see the note below): the account's billing cycle is used.
 </ParamField>
 
 <ParamField body="coupon" type="string">
@@ -25,6 +25,10 @@ Needs the `billing:read` scope when called with an API key. It is limited to 10 
 
 <Note>
   The price depends on the account. If the account has a plan from before the current grid and buys the equivalent of its own plan, `legacy_price` is `true` and `total` is the price it already pays, until `legacy_price_until`. Only the monthly period keeps that price. Longer periods use the current price with the period discount.
+</Note>
+
+<Note>
+  **Upgrade that charges only the difference.** When the account has an active plan paid by Pix or card with more than 14 days left and `plan` is bigger than the current one, the quote is the difference between the price of the new plan and the price of the current plan, in the account's billing cycle and proportional to the days left, and `proration` is filled. `months` in the response is the account's billing cycle, `list_price` is the difference before any coupon, `period_discount_percent` is `0` (the period discount is already in the prices of both plans) and `referral_discount` is `null`. A coupon applies to the difference with its usual rules, with the period being the account's cycle. With 14 days or fewer left, or when the current period was not paid by Pix or card (a redeemed code, a courtesy or a zero-value order), the quote is the regular price and `proration` is `null` or absent.
 </Note>
 
 ### Response
@@ -85,6 +89,18 @@ Needs the `billing:read` scope when called with an API key. It is limited to 10 
     The payment methods the plan accepts: `pix` and `card`.
   </ResponseField>
 
+  <ResponseField name="proration" type="object | null">
+    Present when the upgrade charges only the difference between the two plans (see the note above); absent or `null` for a regular purchase. `total` is then the difference.
+
+    <Expandable title="Toggle object">
+    <ResponseField name="current_plan" type="string">The plan the account is on before the upgrade.</ResponseField>
+    <ResponseField name="cycle_months" type="integer">The billing cycle of the account, in months: `1`, `3`, `6` or `12`. The next renewal follows it.</ResponseField>
+    <ResponseField name="remaining_days" type="number">Days left until `expires_at`, with two decimals.</ResponseField>
+    <ResponseField name="expires_at" type="string" format="date-time">The current expiration date, in ISO 8601. The upgrade keeps it.</ResponseField>
+    <ResponseField name="renewal_price" type="number">The price of the next renewal on the new plan, in BRL, for `cycle_months`, before any coupon.</ResponseField>
+    </Expandable>
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -118,6 +134,32 @@ Needs the `billing:read` scope when called with an API key. It is limited to 10 
     "legacy_price": false,
     "legacy_price_until": null,
     "payment_methods": ["pix", "card"]
+  }
+}
+```
+
+```json Upgrade that charges only the difference
+{
+  "response": {
+    "plan": "pro-4",
+    "months": 3,
+    "list_price": 12.29,
+    "period_discount_percent": 0,
+    "coupon": null,
+    "referral_discount": null,
+    "referral_balance_applied": 0,
+    "discount_source": null,
+    "total": 12.29,
+    "legacy_price": false,
+    "legacy_price_until": null,
+    "payment_methods": ["pix", "card"],
+    "proration": {
+      "current_plan": "starter-2",
+      "cycle_months": 3,
+      "remaining_days": 45.5,
+      "expires_at": "2026-12-31T00:00:00.000Z",
+      "renewal_price": 56.43
+    }
   }
 }
 ```

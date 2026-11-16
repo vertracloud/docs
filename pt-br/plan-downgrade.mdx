@@ -1,42 +1,30 @@
 ---
 title: 'Como funciona o downgrade de plano na Vertra Cloud'
 sidebarTitle: 'Downgrade de plano'
-description: 'No downgrade na Vertra Cloud, os dias restantes viram dias do plano mais barato pela razão de preço, sem perder tempo pago. Fórmula e exemplo.'
+description: 'O downgrade na Vertra Cloud é imediato, desce um plano e mantém o vencimento. O que muda, o que é conferido antes e como fazer.'
 icon: 'arrow-down'
 ---
 
 ## Como funciona o downgrade
 
-Ao fazer downgrade de um plano da Vertra Cloud, seus **dias restantes são convertidos** em dias equivalentes
-no plano mais barato, na proporção da diferença de preço, até **365 dias** no plano de destino — nenhum tempo pago é perdido.
+O downgrade na Vertra Cloud vale **na hora**: sua conta passa para o **plano imediatamente abaixo** do atual e **mantém o vencimento**. A diferença dos dias restantes não vira crédito, tempo adicional nem reembolso, e a sua próxima renovação é cobrada pelo preço do plano menor.
 
-O valor não usado do plano atual é convertido pela razão de preço. Como o plano de destino custa menos, você
-sempre termina com mais dias do que tinha.
+<Tip>
+  Quanto menos tempo falta para o vencimento, menos do plano maior você deixa sem usar. Para aproveitar ao máximo o que já pagou, faça o downgrade perto do vencimento.
+</Tip>
 
 <Info>
-  Downgrades sempre levam ao **plano imediatamente anterior** na hierarquia. Não é possível pular planos.
+  O downgrade sempre vai para o **plano imediatamente anterior** na hierarquia. Não é possível pular planos.
 </Info>
 
-## Fórmula de conversão
+Antes de confirmar, o dashboard mostra o plano novo e o seu vencimento.
 
-O seu tempo restante é convertido proporcionalmente:
+## Vencimento e renovação
 
-```
-newDays = remainingDays × (currentPlanPrice / targetPlanPrice)
-```
-
-Como o plano de destino é mais barato, você sempre fica com **mais dias** do que tinha restantes.
-
-### Exemplo
-
-<Card title="Pro 4 → Starter 2" icon="calculator">
-  | | Valor |
-  |---|---|
-  | **Plano atual** | Pro 4 (R\$20,90/mês) |
-  | **Plano de destino** | Starter 2 (R\$11,90/mês) |
-  | **Dias restantes** | 15 dias |
-  | **Dias convertidos** | 15 × (20,90 ÷ 11,90) ≈ **26,3 dias** no Starter 2 (o novo vencimento guarda a fração do dia) |
-</Card>
+- **O vencimento não muda.** Você fica com os dias que já pagou, agora no plano menor.
+- **A próxima renovação sai no plano menor,** pelo preço dele e no mesmo ciclo de cobrança.
+- **A renovação automática já criada para o plano antigo é cancelada.** A seguinte é criada no plano menor. Se essa renovação estiver sendo cobrada nesse exato momento, o downgrade pede que você espere alguns segundos e tente de novo.
+- **Sem crédito, sem dias extras, sem reembolso** pela diferença entre os dois planos.
 
 ## Hierarquia dos planos
 
@@ -70,6 +58,9 @@ O sistema verifica o seguinte antes de processar:
   <Step title="Limite de frequência">
     Você só pode fazer downgrade uma vez a cada **3 horas**, para evitar abuso.
   </Step>
+  <Step title="Confirmação por e-mail">
+    O dashboard pede um código enviado ao seu e-mail antes de fazer o downgrade do plano.
+  </Step>
 </Steps>
 
 ## O que muda no downgrade
@@ -82,11 +73,13 @@ O sistema verifica o seguinte antes de processar:
   </Accordion>
   <Accordion title="Funcionalidades">
     - Funcionalidades exclusivas de planos superiores são desativadas imediatamente
-    - Por exemplo: domínios personalizados, deploys sem downtime, o gerenciador de dados do banco, etc.
+    - Por exemplo: deploys sem downtime, o gerenciador de dados do banco, etc.
+  </Accordion>
+  <Accordion title="Domínios, membros e papéis">
+    Se você tem mais domínios personalizados, membros de workspace ou papéis do que o plano menor permite, os que você já tem continuam, mas não é possível adicionar novos até voltar para dentro do limite.
   </Accordion>
   <Accordion title="Workspaces">
-    Se você fizer downgrade do **Starter 2** para o **Starter 1**, perderá a capacidade
-    de criar e gerenciar workspaces. Os workspaces existentes serão afetados.
+    Se você for do **Starter 2** para o **Starter 1**, que não tem workspaces, seus workspaces ficam **congelados, não apagados**: membros, projetos e papéis continuam, e você ainda pode ler, sair, remover membros ou projetos e excluir o workspace. Mudanças como renomear, convidar, trocar um papel ou vincular um projeto são recusadas até o seu plano voltar a ser Starter 2 ou superior. Veja [Workspaces congelados](/pt-br/workspaces#workspaces-congelados).
   </Accordion>
 </AccordionGroup>
 
@@ -109,24 +102,19 @@ uma das duas configurações, mas não ativá-la.
 
 ## Como fazer o downgrade
 
-<Tabs>
-  <Tab title="Pelo dashboard">
-    1. Acesse **Dashboard → Configurações → Conta**
-    2. Role até a seção **Downgrade de Plano**
-    3. Revise o plano de destino e confirme
-  </Tab>
-  <Tab title="Pela API">
-    ```bash
-    curl -X POST \
-      -H "Authorization: Bearer $VERTRA_API_KEY" \
-      https://api.vertracloud.app/v1/users/me/downgrade
-    ```
+1. Acesse **Dashboard → Configurações → Conta**
+2. Role até a seção **Downgrade de Plano**
+3. Revise o plano novo e o seu vencimento, e confirme com o código enviado ao seu e-mail
 
-    **Possíveis respostas:**
-    - `200` — Downgrade realizado com sucesso
-    - `400 DOWNGRADE_NOT_AVAILABLE` — Já está no STARTER 1
-    - `400 INSUFFICIENT_MEMORY_FOR_DOWNGRADE` — Reduza o uso de recursos antes
-    - `400 INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE` — O plano abaixo comporta menos imagens Docker do que você usa (templates de imagem contam): apague imagens ou apps de template de imagem antes
-    - `429` — Limite de frequência atingido (aguarde 3 horas)
-  </Tab>
-</Tabs>
+<Note>
+  O downgrade é uma ação só do dashboard: uma requisição feita com chave de API é recusada com `403 API_KEY_SCOPE_DENIED`, quaisquer que sejam os escopos.
+</Note>
+
+## Se o downgrade for recusado
+
+- `DOWNGRADE_NOT_AVAILABLE` — você já está no STARTER 1
+- `INSUFFICIENT_MEMORY_FOR_DOWNGRADE` — reduza o uso de recursos antes
+- `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE` — o plano menor comporta menos imagens Docker do que você usa (os templates de imagem contam): apague imagens ou apps de template de imagem antes
+- `429` — limite de frequência, espere 3 horas
+
+Subir para um plano maior funciona diferente: veja [Como mudo de plano?](/pt-br/plans-and-limits#como-mudo-de-plano).

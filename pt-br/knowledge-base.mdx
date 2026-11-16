@@ -364,6 +364,15 @@ recusadas com `PLAN_REQUIRED` (403). Assine um plano, a partir do Starter 1, par
 - **O preço antes de pagar.** `POST /v1/orders/quote` retorna o que será cobrado por um plano e um período, com um
   cupom opcional: o preço de tabela, o desconto do período, o desconto do cupom, o total e se o preço é o preço de
   transição descrito abaixo. Ele não cria pedido nem usa o cupom. O checkout mostra esse mesmo valor.
+- **Upgrade para um plano maior.** Com um plano ativo cujo período atual foi pago por Pix ou cartão e **mais de 14 dias** até ele expirar, o upgrade cobra só a
+  **diferença** entre o preço do plano novo e o do plano atual, no seu ciclo de cobrança (desconto do período incluído),
+  proporcional ao tempo restante. O vencimento não muda e a renovação seguinte já sai no plano novo, no mesmo ciclo. Um
+  cupom válido vale sobre a diferença, com as regras de sempre (o período é o seu ciclo de cobrança); o desconto de
+  primeira compra da indicação não vale nela, e o saldo de indicação pode cobrir parte dela. Nesse caso `POST /v1/orders/quote`
+  e `POST /v1/orders` retornam um objeto `proration` (plano atual, ciclo de cobrança, dias restantes, vencimento e o preço da
+  próxima renovação), o `months` enviado é ignorado e `GET /v1/orders` e `GET /v1/orders/:id/status` marcam o pedido com
+  `prorated: true`. Com **14 dias ou menos** restantes, ou quando o período atual não foi pago por Pix ou cartão (código de resgate, cortesia ou pedido de valor zero), o upgrade é uma compra comum do plano novo pelo período escolhido, e o valor dos dias restantes vira tempo
+  adicional no plano novo.
 - **Cartão = renovação automática.** Um cartão é salvo na conta e o plano renova no cartão padrão, sem período de
   fidelidade. Três dias antes de o plano expirar, o cartão é cobrado e um e-mail é enviado no mesmo dia. Se a cobrança
   falhar, ela é tentada novamente em cada um dos 2 dias seguintes e no dia do vencimento; se todas as tentativas
@@ -984,13 +993,12 @@ Antes do upload, o dashboard remove automaticamente do zip: `node_modules`, `.lo
 
 ## 13. Downgrade de plano
 
-- Disponível pelo dashboard ou pela API: `POST /v1/users/me/downgrade`
-- **Fórmula**: `newDays = remainingDays × (currentPrice / targetPrice)`
+- Disponível pelo dashboard. `POST /v1/users/me/downgrade` aceita apenas sessão do dashboard; chave de API é recusada com `API_KEY_SCOPE_DENIED`
+- **Efeito**: imediato, para o plano imediatamente abaixo do atual. O **vencimento continua o mesmo**; a diferença dos dias restantes não vira crédito, tempo adicional nem reembolso. A renovação seguinte já sai no plano menor, pelo preço dele, no mesmo ciclo de cobrança
+- **Renovação aberta**: uma renovação automática já criada para o plano antigo é cancelada e a seguinte é criada no plano menor; enquanto essa renovação está sendo cobrada, o downgrade responde `OPERATION_IN_PROGRESS` (espere alguns segundos e tente de novo)
 - **Restrições**: o Starter 1 não pode fazer downgrade. Um downgrade sempre vai para o plano imediatamente anterior: Starter 1 → Starter 2 → Pro 4 → Pro 6 → Pro 8 → Business 12 → Business 16 → Business 24 → Enterprise 32 → … → Enterprise 512
-- **Verificações**: o uso de memória e as imagens Docker em uso (próprias e de templates de imagem) precisam caber no plano de destino (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`); rate limit (1 vez a cada 3 horas)
-- **Impacto**: limite de memória reduzido, recursos de planos superiores desativados, workspaces perdidos ao sair do
-  Starter 2 para o Starter 1. As configurações salvas de rollback automático e de deploy sem downtime permanecem na aplicação, mas só
-  atuam em um plano que as inclua
+- **Verificações**: o uso de memória e as imagens Docker em uso (próprias e de templates de imagem) precisam caber no plano de destino (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`); rate limit (1 vez a cada 3 horas); e o código de confirmação enviado por e-mail
+- **Impacto**: limite de memória reduzido e recursos de planos superiores desativados. Domínios personalizados, membros de workspace e papéis acima do limite do novo plano continuam, mas novos ficam bloqueados até você voltar para dentro do limite. Workspaces em um plano sem workspaces (Starter 1) ficam congelados (somente leitura), não apagados. As configurações salvas de rollback automático e de deploy sem downtime permanecem na aplicação, mas só atuam em um plano que as inclua
 
 ---
 

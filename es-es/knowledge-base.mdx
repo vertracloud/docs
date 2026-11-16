@@ -377,6 +377,15 @@ peticiones se rechazan con `PLAN_REQUIRED` (403). Suscríbete a un plan, a parti
 - **El precio antes de pagar.** `POST /v1/orders/quote` devuelve lo que se cobrará por un plan y un periodo, con un
   cupón opcional: el precio de lista, el descuento del periodo, el descuento del cupón, el total y si el precio es
   el precio de transición de abajo. No crea ningún pedido ni usa el cupón. El proceso de pago muestra este mismo valor.
+- **Upgrade a un plan mayor.** Con un plan activo cuyo periodo actual se pagó con Pix o tarjeta y **más de 14 días** hasta que caduque, el upgrade cobra solo la
+  **diferencia** entre el precio del plan nuevo y el del plan actual, en tu ciclo de facturación (descuento del periodo
+  incluido), de forma proporcional al tiempo restante. El vencimiento no cambia y la siguiente renovación ya sale en el plan
+  nuevo, en el mismo ciclo. Un cupón válido se aplica sobre la diferencia, con sus reglas habituales (el periodo es tu ciclo
+  de facturación); el descuento de primera compra de referidos no se aplica a ella, y el saldo de referidos puede cubrir
+  parte. En ese caso `POST /v1/orders/quote` y `POST /v1/orders` devuelven un objeto `proration` (plan actual, ciclo de
+  facturación, días restantes, vencimiento y precio de la próxima renovación), el `months` enviado se ignora y
+  `GET /v1/orders` y `GET /v1/orders/:id/status` marcan el pedido con `prorated: true`. Con **14 días o menos** restantes, o cuando el periodo actual no se pagó con Pix o tarjeta (código canjeado, cortesía o pedido de valor cero), el upgrade es una compra normal del plan nuevo por el
+  periodo que elijas, y el valor de los días restantes se convierte en tiempo adicional en el plan nuevo.
 - **Tarjeta = renovación automática.** La tarjeta se guarda en la cuenta y el plan se renueva con la
   tarjeta predeterminada, sin periodo de fidelidad. Tres días antes de que el plan caduque se cobra la
   tarjeta y el mismo día se envía un correo. Si el cobro falla, se reintenta en cada uno de los 2 días
@@ -1003,13 +1012,12 @@ El panel elimina automáticamente del zip, antes de subirlo: `node_modules`, `.l
 
 ## 13. Cambio a un plan inferior
 
-- Disponible desde el panel o la API: `POST /v1/users/me/downgrade`
-- **Fórmula**: `newDays = remainingDays × (currentPrice / targetPrice)`
+- Disponible desde el panel. `POST /v1/users/me/downgrade` solo acepta una sesión del panel; una clave de API se rechaza con `API_KEY_SCOPE_DENIED`
+- **Efecto**: inmediato, al plan inmediatamente inferior al actual. El **vencimiento se mantiene**; la diferencia de los días restantes no se convierte en crédito, tiempo adicional ni reembolso. La siguiente renovación ya sale en el plan más pequeño, a su precio, en el mismo ciclo de facturación
+- **Renovación abierta**: una renovación automática ya creada para el plan antiguo se cancela y la siguiente se crea en el plan más pequeño; mientras esa renovación se está cobrando, el cambio responde `OPERATION_IN_PROGRESS` (espera unos segundos y reintenta)
 - **Restricciones**: Starter 1 no puede cambiar a un plan inferior. Un cambio a un plan inferior siempre va al plan inmediatamente anterior: Starter 1 → Starter 2 → Pro 4 → Pro 6 → Pro 8 → Business 12 → Business 16 → Business 24 → Enterprise 32 → … → Enterprise 512
-- **Comprobaciones**: el uso de memoria y las imágenes Docker en uso (propias y de plantillas de imagen) deben caber en el plan de destino (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`), y límite de frecuencia (1 vez cada 3 horas)
-- **Impacto**: límite de memoria reducido, funciones de planes superiores desactivadas, workspaces perdidos al pasar de Starter 2 a
-  Starter 1. Los ajustes guardados de rollback automático y de despliegues sin tiempo de inactividad permanecen en la
-  aplicación, pero solo actúan en un plan que los incluya
+- **Comprobaciones**: el uso de memoria y las imágenes Docker en uso (propias y de plantillas de imagen) deben caber en el plan de destino (`INSUFFICIENT_MEMORY_FOR_DOWNGRADE`, `INSUFFICIENT_IMAGE_SLOTS_FOR_DOWNGRADE`), límite de frecuencia (1 vez cada 3 horas) y el código de confirmación enviado por correo
+- **Impacto**: límite de memoria reducido y funciones de planes superiores desactivadas. Los dominios personalizados, miembros de workspace y roles por encima del límite del nuevo plan se mantienen, pero los nuevos quedan bloqueados hasta que vuelvas a estar dentro del límite. Los workspaces en un plan sin workspaces (Starter 1) quedan congelados (solo lectura), no eliminados. Los ajustes guardados de rollback automático y de despliegues sin tiempo de inactividad permanecen en la aplicación, pero solo actúan en un plan que los incluya
 
 ---
 
