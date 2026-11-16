@@ -44,11 +44,6 @@ Puedes tener hasta **10 claves** por cuenta. Cada clave tiene:
 - **Scopes**: qué rutas puede llamar la clave (ver abajo). Se requiere al menos uno.
 - **IPs permitidas** *(opcional)*: hasta 20 IPs o CIDR. Vacío significa que cualquier IP puede usar la clave.
 
-Hay también una ruta heredada, `POST /v1/users/me/generate-api-key`, que se mantiene por compatibilidad
-(sobre todo para la [CLI](/es-es/cli)): crea o **rota** la única clave de la cuenta llamada "CLI" (scope
-completo), sin tocar tus otras claves. Si la llamas de nuevo, esa misma clave "CLI" recibe un nuevo secreto;
-nunca crea una segunda.
-
 ### Scopes
 
 Cada ruta que la API expone a una clave pertenece a exactamente un scope, agrupado por recurso. La clave
@@ -68,11 +63,11 @@ sufijo read/write (delete, envs, files, credentials).
 | `billing:read` | Facturación | Listar pedidos, consultar el estado de un pedido, leer los datos de facturación y cotizar el precio de un pedido |
 | `billing:write` | Facturación | Crear un pedido de plan, generar su pago por Pix y actualizar los datos de facturación |
 | `redeem:write` | Facturación | Canjear un código promocional |
-| `apps:read` | Aplicaciones | Leer el estado, las métricas, los logs, los despliegues, el historial de releases, las descargas, la configuración de red, los dominios personalizados y sus registros DNS de una aplicación |
-| `apps:write` | Aplicaciones | Crear; iniciar, detener y reiniciar (incluida la reinstalación de dependencias y el build forzado); actualizar la configuración; webhooks de despliegue; red; añadir, cambiar y eliminar dominios personalizados; volver a una release anterior con rollback |
+| `apps:read` | Aplicaciones | Leer el estado, las métricas, los logs, los despliegues, el historial de releases, la configuración de red, los dominios personalizados y sus registros DNS de una aplicación |
+| `apps:write` | Aplicaciones | Crear; iniciar, detener y reiniciar (incluida la reinstalación de dependencias y el build forzado); actualizar la configuración; webhooks de despliegue; red; añadir, cambiar y eliminar dominios personalizados; volver a una release anterior con rollback. Cambiar el comando de inicio, el comando de build o el archivo principal también requiere `apps:files` |
 | `apps:delete` | Aplicaciones | Eliminar una aplicación |
 | `apps:envs` | Aplicaciones | Leer, crear y eliminar variables de entorno; previsualizar los cambios de variables de un rollback y restaurar variables con un rollback |
-| `apps:files` | Aplicaciones | Leer, escribir y subir archivos |
+| `apps:files` | Aplicaciones | Leer, escribir y subir archivos, y descargar la aplicación |
 | `databases:read` | Bases de datos | Leer el estado y las métricas de una base de datos |
 | `databases:write` | Bases de datos | Crear, actualizar, iniciar y detener, y restablecer |
 | `databases:delete` | Bases de datos | Eliminar una base de datos |
@@ -96,6 +91,10 @@ sufijo read/write (delete, envs, files, credentials).
 | `stacks:read` | Stacks | Listar y leer stacks, sus conexiones y snapshots, y obtener el código de conexión |
 | `stacks:write` | Stacks | Crear y modificar stacks, miembros y conexiones; añadir una base de datos o una carpeta de Blob; tomar y restaurar snapshots de stack; desvincular de una plantilla |
 | `stacks:delete` | Stacks | Eliminar un stack |
+<Note>
+  Descargar el código de una aplicación requiere `apps:files`; `apps:read` no lo cubre, así que una clave que solo tiene `apps:read` recibe `403 API_KEY_SCOPE_DENIED` con `details.required` en `apps:files`. Actualizar la configuración de una aplicación requiere `apps:write`, y cuando la petición cambia el comando de inicio, el comando de build o el archivo principal por un valor distinto, la clave también necesita `apps:files`, con la misma respuesta si falta. Cambiar el nombre, la memoria, el runtime o los ajustes de despliegue solo requiere `apps:write`. Las claves existentes conservan los scopes que ya tienen.
+</Note>
+
 <Note>
   Eliminar una imagen requiere `images:delete`, y `images:write` no lo cubre. Cuando la imagen tiene
   aplicaciones, la clave también necesita `apps:delete`, porque las aplicaciones se eliminan junto con ella;

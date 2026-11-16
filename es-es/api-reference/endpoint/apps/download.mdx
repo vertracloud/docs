@@ -15,6 +15,10 @@ description: "Descarga los archivos de una aplicación en un archivo ZIP a parti
   Si la aplicación pertenece a un workspace, el ID de ese workspace. Obligatorio para los miembros del workspace que actúan sobre una aplicación que no les pertenece.
 </ParamField>
 
+<Note>
+  Con una clave de API, esta ruta requiere el scope `apps:files`. `apps:read` no basta: sin `apps:files`, la petición devuelve `403 API_KEY_SCOPE_DENIED`.
+</Note>
+
 ### Respuesta
 
 La respuesta es un archivo ZIP binario con los archivos de la aplicación y un `vertracloud.config` generado a partir de la configuración actual (nombre, archivo principal, memoria, versión, comando de inicio, reinicio automático, subdominio), de modo que el ZIP se pueda volver a subir con la misma configuración.
@@ -31,7 +35,7 @@ Los proyectos con más de 300 MB de archivos no se pueden descargar directamente
   El código de error que indica el motivo del fallo. Valores posibles:
 
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
-  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope `apps:files` que requiere la ruta (`403`).
   - `ACCESS_DENIED`: La aplicación pertenece a otra cuenta, o no tienes el permiso de workspace necesario para descargar sus archivos (`403`).
   - `APP_NOT_FOUND`: La aplicación indicada no existe (`404`).
   - `DOWNLOAD_TOO_LARGE`: El proyecto tiene más de 300 MB de archivos y no se puede descargar directamente como ZIP. Crea un snapshot y descarga el snapshot (`413`).

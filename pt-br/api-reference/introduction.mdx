@@ -42,11 +42,6 @@ Você pode ter até **10 chaves** por conta. Cada chave tem:
 - **Escopos** — quais rotas a chave pode chamar (veja abaixo). Pelo menos um é obrigatório.
 - **IPs permitidos** *(opcional)* — até 20 IPs ou CIDRs. Vazio significa que qualquer IP pode usar a chave.
 
-Existe também uma rota legada, `POST /v1/users/me/generate-api-key`, mantida por compatibilidade
-(principalmente a [CLI](/pt-br/cli)): ela cria ou **rotaciona** a única chave da conta chamada
-"CLI" (escopo total), sem mexer nas suas outras chaves. Chamá-la de novo apenas dá a essa mesma chave "CLI" um novo
-segredo — ela nunca cria uma segunda.
-
 ### Escopos
 
 Cada rota que a API expõe a uma chave pertence a exatamente um escopo, agrupado por recurso. A chave precisa ter o
@@ -66,11 +61,11 @@ sufixo read/write (exclusão, envs, arquivos, credenciais).
 | `billing:read` | Cobrança | Listar pedidos, consultar o status de um pedido, ler os dados de cobrança e cotar o preço de um pedido |
 | `billing:write` | Cobrança | Criar um pedido de plano, gerar o pagamento PIX dele e atualizar os dados de cobrança |
 | `redeem:write` | Cobrança | Resgatar um código promocional |
-| `apps:read` | Aplicações | Ler o status, as métricas, os logs, os deploys, o histórico de releases, os downloads, a configuração de rede, os domínios personalizados e os registros DNS deles |
-| `apps:write` | Aplicações | Criar, iniciar/parar/reiniciar (incluindo reinstalação de dependências e build forçado), atualizar a configuração, webhooks de deploy, rede, adicionar, alterar e remover domínios personalizados, fazer rollback para uma release anterior |
+| `apps:read` | Aplicações | Ler o status, as métricas, os logs, os deploys, o histórico de releases, a configuração de rede, os domínios personalizados e os registros DNS deles |
+| `apps:write` | Aplicações | Criar, iniciar/parar/reiniciar (incluindo reinstalação de dependências e build forçado), atualizar a configuração, webhooks de deploy, rede, adicionar, alterar e remover domínios personalizados, fazer rollback para uma release anterior. Trocar o comando de início, o comando de build ou o arquivo principal também exige `apps:files` |
 | `apps:delete` | Aplicações | Excluir uma aplicação |
 | `apps:envs` | Aplicações | Ler, criar e excluir variáveis de ambiente, prever as mudanças de variáveis de um rollback e restaurar variáveis com um rollback |
-| `apps:files` | Aplicações | Ler, gravar e enviar arquivos |
+| `apps:files` | Aplicações | Ler, gravar e enviar arquivos, e baixar a aplicação |
 | `databases:read` | Bancos de dados | Ler o status e as métricas de bancos de dados |
 | `databases:write` | Bancos de dados | Criar, atualizar, iniciar/parar, resetar |
 | `databases:delete` | Bancos de dados | Excluir um banco de dados |
@@ -94,6 +89,10 @@ sufixo read/write (exclusão, envs, arquivos, credenciais).
 | `stacks:read` | Stacks | Listar e ler stacks, suas conexões e snapshots, e obter o código de conexão |
 | `stacks:write` | Stacks | Criar e alterar stacks, membros e conexões, adicionar um banco de dados ou uma pasta do Blob, tirar e restaurar snapshots de stack, desvincular de um template |
 | `stacks:delete` | Stacks | Excluir uma stack |
+<Note>
+  Baixar o código de uma aplicação exige `apps:files`; `apps:read` não cobre essa ação, então uma chave que só tem `apps:read` recebe `403 API_KEY_SCOPE_DENIED` com `details.required` igual a `apps:files`. Atualizar a configuração de uma aplicação exige `apps:write`, e quando a requisição troca o comando de início, o comando de build ou o arquivo principal por um valor diferente, a chave também precisa de `apps:files`, com a mesma resposta quando falta. Trocar o nome, a memória, o runtime ou as configurações de deploy exige só `apps:write`. As chaves existentes mantêm os escopos que já têm.
+</Note>
+
 <Note>
   Excluir uma imagem exige `images:delete`, e `images:write` não cobre essa ação. Quando a imagem tem aplicações, a chave também precisa de `apps:delete`, porque as aplicações são excluídas junto com ela; sem ele, a chamada responde `403 API_KEY_SCOPE_DENIED` com `details.required` igual a `apps:delete`. Enviar arquivos para uma aplicação que roda uma imagem é um commit que reconstrói a imagem, então exige `images:write` além de `apps:files`. Criar uma aplicação a partir de uma imagem usa `apps:write`.
 </Note>

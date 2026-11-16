@@ -42,11 +42,6 @@ You can hold up to **10 keys** per account. Each key has:
 - **Scopes** — which routes the key can call (see below). At least one is required.
 - **Allowed IPs** *(optional)* — up to 20 IPs or CIDRs. Empty means any IP can use the key.
 
-There's also a legacy route, `POST /v1/users/me/generate-api-key`, kept for backward compatibility
-(mainly the [CLI](/cli)): it creates or **rotates** the account's single key named
-"CLI" (full scope), without touching your other keys. Calling it again just gives that same "CLI"
-key a new secret — it never creates a second one.
-
 ### Scopes
 
 Every route the API exposes to a key belongs to exactly one scope, grouped by resource. A key must
@@ -66,11 +61,11 @@ read/write suffix (delete, envs, files, credentials).
 | `billing:read` | Billing | List orders, check order status, read billing details and quote the price of an order |
 | `billing:write` | Billing | Create a plan order, generate its PIX payment and update billing details |
 | `redeem:write` | Billing | Redeem a promo code |
-| `apps:read` | Applications | Read app status, metrics, Web Analytics, logs, deploys, release history, downloads, network config, custom domains and their DNS records |
-| `apps:write` | Applications | Create, start/stop/restart (including dependency reinstall and forced build), update config, deploy webhooks, network, add, change and remove custom domains, roll back to an earlier release |
+| `apps:read` | Applications | Read app status, metrics, Web Analytics, logs, deploys, release history, network config, custom domains and their DNS records |
+| `apps:write` | Applications | Create, start/stop/restart (including dependency reinstall and forced build), update config, deploy webhooks, network, add, change and remove custom domains, roll back to an earlier release. Changing the start command, build command or main file also needs `apps:files` |
 | `apps:delete` | Applications | Delete an application |
 | `apps:envs` | Applications | Read, create and delete environment variables, preview the variable changes of a rollback, and restore variables with a rollback |
-| `apps:files` | Applications | Read, write and upload files |
+| `apps:files` | Applications | Read, write and upload files, and download the application |
 | `databases:read` | Databases | Read database status and metrics |
 | `databases:write` | Databases | Create, update, start/stop, reset |
 | `databases:delete` | Databases | Delete a database |
@@ -94,6 +89,10 @@ read/write suffix (delete, envs, files, credentials).
 | `stacks:read` | Stacks | List and read stacks, their connections and snapshots, and get connection code |
 | `stacks:write` | Stacks | Create and change stacks, members and connections, add a database or a Blob folder, take and restore stack snapshots, detach from a template |
 | `stacks:delete` | Stacks | Delete a stack |
+<Note>
+  Downloading an application's code needs `apps:files`; `apps:read` does not cover it, so a key that only has `apps:read` answers `403 API_KEY_SCOPE_DENIED` with `details.required` set to `apps:files`. Updating an application's configuration needs `apps:write`, and when the request changes the start command, build command or main file to a different value, the key needs `apps:files` as well, with the same answer when it is missing. Changing the name, memory, runtime or deploy settings only needs `apps:write`. Existing keys keep the scopes they have.
+</Note>
+
 <Note>
   Deleting an image needs `images:delete`, and `images:write` does not cover it. When the image has applications, the key also needs `apps:delete`, because the applications are deleted with it; without it the call answers `403 API_KEY_SCOPE_DENIED` with `details.required` set to `apps:delete`. Uploading files to an application that runs an image is a commit that rebuilds the image, so it needs `images:write` as well as `apps:files`. Creating an app from an image uses `apps:write`.
 </Note>

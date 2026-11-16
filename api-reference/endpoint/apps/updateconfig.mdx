@@ -94,6 +94,10 @@ description: Updates the stored configuration of an application by its ID.
   creating an application or uploading a ZIP draws from. See [Deploy rate limits](/api-reference/introduction).
 </Note>
 
+<Note>
+  **Start command, build command and main file need `apps:files` with an API key.** The route needs `apps:write`; when the request changes `start_command`, `build_command` or `main_file` to a value different from the current one, the key also needs `apps:files`, otherwise the request returns `403 API_KEY_SCOPE_DENIED` with `details.required` set to `apps:files`. Sending the value the application already has does not count. Other fields only need `apps:write`.
+</Note>
+
 ### Request example
 
 ```bash
@@ -133,6 +137,7 @@ curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
   - `VALIDATION_ERROR`: A field failed validation — wrong type, over the length limit, or an empty body (`400`). The response carries `message` and `path` pointing at the offending field.
   - `APP_NOT_FOUND`: The specified application does not exist (`404`).
   - `ACCESS_DENIED`: The user does not have permission to act on the application (`403`).
+  - `API_KEY_SCOPE_DENIED`: The API key lacks `apps:write`, or it lacks `apps:files` while the request changes `start_command`, `build_command` or `main_file` (`403`).
   - `PLAN_DOES_NOT_SUPPORT_AUTO_ROLLBACK`: `deploy.auto_rollback: true` was sent and the owner's plan is below Pro (`403`).
   - `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`: `deploy.zero_downtime: "on"` was sent and the owner's plan is not Enterprise (`403`).
   - `APP_SHIELD_COOLDOWN`: Vertra Shield paused the application; this action is blocked until the pause ends (`403`). `details.until` says when.
