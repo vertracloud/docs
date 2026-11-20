@@ -149,7 +149,7 @@ Use an image template when the app needs another language or version, system pac
 
     | Field | What to know |
     |---|---|
-    | `source.image` | The id of an image of your own account. Images from the catalog, from other accounts or copies of another template are refused. The template pins the image **version** that is current when you create it, so a later rebuild does not change what the template deploys. |
+    | `source.image` | The id of one of your own images. Images from the catalog or copies of another template are refused. The template pins the image **version** that is current when you create it, so a later rebuild does not change what the template deploys. |
     | `port` | The port the server listens on. If you leave it out, the platform uses the first `EXPOSE` of the image, or 80 when there is none. The platform also injects it as `PORT`. |
     | `web: required` | The wizard always publishes the app on the web. Use `none` for a bot or worker and `optional` to let the user choose. Publishing needs at least 512 MB, which is why `ram.min` is 512. |
     | `healthcheck` | `path` is an HTTP path that must answer successfully before the wizard reports the app as ready, and `timeout` is how long to wait, up to 900 seconds. The `HEALTHCHECK` instruction of the `Dockerfile` is ignored, so this is the only one that counts. Give slow starters (migrations on boot) a larger `timeout`. |
@@ -163,7 +163,7 @@ Use an image template when the app needs another language or version, system pac
     vertra template validate
     ```
 
-    Fix every finding. An image template can also be refused at creation for a reason `validate` cannot see, such as an image that is not yours (`IMAGE_NOT_FOUND`) or not built yet (`IMAGE_NOT_READY`).
+    Fix every finding. An image template can also be refused at creation for a reason `validate` cannot see, such as an image that cannot be used (`IMAGE_NOT_FOUND`) or not built yet (`IMAGE_NOT_READY`).
   </Step>
   <Step title="Create the template and deploy it">
     ```bash
@@ -174,7 +174,7 @@ Use an image template when the app needs another language or version, system pac
     No zip is uploaded: a service that runs an image of your account needs none. The deploy job creates the app from the image, sets the variables, publishes the address, waits for `/healthz` and prints the outputs. Open the address and reload it: the counter must go up. Restart the app from the panel and reload again: the number survives, because `/app` is persistent.
   </Step>
   <Step title="Ship a new version">
-    Change the code, run `vertra image rebuild <image-id> --context .`, wait for `success`, raise `version` in the manifest and run `vertra template create --template hello-counter --changelog "Describe the change"`. The new template version pins the new image version. Apps created from the template see "New version available" and update when their owner chooses, with a safety snapshot first.
+    Change the code, run `vertra image rebuild <image-id> --context .`, wait for `success`, raise `version` in the manifest and run `vertra template create --template hello-counter --changelog "Describe the change"`. The new template version pins the new image version. Apps created from the template see "New version available" and update when their owner chooses, with a snapshot first.
 
     <Warning>You cannot delete an image that is the source of the current version of a private template: the request fails with `IMAGE_IN_USE`. Publish a version that uses another image, or delete the template first.</Warning>
   </Step>
