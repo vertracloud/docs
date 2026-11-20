@@ -1,0 +1,79 @@
+### Snapshots and restores in the background
+
+Taking and restoring a snapshot no longer has to fit inside one request. Large applications and databases now work, and you can follow each operation until it ends.
+
+- **Restore.** Restoring a snapshot answers `202` right away with a `job_id`, and the restore runs in the background. An application is rebuilt and restarted when it finishes. While a restore runs, writes to the resource answer `409 RESTORE_IN_PROGRESS`; reading and deleting it are still allowed. A database that fails to load the data keeps the data it had.
+- **Create a snapshot.** It answers `201` with the snapshot when it is ready within 90 seconds, or `202` with a `job_id` when it takes longer. The snapshot shows up in the list when it is ready.
+- **Create an application or a database from a snapshot.** It answers `202` (before, `201`) with a `restore_job_id`, with no size limit beyond the new resource's storage (before, 100 MB for an application). If the restore fails, an application created from code is deleted, while a database and an application that runs a custom Docker image are kept as they are, so nothing you wrote is lost.
+- **Not enough space.** A snapshot that does not fit in the target's storage is refused before anything changes with `SNAPSHOT_EXCEEDS_STORAGE`, and for a database the answer says the smallest memory size that fits it.
+- **A snapshot that does not match what was recorded when it was taken** is refused with `SNAPSHOT_CORRUPTED`, and nothing changes.
+- **While an application is being snapshotted,** deploys, rollbacks, restarts, starts, stops, environment variable changes, restores and the file manager's writes wait: they answer `409 OPERATION_IN_PROGRESS`, and you can try again in a few moments.
+
+#### API
+
+- [List Snapshot Jobs](/api-reference/endpoint/apps/snapshots/jobs/list) (`GET /v1/users/{id}/snapshots/jobs`) and [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`) follow a snapshot or a restore until its `status` is `ready`, `skipped` or `failed`, with the `reason` when it fails. Both use the `snapshots:read` scope. The list takes `limit` from 1 to 50 (default 10; a value outside that range answers `400 VALIDATION_ERROR`), and `scope` is optional when you read a single job.
+- [Restore Snapshot](/api-reference/endpoint/apps/snapshots/restore) answers `202` with `response.job_id`. The `message` of the old answer is gone.
+- [Create Stack Snapshot](/api-reference/endpoint/stacks/snapshots/create) answers `202` too, with the `id` of the stack snapshot and one snapshot job per member (`response.jobs`), databases first; before, it waited for every member and could be cut off on a large stack. Each member is a regular manual snapshot, and the quota and the checks of all of them are made before the `202`. [List Stack Snapshots](/api-reference/endpoint/stacks/snapshots/list) shows the stack snapshot as `pending` and then `ready` (`status`), with `snapshot_id: null` and the `job_id` of each member while it is `pending`; a stack snapshot with a failed member is not listed, and the ones that succeeded stay as regular snapshots. A `pending` stack snapshot cannot be restored (`409 OPERATION_IN_PROGRESS`), and a second one cannot start while one is running.
+- [Restore Stack Snapshot](/api-reference/endpoint/stacks/snapshots/restore) now answers `202` too, with one job per member (`response.jobs`, each with `resource_id`, `resource_type`, `job_id` and, when it applies, `warning`). The members are restored in order, databases first; follow each job on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get). If a member fails, the ones after it are not restored and their jobs fail with `STACK_RESTORE_MEMBER_FAILED`. The old answer, which waited for every member, is gone.
+- Snapshots in the list now carry `origin` (`manual` or `automatic`). Snapshot jobs carry the same `origin`, absent on restore jobs. `skipped` is the status of a job that did nothing because the resource is gone or, for a database, stopped.
+- `restore_job_id` (always present, `null` when there is no restore) in the status of applications and databases ([Application Status](/api-reference/endpoint/apps/status), [All Applications Status](/api-reference/endpoint/apps/allstatus), [Database Status](/api-reference/endpoint/databases/status) and [All Databases Status](/api-reference/endpoint/databases/allstatus)): it is set while a restore of the resource is queued or running, and you follow it on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get). While it is set, the application status does not carry `installing`.
+- `daily_backups` in the plan features and `author_id` in the snapshot were removed (`author_id` was always `null`). Use `daily_app_backups` and `daily_database_backups` for the plan, and `origin` to tell what took a snapshot.
+- A snapshot job that failed now carries the `details` of its `reason` (for example the space needed and available for `SNAPSHOT_EXCEEDS_STORAGE`), a restore job carries the `snapshot_id` it restores, and a `snapshot` job that is `ready` always has the `snapshot_id` it produced.
+- A resource that is not found now answers `404` (`APP_NOT_FOUND`, `DATABASE_NOT_FOUND` or `IMAGE_NOT_FOUND`) instead of `403 ACCESS_DENIED`. `ACCESS_DENIED` stays for a workspace member without the permission for the action. Downloading a snapshot that was not found answers `404 SNAPSHOT_NOT_FOUND` (`403` stays only for a workspace member without permission), and the snapshot jobs of a resource that does not exist come back as an empty list. Workspaces follow the same rule: a workspace that is not found answers `404 WORKSPACE_NOT_FOUND` instead of `403 WORKSPACE_PERMISSION_DENIED`, which now only means a member whose role lacks the permission.
+- `WORKSPACE_INVITES_DISABLED` was removed from the error codes and is no longer returned. Inviting by email an account that turned off `workspace_invites_enabled` now answers like any other invite: it stays pending and no email is sent, so the answer does not reveal whether the email has an account. The setting only controls whether the account receives the invite email.
+- New error codes: `STACK_RESTORE_MEMBER_FAILED`, `RESTORE_IN_PROGRESS`, `SNAPSHOT_EXCEEDS_STORAGE`, `SNAPSHOT_CORRUPTED`, `SNAPSHOT_TIMEOUT` and `DATABASE_NOT_READY`. See [Error Codes](/api-reference/errors).
+- On a template update, the `snapshot` and `rollback` steps of the [deploy job](/api-reference/endpoint/templates/deploy-status) carry `jobs` (`resource_id`, `resource_type`, `job_id`) with the snapshot or restore job of each resource, so you can follow the progress on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get).
+
+### Updated clients
+
+The SDKs, the CLI, the MCP server and the VS Code extension follow the new behavior.
+
+- **SDKs (JavaScript, Python and Go).** `restore` answers with the `job_id` of the restore, and each SDK can follow a job until it ends (`snapshotJobs.wait`, `snapshot_jobs.wait` and `SnapshotJobs.Wait`), and there are helpers that do both steps (`snapshots.createAndWait`, `stacks.snapshots.createAndWait` and `restoreAndWait`, with the same names in snake_case in Python and in Go style in Go). `apps.download` takes a manual snapshot, waits for it and downloads it, and needs `snapshots:write` and `snapshots:read`. A snapshot that takes longer is followed to the end, and creating an application or a database from a snapshot returns the `restore_job_id`. Downloads can also be streamed straight to a file with constant memory, whatever the size: `snapshots.downloadToFile`, `snapshots.downloadStream`, `apps.downloadToFile` and `apps.downloadStream` in JavaScript, `download_to_file` and `download_stream` in Python, and `Snapshots.DownloadToFile` and `Apps.DownloadToFile` in Go.
+- **CLI.** `vertra snapshot restore` now waits for the restore to end by default (use `--no-wait` to get the `job_id` right away). The new `vertra snapshot job` shows a snapshot or restore job and `vertra snapshot jobs` lists them. `vertra app download` keeps its name: it takes a manual snapshot, waits for it and downloads the ZIP (it counts in the manual snapshot quota and needs `snapshots:write` and `snapshots:read`). Downloads are written to the file as the bytes arrive.
+- **MCP.** `restore_snapshot` answers with a `job_id`, and `create_snapshot` answers `{ status: "accepted", job_id }` when it takes longer. The new `list_snapshot_jobs` tool lists the jobs of a resource, and `get_snapshot_job` follows one job (it needs the `job_id`). `download_app` keeps its name: it takes a manual snapshot, waits for it and downloads it. `create_app` and `create_database` accept a `snapshot_id`. `download_app` and `download_snapshot` write the file as it arrives too.
+- **VS Code extension.** Restoring shows its progress while it waits for the job to start and run.
+
+### Download a project of any size
+
+A project of any size can be downloaded, with no 300 MB limit: you take a manual snapshot and download it. The snapshot appears in your list, uses the manual snapshot quota and is kept for 30 days.
+
+1. [Create Snapshot](/api-reference/endpoint/apps/snapshots/create) (`POST /v1/users/{id}/snapshots?scope=applications`) answers `201` with the snapshot, or `202` with a `job_id`.
+2. After a `202`, follow the job on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) until its `status` is `ready`; it brings the `snapshot_id`.
+3. [Download Snapshot](/api-reference/endpoint/apps/snapshots/download) (`GET /v1/users/{id}/snapshots/{snapshot_id}/download?scope=applications`) returns the ZIP.
+
+- `DOWNLOAD_TOO_LARGE` is no longer returned when downloading an application. For one file, the file manager still reads it (`GET /v1/apps/{id}/files/content`).
+- An account without an active plan cannot take new snapshots, but it can still list and download the snapshots it has, including the one the platform kept before removing a project.
+
+### Changes that can break your integration
+
+- **`GET /v1/apps/{id}/download` was removed.** It now answers `404`. Use the three steps above. A key that only has `apps:files` no longer downloads the project: it needs `snapshots:write` to create the snapshot and `snapshots:read` to download it (`403 API_KEY_SCOPE_DENIED`, with `details.required` set to `snapshots:read`). The `download_id` of the old answer is gone with it. SDKs, CLI, MCP and extension versions that call the old route must be updated.
+- **[Reset Database](/api-reference/endpoint/databases/reset) answers `{ "response": { "status": "success" } }`** (before, the string `"success"`).
+- **Creating an application or a database from a snapshot answers `202`** (before, `201`), with the same body and the `restore_job_id`.
+- **`warning` moved to each item of a stack restore.** In [Restore Stack Snapshot](/api-reference/endpoint/stacks/snapshots/restore), `IMAGE_VERSION_NOT_FOUND` now comes in `response.jobs[].warning`, for the application it applies to; the `warning` at the top level is gone.
+- **`RESTORE_COOLDOWN` carries `details.retry_after`**, also on [Rollback](/api-reference/endpoint/apps/releases/rollback). Every answer with `details.retry_after` also sends the `Retry-After` header with the same number of seconds.
+- **[Reset Database](/api-reference/endpoint/databases/reset) now needs the `databases:delete` scope** on the API key (before, `databases:write`) and, in a workspace, the `databases:delete` permission (before, `databases:manage`). A key with `databases:write` and without `databases:delete` answers `403 API_KEY_SCOPE_DENIED`.
+
+### New snapshot limits
+
+Manual snapshots are measured over the last 24 hours instead of the calendar day, and the limit grows with your plan.
+
+- **Account quota:** 8 manual snapshots per GB of the plan's RAM in any 24 hours, at least 2, with no cap: 8 on Starter 1, 16 on Starter 2, 32 to 64 on Pro, 96 to 192 on Business and 256 to 4,096 on Enterprise. A slot frees up 24 hours after it was used, not at midnight. Before, it was 5 to 64 a day.
+- **Per resource:** one snapshot every 3 minutes (before, one every 5 minutes and up to 5 a day). There is no daily limit per resource anymore.
+- **Per user:** one request every 5 seconds.
+- **Restore:** 60 seconds between two restores of the same application; for a database, 60 seconds for the user who asks and 120 seconds per database (before, 30 seconds). Creating an application or a database from a snapshot also waits 60 seconds per user (`429 RESTORE_COOLDOWN`).
+- `SNAPSHOT_RATE_LIMITED` now has `details.scope` `resource` or `account`; `account` also has `resets_at`. The `resource_daily` scope no longer exists, and asking again within the 5 seconds answers the generic `429 RATE_LIMIT_EXCEEDED` with `retry_after`.
+- Snapshots are no longer limited to 4 GB: the limit is the storage of the resource.
+
+### Daily backups by plan
+
+Daily backups now follow the plan: **applications from Business and databases from Pro**. Starter plans have no daily backup, only manual snapshots. A database that is stopped is not backed up on the daily run.
+
+- **Retention:** every snapshot is kept for 30 days. Of the daily backups, the most recent one of each resource is kept for 30 days and the earlier ones for 7.
+- Daily backups do not use the manual snapshot quota.
+- [List Plans](/api-reference/endpoint/plans/list) has the new `daily_app_backups` and `daily_database_backups` features.
+
+### File manager
+
+The file manager reads and saves files of up to **10 MiB**. A larger file answers `413 FILE_TOO_LARGE` with `details.max_bytes`; use upload for larger files, and a [snapshot](/api-reference/endpoint/apps/snapshots/create) download for the whole project.
+
+See [Back Up and Restore with Snapshots](/guides/backups-snapshots) and [Plans and limits](/plans-and-limits#how-many-members-docker-images-and-manual-backups-does-each-plan-allow).

@@ -1,0 +1,79 @@
+### Snapshots y restauraciones en segundo plano
+
+Crear y restaurar un snapshot ya no tiene que caber en una sola petición. Las aplicaciones y bases de datos grandes ahora funcionan, y puedes seguir cada operación hasta el final.
+
+- **Restauración.** Restaurar un snapshot responde `202` al instante con un `job_id`, y la restauración se ejecuta en segundo plano. Una aplicación se reconstruye y se reinicia cuando termina. Mientras una restauración se ejecuta, las escrituras en el recurso responden `409 RESTORE_IN_PROGRESS`; leer y eliminar el recurso siguen permitidos. Una base de datos que no logra cargar los datos conserva los que tenía.
+- **Crear un snapshot.** Responde `201` con el snapshot cuando queda listo en 90 segundos, o `202` con un `job_id` cuando tarda más. El snapshot aparece en la lista cuando está listo.
+- **Crear una aplicación o una base de datos a partir de un snapshot.** Responde `202` (antes, `201`) con un `restore_job_id`, sin límite de tamaño más allá del almacenamiento del nuevo recurso (antes, 100 MB para una aplicación). Si la restauración falla, una aplicación creada a partir de código se elimina, mientras que una base de datos y una aplicación que ejecuta una imagen Docker propia se conservan tal como están, para que no se pierda nada de lo que hayas escrito.
+- **Espacio insuficiente.** Un snapshot que no cabe en el almacenamiento del destino se rechaza antes de cambiar nada con `SNAPSHOT_EXCEEDS_STORAGE`, y en una base de datos la respuesta indica el menor tamaño de memoria que lo admite.
+- **Un snapshot que no coincide con lo registrado cuando se hizo** se rechaza con `SNAPSHOT_CORRUPTED`, y no cambia nada.
+- **Mientras una aplicación recibe un snapshot,** los deploys, rollbacks, reinicios, arranques, paradas, cambios de variables de entorno, restauraciones y las escrituras del gestor de archivos esperan: responden `409 OPERATION_IN_PROGRESS`, y puedes reintentar en unos instantes.
+
+#### API
+
+- [Listar jobs de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/list) (`GET /v1/users/{id}/snapshots/jobs`) y [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`) siguen un snapshot o una restauración hasta que el `status` sea `ready`, `skipped` o `failed`, con el `reason` cuando falla. Ambos usan el scope `snapshots:read`. La lista acepta `limit` de 1 a 50 (por defecto 10; un valor fuera de ese rango responde `400 VALIDATION_ERROR`), y `scope` es opcional al leer un solo job.
+- [Restaurar snapshot](/es-es/api-reference/endpoint/apps/snapshots/restore) responde `202` con `response.job_id`. El `message` de la respuesta anterior ya no existe.
+- [Crear snapshot del stack](/es-es/api-reference/endpoint/stacks/snapshots/create) también responde `202`, con el `id` de la snapshot del stack y un job de snapshot por miembro (`response.jobs`), primero las bases de datos; antes esperaba a todos los miembros y podía cortarse en un stack grande. Cada miembro es una snapshot manual común, y la cuota y las comprobaciones de todos se hacen antes del `202`. [Listar snapshots del stack](/es-es/api-reference/endpoint/stacks/snapshots/list) muestra la snapshot del stack como `pending` y luego `ready` (`status`), con `snapshot_id: null` y el `job_id` de cada miembro mientras está `pending`; una snapshot del stack con un miembro fallido no se lista, y las que salieron bien siguen como snapshots comunes. Una snapshot del stack `pending` no puede restaurarse (`409 OPERATION_IN_PROGRESS`), y no empieza una segunda mientras hay una en curso.
+- [Restaurar snapshot del stack](/es-es/api-reference/endpoint/stacks/snapshots/restore) también responde `202` ahora, con un job por miembro (`response.jobs`, cada uno con `resource_id`, `resource_type`, `job_id` y, cuando corresponde, `warning`). Los miembros se restauran en orden, primero las bases de datos; sigue cada job en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get). Si un miembro falla, los siguientes no se restauran y sus jobs fallan con `STACK_RESTORE_MEMBER_FAILED`. La respuesta anterior, que esperaba a todos los miembros, ya no existe.
+- Los snapshots de la lista ahora traen `origin` (`manual` o `automatic`). Los jobs de snapshot traen el mismo `origin`, ausente en los jobs de restauración. `skipped` es el estado de un job que no hizo nada porque el recurso dejó de existir o, en una base de datos, está detenida.
+- `restore_job_id` (siempre presente, `null` cuando no hay restore) en el estado de aplicaciones y bases de datos ([Estado de la aplicación](/es-es/api-reference/endpoint/apps/status), [Estado de todas las aplicaciones](/es-es/api-reference/endpoint/apps/allstatus), [Estado de la base de datos](/es-es/api-reference/endpoint/databases/status) y [Estado de todas las bases de datos](/es-es/api-reference/endpoint/databases/allstatus)): se completa mientras un restore del recurso está en cola o en ejecución, y lo sigues en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get). Mientras tenga valor, el estado de la aplicación no incluye `installing`.
+- `daily_backups` en las funciones del plan y `author_id` en el snapshot se eliminaron (`author_id` era siempre `null`). Usa `daily_app_backups` y `daily_database_backups` para el plan, y `origin` para saber qué tomó un snapshot.
+- Un job de snapshot que falló ahora trae los `details` de su `reason` (por ejemplo, el espacio necesario y el disponible en `SNAPSHOT_EXCEEDS_STORAGE`), un job de restauración trae el `snapshot_id` que restaura, y un job `snapshot` que está `ready` siempre tiene el `snapshot_id` que produjo.
+- Un recurso que no se encuentra ahora responde `404` (`APP_NOT_FOUND`, `DATABASE_NOT_FOUND` o `IMAGE_NOT_FOUND`) en lugar de `403 ACCESS_DENIED`. `ACCESS_DENIED` se mantiene para el miembro de workspace sin el permiso de la acción. Descargar un snapshot que no se encontró responde `404 SNAPSHOT_NOT_FOUND` (el `403` queda solo para el miembro de workspace sin permiso), y los jobs de snapshot de un recurso que no existe vuelven como lista vacía. Los workspaces siguen la misma regla: un workspace que no se encuentra responde `404 WORKSPACE_NOT_FOUND` en lugar de `403 WORKSPACE_PERMISSION_DENIED`, que ahora solo indica un miembro cuyo rol no tiene el permiso.
+- `WORKSPACE_INVITES_DISABLED` se eliminó de los códigos de error y ya no se devuelve. Invitar por correo a una cuenta que desactivó `workspace_invites_enabled` ahora responde como cualquier otra invitación: queda pendiente y no se envía ningún correo, así que la respuesta no revela si el correo tiene cuenta. El ajuste solo controla si la cuenta recibe el correo de invitación.
+- Nuevos códigos de error: `STACK_RESTORE_MEMBER_FAILED`, `RESTORE_IN_PROGRESS`, `SNAPSHOT_EXCEEDS_STORAGE`, `SNAPSHOT_CORRUPTED`, `SNAPSHOT_TIMEOUT` y `DATABASE_NOT_READY`. Consulta los [códigos de error](/es-es/api-reference/errors).
+- En una actualización de plantilla, los pasos `snapshot` y `rollback` del [job de deploy](/es-es/api-reference/endpoint/templates/deploy-status) traen `jobs` (`resource_id`, `resource_type`, `job_id`) con el job de snapshot o de restauración de cada recurso, para que sigas el progreso en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get).
+
+### Clientes actualizados
+
+Los SDK, la CLI, el servidor MCP y la extensión de VS Code siguen el nuevo comportamiento.
+
+- **SDK (JavaScript, Python y Go).** `restore` responde con el `job_id` de la restauración, y cada SDK puede seguir un job hasta el final (`snapshotJobs.wait`, `snapshot_jobs.wait` y `SnapshotJobs.Wait`), y hay helpers que hacen los dos pasos (`snapshots.createAndWait`, `stacks.snapshots.createAndWait` y `restoreAndWait`, con los mismos nombres en snake_case en Python y al estilo Go en Go). `apps.download` toma un snapshot manual, espera a que esté listo y lo descarga, y exige `snapshots:write` y `snapshots:read`. Un snapshot que tarda más se sigue hasta el final, y crear una aplicación o una base de datos a partir de un snapshot devuelve el `restore_job_id`. Las descargas también pueden ir en flujo directo a un archivo, con memoria constante, sea cual sea el tamaño: `snapshots.downloadToFile`, `snapshots.downloadStream`, `apps.downloadToFile` y `apps.downloadStream` en JavaScript, `download_to_file` y `download_stream` en Python, y `Snapshots.DownloadToFile` y `Apps.DownloadToFile` en Go.
+- **CLI.** `vertra snapshot restore` ahora espera a que la restauración termine por defecto (usa `--no-wait` para recibir el `job_id` al instante). El nuevo `vertra snapshot job` muestra un job de snapshot o de restauración y `vertra snapshot jobs` los lista. `vertra app download` mantiene el nombre: toma un snapshot manual, espera a que esté listo y descarga el ZIP (cuenta en la cuota de snapshots manuales y exige `snapshots:write` y `snapshots:read`). Las descargas se escriben en el archivo a medida que llegan los bytes.
+- **MCP.** `restore_snapshot` responde con un `job_id`, y `create_snapshot` responde `{ status: "accepted", job_id }` cuando tarda más. La nueva herramienta `list_snapshot_jobs` lista los jobs de un recurso, y `get_snapshot_job` sigue un job (exige el `job_id`). `download_app` mantiene el nombre: toma un snapshot manual, espera a que esté listo y descarga. `create_app` y `create_database` aceptan un `snapshot_id`. `download_app` y `download_snapshot` también escriben el archivo a medida que llega.
+- **Extensión de VS Code.** Restaurar muestra el progreso mientras espera a que el job empiece y se ejecute.
+
+### Descarga un proyecto de cualquier tamaño
+
+Un proyecto de cualquier tamaño se puede descargar, sin el límite de 300 MB: haces un snapshot manual y lo descargas. El snapshot aparece en tu lista, usa la cuota de snapshots manuales y se conserva 30 días.
+
+1. [Crear snapshot](/es-es/api-reference/endpoint/apps/snapshots/create) (`POST /v1/users/{id}/snapshots?scope=applications`) responde `201` con el snapshot, o `202` con un `job_id`.
+2. Tras un `202`, sigue el job en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get) hasta que su `status` sea `ready`; trae el `snapshot_id`.
+3. [Descargar snapshot](/es-es/api-reference/endpoint/apps/snapshots/download) (`GET /v1/users/{id}/snapshots/{snapshot_id}/download?scope=applications`) devuelve el ZIP.
+
+- `DOWNLOAD_TOO_LARGE` ya no se devuelve al descargar una aplicación. Para un solo archivo, el gestor de archivos sigue leyéndolo (`GET /v1/apps/{id}/files/content`).
+- Una cuenta sin plan activo no puede hacer snapshots nuevos, pero sigue pudiendo listar y descargar los que tiene, incluido el que la plataforma guardó antes de retirar un proyecto.
+
+### Cambios que pueden romper tu integración
+
+- **`GET /v1/apps/{id}/download` se eliminó.** Ahora responde `404`. Usa los tres pasos de arriba. Una clave que solo tiene `apps:files` ya no descarga el proyecto: necesita `snapshots:write` para crear el snapshot y `snapshots:read` para descargarlo (`403 API_KEY_SCOPE_DENIED`, con `details.required` en `snapshots:read`). El `download_id` de la respuesta anterior desaparece con ella. Las versiones de SDK, CLI, MCP y extensión que llaman a la ruta antigua deben actualizarse.
+- **[Restablecer base de datos](/es-es/api-reference/endpoint/databases/reset) responde `{ "response": { "status": "success" } }`** (antes, la cadena `"success"`).
+- **Crear una aplicación o una base de datos a partir de un snapshot responde `202`** (antes, `201`), con el mismo cuerpo y el `restore_job_id`.
+- **`warning` pasó a cada elemento de la restauración de un stack.** En [Restaurar snapshot del stack](/es-es/api-reference/endpoint/stacks/snapshots/restore), `IMAGE_VERSION_NOT_FOUND` ahora llega en `response.jobs[].warning`, en la aplicación a la que corresponde; el `warning` de nivel superior ya no existe.
+- **`RESTORE_COOLDOWN` trae `details.retry_after`**, también en el [rollback](/es-es/api-reference/endpoint/apps/releases/rollback). Toda respuesta con `details.retry_after` envía además la cabecera `Retry-After` con el mismo número de segundos.
+- **[Restablecer una base de datos](/es-es/api-reference/endpoint/databases/reset) ahora exige el ámbito `databases:delete`** en la clave de API (antes, `databases:write`) y, en un workspace, el permiso `databases:delete` (antes, `databases:manage`). Una clave con `databases:write` y sin `databases:delete` responde `403 API_KEY_SCOPE_DENIED`.
+
+### Nuevos límites de snapshot
+
+Los snapshots manuales pasan a medirse en las últimas 24 horas en lugar del día de calendario, y el límite crece con tu plan.
+
+- **Cuota de la cuenta:** 8 snapshots manuales por GB de RAM del plan en cualquier ventana de 24 horas, como mínimo 2, sin tope: 8 en Starter 1, 16 en Starter 2, 32 a 64 en Pro, 96 a 192 en Business y 256 a 4.096 en Enterprise. Una plaza vuelve 24 horas después de usarse, no a medianoche. Antes eran de 5 a 64 al día.
+- **Por recurso:** un snapshot cada 3 minutos (antes, uno cada 5 minutos y hasta 5 al día). Ya no hay límite diario por recurso.
+- **Por usuario:** una petición cada 5 segundos.
+- **Restauración:** 60 segundos entre dos restauraciones de la misma aplicación; en una base de datos, 60 segundos para quien pide y 120 segundos por base de datos (antes, 30 segundos). Crear una aplicación o una base de datos a partir de un snapshot también espera 60 segundos por usuario (`429 RESTORE_COOLDOWN`).
+- `SNAPSHOT_RATE_LIMITED` ahora trae `details.scope` `resource` o `account`; `account` también trae `resets_at`. El scope `resource_daily` ya no existe, y volver a pedir dentro de los 5 segundos responde el `429 RATE_LIMIT_EXCEEDED` genérico, con `retry_after`.
+- Los snapshots ya no están limitados a 4 GB: el límite es el almacenamiento del recurso.
+
+### Backups diarios por plan
+
+Los backups diarios ahora siguen al plan: **aplicaciones desde Business y bases de datos desde Pro**. Los planes Starter no tienen backup diario, solo snapshots manuales. Una base de datos que está parada no entra en el backup diario.
+
+- **Retención:** todo snapshot se conserva 30 días. De los backups diarios, el más reciente de cada recurso se conserva 30 días y los anteriores 7.
+- Los backups diarios no usan la cuota de snapshots manuales.
+- [Listar planes](/es-es/api-reference/endpoint/plans/list) trae las nuevas características `daily_app_backups` y `daily_database_backups`.
+
+### Gestor de archivos
+
+El gestor de archivos lee y guarda archivos de hasta **10 MiB**. Un archivo mayor responde `413 FILE_TOO_LARGE` con `details.max_bytes`; usa la subida de archivos para archivos más grandes, y la descarga de un [snapshot](/es-es/api-reference/endpoint/apps/snapshots/create) para el proyecto entero.
+
+Consulta [Haz copias de seguridad y restaura con snapshots](/es-es/guides/backups-snapshots) y [Planes y límites](/es-es/plans-and-limits#cuántos-miembros-imágenes-docker-y-copias-de-seguridad-manuales-permite-cada-plan).
