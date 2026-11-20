@@ -232,6 +232,26 @@ tal como están salvo que `restore_environment` sea true, así que en ese caso e
 Dos herramientas existentes han crecido: `update_app_config` acepta `zero_downtime`, `auto_rollback` y `health_check_path`
 (se aplican los límites del plan), y `deploy_app` acepta un `message` que aparece en el historial de despliegues.
 
+## Snapshots
+
+El asistente puede tomar, listar, restaurar y seguir snapshots de una aplicación o una base de datos. Consulta
+[Backups y snapshots](/es-es/guides/backups-snapshots).
+
+| Herramienta | Qué hace | Alcance |
+|---|---|---|
+| `list_snapshots` | Snapshots de un recurso, o de todos los recursos de ese tipo | `snapshots:read` |
+| `create_snapshot` | Toma un snapshot. Cuando tarda más de unos 90 segundos, la respuesta es `{ status: "accepted", job_id }`, que no es un error | `snapshots:write` |
+| `restore_snapshot` | Restaura un snapshot sobre el recurso. Responde con un `job_id` y la restauración corre en segundo plano | `snapshots:write` |
+| `list_snapshot_jobs` | Jobs recientes de snapshot y de restauración de un recurso. El `scope` es obligatorio; `limit` va de 1 a 50 | `snapshots:read` |
+| `get_snapshot_job` | Estado de un job de snapshot o de restauración. Exige el `job_id`; `wait_seconds` (hasta 25) espera a que termine | `snapshots:read` |
+| `download_snapshot` | Descarga un snapshot a una ruta de tu ordenador (solo en el servidor local) | `snapshots:read` |
+| `download_app` | Descarga la aplicación entera a una ruta de tu ordenador (solo en el servidor local). Toma un snapshot manual, espera a que esté listo y lo descarga, así que cuenta en la cuota de snapshots manuales y exige los dos scopes | `snapshots:write` y `snapshots:read` |
+
+`restore_snapshot` reemplaza el contenido actual, así que el cliente te pide confirmación. El recurso no está restaurado
+cuando responde: sigue el `job_id` con `get_snapshot_job` hasta que el `status` sea `ready`, `skipped` o `failed` (el `reason`
+dice el motivo). Mientras una restauración corre, las escrituras en el recurso se rechazan con `RESTORE_IN_PROGRESS`.
+`create_app` y `create_database` aceptan un `snapshot_id` y responden con un `restore_job_id` para seguirlo igual.
+
 ## Web Analytics
 
 El asistente puede leer el Web Analytics del sitio de una aplicación. Consulta [Web Analytics](/es-es/web-analytics/overview) para saber qué significa cada vista.

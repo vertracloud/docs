@@ -110,6 +110,32 @@ passe `--yes` (`-y`); sem ele, o comando falha em vez de fazer o rollback sem pe
 Listar e ler logs exige uma chave de API com o escopo `apps:read`. Fazer rollback exige `apps:write`, além de
 `apps:envs` para `--env`.
 
+## Snapshots e downloads
+
+```bash
+vertra snapshot list [<resource-id>] [--db]
+vertra snapshot create [<resource-id>] [--db]
+vertra snapshot restore <resource-id> <snapshot-id> [--to <id>] [--no-wait]
+vertra snapshot jobs <resource-id> [--db] [--kind snapshot|restore]
+vertra snapshot job <resource-id> <job-id> [--db] [--wait]
+vertra snapshot download <resource-id> <snapshot-id> [--db]
+vertra app download [<id>] [-o <file>]
+```
+
+A restauração roda em segundo plano. `snapshot restore` acompanha o job até o fim (um job que falha encerra com erro e
+o motivo). Adicione `--no-wait` para voltar na hora com o `job_id`, quando os dados ainda não voltaram, e acompanhe
+depois com `snapshot job`, que aceita `--wait`; `snapshot jobs` lista os jobs de um recurso. Um snapshot que demora mais
+do que a API espera é acompanhado pelo `snapshot create` até ficar pronto. O `app download` faz um snapshot manual da
+aplicação, espera ele ficar pronto e baixa o ZIP, qualquer que seja o tamanho; o snapshot conta na sua cota de snapshots
+manuais e aparece em `snapshot list`. Criar um banco a partir de um snapshot (`vertra db create --snapshot ...`)
+mostra o `restore_job_id`; se essa restauração falhar, o banco continua criado e vazio.
+
+`app delete`, `db delete`, `db reset` e `snapshot restore` rodam na hora e são permanentes: os dados somem (ou são substituídos) assim que o comando
+termina. Para guardar uma cópia, crie antes um snapshot com `vertra snapshot create <resource-id> [--db]`. Veja
+[Backup e restauração com snapshots](/pt-br/guides/backups-snapshots). Listar, ver jobs e baixar um
+snapshot exigem uma chave de API com o escopo `snapshots:read`; criar e restaurar exigem `snapshots:write`, e
+`app download` exige `snapshots:write` e `snapshots:read` (`apps:files` sozinho não basta).
+
 ## Domínios personalizados
 
 ```bash

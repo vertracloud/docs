@@ -216,27 +216,50 @@ _, err = client.Databases.Start(ctx, "db-abc123")
 O `scope` (`"applications"` ou `"databases"`) é obrigatório em toda chamada de snapshot — o mesmo
 ID de recurso pode ser uma aplicação ou um banco de dados, e a API não adivinha.
 
+Restaurar um snapshot roda em segundo plano. `restore` responde em segundos com o `job_id` da restauração, e o
+recurso ainda não foi restaurado: acompanhe o job até ele terminar, com `snapshotJobs.wait` (JavaScript),
+`snapshot_jobs.wait` (Python) ou `SnapshotJobs.Wait` (Go). Um job que falha traz o `reason`.
+
 <CodeGroup>
 
 ```javascript JavaScript
+import { SnapshotJobError } from "@vertracloud/sdk-api";
+
 const snapshots = await client.snapshots.list("app-abc123", { scope: "applications" });
-const created = await client.snapshots.create("app-abc123", { scope: "applications" });
-await client.snapshots.restore("app-abc123", created.id, { scope: "applications" });
+const snapshot = await client.snapshots.createAndWait("app-abc123", { scope: "applications" });
+
+const { job_id } = await client.snapshots.restore("app-abc123", snapshot.id, { scope: "applications" });
+try {
+  await client.snapshotJobs.wait("app-abc123", job_id, { scope: "applications" });
+} catch (error) {
+  if (error instanceof SnapshotJobError) console.error(error.reason);
+  else throw error;
+}
 ```
 
 ```python Python
 snapshots = client.snapshots.list("app-abc123", scope="applications")
-created = client.snapshots.create("app-abc123", scope="applications")
-client.snapshots.restore("app-abc123", created["id"], scope="applications")
+created = client.snapshots.create_and_wait("app-abc123", scope="applications")
+
+accepted = client.snapshots.restore("app-abc123", created["id"], scope="applications")
+job = client.snapshot_jobs.wait("app-abc123", accepted["job_id"], "applications")
 ```
 
 ```go Go
 snapshots, err := client.Snapshots.List(ctx, "app-abc123", vertracloud.SnapshotScopeApplications)
-created, err := client.Snapshots.Create(ctx, "app-abc123", vertracloud.SnapshotScopeApplications)
-_, err = client.Snapshots.Restore(ctx, "app-abc123", created.ID, vertracloud.SnapshotScopeApplications)
+created, err := client.Snapshots.CreateAndWait(ctx, "app-abc123", vertracloud.SnapshotScopeApplications, nil)
+
+restore, err := client.Snapshots.Restore(ctx, "app-abc123", created.ID, vertracloud.SnapshotScopeApplications)
+job, err := client.SnapshotJobs.Wait(ctx, "app-abc123", restore.JobID, vertracloud.SnapshotScopeApplications, nil)
 ```
 
 </CodeGroup>
+
+- **Jobs.** `snapshotJobs.list` e `snapshotJobs.get` (`snapshot_jobs.list` e `.get` em Python, `SnapshotJobs.List` e `.Get` em Go) leem os jobs de um recurso. Precisam do escopo `snapshots:read`. O `wait` consulta a cada 2 segundos e resolve com o job quando ele fica `ready`. Um job que termina `failed` ou `skipped` é um erro: JavaScript lança `SnapshotJobError` (com `reason`, `details` e `job`), Python lança `SnapshotJobFailedError` ou `SnapshotJobSkippedError` e Go devolve um `*SnapshotJobError`. Uma espera que estoura o prazo (30 minutos por padrão; `waitTimeoutMs` em JavaScript, `wait_timeout` em Python, `Timeout` do `WaitOptions` em Go) lança `WaitTimeoutError` (`SnapshotJobTimeoutError` em Python) enquanto o job continua rodando; em Go você também pode limitar a espera com o `context`.
+- **Criar um snapshot.** Um snapshot pode demorar mais que uma requisição. `snapshots.create` responde com o snapshot (`{ status: "ready", snapshot }` em JavaScript) ou, quando a API respondeu `202`, com o `job_id` (`{ status: "accepted", job_id }` em JavaScript; em Go, `SnapshotCreateResult` traz `Snapshot` ou `JobID`). Para fazer os dois passos, use `snapshots.createAndWait` (`snapshots.create_and_wait` em Python, `Snapshots.CreateAndWait` em Go): ele acompanha o job e resolve com o snapshot.
+- **Baixar um projeto.** `apps.download` (`Apps.Download` em Go) faz um snapshot manual da aplicação, espera ele ficar pronto e resolve com o ZIP em memória; para um projeto que pode ser grande, use `apps.downloadToFile` (`apps.download_to_file` em Python, `Apps.DownloadToFile` em Go): ele grava o arquivo em disco conforme os bytes chegam, com memória constante qualquer que seja o tamanho, e um download que falha ou é cancelado não deixa arquivo pela metade. `snapshots.downloadToFile` (`snapshots.download_to_file`, `Snapshots.DownloadToFile`) faz o mesmo para um snapshot que você já tem. O snapshot continua na sua lista e conta na sua cota de snapshots manuais, e a chave de API precisa de `snapshots:write` e `snapshots:read`.
+- **Stacks.** Para snapshots de stack, `stacks.snapshots.waitForCreate`, `waitForRestore`, `createAndWait` e `restoreAndWait` (em snake_case no Python) acompanham os jobs de cada membro.
+- **Criar a partir de um snapshot.** `apps.create` e `databases.create` com um `snapshot_id` devolvem um `restore_job_id` na resposta (`RestoreJobID` em Go). Acompanhe-o com as chamadas de job acima, usando o ID do novo recurso.
 
 ### Conta
 

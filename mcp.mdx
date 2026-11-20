@@ -232,6 +232,26 @@ they are unless `restore_environment` is true, so run `preview_rollback` first i
 Two existing tools grew: `update_app_config` accepts `zero_downtime`, `auto_rollback` and `health_check_path`
 (plan limits apply), and `deploy_app` accepts a `message` that appears in the deploy history.
 
+## Snapshots
+
+The assistant can take, list, restore and follow snapshots of an application or a database. See
+[Back Up and Restore with Snapshots](/guides/backups-snapshots).
+
+| Tool | What it does | Scope |
+|---|---|---|
+| `list_snapshots` | Snapshots of a resource, or of every resource of that type | `snapshots:read` |
+| `create_snapshot` | Takes a snapshot. When it takes longer than about 90 seconds the answer is `{ status: "accepted", job_id }` (an HTTP `202`), which is not an error | `snapshots:write` |
+| `restore_snapshot` | Restores a snapshot over the resource. It answers with a `job_id` and the restore runs in the background | `snapshots:write` |
+| `list_snapshot_jobs` | Recent snapshot and restore jobs of a resource. `scope` is required; `limit` goes from 1 to 50 | `snapshots:read` |
+| `get_snapshot_job` | Status of one snapshot or restore job. It needs the `job_id`; `wait_seconds` (up to 25) waits for it to end | `snapshots:read` |
+| `download_snapshot` | Downloads a snapshot to a path on your computer (local server only) | `snapshots:read` |
+| `download_app` | Downloads the whole application to a path on your computer (local server only). It takes a manual snapshot, waits for it and downloads it, so it counts in the manual snapshot quota and needs both scopes | `snapshots:write` and `snapshots:read` |
+
+`restore_snapshot` replaces the current content, so the client asks you to confirm. The resource is not restored when it
+answers: follow the `job_id` with `get_snapshot_job` until `status` is `ready`, `skipped` or `failed` (`reason` says why). While a
+restore runs, writes to the resource are refused with `RESTORE_IN_PROGRESS`. `create_app` and `create_database` accept a
+`snapshot_id` and answer with a `restore_job_id` to follow the same way.
+
 ## Web Analytics
 
 The assistant can read the Web Analytics of an application's site. See [Web Analytics](/web-analytics/overview) for what each view means.

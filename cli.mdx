@@ -112,6 +112,32 @@ terminal, pass `--yes` (`-y`); without it the command fails instead of rolling b
 Listing and reading logs need an API key with the `apps:read` scope. Rolling back needs `apps:write`, plus
 `apps:envs` for `--env`.
 
+## Snapshots and downloads
+
+```bash
+vertra snapshot list [<resource-id>] [--db]
+vertra snapshot create [<resource-id>] [--db]
+vertra snapshot restore <resource-id> <snapshot-id> [--to <id>] [--no-wait]
+vertra snapshot jobs <resource-id> [--db] [--kind snapshot|restore]
+vertra snapshot job <resource-id> <job-id> [--db] [--wait]
+vertra snapshot download <resource-id> <snapshot-id> [--db]
+vertra app download [<id>] [-o <file>]
+```
+
+A restore runs in the background. `snapshot restore` follows the job until it ends (a job that fails exits with an
+error and its reason). Add `--no-wait` to return right away with the `job_id`, when the data is not back yet, and follow
+it later with `snapshot job`, which takes `--wait`; `snapshot jobs` lists the jobs of a resource. A snapshot that takes
+longer than the API waits is followed by `snapshot create` until it is ready. `app download` takes a manual snapshot of
+the application, waits for it and downloads the ZIP, whatever its size; the snapshot counts in your manual snapshot quota
+and shows in `snapshot list`. Creating a database from a snapshot (`vertra db create --snapshot ...`) shows its
+`restore_job_id`; if that restore fails, the database stays created and empty.
+
+`app delete`, `db delete`, `db reset` and `snapshot restore` run right away and are permanent: the data is gone (or replaced) as soon as the command
+finishes. To keep a copy, create a snapshot first with `vertra snapshot create <resource-id> [--db]`. See
+[Back Up and Restore with Snapshots](/guides/backups-snapshots). Listing, jobs and downloading a
+snapshot need an API key with the `snapshots:read` scope; creating and restoring need `snapshots:write`, and
+`app download` needs both `snapshots:write` and `snapshots:read` (`apps:files` alone is not enough).
+
 ## Custom domains
 
 ```bash

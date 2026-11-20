@@ -103,6 +103,32 @@ lugar de hacer rollback sin preguntar.
 Listar y leer logs necesita una clave de API con el alcance `apps:read`. Hacer rollback necesita `apps:write`, además de
 `apps:envs` para `--env`.
 
+## Snapshots y descargas
+
+```bash
+vertra snapshot list [<resource-id>] [--db]
+vertra snapshot create [<resource-id>] [--db]
+vertra snapshot restore <resource-id> <snapshot-id> [--to <id>] [--no-wait]
+vertra snapshot jobs <resource-id> [--db] [--kind snapshot|restore]
+vertra snapshot job <resource-id> <job-id> [--db] [--wait]
+vertra snapshot download <resource-id> <snapshot-id> [--db]
+vertra app download [<id>] [-o <file>]
+```
+
+La restauración se ejecuta en segundo plano. `snapshot restore` sigue el job hasta el final (un job que falla termina con
+error y su motivo). Añade `--no-wait` para volver al instante con el `job_id`, cuando los datos todavía no han vuelto, y
+síguelo más tarde con `snapshot job`, que acepta `--wait`; `snapshot jobs` lista los jobs de un recurso. Un snapshot que
+tarda más de lo que espera la API lo sigue `snapshot create` hasta que está listo. `app download` toma un snapshot manual
+de la aplicación, espera a que esté listo y descarga el ZIP, sea cual sea su tamaño; el snapshot cuenta en tu cuota de
+snapshots manuales y aparece en `snapshot list`. Crear una base de datos desde un snapshot (`vertra db create --snapshot ...`)
+muestra su `restore_job_id`; si esa restauración falla, la base de datos queda creada y vacía.
+
+`app delete`, `db delete`, `db reset` y `snapshot restore` se ejecutan al momento y son permanentes: los datos desaparecen (o se sustituyen) en cuanto
+termina el comando. Para conservar una copia, crea antes un snapshot con `vertra snapshot create <resource-id> [--db]`. Consulta
+[Backups y snapshots](/es-es/guides/backups-snapshots). Listar, ver jobs y descargar un
+snapshot necesitan una clave de API con el scope `snapshots:read`; crear y restaurar necesitan `snapshots:write`, y
+`app download` necesita `snapshots:write` y `snapshots:read` (`apps:files` solo no basta).
+
 ## Dominios personalizados
 
 ```bash
