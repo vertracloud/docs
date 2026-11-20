@@ -302,9 +302,8 @@ deve ler `plan.name` e `owner_plan` (quebra de compatibilidade da API, dos SDKs,
 | Web Analytics: resumo, tráfego, erros e comparação | Sim | Sim | Sim | Sim | Sim |
 | Web Analytics: desempenho e requisições | — | — | Sim | Sim | Sim |
 | Histórico do Web Analytics | 7 dias | 7 dias | 7 dias | 30 dias | 30 dias |
-| Backups diários (mantidos por 30 dias) | Sim | Sim | Sim | Sim | Sim |
-| Backups manuais por dia (conta) | 5 | 5 | 8 a 16 | 24 a 48 | 64 |
-| Snapshot opcional antes de excluir uma aplicação ou um banco pelo painel | Sim | Sim | Sim | Sim | Sim |
+| Backups diários | — | — | Bancos de dados | Aplicações e bancos de dados | Aplicações e bancos de dados |
+| Backups manuais em 24 horas (conta) | 8 | 16 | 32 a 64 | 96 a 192 | 256 a 4.096 |
 | Gerenciador de dados do banco | — | — | Sim | Sim | Sim |
 | Imagens Docker personalizadas (a partir do seu próprio `Dockerfile`) | — | — | Até 2 imagens | Até 6 imagens | Até 20 imagens |
 | Templates de código (os bots do Discord do catálogo público; receba links de compartilhamento de templates de código) | Sim | Sim | Sim | Sim | Sim |
@@ -325,7 +324,7 @@ deve ler `plan.name` e `owner_plan` (quebra de compatibilidade da API, dos SDKs,
 > **Versões anteriores mantidas** conta as versões além da que está rodando agora. **Validade da versão** conta a
 > partir do momento em que uma versão deixa de ser a que está rodando; a versão em execução nunca expira.
 
-> **Backups manuais por dia** tem dois limites, contados no dia civil no horário de Brasília. Por projeto (aplicação ou banco): até 5. Por conta, somando todos os projetos: 2 por GB de RAM do plano, no mínimo 5 e no máximo 64, que é o valor da tabela: 5 no Starter 1 e 2, 8, 12 e 16 no Pro 4, 6 e 8, 24, 32 e 48 no Business 12, 16 e 24; todo tamanho de Enterprise tem 64. Os backups diários são automáticos e os de segurança são feitos pela plataforma; nenhum usa esses limites. O intervalo de 5 minutos entre backups manuais do mesmo projeto continua valendo.
+> **Backups manuais em 24 horas** é uma cota por conta, somando todos os projetos, contada em qualquer janela de 24 horas (a vaga de um snapshot volta 24 horas depois de usada, não à meia-noite): **8 por GB de RAM do plano, no mínimo 2, sem teto**. São 8 no Starter 1, 16 no Starter 2, 32, 48 e 64 no Pro 4, 6 e 8, 96, 128 e 192 no Business 12, 16 e 24, e de 256 no Enterprise 32 a 4.096 no Enterprise 512. Os backups diários são automáticos e não usam a cota; Além da cota, um projeto pode receber um snapshot a cada 3 minutos e um usuário pode fazer uma requisição a cada 5 segundos. Não há limite diário por projeto nem limite para o espaço que os snapshots ocupam.
 
 > **Rollback automático** e **Deploys sem downtime** são configurações de deploy, alteradas nas configurações da
 > aplicação ou com `PATCH /v1/apps/{id}/config` (`deploy`). Pedir qualquer uma delas em um plano que não a inclui
@@ -677,29 +676,44 @@ alterações de configuração e exclusão da aplicação aguardam o fim da paus
 
 ## 9. Snapshots
 
-- **Backup diário** de aplicações e bancos de dados, em todos os planos, mantido por 30 dias como todo snapshot. Ele não usa o limite manual abaixo
-- Criação manual de snapshots para aplicações e bancos, em todos os planos — no máximo **1 a cada 5 minutos no mesmo
-  projeto**, até **5 por dia por projeto** e um **limite diário em toda a conta** que depende do plano: 2 por GB de RAM do plano,
-  no mínimo 5 e no máximo 64 (5 no Starter 1 e 2, 8 a 16 no Pro, 24 a 48 no Business, 64 no Enterprise). O dia é contado no
-  horário de Brasília e os limites zeram à meia-noite. Ao exceder qualquer um deles, a resposta é `SNAPSHOT_RATE_LIMITED` (429)
-  com `details: { scope: "resource" | "resource_daily" | "account", retry_after }`; `resource` é o intervalo de 5 minutos, e `resource_daily` e `account` também trazem `limit` e `resets_at`
-- Restauração de qualquer snapshot anterior (cooldown de 30 segundos)
-- Download do conteúdo do snapshot como ZIP, de qualquer tamanho. O download direto do projeto (`GET /v1/apps/{id}/download`) é limitado a 300 MB de arquivos (`DOWNLOAD_TOO_LARGE`): acima disso, baixe um snapshot
-- **Redefinir um banco faz automaticamente um snapshot de segurança antes de destruir os dados**, em todos
-  os planos. Se o backup falhar, a ação é bloqueada (`SNAPSHOT_FAILED`) e o banco não é redefinido. Este
-  snapshot forçado tem um teto próprio, separado do da criação manual: no máximo 2 tentativas por hora no mesmo
-  projeto, e 10 por hora em todos os projetos da conta — ao exceder qualquer um dos dois, a resposta é
-  `FORCED_SNAPSHOT_RATE_LIMIT` e a ação também é bloqueada.
-- **Excluir uma aplicação ou um banco não cria snapshot sozinho.** O diálogo de exclusão do painel tem a opção
-  **Criar snapshot antes de apagar**, desmarcada por padrão (aparece nos planos com backup manual): marcada, o painel
-  cria o snapshot e só apaga se ele der certo; desmarcada, apaga direto. Pela API, o `DELETE` de uma aplicação ou
-  de um banco apaga direto: para ter um backup, crie um snapshot antes.
-- **Excluir uma stack inteira ou uma imagem Docker própria** (o que apaga os apps dela) continua fazendo o snapshot
-  de segurança automaticamente, com o mesmo teto. As exclusões que a plataforma faz por conta própria (plano vencido,
-  conta sem plano) também fazem snapshot de cada projeto antes; se ele falhar, o recurso é parado e preservado, não apagado.
-- **Limite de tamanho do snapshot: 4 GB** (o tamanho do arquivo do snapshot, já compactado). Acima disso, a criação é
-  recusada com `SNAPSHOT_TOO_LARGE` (`413`), em vez de um erro genérico. Vale para snapshot manual, diário e de segurança.
-  O download não tem esse limite: qualquer snapshot existente pode ser baixado.
+Um snapshot é uma cópia de uma aplicação ou banco em um determinado momento. Criar e restaurar snapshots roda em segundo plano, então recursos grandes funcionam: o painel mostra a operação em andamento e a API dá um job para acompanhar (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, escopo `snapshots:read`; a lista, `GET /v1/users/{id}/snapshots/jobs`, aceita `limit` de 1 a 50, padrão 10, e responde `400 VALIDATION_ERROR` fora disso).
+
+**Tipos e retenção**
+
+- **Manual:** criado por você (painel, API, CLI, MCP). Baixar o projeto inteiro também é um snapshot manual (faça-o e depois baixe-o). Mantido por 30 dias.
+- **Backup diário:** automático, por plano: **aplicações a partir do Business** (Business e Enterprise) e **bancos de dados a partir do Pro** (Pro, Business e Enterprise). Os planos Starter não têm. Um banco parado não entra. O backup diário mais recente de cada recurso é mantido por 30 dias e os anteriores por 7 dias. Ele não usa a cota manual.
+- Os snapshots de expiração do plano (antes de a plataforma remover projetos de uma conta sem plano) são mantidos por 30 dias.
+
+**Limites manuais** (`SNAPSHOT_RATE_LIMITED`, 429, com `details.scope`, exceto o intervalo por usuário)
+
+- **Por conta:** uma cota em qualquer janela de 24 horas, contada a partir de cada snapshot (a vaga volta 24 horas depois do uso, não à meia-noite): **8 por GB de RAM do plano, no mínimo 2, sem teto** (8 no Starter 1, 16 no Starter 2, 32 a 64 no Pro, 96 a 192 no Business, 256 a 4.096 no Enterprise). `scope: "account"`, com `resets_at`.
+- **Por recurso:** um snapshot a cada **3 minutos** (`scope: "resource"`). Não há limite diário por recurso.
+- **Por usuário:** uma requisição a cada **5 segundos** (o `429 RATE_LIMIT_EXCEEDED` genérico, com `retry_after`).
+- Não há limite para o espaço que os snapshots ocupam. O conteúdo de um snapshot é limitado pelo armazenamento do recurso (`SNAPSHOT_TOO_LARGE` caso contrário).
+- Enquanto uma aplicação recebe um snapshot, deploys, rollbacks, reinícios, inícios, paradas, mudanças de variáveis de ambiente, restaurações e as escritas do gerenciador de arquivos respondem `409 OPERATION_IN_PROGRESS`. Um banco já recusa início, parada, reinício, mudanças de memória e de versão, redefinição, restauração, exclusão e redefinição de certificados durante o snapshot.
+- Criar um snapshot responde `201` com o snapshot, ou `202` com `response.job_id` quando demora mais de 90 segundos.
+
+**Restauração**
+
+- Roda como job: `POST /v1/users/{id}/snapshots/{snapshot_id}/restore` responde `202` com `response.job_id` (e `warning` quando se aplica). Uma aplicação é reconstruída e reiniciada quando termina.
+- Esperas entre restaurações: **60 segundos por aplicação**; em um banco, **60 segundos para quem pede e 120 segundos por banco** (`RESTORE_COOLDOWN`, com `details.retry_after`). Criar uma aplicação ou um banco a partir de um snapshot também espera 60 segundos por usuário (`429 RESTORE_COOLDOWN`, nada é criado). Toda resposta com `details.retry_after` também envia o header `Retry-After`.
+- Enquanto roda, escritas no recurso respondem `409 RESTORE_IN_PROGRESS` (ler e excluir são permitidos). Restaurar uma aplicação com deploy em andamento responde `409 APP_BUILDING`.
+- O conteúdo do snapshot tem de caber no armazenamento do destino, ou a restauração é recusada antes de qualquer alteração: `SNAPSHOT_EXCEEDS_STORAGE`, com `required_bytes`, `available_bytes` e, em um banco, `required_ram_mb`. Fora isso, não há limite de tamanho.
+- Um snapshot que não confere com o que foi registrado quando foi feito é recusado (`SNAPSHOT_CORRUPTED`); um banco que falha ao carregar os dados mantém os que tinha (`SNAPSHOT_IMPORT_FAILED`). Nada é alterado nos dois casos.
+- Criar uma aplicação ou um banco a partir de um snapshot responde `202` com um `restore_job_id`, sem limite de tamanho além do armazenamento do novo recurso. Se a restauração falhar, uma aplicação criada a partir de código é excluída; um **banco e uma aplicação que roda uma imagem Docker própria são mantidos**.
+- Um snapshot de uma aplicação que roda uma imagem Docker própria guarda os dados de `/app` e a versão da imagem; a restauração pode, opcionalmente, voltar a essa versão.
+
+**Download**
+
+- Baixe o conteúdo de qualquer snapshot como ZIP, de qualquer tamanho.
+- Baixar o projeto inteiro funciona para um projeto de qualquer tamanho e passa por um snapshot manual (cota, intervalo de 3 minutos, 30 dias, aparece na lista): `POST /v1/users/{id}/snapshots` responde `201` com o snapshot, ou `202` com `response.job_id`; acompanhe o job em `GET /v1/users/{id}/snapshots/jobs/{job_id}` até ficar `ready` (ele traz o `snapshot_id`), e então `GET /v1/users/{id}/snapshots/{snapshot_id}/download` devolve o ZIP. Uma chave precisa de `snapshots:write` para criá-lo e de `snapshots:read` para baixá-lo; só `apps:files` não baixa o projeto. Não existe rota de download na própria aplicação. Uma conta sem plano ativo não faz snapshots novos, mas ainda lista e baixa os que tem (inclusive o guardado antes de os projetos dela serem removidos).
+
+**Excluir, redefinir e restaurar**
+
+- Excluir uma aplicação ou um banco, redefinir um banco, restaurar um snapshot e excluir uma stack (`delete_all`) rodam na hora e são permanentes. Se você puder precisar dos dados de novo, crie um snapshot antes e espere até ele ficar `ready`; os snapshots que você já tem continuam disponíveis depois que o recurso some.
+- Respostas: excluir uma aplicação `{ response: null }`; excluir um banco `{ response: "<id>" }`; redefinir um banco `{ response: { status: "success" } }`; uma restauração `202` com `{ response: { job_id } }` (e `warning` quando se aplica); excluir uma stack `200` com `{ response: { deleted_apps, deleted_databases, deleted_blob } }`; restaurar um snapshot de stack `202` com `{ response: { jobs } }`.
+- **Excluir uma imagem Docker própria** também exclui os apps dela na hora. As exclusões que a plataforma faz por conta própria (plano vencido, conta sem plano) sempre fazem snapshot de todos os projetos antes; se o snapshot falhar, o recurso é parado e preservado, não excluído.
+- Redefinir um banco é limitado a 1 por hora.
 
 ---
 
@@ -719,10 +733,10 @@ Colaboração em equipe com permissões granulares e papéis personalizáveis. *
 | `apps:delete` | apps | Excluir aplicação |
 | `databases:read` | databases | Ver detalhes, status e métricas do banco |
 | `databases:manage` | databases | Editar configuração do banco |
-| `databases:lifecycle` | databases | Iniciar, parar, reiniciar, redefinir |
+| `databases:lifecycle` | databases | Iniciar, parar, reiniciar |
 | `databases:credentials` | databases | Ver/redefinir certificado e credenciais |
 | `databases:data` | databases | Aba Data (console SQL, coleções, chaves) |
-| `databases:delete` | databases | Excluir banco |
+| `databases:delete` | databases | Excluir banco, redefinir os dados dele |
 | `snapshots:read` | snapshots | Ver snapshots |
 | `snapshots:manage` | snapshots | Criar e restaurar um snapshot |
 | `blob:read` | blob | Ver os arquivos, compartilhamentos, regras, domínios e uso do Blob Storage do dono |
@@ -794,8 +808,8 @@ Duas formas, ambas exigindo `members:manage`:
 
 Um convite pode trazer `expires_in_days` — uma expiração de acesso aplicada ao membro que entra por ele; `null`/ausente
 = sem expiração. **Um convite pendente conta no limite de membros do plano.** Toda conta tem a opção
-`workspace_invites_enabled` (`APIUser`) para recusar convites por e-mail; quando ela está desligada, um novo convite por
-e-mail para essa conta falha com `WORKSPACE_INVITES_DISABLED`.
+`workspace_invites_enabled` (`APIUser`) para não receber e-mails de convite; quando ela está desligada, um novo convite por
+e-mail para essa conta é criado e fica pendente como qualquer outro, mas a pessoa não recebe e-mail.
 
 ### Pastas e favoritos
 
@@ -873,7 +887,6 @@ expirado **congela as gravações** (convites, ações, edições), mas nunca ap
 | `WORKSPACE_INVITE_NOT_FOUND` | 404 |
 | `WORKSPACE_INVITE_EXPIRED` | 410 |
 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | 403 |
-| `WORKSPACE_INVITES_DISABLED` | 400 |
 | `WORKSPACE_ALREADY_MEMBER` | 409 |
 | `WORKSPACE_OWNER_ONLY` | 403 |
 | `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | 404 |
@@ -893,6 +906,7 @@ expirado **congela as gravações** (convites, ações, edições), mas nunca ap
 - Criar, editar, mover e excluir arquivos e pastas
 - Lista todas as pastas do projeto, incluindo pastas de dependências como `node_modules`; somente o endpoint da árvore
   de arquivos (`GET /v1/apps/{id}/files/tree`) pula as pastas de dependências e de build para ficar pequeno
+- Lê e salva arquivos de até **10 MiB** (`FILE_TOO_LARGE`, HTTP 413, com `details.max_bytes`); arquivos maiores passam pelo envio, e o projeto inteiro por um download de snapshot. Enquanto um snapshot da aplicação está sendo feito, salvar, mover, excluir e enviar respondem `OPERATION_IN_PROGRESS` (409)
 - `vertracloud.config` não existe no volume: ele é gerado a partir do banco no download e no snapshot (veja
   §Arquivo de configuração)
 - Armazenamento: 10 GB fixos por aplicação (veja §5 Armazenamento)
@@ -1052,10 +1066,10 @@ os escopos também podem ser escolhidos individualmente.
 | `apps:write` | Criar, iniciar, parar, reiniciar, configurar, publicar, gerenciar domínios personalizados e deploys; trocar o comando de início, o comando de build ou o arquivo principal também exige `apps:files` |
 | `apps:delete` | Excluir uma aplicação |
 | `apps:envs` | Ler, criar e excluir variáveis de ambiente |
-| `apps:files` | Ler, editar e enviar arquivos, e baixar a aplicação |
+| `apps:files` | Ler, editar e enviar arquivos |
 | `databases:read` | Consultar status e métricas do banco |
-| `databases:write` | Criar, atualizar, iniciar, parar e redefinir bancos |
-| `databases:delete` | Excluir um banco |
+| `databases:write` | Criar, atualizar, iniciar e parar bancos |
+| `databases:delete` | Excluir um banco e redefinir os dados dele |
 | `databases:credentials` | Ver ou redefinir certificado e credenciais |
 | `templates:read` | Listar e ler templates, versões e prévias de links de compartilhamento; validar um manifesto; verificar se há atualização |
 | `templates:write` | Criar, alterar e excluir templates privados, versões e links de compartilhamento; copiar e denunciar um template compartilhado |
@@ -1063,7 +1077,7 @@ os escopos também podem ser escolhidos individualmente.
 | `stacks:read` | Listar e ler stacks, conexões, snapshots e o código de conexão |
 | `stacks:write` | Criar e alterar stacks, membros, conexões e snapshots; adicionar um banco ou uma pasta do Blob |
 | `stacks:delete` | Excluir uma stack |
-| `snapshots:read` | Listar e baixar snapshots |
+| `snapshots:read` | Listar e baixar snapshots, e acompanhar jobs de snapshot e de restauração |
 | `snapshots:write` | Criar e restaurar snapshots |
 | `blob:read` | Ler arquivos, links, compartilhamentos, regras, domínios e uso do Blob Storage |
 | `blob:write` | Enviar e alterar arquivos, compartilhamentos, regras e domínios do Blob Storage |
@@ -1140,7 +1154,7 @@ alterações de subdomínio, consultas de dados e exportação de atividades.
 | `MAX_APPS_REACHED` | Limite de aplicações do plano atingido |
 | `MAX_DATABASES_REACHED` | Limite de bancos do plano atingido |
 | `VALIDATION_ERROR` | Body, parâmetro ou query inválidos |
-| `FILE_TOO_LARGE` | Arquivo acima do limite de upload |
+| `FILE_TOO_LARGE` | Arquivo acima do limite: o limite de envio, ou 10 MiB quando o gerenciador de arquivos lê ou salva um arquivo (HTTP 413, `details.max_bytes`) |
 | `INVALID_ZIP` | O arquivo enviado não é um ZIP válido |
 | `INVALID_ZIP_STRUCTURE` | O ZIP está danificado, vazio ou com estrutura inválida; em uma restauração, nada é alterado |
 | `FETCH_ZIP_ERROR` | Não foi possível acessar o GitHub, ou ele estava limitando requisições ao buscar um repositório (HTTP 502); ao criar ou refazer o build de uma imagem, também HTTP 404 quando o GitHub não devolveu o arquivo do repositório (por exemplo, a branch não existe mais) |
@@ -1154,14 +1168,19 @@ alterações de subdomínio, consultas de dados e exportação de atividades.
 | `APP_BUILDING` | A aplicação ainda está em build; aguarde o fim do build |
 | `DEPLOY_RATE_LIMITED` | Limite de deploys atingido |
 | `OPERATION_IN_PROGRESS` | Outra operação no recurso ainda está em andamento |
-| `SNAPSHOT_FAILED` | O snapshot de segurança falhou; o recurso não foi alterado |
-| `SNAPSHOT_TOO_LARGE` | O snapshot passaria de 4 GB (`413`, na criação); o snapshot não é criado |
+| `SNAPSHOT_FAILED` | Não foi possível fazer um snapshot; `422` no snapshot manual de um banco cujos dados não puderam ser exportados (por exemplo, ainda sem dados), `500` nos demais casos |
+| `SNAPSHOT_TOO_LARGE` | O conteúdo passa do tamanho que um snapshot do recurso comporta (`413`, na criação; `details.max_bytes`); o snapshot não é criado |
+| `SNAPSHOT_EXCEEDS_STORAGE` | O conteúdo do snapshot não cabe no armazenamento do destino (`400`); `details` traz `required_bytes`, `available_bytes` e, em um banco, `required_ram_mb` |
+| `RESTORE_IN_PROGRESS` | Há uma restauração em andamento no recurso (`409`) |
+| `SNAPSHOT_CORRUPTED` | O snapshot não confere com o que foi registrado quando foi feito; nada mudou (`422`) |
+| `SNAPSHOT_TIMEOUT` | O snapshot ou a restauração demorou demais e foi cancelado (`504`) |
+| `DATABASE_NOT_READY` | O banco de dados ainda não está pronto; tente de novo em instantes (`503`) |
 | `APP_SHIELD_COOLDOWN` | Aplicação pausada temporariamente pelo Vertra Shield; start, restart, deploy, alterações de configuração e exclusão respondem `403` até o fim da pausa |
 | `STORAGE_ABOVE_NEW_LIMIT` | O armazenamento atual excede o novo limite |
 | `RATE_LIMIT_EXCEEDED` | Limite de requisições atingido |
 | `DAILY_QUOTA_EXCEEDED` | Cota diária da chave de API atingida |
-| `SNAPSHOT_RATE_LIMITED` | Limite de criação de snapshots atingido |
-| `SNAPSHOT_IMPORT_FAILED` | A restauração do snapshot falhou |
+| `SNAPSHOT_RATE_LIMITED` | Limite de snapshots manuais atingido: recurso ou cota da conta (`details.scope`) |
+| `SNAPSHOT_IMPORT_FAILED` | O banco não conseguiu carregar o snapshot; ele mantém os dados que tinha |
 | `SNAPSHOT_ENGINE_MISMATCH` | O snapshot e o banco de destino usam motores diferentes |
 | `SUBDOMAIN_TAKEN` | Subdomínio já em uso |
 | `INVALID_SUBDOMAIN_FORMAT` | Formato de subdomínio inválido |
@@ -1190,26 +1209,24 @@ alterações de subdomínio, consultas de dados e exportação de atividades.
 | `WORKSPACE_ACTION_REQUEST_EXPIRED` | Solicitação de ação expirada |
 | `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | Solicitação de ação não encontrada |
 | `WORKSPACE_ALREADY_MEMBER` | A conta já faz parte do workspace |
-| `WORKSPACE_INVITES_DISABLED` | Os convites estão desativados no workspace |
 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | O e-mail da conta não corresponde ao convite |
 | `WORKSPACE_INVITE_EXPIRED` | Convite expirado |
 | `WORKSPACE_INVITE_NOT_FOUND` | Convite não encontrado ou já utilizado |
 | `WORKSPACE_MEMBER_LIMIT_REACHED` | Limite de membros do plano atingido |
 | `WORKSPACE_NAME_ALREADY_EXISTS` | Já existe um workspace ativo com esse nome |
-| `WORKSPACE_NOT_FOUND` | Workspace não encontrado ou sem acesso |
+| `WORKSPACE_NOT_FOUND` | Workspace não encontrado |
 | `WORKSPACE_OWNER_ONLY` | A ação está disponível somente para o dono |
-| `WORKSPACE_PERMISSION_DENIED` | Permissão necessária não concedida |
+| `WORKSPACE_PERMISSION_DENIED` | O papel do membro não tem a permissão necessária |
 | `WORKSPACE_PERMISSION_ESCALATION` | O papel solicitado concede permissões que o autor não possui |
 | `WORKSPACE_ROLE_IN_USE` | O papel está atribuído a um membro ou a um convite pendente |
 | `WORKSPACE_ROLE_LIMIT_REACHED` | Limite de papéis do plano atingido |
 | `WORKSPACE_ROLE_NOT_FOUND` | Papel não encontrado neste workspace |
 | `ARCHIVE_TOO_LARGE` | O conteúdo descompactado do ZIP excede o limite |
 | `ARCHIVE_TOO_MANY_ENTRIES` | O ZIP excede o limite de quantidade de arquivos |
-| `DOWNLOAD_TOO_LARGE` | O projeto tem mais de 300 MB de arquivos e não pode ser baixado diretamente como ZIP (HTTP 413). Baixe um snapshot |
+| `DOWNLOAD_TOO_LARGE` | Salvar a aplicação como template: o projeto é grande demais (HTTP 413) |
 | `NO_FIELDS_TO_UPDATE` | A requisição não contém campos para atualizar |
 | `TARGET_IS_DIRECTORY` | O caminho selecionado é uma pasta |
 | `INSTALL_SHIELD_BLOCKED` | Instalação de dependências pausada pelos limites de proteção do Shield |
-| `FORCED_SNAPSHOT_RATE_LIMIT` | Limite de snapshots de segurança atingido |
 | `DATABASE_NOT_RUNNING` | O banco precisa estar em execução para esta operação |
 | `SUBDOMAIN_FORBIDDEN` | Subdomínio reservado pela plataforma |
 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | Subdomínio alterado recentemente |
@@ -1260,7 +1277,6 @@ A lista abaixo corresponde aos endpoints públicos da API. Os schemas de requisi
 | DELETE | `/v1/apps/{id}/domains/{domain_id}` |
 | GET | `/v1/apps/{id}/domains/{domain_id}/dns` |
 | POST | `/v1/apps/{id}/domains/{domain_id}/connect` |
-| GET | `/v1/apps/{id}/download` |
 | GET | `/v1/apps/{id}/envs` |
 | POST | `/v1/apps/{id}/envs` |
 | DELETE | `/v1/apps/{id}/envs/{env_id}` |
@@ -1283,6 +1299,8 @@ A lista abaixo corresponde aos endpoints públicos da API. Os schemas de requisi
 | POST | `/v1/apps/{id}/stop` |
 | GET | `/v1/users/{id}/snapshots` |
 | POST | `/v1/users/{id}/snapshots` |
+| GET | `/v1/users/{id}/snapshots/jobs` |
+| GET | `/v1/users/{id}/snapshots/jobs/{job_id}` |
 | GET | `/v1/users/{id}/snapshots/{snapshot_id}/download` |
 | POST | `/v1/users/{id}/snapshots/{snapshot_id}/restore` |
 
@@ -1480,7 +1498,7 @@ O que a Vertra Cloud guarda sobre a sua conta e os seus projetos, e por quanto t
 |---|---|---|
 | Dados da conta | Nome, e-mail, idioma, avatar e provedores de login conectados | Enquanto a conta existir; excluídos ou anonimizados em até 30 dias após o encerramento, exceto o que a lei exige manter |
 | Conteúdo dos projetos | Arquivos, variáveis de ambiente e dados dos bancos | Enquanto o projeto existir |
-| Snapshots | Snapshots manuais, diários, de expiração do plano e de segurança de uma aplicação ou banco | 30 dias após a criação |
+| Snapshots | Snapshots manuais, diários e de expiração do plano de uma aplicação ou banco | 30 dias após a criação; entre os snapshots diários, o mais recente de cada recurso 30 dias e os anteriores 7 dias |
 | Requisições feitas com as suas chaves de API | Método, rota, path, IP, user agent, status, duração, tamanho e código de erro; em algumas rotas, um trecho **redigido** do corpo da requisição e da resposta (até 4 KB) | 30 dias |
 | Tráfego das aplicações hospedadas | Método, status, duração e tamanho de cada requisição — **sem path, sem IP e sem conteúdo** | 30 dias |
 | Incidentes de proteção (Vertra Shield) | Motivo, direção do tráfego, horário e duração da pausa | 90 dias |
@@ -1590,9 +1608,9 @@ Cada transformação distinta conta uma vez por mês. Acima do limite mensal, a 
 
 | Status | Código | Significado e correção |
 |---|---|---|
-| 404 | `BLOB_OBJECT_NOT_FOUND` | Nenhum objeto com esse ID nesta conta (ou ele pertence a outra conta). Confira o ID. |
+| 404 | `BLOB_OBJECT_NOT_FOUND` | Nenhum objeto com esse ID foi encontrado. Confira o ID. |
 | 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Outro objeto já usa esse `path`. Envie `overwrite: true` para substituí-lo, ou escolha outro caminho. |
-| 404 | `BLOB_UPLOAD_NOT_FOUND` | O upload não existe, pertence a outra conta ou já foi concluído ou cancelado. Inicie um novo upload. |
+| 404 | `BLOB_UPLOAD_NOT_FOUND` | O upload não foi encontrado ou já foi concluído ou cancelado. Inicie um novo upload. |
 | 410 | `BLOB_UPLOAD_EXPIRED` | O prazo do upload expirou. Inicie um novo upload. |
 | 409 | `BLOB_UPLOAD_INCOMPLETE` | No `complete`, faltam partes ou o tamanho armazenado difere do `size` declarado. Envie as partes que faltam (veja `uploaded_parts`) e tente de novo. |
 | 409 | `BLOB_UPLOAD_LIMIT` | A conta tem mais uploads em andamento do que o plano permite. Conclua ou cancele alguns e tente de novo. |
@@ -1612,7 +1630,7 @@ Cada transformação distinta conta uma vez por mês. Acima do limite mensal, a 
 | 409 | `BLOB_RULE_LIMIT` | A conta tem mais regras de pasta do que o plano permite (5, 10 ou 20). Exclua uma regra primeiro. |
 | 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | O plano inclui domínios personalizados e a conta já tem todos os que ele permite. Abaixo do Pro, a resposta é `PLAN_RESTRICTED_FEATURE`. |
 | 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | O hostname já está em uso. |
-| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | O domínio não existe ou pertence a outra conta. |
+| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | O domínio não foi encontrado. |
 
 ---
 
@@ -1655,14 +1673,13 @@ pasta de Blob, e os limites da conta de aplicações, bancos e deploys por hora.
 
 - `POST /v1/templates/{id}/deploy` inicia um job (`202`) que valida o plano e a memória, cria os bancos e aguarda por
   eles, cria as aplicações, grava as variáveis, inicia tudo e aguarda o health check. Qualquer falha desfaz tudo o que o
-  job criou (`TEMPLATE_DEPLOY_FAILED`, `details.step`); antes de excluir uma aplicação ou um banco, a reversão faz um
-  snapshot de segurança. Um template de workspace só faz deploy dentro desse workspace, e somente pelo dono. Envie um
+  job criou (`TEMPLATE_DEPLOY_FAILED`, `details.step`). Um template de workspace só faz deploy dentro desse workspace, e somente pelo dono. Envie um
   `Idempotency-Key` para torná-lo seguro para repetir. Apenas um deploy do mesmo template roda por vez
   (`TEMPLATE_DEPLOY_IN_PROGRESS`).
 - As perguntas têm tipos (`text`, `secret`, `select`, `boolean`, `number`, `url`, `email`); segredos podem ser gerados
   para você. Saídas, como o endereço ou um token gerado, são mostradas no final; uma saída secreta é mostrada uma única vez.
 - As atualizações nunca são automáticas: uma nova versão mostra **Nova versão disponível**; a atualização faz um snapshot
-  de segurança antes, atualiza os serviços um a um e, se algum falhar, restaura todos. As permissões nunca se tornam mais
+  antes, atualiza os serviços um a um e, se algum falhar, restaura todos. As permissões nunca se tornam mais
   restritas em uma aplicação existente. Alguns templates bloqueiam o deploy blue-green (duas cópias rodando ao mesmo
   tempo quebrariam o funcionamento) e exigem que o rollback também restaure os dados (`TEMPLATE_ROLLBACK_REQUIRES_DATA`).
 - Alterar o código de uma aplicação a partir de um template aberto a desvincula do template; a API pede
@@ -1681,7 +1698,8 @@ pasta de Blob, e os limites da conta de aplicações, bancos e deploys por hora.
   um template, pelo fluxo `/new`, adicionando um banco a uma aplicação, ou transformando uma pasta que contém uma
   aplicação e um banco.
 - Saindo de uma stack: mantenha a conexão (as variáveis viram normais, com o endereço público) ou remova-as. Excluir uma
-  stack pergunta se você quer apenas desfazê-la (os recursos permanecem) ou excluir tudo; para a pasta de Blob, a escolha
+  stack pergunta se você quer apenas desfazê-la (os recursos permanecem, `dissolve`, `200`) ou excluir tudo (`delete_all`, `200`: os membros e a stack são excluídos
+  na hora e de forma definitiva; crie um snapshot antes se puder precisar deles: veja a [seção 9](#9-snapshots)); para a pasta de Blob, a escolha
   é `keep` (padrão) ou `delete`.
 - Pastas organizam, stacks conectam: uma stack tem seu próprio card na lista e sua própria caixa com as conexões no
   Flow, e pode ficar dentro de uma pasta.
@@ -1723,7 +1741,7 @@ ou serviço desconhecido torna o manifesto inválido (`TEMPLATE_MANIFEST_INVALID
 
 | Status | Código | Significado e correção |
 |---|---|---|
-| 404 | `TEMPLATE_NOT_FOUND` | O template não existe, foi removido ou não está visível para você. |
+| 404 | `TEMPLATE_NOT_FOUND` | O template não foi encontrado ou foi removido. |
 | 404 | `TEMPLATE_VERSION_NOT_FOUND` | Nenhuma versão com esse número ou ID. |
 | 409 | `TEMPLATE_SLUG_TAKEN` | Outro template seu usa esse slug. |
 | 400 | `TEMPLATE_MANIFEST_INVALID` | O manifesto é inválido; `details.issues` lista cada problema. |
@@ -1747,9 +1765,9 @@ ou serviço desconhecido torna o manifesto inválido (`TEMPLATE_MANIFEST_INVALID
 | 409 | `TEMPLATE_UPDATE_BLOCKED` | A atualização não pode prosseguir; `details` tem o motivo (memória, plano ou uma pergunta nova). |
 | 409 | `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | A alteração desvincula a aplicação do seu template; repita com `confirm_detach`. |
 | 409 | `TEMPLATE_ROLLBACK_REQUIRES_DATA` | O rollback apenas do código está bloqueado; restaure o snapshot que a atualização fez. |
-| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | O job de deploy não existe ou não é seu. |
+| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | O job de deploy não foi encontrado. |
 | 404/410 | `SHARE_LINK_NOT_FOUND`, `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED` | O link não existe, foi revogado, expirou ou não tem usos restantes. |
-| 404 | `STACK_NOT_FOUND`, `STACK_MEMBER_NOT_FOUND`, `STACK_BINDING_NOT_FOUND` | A stack, o membro ou a conexão não existe ou não é seu. |
+| 404 | `STACK_NOT_FOUND`, `STACK_MEMBER_NOT_FOUND`, `STACK_BINDING_NOT_FOUND` | A stack, o membro ou a conexão não foi encontrado. |
 | 409 | `STACK_MEMBER_CONFLICT` | O recurso está em outra stack, ou em outra conta ou workspace. |
 | 409 | `STACK_BLOB_PREFIX_TAKEN` | A stack já tem uma pasta de Blob com esse prefixo. |
 | 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | Somente `public` está disponível. |

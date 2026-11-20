@@ -296,9 +296,8 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 | Web Analytics: summary, traffic, errors, compare | Yes | Yes | Yes | Yes | Yes |
 | Web Analytics: performance and requests | — | — | Yes | Yes | Yes |
 | Web Analytics history | 7 days | 7 days | 7 days | 30 days | 30 days |
-| Daily backups (kept 30 days) | Yes | Yes | Yes | Yes | Yes |
-| Manual backups per day (account) | 5 | 5 | 8 to 16 | 24 to 48 | 64 |
-| Optional snapshot before deleting an application or database from the panel | Yes | Yes | Yes | Yes | Yes |
+| Daily backups | — | — | Databases | Applications and databases | Applications and databases |
+| Manual backups per 24 hours (account) | 8 | 16 | 32 to 64 | 96 to 192 | 256 to 4,096 |
 | Database data manager | — | — | Yes | Yes | Yes |
 | Custom Docker images (from your own `Dockerfile`) | — | — | Up to 2 images | Up to 6 images | Up to 20 images |
 | Code templates (the Discord bots of the public catalog; receive share links of code templates) | Yes | Yes | Yes | Yes | Yes |
@@ -318,7 +317,7 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 
 > **Previous versions kept** counts the versions besides the one running now. **Version validity** counts from the moment a version stops being the running one; the running version never expires.
 
-> **Manual backups per day** has two limits, counted on the calendar day in Brasília time. Per project (application or database): up to 5. Per account, across all projects: 2 per GB of plan RAM, at least 5 and at most 64, which is the value in the table: 5 on Starter 1 and 2, 8, 12 and 16 on Pro 4, 6 and 8, 24, 32 and 48 on Business 12, 16 and 24; every Enterprise size has 64. Daily backups are automatic and safety backups are taken by the platform; neither uses these limits. The 5-minute interval between manual backups of the same project still applies.
+> **Manual backups per 24 hours** is a quota per account, across all projects, counted over any 24 hours (the slot of a snapshot frees up 24 hours after it was used, not at midnight): **8 per GB of plan RAM, at least 2, with no cap**. That is 8 on Starter 1, 16 on Starter 2, 32, 48 and 64 on Pro 4, 6 and 8, 96, 128 and 192 on Business 12, 16 and 24, and from 256 on Enterprise 32 to 4,096 on Enterprise 512. Daily backups are automatic and do not use the quota. Besides the quota, a project can be snapshotted once every 3 minutes and a user can make one request every 5 seconds. There is no daily limit per project and no limit on the space the snapshots use.
 
 > **Automatic rollback** and **Zero-downtime deploys** are deploy settings, changed in the application's settings
 > or with `PATCH /v1/apps/{id}/config` (`deploy`). Asking for either on a plan that doesn't include it fails with
@@ -660,30 +659,44 @@ and when the pause ends.
 
 ## 9. Snapshots
 
-- **Daily backup** of applications and databases, on every plan, kept for 30 days like every snapshot. It doesn't use the manual limit below
-- Manual snapshot creation for apps and databases, on every plan — at most **1 every 5 minutes on the same
-  project**, up to **5 a day per project**, and a **daily limit across the whole account** that depends on the plan: 2 per GB of plan RAM,
-  at least 5 and at most 64 (5 on Starter 1 and 2, 8 to 16 on Pro, 24 to 48 on Business, 64 on Enterprise). The day
-  is counted in Brasília time and the limits reset at midnight. Exceeding any returns `SNAPSHOT_RATE_LIMITED` (429)
-  with `details: { scope: "resource" | "resource_daily" | "account", retry_after }`; `resource` is the 5-minute interval, and `resource_daily` and `account` also carry `limit` and `resets_at`
-- Restore from any earlier snapshot (30-second cooldown)
-- Download the snapshot content as a ZIP, of any size. Downloading the project directly (`GET /v1/apps/{id}/download`) is limited to 300 MB of files (`DOWNLOAD_TOO_LARGE`): above that, download a snapshot
-- **Resetting a database automatically takes a safety snapshot before
-  destroying the data**, on every plan. If the backup fails, the action is blocked (`SNAPSHOT_FAILED`)
-  and the database is not reset. This forced snapshot has its own ceiling, separate from the
-  manual-creation one: at most 2 attempts per hour on the same project, and 10 per hour across all
-  projects on the account — exceeding either returns `FORCED_SNAPSHOT_RATE_LIMIT` and also
-  blocks the action.
-- **Deleting an application or a database does not create a snapshot on its own.** The panel's delete dialog has the
-  option **Create snapshot before deleting**, off by default (shown on plans with manual backups): when on, the panel
-  creates the snapshot and deletes only if it succeeds; when off, it deletes right away. Through the API, `DELETE` on an
-  application or database deletes right away: to keep a backup, create a snapshot first.
-- **Deleting a whole stack or a custom Docker image** (which deletes its apps) still takes the safety snapshot
-  automatically, with the same ceiling. Deletions the platform makes on its own (expired plan, account without a plan)
-  also snapshot every project first; if the snapshot fails, the resource is stopped and kept, not deleted.
-- **Snapshot size limit: 4 GB** (the size of the snapshot file, already compressed). Above that, creation is refused
-  with `SNAPSHOT_TOO_LARGE` (`413`) instead of a generic error. It applies to manual, daily and safety snapshots.
-  Downloading has no such limit: any existing snapshot can be downloaded.
+A snapshot is a copy of an application or database at a given moment. Taking and restoring snapshots runs in the background, so large resources work: the dashboard shows the operation in progress and the API gives a job to follow (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, scope `snapshots:read`; the list, `GET /v1/users/{id}/snapshots/jobs`, takes `limit` from 1 to 50, default 10, and `400 VALIDATION_ERROR` otherwise).
+
+**Kinds and retention**
+
+- **Manual:** created by you (dashboard, API, CLI, MCP). Downloading the whole project is also a manual snapshot (take it, then download it). Kept for 30 days.
+- **Daily backup:** automatic, by plan: **applications from Business** (Business and Enterprise) and **databases from Pro** (Pro, Business and Enterprise). Starter plans have none. A stopped database is not included. The most recent daily backup of each resource is kept for 30 days and the earlier ones for 7 days. It does not use the manual quota.
+- Plan-expiry snapshots (before the platform removes projects of an account without a plan) are kept for 30 days.
+
+**Manual limits** (`SNAPSHOT_RATE_LIMITED`, 429, with `details.scope`, except the per-user interval)
+
+- **Per account:** a quota over any 24 hours, counted from each snapshot (the slot frees up 24 hours after use, not at midnight): **8 per GB of plan RAM, at least 2, with no cap** (8 on Starter 1, 16 on Starter 2, 32 to 64 on Pro, 96 to 192 on Business, 256 to 4,096 on Enterprise). `scope: "account"`, with `resets_at`.
+- **Per resource:** one snapshot every **3 minutes** (`scope: "resource"`). There is no daily limit per resource.
+- **Per user:** one request every **5 seconds** (the generic `429 RATE_LIMIT_EXCEEDED`, with `retry_after`).
+- There is no limit on the space the snapshots use. The content of a snapshot is limited by the storage of the resource (`SNAPSHOT_TOO_LARGE` otherwise).
+- While an application is being snapshotted, deploys, rollbacks, restarts, starts, stops, environment variable changes, restores and the file manager's writes answer `409 OPERATION_IN_PROGRESS`. A database already refuses start, stop, restart, memory and version changes, reset, restore, delete and certificate reset during the snapshot.
+- Creating a snapshot answers `201` with the snapshot, or `202` with `response.job_id` when it takes more than 90 seconds.
+
+**Restore**
+
+- Runs as a job: `POST /v1/users/{id}/snapshots/{snapshot_id}/restore` answers `202` with `response.job_id` (and `warning` when it applies). An application is rebuilt and restarted when it ends.
+- Waits between restores: **60 seconds per application**; for a database, **60 seconds for the user who asks and 120 seconds per database** (`RESTORE_COOLDOWN`, with `details.retry_after`). Creating an application or a database from a snapshot also waits 60 seconds per user (`429 RESTORE_COOLDOWN`, nothing is created). Every answer with `details.retry_after` also sends the `Retry-After` header.
+- While it runs, writes to the resource answer `409 RESTORE_IN_PROGRESS` (reading and deleting are allowed). During a restore of an application with a deploy in progress, the answer is `409 APP_BUILDING`.
+- The snapshot's content must fit in the target's storage, or the restore is refused before anything changes: `SNAPSHOT_EXCEEDS_STORAGE`, with `required_bytes`, `available_bytes` and, for a database, `required_ram_mb`. Beyond that there is no size limit.
+- A snapshot that does not match what was recorded when it was taken is refused (`SNAPSHOT_CORRUPTED`); a database that fails to load the data keeps the data it had (`SNAPSHOT_IMPORT_FAILED`). Nothing is changed in either case.
+- Creating an application or a database from a snapshot answers `202` with a `restore_job_id`, with no size limit beyond the new resource's storage. If the restore fails, an application created from code is deleted; a **database and an application that runs a custom Docker image are kept**.
+- A snapshot of an application that runs a custom Docker image holds the data of `/app` and the image version; the restore can optionally go back to that version.
+
+**Download**
+
+- Download the content of any snapshot as a ZIP, of any size.
+- Downloading the whole project works for a project of any size and goes through a manual snapshot (quota, 3-minute interval, 30 days, shows in the list): `POST /v1/users/{id}/snapshots` answers `201` with the snapshot, or `202` with `response.job_id`; follow the job on `GET /v1/users/{id}/snapshots/jobs/{job_id}` until it is `ready` (it brings the `snapshot_id`), then `GET /v1/users/{id}/snapshots/{snapshot_id}/download` returns the ZIP. A key needs `snapshots:write` to create it and `snapshots:read` to download it; `apps:files` alone does not download the project. There is no download route on the application itself. An account without an active plan cannot take new snapshots, but it still lists and downloads the ones it has (including the one kept before its projects were removed).
+
+**Deleting, resetting and restoring**
+
+- Deleting an application or a database, resetting a database, restoring a snapshot and deleting a stack (`delete_all`) run right away and are permanent. If you may need the data again, create a snapshot first and wait until it is `ready`; the snapshots you already have stay available after the resource is gone.
+- Answers: deleting an application `{ response: null }`; deleting a database `{ response: "<id>" }`; resetting a database `{ response: { status: "success" } }`; a restore `202` with `{ response: { job_id } }` (and `warning` when it applies); deleting a stack `200` with `{ response: { deleted_apps, deleted_databases, deleted_blob } }`; restoring a stack snapshot `202` with `{ response: { jobs } }`.
+- **Deleting a custom Docker image** deletes its apps right away too. Deletions the platform makes on its own (expired plan, account without a plan) always snapshot every project first; if the snapshot fails, the resource is stopped and kept, not deleted.
+- Resetting a database is limited to 1 per hour.
 
 ---
 
@@ -703,10 +716,10 @@ Team collaboration with granular permissions and customizable roles. **Available
 | `apps:delete` | apps | Delete app |
 | `databases:read` | databases | View database details, status, metrics |
 | `databases:manage` | databases | Edit database config |
-| `databases:lifecycle` | databases | Start, stop, restart, reset |
+| `databases:lifecycle` | databases | Start, stop, restart |
 | `databases:credentials` | databases | View/reset certificate and credentials |
 | `databases:data` | databases | Data tab (SQL console, collections, keys) |
-| `databases:delete` | databases | Delete database |
+| `databases:delete` | databases | Delete database, reset its data |
 | `snapshots:read` | snapshots | View snapshots |
 | `snapshots:manage` | snapshots | Create and restore a snapshot |
 | `blob:read` | blob | View the owner's Blob Storage files, shares, rules, domains and usage |
@@ -778,8 +791,8 @@ Two forms, both requiring `members:manage`:
 
 An invite can carry `expires_in_days` — an access expiration applied to the member who joins through
 it; `null`/absent = no expiration. **A pending invite counts toward the plan's member limit.**
-Every account has the `workspace_invites_enabled` toggle (`APIUser`) to refuse email invites;
-when off, a new email invite for that account fails with `WORKSPACE_INVITES_DISABLED`.
+Every account has the `workspace_invites_enabled` toggle (`APIUser`) to stop receiving invite emails;
+when off, a new email invite for that account is created and stays pending like any other, but the person gets no email.
 
 ### Folders and favorites
 
@@ -859,7 +872,6 @@ an expired plan **freezes writes** (invite, action, edit), never deletes data.
 | `WORKSPACE_INVITE_NOT_FOUND` | 404 |
 | `WORKSPACE_INVITE_EXPIRED` | 410 |
 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | 403 |
-| `WORKSPACE_INVITES_DISABLED` | 400 |
 | `WORKSPACE_ALREADY_MEMBER` | 409 |
 | `WORKSPACE_OWNER_ONLY` | 403 |
 | `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | 404 |
@@ -877,6 +889,7 @@ an expired plan **freezes writes** (invite, action, edit), never deletes data.
 - File tree up to 6 levels deep
 - Create, edit, move, delete files and folders
 - Lists every directory of the project, including dependency folders such as `node_modules`; only the file tree endpoint (`GET /v1/apps/{id}/files/tree`) skips dependency and build folders to stay small
+- Reads and saves files of up to **10 MiB** (`FILE_TOO_LARGE`, HTTP 413, with `details.max_bytes`); larger files go through upload, and the whole project through a snapshot download. While a snapshot of the application is being taken, saves, moves, deletes and uploads answer `OPERATION_IN_PROGRESS` (409)
 - `vertracloud.config` doesn't exist on the volume: it's generated from the database on download and on snapshot (see §Configuration File)
 - Storage: 10 GB fixed per application (see §5 Storage)
 
@@ -1030,10 +1043,10 @@ common sets; scopes can also be chosen individually.
 | `apps:write` | Create, start, stop, restart, configure, publish, manage custom domains and deploys; changing the start command, build command or main file also needs `apps:files` |
 | `apps:delete` | Delete an application |
 | `apps:envs` | Read, create and delete environment variables |
-| `apps:files` | Read, edit and upload files, and download the application |
+| `apps:files` | Read, edit and upload files |
 | `databases:read` | Check database status and metrics |
-| `databases:write` | Create, update, start, stop and reset databases |
-| `databases:delete` | Delete a database |
+| `databases:write` | Create, update, start and stop databases |
+| `databases:delete` | Delete a database and reset its data |
 | `databases:credentials` | View or reset certificate and credentials |
 | `templates:read` | List and read templates, versions and share-link previews; validate a manifest; check for an update |
 | `templates:write` | Create, change and delete private templates, versions and share links; copy and report a shared template |
@@ -1041,7 +1054,7 @@ common sets; scopes can also be chosen individually.
 | `stacks:read` | List and read stacks, connections, snapshots and the connection code |
 | `stacks:write` | Create and change stacks, members, connections and snapshots; add a database or Blob folder |
 | `stacks:delete` | Delete a stack |
-| `snapshots:read` | List and download snapshots |
+| `snapshots:read` | List and download snapshots, and follow snapshot and restore jobs |
 | `snapshots:write` | Create and restore snapshots |
 | `blob:read` | Read Blob Storage files, links, shares, rules, domains and usage |
 | `blob:write` | Upload and change Blob Storage files, shares, rules and domains |
@@ -1120,7 +1133,7 @@ data queries and activity export.
 | `MAX_APPS_REACHED` | Plan's application limit reached |
 | `MAX_DATABASES_REACHED` | Plan's database limit reached |
 | `VALIDATION_ERROR` | Invalid body, parameter or query |
-| `FILE_TOO_LARGE` | File above the upload limit |
+| `FILE_TOO_LARGE` | File above the limit: the upload limit, or 10 MiB when the file manager reads or saves a file (HTTP 413, `details.max_bytes`) |
 | `INVALID_ZIP` | Uploaded file is not a valid ZIP |
 | `INVALID_ZIP_STRUCTURE` | The ZIP is damaged, empty or has an invalid structure; on a restore, nothing is changed |
 | `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while fetching a repository (HTTP 502); when creating or rebuilding an image, also HTTP 404 when GitHub did not return the repository archive (for example, the branch no longer exists) |
@@ -1134,14 +1147,19 @@ data queries and activity export.
 | `APP_BUILDING` | The application is still building; wait until the build ends |
 | `DEPLOY_RATE_LIMITED` | Deploy limit reached |
 | `OPERATION_IN_PROGRESS` | Another operation on the resource is still in progress |
-| `SNAPSHOT_FAILED` | Safety snapshot failed; the resource was not changed |
-| `SNAPSHOT_TOO_LARGE` | The snapshot would exceed 4 GB (`413`, on creation); the snapshot is not created |
+| `SNAPSHOT_FAILED` | A snapshot could not be taken; `422` on a manual snapshot of a database whose data could not be exported (for example, no data yet), `500` otherwise |
+| `SNAPSHOT_TOO_LARGE` | The content is above the size a snapshot of the resource can hold (`413`, on creation; `details.max_bytes`); the snapshot is not created |
+| `SNAPSHOT_EXCEEDS_STORAGE` | The snapshot's content does not fit in the target's storage (`400`); `details` has `required_bytes`, `available_bytes` and, for a database, `required_ram_mb` |
+| `RESTORE_IN_PROGRESS` | A restore is running on the resource (`409`) |
+| `SNAPSHOT_CORRUPTED` | The snapshot does not match what was recorded when it was taken; nothing changed (`422`) |
+| `SNAPSHOT_TIMEOUT` | The snapshot or restore took too long and was cancelled (`504`) |
+| `DATABASE_NOT_READY` | The database is not ready yet; try again shortly (`503`) |
 | `APP_SHIELD_COOLDOWN` | Application temporarily paused by Vertra Shield; start, restart, deploy, configuration changes and delete answer `403` until the pause ends |
 | `STORAGE_ABOVE_NEW_LIMIT` | Current storage exceeds the new limit |
 | `RATE_LIMIT_EXCEEDED` | Request limit reached |
 | `DAILY_QUOTA_EXCEEDED` | API key's daily quota reached |
-| `SNAPSHOT_RATE_LIMITED` | Snapshot creation limit reached |
-| `SNAPSHOT_IMPORT_FAILED` | Snapshot restore failed |
+| `SNAPSHOT_RATE_LIMITED` | Manual snapshot limit reached: resource or account quota (`details.scope`) |
+| `SNAPSHOT_IMPORT_FAILED` | The database could not load the snapshot; it keeps the data it had |
 | `SNAPSHOT_ENGINE_MISMATCH` | Snapshot and target database use different engines |
 | `SUBDOMAIN_TAKEN` | Subdomain already in use |
 | `INVALID_SUBDOMAIN_FORMAT` | Invalid subdomain format |
@@ -1170,26 +1188,24 @@ data queries and activity export.
 | `WORKSPACE_ACTION_REQUEST_EXPIRED` | Action request expired |
 | `WORKSPACE_ACTION_REQUEST_NOT_FOUND` | Action request not found |
 | `WORKSPACE_ALREADY_MEMBER` | The account is already part of the workspace |
-| `WORKSPACE_INVITES_DISABLED` | Invites are disabled on the workspace |
 | `WORKSPACE_INVITE_EMAIL_MISMATCH` | Account email doesn't match the invite |
 | `WORKSPACE_INVITE_EXPIRED` | Invite expired |
 | `WORKSPACE_INVITE_NOT_FOUND` | Invite not found or already used |
 | `WORKSPACE_MEMBER_LIMIT_REACHED` | Plan's member limit reached |
 | `WORKSPACE_NAME_ALREADY_EXISTS` | An active workspace with that name already exists |
-| `WORKSPACE_NOT_FOUND` | Workspace not found or no access |
+| `WORKSPACE_NOT_FOUND` | Workspace not found |
 | `WORKSPACE_OWNER_ONLY` | The action is only available to the owner |
-| `WORKSPACE_PERMISSION_DENIED` | Required permission not granted |
+| `WORKSPACE_PERMISSION_DENIED` | Member's role lacks the required permission |
 | `WORKSPACE_PERMISSION_ESCALATION` | The requested role grants permissions the author doesn't have |
 | `WORKSPACE_ROLE_IN_USE` | The role is assigned to a member or a pending invite |
 | `WORKSPACE_ROLE_LIMIT_REACHED` | Plan's role limit reached |
 | `WORKSPACE_ROLE_NOT_FOUND` | Role not found in this workspace |
 | `ARCHIVE_TOO_LARGE` | Decompressed ZIP content exceeds the limit |
 | `ARCHIVE_TOO_MANY_ENTRIES` | ZIP exceeds the file count limit |
-| `DOWNLOAD_TOO_LARGE` | The project has more than 300 MB of files and can't be downloaded directly as a ZIP (HTTP 413). Download a snapshot instead |
+| `DOWNLOAD_TOO_LARGE` | Saving the application as a template: the project is too large (HTTP 413) |
 | `NO_FIELDS_TO_UPDATE` | Request contains no fields to update |
 | `TARGET_IS_DIRECTORY` | Selected path is a folder |
 | `INSTALL_SHIELD_BLOCKED` | Dependency installation paused by Shield's protection limits |
-| `FORCED_SNAPSHOT_RATE_LIMIT` | Safety snapshot limit reached |
 | `DATABASE_NOT_RUNNING` | Database needs to be running for this operation |
 | `SUBDOMAIN_FORBIDDEN` | Subdomain reserved by the platform |
 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | Subdomain changed recently |
@@ -1239,7 +1255,6 @@ The list below corresponds to the public API endpoints. Request and response sch
 | DELETE | `/v1/apps/{id}/domains/{domain_id}` |
 | GET | `/v1/apps/{id}/domains/{domain_id}/dns` |
 | POST | `/v1/apps/{id}/domains/{domain_id}/connect` |
-| GET | `/v1/apps/{id}/download` |
 | GET | `/v1/apps/{id}/envs` |
 | POST | `/v1/apps/{id}/envs` |
 | DELETE | `/v1/apps/{id}/envs/{env_id}` |
@@ -1262,6 +1277,8 @@ The list below corresponds to the public API endpoints. Request and response sch
 | POST | `/v1/apps/{id}/stop` |
 | GET | `/v1/users/{id}/snapshots` |
 | POST | `/v1/users/{id}/snapshots` |
+| GET | `/v1/users/{id}/snapshots/jobs` |
+| GET | `/v1/users/{id}/snapshots/jobs/{job_id}` |
 | GET | `/v1/users/{id}/snapshots/{snapshot_id}/download` |
 | POST | `/v1/users/{id}/snapshots/{snapshot_id}/restore` |
 
@@ -1454,7 +1471,7 @@ What Vertra Cloud keeps about your account and projects, and for how long. The l
 |---|---|---|
 | Account data | Name, email, language, avatar and connected login providers | While the account exists; deleted or anonymized within 30 days after it's closed, except what the law requires keeping |
 | Project content | Files, environment variables and database data | While the project exists |
-| Snapshots | Manual, daily, plan-expiry and safety snapshots of an app or database | 30 days after creation |
+| Snapshots | Manual, daily and plan-expiry snapshots of an app or database | 30 days after creation; of the daily snapshots, the most recent one of each resource 30 days and the earlier ones 7 days |
 | Requests made with your API keys | Method, route, path, IP, user agent, status, duration, size and error code; on some routes, a **redacted** excerpt of the request and response body (up to 4 KB) | 30 days |
 | Hosted application traffic | Method, status, duration and size of each request — **no path, no IP and no content** | 30 days |
 | Protection incidents (Vertra Shield) | Reason, traffic direction, time and length of the pause | 90 days |
@@ -1549,9 +1566,9 @@ distinct transformation counts once per month. Above the monthly limit the origi
 
 | Status | Code | Meaning & fix |
 |---|---|---|
-| 404 | `BLOB_OBJECT_NOT_FOUND` | No object with that ID in this account (or it belongs to another account). Check the ID. |
+| 404 | `BLOB_OBJECT_NOT_FOUND` | No object with that ID was found. Check the ID. |
 | 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Another object already has that `path`. Send `overwrite: true` to replace it, or choose another path. |
-| 404 | `BLOB_UPLOAD_NOT_FOUND` | The upload doesn't exist, belongs to another account, or was already completed or aborted. Start a new upload. |
+| 404 | `BLOB_UPLOAD_NOT_FOUND` | The upload was not found, or was already completed or aborted. Start a new upload. |
 | 410 | `BLOB_UPLOAD_EXPIRED` | The upload's time limit has passed. Start a new upload. |
 | 409 | `BLOB_UPLOAD_INCOMPLETE` | At `complete`, parts are missing or the stored size differs from the declared `size`. Upload the missing parts (see `uploaded_parts`) and retry. |
 | 409 | `BLOB_UPLOAD_LIMIT` | The account has more uploads in progress than its plan allows. Complete or abort some, then retry. |
@@ -1571,7 +1588,7 @@ distinct transformation counts once per month. Above the monthly limit the origi
 | 409 | `BLOB_RULE_LIMIT` | The account has more folder rules than its plan allows (5, 10 or 20). Delete a rule first. |
 | 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | The plan includes custom domains and the account already has as many as it allows. Below Pro the answer is `PLAN_RESTRICTED_FEATURE` instead. |
 | 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | The hostname is already in use. |
-| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | The domain doesn't exist or belongs to another account. |
+| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | The domain was not found. |
 
 ---
 
@@ -1604,9 +1621,9 @@ The plan needed is **calculated** from the template and your answers, and can be
 
 ### Using a template
 
-- `POST /v1/templates/{id}/deploy` starts a job (`202`) that validates the plan and memory, creates databases and waits for them, creates the applications, writes the variables, starts everything and waits for the health check. Any failure undoes everything the job created (`TEMPLATE_DEPLOY_FAILED`, `details.step`); before deleting an application or a database the undo takes a safety snapshot. A template of a workspace deploys only inside that workspace, and only by its owner. Send an `Idempotency-Key` to make it safe to repeat. Only one deploy of the same template runs at a time (`TEMPLATE_DEPLOY_IN_PROGRESS`).
+- `POST /v1/templates/{id}/deploy` starts a job (`202`) that validates the plan and memory, creates databases and waits for them, creates the applications, writes the variables, starts everything and waits for the health check. Any failure undoes everything the job created (`TEMPLATE_DEPLOY_FAILED`, `details.step`). A template of a workspace deploys only inside that workspace, and only by its owner. Send an `Idempotency-Key` to make it safe to repeat. Only one deploy of the same template runs at a time (`TEMPLATE_DEPLOY_IN_PROGRESS`).
 - Questions have types (`text`, `secret`, `select`, `boolean`, `number`, `url`, `email`); secrets can be generated for you. Outputs, such as the address or a generated token, are shown at the end; a secret output is shown once.
-- Updates are never automatic: a new version shows **New version available**; updating takes a safety snapshot first, updates the services one by one and, if any fails, restores all of them. Permissions never become stricter in an existing application. Some templates lock the blue-green deploy (two copies running at once would break them) and require rollback to restore the data too (`TEMPLATE_ROLLBACK_REQUIRES_DATA`).
+- Updates are never automatic: a new version shows **New version available**; updating takes a snapshot first, updates the services one by one and, if any fails, restores all of them. Permissions never become stricter in an existing application. Some templates lock the blue-green deploy (two copies running at once would break them) and require rollback to restore the data too (`TEMPLATE_ROLLBACK_REQUIRES_DATA`).
 - Changing the code of an application from an open template detaches it from the template; the API asks for `confirm_detach` first (`TEMPLATE_DETACH_CONFIRMATION_REQUIRED`).
 
 ### Stacks
@@ -1614,7 +1631,7 @@ The plan needed is **calculated** from the template and your answers, and can be
 - Applications in a stack reach databases through the public address, with client certificates managed by the platform and left out of downloads, snapshots and "save as template". A network mode other than `public` returns `STACK_NETWORK_MODE_UNAVAILABLE`.
 - A **connection** links an application to a database, a Blob folder or another application. Its variables are **managed**: updated when the database password, certificate or host changes, and marked in the dashboard. Editing one by hand turns it into a normal variable. The API returns `restart_required` and `apps_to_restart` when applications must restart.
 - A resource belongs to at most one stack, in the same account or workspace as the stack. A stack can be created from a template, from the `/new` flow, by adding a database to an application, or by transforming a folder that holds an application and a database.
-- Leaving a stack: keep the connection (variables become normal ones with the public address) or remove them. Deleting a stack asks whether to only undo it (the resources stay) or delete everything; for the Blob folder the choice is `keep` (default) or `delete`.
+- Leaving a stack: keep the connection (variables become normal ones with the public address) or remove them. Deleting a stack asks whether to only undo it (the resources stay, `dissolve`, `200`) or delete everything (`delete_all`, `200`: the members and the stack are deleted at once and for good; create a snapshot first if you may need them: see [section 9](#9-snapshots)); for the Blob folder the choice is `keep` (default) or `delete`.
 - Folders organize, stacks connect: a stack has its own card in the list and its own box with the connections in the Flow, and it can live inside a folder.
 
 ### Share links
@@ -1640,7 +1657,7 @@ A private template can be closed: whoever uses it can start, stop, restart, read
 
 | Status | Code | Meaning and fix |
 |---|---|---|
-| 404 | `TEMPLATE_NOT_FOUND` | The template does not exist, was removed or is not visible to you. |
+| 404 | `TEMPLATE_NOT_FOUND` | The template was not found or was removed. |
 | 404 | `TEMPLATE_VERSION_NOT_FOUND` | No version with that number or id. |
 | 409 | `TEMPLATE_SLUG_TAKEN` | Another template of yours uses that slug. |
 | 400 | `TEMPLATE_MANIFEST_INVALID` | The manifest is invalid; `details.issues` lists each problem. |
@@ -1664,9 +1681,9 @@ A private template can be closed: whoever uses it can start, stop, restart, read
 | 409 | `TEMPLATE_UPDATE_BLOCKED` | The update cannot go ahead; `details` has the reason (memory, plan or a new question). |
 | 409 | `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | The change detaches the application from its template; repeat with `confirm_detach`. |
 | 409 | `TEMPLATE_ROLLBACK_REQUIRES_DATA` | Rolling back only the code is blocked; restore the snapshot the update took. |
-| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | The deploy job does not exist or is not yours. |
+| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | The deploy job was not found. |
 | 404/410 | `SHARE_LINK_NOT_FOUND`, `SHARE_LINK_REVOKED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_EXHAUSTED` | The link does not exist, was revoked, expired or has no uses left. |
-| 404 | `STACK_NOT_FOUND`, `STACK_MEMBER_NOT_FOUND`, `STACK_BINDING_NOT_FOUND` | The stack, the member or the connection does not exist or is not yours. |
+| 404 | `STACK_NOT_FOUND`, `STACK_MEMBER_NOT_FOUND`, `STACK_BINDING_NOT_FOUND` | The stack, the member or the connection was not found. |
 | 409 | `STACK_MEMBER_CONFLICT` | The resource is in another stack, or in a different account or workspace. |
 | 409 | `STACK_BLOB_PREFIX_TAKEN` | The stack already has a Blob folder with that prefix. |
 | 400 | `STACK_NETWORK_MODE_UNAVAILABLE` | Only `public` is available. |

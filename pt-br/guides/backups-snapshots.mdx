@@ -6,13 +6,23 @@ icon: 'clock-rotate-left'
 ---
 
 Um snapshot é uma cópia de uma aplicação ou de um banco em um determinado momento. Você pode restaurá-lo depois ou
-baixá-lo como `.zip`. Snapshots manuais estão disponíveis em todos os planos, com um limite diário por conta que depende do plano.
+baixá-lo como `.zip`. Snapshots manuais estão disponíveis em todos os planos, com uma cota por conta que cresce com a RAM do plano.
+
+## Tipos de snapshot
+
+| Tipo | Quem faz | Mantido por |
+|---|---|---|
+| **Manual** | Você, em **Snapshots**, pela API, pela CLI ou por um agente. Baixar o projeto também é um snapshot manual. | 30 dias |
+| **Diário** | A plataforma, todos os dias: bancos a partir do plano Pro e aplicações a partir do Business. O Starter não tem backup diário. Um banco parado não entra. | O mais recente de cada recurso por 30 dias, os anteriores por 7 dias |
+| **Antes da remoção** | A plataforma, antes de remover um projeto por conta própria (plano vencido ou conta sem plano). | 30 dias |
+
+Os backups diários não usam a cota de snapshots manuais.
 
 ## Quando criar um
 
 - Antes de um deploy que altera formatos de dados ou executa migrações.
 - Antes de um **Reset** de banco, de uma importação grande ou de uma exclusão em massa.
-- Em uma programação regular, se os dados forem importantes para você.
+- Em uma programação regular, se os dados forem importantes para você e o seu plano não tiver backup diário para eles.
 
 ## Crie um snapshot
 
@@ -21,42 +31,69 @@ baixá-lo como `.zip`. Snapshots manuais estão disponíveis em todos os planos,
     Abra a aplicação ou o banco e vá até **Snapshots**.
   </Step>
   <Step title="Crie o snapshot">
-    Clique em **Criar snapshot**. Você pode criar um a cada 5 minutos e até 5 por dia por recurso, e um número deles por dia em toda a
-    conta que cresce com o plano (5 no Starter 1, até 64 no Enterprise); acima de qualquer um desses limites, a requisição é recusada com `SNAPSHOT_RATE_LIMITED`. Os backups diários são automáticos e não contam.
+    Clique em **Criar snapshot**. O snapshot de um recurso grande pode demorar: o painel o mostra como em andamento e ele aparece na lista quando fica pronto.
   </Step>
 </Steps>
+
+Os limites são:
+
+- **Cota da conta:** 8 snapshots por GB de RAM do plano em qualquer janela de 24 horas, no mínimo 2, somando todos os seus projetos. São 8 no Starter 1, 16 no Starter 2, 32 a 64 no Pro, 96 a 192 no Business e 256 a 4.096 no Enterprise. Uma vaga volta 24 horas depois de usada, não à meia-noite.
+- **Por recurso:** um snapshot a cada 3 minutos.
+- **Por usuário:** uma requisição a cada 5 segundos.
+
+Acima de um limite, a requisição é recusada com o tempo para tentar de novo (`SNAPSHOT_RATE_LIMITED`, ou o `RATE_LIMIT_EXCEEDED` genérico para os 5 segundos). Não há teto para o espaço que seus snapshots ocupam.
+
+Enquanto uma aplicação recebe um snapshot, os deploys, reinícios, mudanças de variáveis de ambiente e escritas do gerenciador de arquivos dela esperam: respondem `OPERATION_IN_PROGRESS` e você pode tentar de novo em instantes.
 
 ## Restaure
 
 Escolha um snapshot na lista e clique em **Restaurar**. O recurso volta ao conteúdo que tinha naquele momento, então
-tudo o que foi escrito depois se perde: crie um snapshot novo antes, caso precise do estado atual. As restaurações têm
-um intervalo de 30 segundos entre si. Um arquivo de snapshot danificado é recusado antes de qualquer alteração
-(`INVALID_ZIP_STRUCTURE`): os arquivos da aplicação e o banco em execução continuam como estavam.
+tudo o que foi escrito depois se perde. A restauração roda em segundo plano: o painel a mostra em andamento e, pela API,
+a requisição responde `202` com um `job_id` que você acompanha em
+[Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get). Uma aplicação é reconstruída e reiniciada quando termina.
+
+- **Ela começa na hora e substitui os dados atuais de forma definitiva.** Se você puder precisar do que está lá agora, faça antes um snapshot do destino.
+- **Enquanto roda,** escritas no recurso são recusadas com `RESTORE_IN_PROGRESS`. Ler e excluir o recurso continuam permitidos.
+- **Precisa caber.** O conteúdo do snapshot tem de caber no armazenamento do destino, ou a restauração é recusada antes de qualquer alteração (`SNAPSHOT_EXCEEDS_STORAGE`); em um banco, a resposta diz o menor tamanho de memória que o comporta. Não há outro limite de tamanho.
+- **Um snapshot que não confere com o que foi registrado quando foi feito** é recusado (`SNAPSHOT_CORRUPTED`), assim como um arquivo danificado (`INVALID_ZIP_STRUCTURE`): nada muda.
+- **Se o carregamento de um banco falhar,** ele mantém os dados que tinha e você pode tentar de novo com o mesmo snapshot (`SNAPSHOT_IMPORT_FAILED`).
+- **Espera entre restaurações:** 60 segundos para uma aplicação; para um banco, 60 segundos para quem pede e 120 segundos por banco. Criar um projeto a partir de um snapshot também espera 60 segundos por usuário.
+
+### Crie um projeto novo a partir de um snapshot
+
+Você pode criar uma aplicação ou um banco a partir de qualquer snapshot do mesmo tipo, de qualquer tamanho que caiba no armazenamento do novo recurso. O recurso é criado primeiro e os dados voltam em segundo plano, o que a API informa com um `restore_job_id`. Se a restauração falhar:
+
+- Uma **aplicação** criada a partir de código é excluída.
+- Um **banco**, e uma aplicação que roda uma imagem Docker própria, são **mantidos** como estão, prontos para uso, para que nada do que você gravar se perca. Exclua-os ou restaure de novo.
 
 ## Mantenha uma cópia fora da plataforma
 
 **Baixe** qualquer snapshot como `.zip` e guarde-o em outro lugar. O download de uma aplicação inclui um
 `vertracloud.config` com as configurações atuais, então ele pode ser enviado novamente como um novo projeto exatamente
-como estava. Snapshots de qualquer tamanho podem ser baixados. O download direto de um projeto muito grande é recusado com uma mensagem clara (`DOWNLOAD_TOO_LARGE`, acima de 300 MB de arquivos): crie um snapshot e baixe o snapshot.
+como estava.
+
+### Baixar o projeto inteiro
+
+Baixar um projeto de qualquer tamanho significa fazer um snapshot manual e baixá-lo. Pela API:
+
+1. `POST /v1/users/{id}/snapshots?scope=applications` cria o snapshot. Responde `201` com o snapshot, ou `202` com `response.job_id` quando demora mais de 90 segundos.
+2. Depois de um `202`, acompanhe o job em [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) até o `status` ser `ready`. O job traz o `snapshot_id`.
+3. `GET /v1/users/{id}/snapshots/{snapshot_id}/download?scope=applications` devolve o ZIP.
+
+Uma chave de API precisa de `snapshots:write` para criar o snapshot e de `snapshots:read` para baixá-lo; só `apps:files` não baixa o projeto. O snapshot continua na sua lista, usa a cota de snapshots manuais e é mantido por 30 dias.
+
+Para ler um único arquivo, use o gerenciador de arquivos (`GET /v1/apps/{id}/files/content`), que lê e salva arquivos de até 10 MiB.
+
+Uma conta sem plano ativo não consegue fazer snapshots novos, mas ainda lista e baixa os que já tem, inclusive o que a plataforma guardou antes de remover um projeto.
 
 ## Snapshot antes de excluir
 
-O diálogo de exclusão de uma aplicação ou de um banco tem a opção **Criar snapshot antes de apagar**, desmarcada por padrão
-(aparece nos planos com backup manual). Marcada, o painel cria o snapshot e só apaga se ele der certo; desmarcada, o
-recurso é apagado direto. Pela API, o `DELETE` apaga direto: chame antes
-[Criar snapshot](/api-reference/endpoint/apps/snapshots/create) se quiser um backup. O snapshot é mantido por 30 dias e
-pode ser baixado em **Snapshots**.
+Excluir uma aplicação ou um banco, redefinir um banco, restaurar um snapshot e excluir uma stack com tudo dentro rodam na hora e são permanentes. Se você puder precisar
+dos dados de novo, faça antes um snapshot e espere até ele ficar `ready`: os snapshots que você já tem continuam disponíveis depois que o recurso some, e você pode restaurá-los ou baixá-los
+em **Snapshots**. Excluir uma imagem Docker própria também exclui todas as aplicações criadas a partir dela, então faça antes um snapshot das que você puder precisar.
 
-Resetar um banco, excluir uma stack inteira e excluir uma imagem Docker própria (o que apaga os apps dela) continuam
-fazendo um snapshot de segurança automaticamente; se ele falhar, nada é alterado (`SNAPSHOT_FAILED`). Quando a
-plataforma exclui projetos por conta própria (plano vencido ou conta sem plano), ela também faz um snapshot antes; se
-ele falhar, o projeto é parado e preservado, não apagado.
-
-## Limite de tamanho do snapshot
-
-Um snapshot pode ter no máximo **4 GB** (o tamanho do arquivo do snapshot, já compactado). Acima disso, a criação é
-recusada com `SNAPSHOT_TOO_LARGE` (HTTP 413). O limite vale para snapshot manual, diário e de segurança. O download
-não tem limite: qualquer snapshot existente pode ser baixado.
+Quando a plataforma exclui projetos por conta própria (plano vencido ou conta sem plano), ela sempre faz um snapshot antes; se ele falhar, o projeto é
+parado e preservado, não excluído.
 
 ## Automatize
 

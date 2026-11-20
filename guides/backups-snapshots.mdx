@@ -6,13 +6,23 @@ icon: 'clock-rotate-left'
 ---
 
 A snapshot is a copy of an application or database at a given moment. You can restore it later or
-download it as a `.zip`. Manual snapshots are available on every plan, with a daily limit per account that depends on the plan.
+download it as a `.zip`. Manual snapshots are available on every plan, with a quota per account that grows with the plan's RAM.
+
+## Kinds of snapshot
+
+| Kind | Who takes it | Kept for |
+|---|---|---|
+| **Manual** | You, from **Snapshots**, the API, the CLI or an agent. Downloading the project is also a manual snapshot. | 30 days |
+| **Daily** | The platform, every day: databases from the Pro plan and applications from Business. Starter has no daily backup. A stopped database is not included. | The most recent one of each resource for 30 days, the earlier ones for 7 days |
+| **Before removal** | The platform, before it removes a project on its own (an expired plan or an account without a plan). | 30 days |
+
+Daily backups do not use the manual snapshot quota.
 
 ## When to take one
 
 - Before a deploy that changes data formats or runs migrations.
 - Before a database **Reset**, a large import or a bulk delete.
-- On a regular schedule, if the data matters to you.
+- On a regular schedule, if the data matters to you and your plan has no daily backup for it.
 
 ## Take a snapshot
 
@@ -21,42 +31,69 @@ download it as a `.zip`. Manual snapshots are available on every plan, with a da
     Open the application or database and go to **Snapshots**.
   </Step>
   <Step title="Create it">
-    Click **Create snapshot**. You can take one every 5 minutes and up to 5 a day per resource, and a number of them per day across the
-    account that grows with the plan (5 on Starter 1, up to 64 on Enterprise); above any of these limits the request is refused with `SNAPSHOT_RATE_LIMITED`. Daily backups are automatic and don't count.
+    Click **Create snapshot**. A snapshot of a large resource can take a while: the dashboard shows it as in progress and it appears in the list when it is ready.
   </Step>
 </Steps>
+
+The limits are:
+
+- **Account quota:** 8 snapshots per GB of the plan's RAM in any 24 hours, at least 2, across all your projects. That is 8 on Starter 1, 16 on Starter 2, 32 to 64 on Pro, 96 to 192 on Business and 256 to 4,096 on Enterprise. A slot frees up 24 hours after it was used, not at midnight.
+- **Per resource:** one snapshot every 3 minutes.
+- **Per user:** one request every 5 seconds.
+
+Over a limit, the request is refused with the time to try again (`SNAPSHOT_RATE_LIMITED`, or the generic `RATE_LIMIT_EXCEEDED` for the 5 seconds). There is no cap on the space your snapshots use.
+
+While an application is being snapshotted, its deploys, restarts, environment variable changes and file manager writes wait: they answer `OPERATION_IN_PROGRESS` and you can try again in a few moments.
 
 ## Restore
 
 Pick a snapshot in the list and click **Restore**. The resource goes back to the content it had at
-that moment, so anything written after it is lost: take a fresh snapshot first if you may need the
-current state. Restores have a 30-second cooldown between them. A damaged snapshot file is refused before anything
-changes (`INVALID_ZIP_STRUCTURE`): the application's files and the running database stay as they were.
+that moment, so anything written after it is lost. The restore runs in the background: the dashboard shows it in progress, and
+through the API the request answers `202` with a `job_id` you follow on
+[Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get). An application is rebuilt and restarted when it finishes.
+
+- **It starts right away and replaces the current data for good.** If you may need what is there now, take a snapshot of the target first.
+- **While it runs,** writes to the resource are refused with `RESTORE_IN_PROGRESS`. Reading and deleting it are still allowed.
+- **It must fit.** The snapshot's content has to fit in the target's storage, or the restore is refused before anything changes (`SNAPSHOT_EXCEEDS_STORAGE`); for a database, the answer says the smallest memory size that fits. There is no other size limit.
+- **A snapshot that does not match what was recorded when it was taken** is refused (`SNAPSHOT_CORRUPTED`), and a damaged file (`INVALID_ZIP_STRUCTURE`): nothing changes.
+- **If loading a database fails,** it keeps the data it had before and you can try again with the same snapshot (`SNAPSHOT_IMPORT_FAILED`).
+- **Wait between restores:** 60 seconds for an application; for a database, 60 seconds for the user who asks and 120 seconds per database. Creating a project from a snapshot also waits 60 seconds per user.
+
+### Create a new project from a snapshot
+
+You can create an application or a database from any snapshot of the same kind, of any size that fits in the new resource's storage. The resource is created first and the data comes back in the background, which the API reports with a `restore_job_id`. If the restore fails:
+
+- An **application** created from code is deleted.
+- A **database**, and an application that runs a custom Docker image, are **kept** as they are, ready to use, so nothing you write is lost. Delete them or restore again.
 
 ## Keep a copy outside the platform
 
 **Download** any snapshot as a `.zip` and store it somewhere else. A download of an application
 includes a `vertracloud.config` with its current settings, so it can be uploaded again as a new
-project exactly as it was. Snapshots of any size can be downloaded. Downloading a very large project directly is refused with a clear message (`DOWNLOAD_TOO_LARGE`, above 300 MB of files): take a snapshot and download that instead.
+project exactly as it was.
+
+### Download the whole project
+
+Downloading a project of any size means taking a manual snapshot and downloading it. Through the API:
+
+1. `POST /v1/users/{id}/snapshots?scope=applications` creates the snapshot. It answers `201` with the snapshot, or `202` with `response.job_id` when it takes more than 90 seconds.
+2. After a `202`, follow the job on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) until its `status` is `ready`. The job brings the `snapshot_id`.
+3. `GET /v1/users/{id}/snapshots/{snapshot_id}/download?scope=applications` returns the ZIP.
+
+An API key needs `snapshots:write` to create the snapshot and `snapshots:read` to download it; `apps:files` alone does not download the project. The snapshot stays in your list, uses the manual snapshot quota and is kept for 30 days.
+
+To read a single file, use the file manager (`GET /v1/apps/{id}/files/content`), which reads and saves files of up to 10 MiB.
+
+An account without an active plan cannot take new snapshots, but it can still list and download the snapshots it already has, including the one the platform kept before removing a project.
 
 ## Snapshot before deleting
 
-The delete dialog for an application or a database has the option **Create snapshot before deleting**, off by default
-(it appears on plans with manual backups). When it is on, the panel creates the snapshot and deletes only if it
-succeeds; when it is off, the resource is deleted right away. Through the API, `DELETE` deletes right away: call
-[Create snapshot](/api-reference/endpoint/apps/snapshots/create) first if you want a backup. The snapshot is kept for
-30 days and can be downloaded from **Snapshots**.
+Deleting an application or a database, resetting a database, restoring a snapshot and deleting a stack with everything in it run right away and are permanent. If you may need
+the data again, take a snapshot first and wait until it is `ready`: the snapshots you already have stay available after the resource is gone, and you can restore or download them
+from **Snapshots**. Deleting a custom Docker image also deletes every application created from it, so take a snapshot of the ones you may need first.
 
-Resetting a database, deleting a whole stack and deleting a custom Docker image (which deletes its apps) still take a
-safety snapshot automatically; if it fails, nothing is changed (`SNAPSHOT_FAILED`). When the platform deletes projects on
-its own (an expired plan or an account without a plan), it also takes a snapshot first; if that fails, the project is
+When the platform deletes projects on its own (an expired plan or an account without a plan), it always takes a snapshot first; if that fails, the project is
 stopped and kept, not deleted.
-
-## Snapshot size limit
-
-A snapshot can have at most **4 GB** (the size of the snapshot file, already compressed). Above that, creating it is
-refused with `SNAPSHOT_TOO_LARGE` (HTTP 413). The limit applies to manual, daily and safety snapshots. Downloading
-has no limit: any existing snapshot can be downloaded.
 
 ## Automate it
 
