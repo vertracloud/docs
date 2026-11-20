@@ -3,13 +3,13 @@ title: Atualizar um template ou mover uma aplicação para a versão mais recent
 sidebarTitle: Atualizar template
 api: POST https://api.vertracloud.app/v1/apps/{id}/template/update
 authMethod: bearer
-description: Inicia um job de atualização que move uma aplicação ou stack para a versão mais recente do seu template, tira um snapshot de segurança antes e volta atrás se um passo falhar.
+description: Inicia um job de atualização que move uma aplicação ou stack para a versão mais recente do seu template, tira um snapshot antes e volta atrás se um passo falhar.
 ---
 
 {/* @see RESTPostAPITemplateUpdateBody, RESTPostAPITemplateUpdateResponse — @vertracloud/api-types */}
 Move uma aplicação ou uma stack para a versão mais recente do seu template, como uma operação assíncrona, e responde `202 Accepted` com um job de `kind: "update"`. Há duas rotas com o mesmo corpo e a mesma resposta: `POST /v1/apps/{id}/template/update` e `POST /v1/stacks/{stack_id}/template/update`. O escopo necessário é `templates:deploy`. Só o **dono** da conta ou do workspace pode atualizar; um membro do workspace recebe `WORKSPACE_OWNER_ONLY`. Confira antes o que vai acontecer com [Obter informações de atualização do template](/pt-br/api-reference/endpoint/templates/update-info). A atualização nunca roda sozinha.
 
-O job tira um snapshot de segurança, atualiza os serviços um após o outro e, se algum passo falhar, volta ao snapshot e remove o que criou, para que tudo volte ao estado anterior. Uma aplicação de uma stack criada a partir de um template é atualizada junto com a stack inteira. O job usa o mesmo bloqueio de um deploy por vez de [Deploy de template](/pt-br/api-reference/endpoint/templates/deploy). Os passos são os de [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status), mais `snapshot`, e `rollback` quando uma atualização que falhou volta atrás. Acompanhe com essa página ou com o [stream de eventos](/pt-br/api-reference/endpoint/templates/deploy-events). Mais sobre o comportamento em [Atualizações e rollback](/pt-br/templates/use/updates-and-rollback).
+O job tira um snapshot, atualiza os serviços um após o outro e, se algum passo falhar, volta ao snapshot e remove o que criou, para que tudo volte ao estado anterior. Uma aplicação de uma stack criada a partir de um template é atualizada junto com a stack inteira. O job usa o mesmo bloqueio de um deploy por vez de [Deploy de template](/pt-br/api-reference/endpoint/templates/deploy). Os passos são os de [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status), mais `snapshot`, e `rollback` quando uma atualização que falhou volta atrás. Nas etapas `snapshot` e `rollback`, `jobs` lista o job de snapshot ou de restauração de cada recurso para você acompanhar o progresso (veja [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status)). Acompanhe com essa página ou com o [stream de eventos](/pt-br/api-reference/endpoint/templates/deploy-events). Mais sobre o comportamento em [Atualizações e rollback](/pt-br/templates/use/updates-and-rollback).
 
 O que uma atualização muda: a versão do código ou da imagem dos serviços, a memória que eles precisam, as novas variáveis que o template introduziu e os novos serviços. Variáveis que você alterou, variáveis que você apagou e seus arquivos continuam como estão. Permissões nunca são tornadas mais restritas. Um serviço que a nova versão remove sai do template, mas não é apagado. Serviços novos na versão são criados com os mesmos passos de um deploy.
 
@@ -94,7 +94,7 @@ curl -X POST https://api.vertracloud.app/v1/apps/9d2c7e41-60fa-4b13-8e75-c1a4b3f
   - `WORKSPACE_OWNER_ONLY`: Só o dono do workspace pode atualizar (`403`).
   - `TEMPLATE_PLAN_REQUIRED`: A nova versão exige um plano acima do seu; `details.reason` diz o motivo (`403`).
   - `TEMPLATE_IMAGE_SLOTS_EXHAUSTED`: A nova versão precisa de um slot de imagem e nenhum está livre (`403`).
-  - `APP_NOT_FOUND`, `STACK_NOT_FOUND`: A aplicação ou a stack não existe ou não é sua (`404`).
+  - `APP_NOT_FOUND`, `STACK_NOT_FOUND`: A aplicação ou a stack não foi encontrada (`404`).
   - `TEMPLATE_NOT_FOUND`: A aplicação ou a stack não veio de um template (`404`).
   - `TEMPLATE_UPDATE_BLOCKED`: A atualização não pode seguir. `details.reason` é um de `no_new_version`, `detached`, `template_removed`, `link_revoked` ou `app_building` (`409`).
   - `TEMPLATE_DEPLOY_IN_PROGRESS`: Outro deploy ou atualização da sua conta está rodando (`409`).
@@ -135,4 +135,4 @@ curl -X POST https://api.vertracloud.app/v1/apps/9d2c7e41-60fa-4b13-8e75-c1a4b3f
   Até 10 tags.
 </ParamField>
 
-A resposta é o template, no mesmo formato de [Obter template](/pt-br/api-reference/endpoint/templates/get). Um template que não é seu responde `TEMPLATE_NOT_FOUND` (`404`).
+A resposta é o template, no mesmo formato de [Obter template](/pt-br/api-reference/endpoint/templates/get). Um template que não foi encontrado responde `TEMPLATE_NOT_FOUND` (`404`).

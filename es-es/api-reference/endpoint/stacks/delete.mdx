@@ -3,14 +3,14 @@ title: Eliminar stack
 sidebarTitle: Eliminar stack
 api: DELETE https://api.vertracloud.app/v1/stacks/{stack_id}
 authMethod: bearer
-description: Disuelve un stack y conserva sus miembros, o elimina el stack junto con todos sus miembros y, opcionalmente, sus archivos de Blob.
+description: Disuelve un stack y conserva sus miembros, o elimina el stack junto con todos sus miembros y, opcionalmente, sus archivos de Blob. Eliminar todo es inmediato y permanente.
 ---
 
 {/* @see RESTDeleteAPIStackBody, RESTDeleteAPIStackResponse — @vertracloud/api-types */}
-Elige entre dos modos. **`dissolve`** elimina solo el stack: las aplicaciones y las bases de datos quedan como recursos sueltos, sin las variables ni los certificados gestionados, y los archivos de Blob se conservan. **`delete_all`** elimina también a todos los miembros, cada uno según su propia regla de eliminación (con la snapshot de seguridad cuando existe). En ambos casos se revoca la clave de API que creó la plataforma para la carpeta de Blob del stack.
+Elige entre dos modos. **`dissolve`** elimina solo el stack: las aplicaciones y las bases de datos quedan como recursos sueltos, sin las variables ni los certificados gestionados, y los archivos de Blob se conservan. **`delete_all`** elimina también a todos los miembros, al momento: las aplicaciones, las bases de datos y el stack. En ambos casos se revoca la clave de API que creó la plataforma para la carpeta de Blob del stack.
 
 <Warning>
-  `delete_all` no se puede deshacer y elimina aplicaciones y bases de datos. Confirma el nombre y revisa antes los miembros con [Obtener stack](/es-es/api-reference/endpoint/stacks/get).
+  `delete_all` es inmediato y no se puede deshacer: elimina las aplicaciones y las bases de datos para siempre. [Crea un snapshot del stack](/es-es/api-reference/endpoint/stacks/snapshots/create) antes si puedes necesitarlos de nuevo, confirma el nombre y revisa los miembros con [Obtener stack](/es-es/api-reference/endpoint/stacks/get).
 </Warning>
 
 Requiere el scope `stacks:delete` cuando se llama con una clave de API. Con `delete_all`, la clave también necesita `apps:delete` y `databases:delete`, y `blob:write` cuando eliminas los archivos de Blob (`blob: "delete"`). Sin ellos, la llamada falla con `API_KEY_SCOPE_DENIED`.
@@ -35,25 +35,37 @@ Requiere el scope `stacks:delete` cuando se llama con una clave de API. Con `del
   Qué hacer con los archivos de la carpeta de Blob del stack cuando `mode` es `delete_all`: `keep` los deja donde están, `delete` los elimina. `dissolve` siempre los conserva.
 </ParamField>
 
-### Response
+### Respuesta
+
+Ambos modos responden `200`. Con **`dissolve`**, `deleted_apps` y `deleted_databases` vienen siempre vacíos; con **`delete_all`** listan lo que se eliminó.
 
 <ResponseField name="response" type="object">
   <Expandable title="Mostrar objeto">
 
-  <ResponseField name="deleted_apps" type="string[]">IDs de las aplicaciones eliminadas. Vacío con `dissolve`.</ResponseField>
-  <ResponseField name="deleted_databases" type="string[]">IDs de las bases de datos eliminadas. Vacío con `dissolve`.</ResponseField>
-  <ResponseField name="deleted_blob" type="boolean">`true` cuando se eliminaron los archivos de la carpeta de Blob.</ResponseField>
+  <ResponseField name="deleted_apps" type="string[]">Los IDs de las aplicaciones que se eliminaron. Siempre vacío con `dissolve`.</ResponseField>
+  <ResponseField name="deleted_databases" type="string[]">Los IDs de las bases de datos que se eliminaron. Siempre vacío con `dissolve`.</ResponseField>
+  <ResponseField name="deleted_blob" type="boolean">`true` cuando se eliminaron los archivos de la carpeta de Blob (`delete_all` con `blob: "delete"`). Siempre `false` con `dissolve`, que conserva los archivos de Blob.</ResponseField>
 
   </Expandable>
 </ResponseField>
 
 <ResponseExample>
 
-```json Response
+```json Response (200, delete_all)
 {
   "response": {
-    "deleted_apps": ["app-abc123def456"],
-    "deleted_databases": ["db-abc123def456"],
+    "deleted_apps": ["550e8400-e29b-41d4-a716-446655440011"],
+    "deleted_databases": ["550e8400-e29b-41d4-a716-446655440010"],
+    "deleted_blob": false
+  }
+}
+```
+
+```json Response (200, dissolve)
+{
+  "response": {
+    "deleted_apps": [],
+    "deleted_databases": [],
     "deleted_blob": false
   }
 }
@@ -74,10 +86,13 @@ curl -X DELETE https://api.vertracloud.app/v1/stacks/stk-abc123def456 \
 
 ### Errores
 
+Antes de eliminar nada se comprueban todos los miembros: si uno rechaza la eliminación, la petición responde con el error de ese miembro y no cambia nada.
+
 | Estado | Código | Cuándo |
 |---|---|---|
 | 400 | `STACK_NAME_MISMATCH` | `confirm_name` no es el nombre del stack. |
 | 403 | `API_KEY_SCOPE_DENIED` | La clave no tiene `stacks:delete`, o con `delete_all` no tiene `apps:delete`, `databases:delete` o `blob:write`; `details.required` indica el scope que falta. |
 | 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
 | 403 | `STACK_SERVICE_LOCKED` | `dissolve` en un stack con una aplicación de plantilla cerrada, que no puede salir del stack. Usa `delete_all`. |
-| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 404 | `STACK_NOT_FOUND` | No se encontró el stack. |
+| 409 | `OPERATION_IN_PROGRESS` | Hay otra operación en curso en el stack o en uno de sus miembros. |

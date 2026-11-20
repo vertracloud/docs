@@ -3,18 +3,18 @@ title: Restaurar snapshot del stack
 sidebarTitle: Restaurar snapshot
 api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots/{snapshot_id}/restore
 authMethod: bearer
-description: Devuelve todos los miembros de un stack a una snapshot, primero las bases de datos y después las aplicaciones.
+description: Inicia la restauración de todos los miembros de un stack a un snapshot, primero las bases de datos y luego las apps. Responde 202 con un job por miembro.
 ---
 
 {/* @see RESTPostAPIStackSnapshotRestoreBody, RESTPostAPIStackSnapshotRestoreResponse — @vertracloud/api-types */}
-Restaura todos los miembros juntos: primero las bases de datos y después las aplicaciones. Se detiene en el primer error e informa de lo que ya se restauró en `details.restored`. Requiere el scope `stacks:write` cuando se llama con una clave de API.
+Restaura todos los miembros juntos: primero las bases de datos, después las aplicaciones. La restauración corre en segundo plano y la petición responde **`202`** en cuanto se acepta; todavía no se ha restaurado nada. Necesita el scope `stacks:write` cuando se llama con una clave de API.
 
 <ParamField path="stack_id" type="string" required>
   El ID del stack.
 </ParamField>
 
 <ParamField path="snapshot_id" type="string" required>
-  El ID de la snapshot del stack.
+  El ID del snapshot del stack.
 </ParamField>
 
 <ParamField query="workspace_id" type="string">
@@ -22,16 +22,59 @@ Restaura todos los miembros juntos: primero las bases de datos y después las ap
 </ParamField>
 
 <ParamField body="restore_image_version" type="boolean" default="false">
-  Las aplicaciones que ejecutan una imagen personalizada también vuelven a la versión de imagen de la snapshot, si todavía existe.
+  Las aplicaciones que ejecutan una imagen personalizada también vuelven a la versión de la imagen del snapshot, si todavía existe.
 </ParamField>
 
-### Response
+### Respuesta
 
-El resultado de la restauración, como en [Restaurar snapshot de aplicación](/es-es/api-reference/endpoint/apps/snapshots/restore).
+A diferencia de [Restaurar snapshot de la aplicación](/es-es/api-reference/endpoint/apps/snapshots/restore), que restaura un recurso, esta ruta inicia un job de restauración por cada miembro que sigue en el stack. Sigue cada `job_id` en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, donde `{id}` es el `resource_id` del job) hasta que su `status` sea `ready` o `failed`. El stack queda restaurado cuando todos los jobs están `ready`.
+
+Los miembros se restauran en orden: primero las bases de datos, y cada aplicación solo después de ellas. Si un miembro falla, los miembros siguientes **no** se restauran y sus jobs fallan con `STACK_RESTORE_MEMBER_FAILED`; el job que falló trae el `reason` real. La restauración sustituye para siempre los datos actuales de cada miembro: [crea un snapshot del stack](/es-es/api-reference/endpoint/stacks/snapshots/create) antes si puedes necesitarlos de nuevo.
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="jobs" type="array">
+    Un job por cada miembro que sigue en el stack, en el orden en que se ejecutan. Cada elemento tiene `resource_id`, `resource_type` (`application` o `database`), `job_id` y, cuando corresponde, `warning`: `IMAGE_VERSION_NOT_FOUND`, presente cuando `restore_image_version` era `true`, pero la versión de la imagen registrada de esa aplicación ya no existe. Solo se restauran los datos de esa aplicación.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (202)
+{
+  "response": {
+    "jobs": [
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440010",
+        "resource_type": "database",
+        "job_id": "550e8400-e29b-41d4-a716-446655440020"
+      },
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440011",
+        "resource_type": "application",
+        "job_id": "550e8400-e29b-41d4-a716-446655440021",
+        "warning": "IMAGE_VERSION_NOT_FOUND"
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
 
 ### Errores
 
+Si un miembro no se puede restaurar (por ejemplo, tiene una restauración o un despliegue en curso, o el snapshot no cabe), la petición responde con el error de ese miembro y no se inicia nada. Mira [Restaurar snapshot de la aplicación](/es-es/api-reference/endpoint/apps/snapshots/restore) para esos códigos.
+
 | Estado | Código | Cuándo |
 |---|---|---|
-| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
-| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no el propietario. |
+| 404 | `STACK_NOT_FOUND` | El stack no se encontró. |
+| 404 | `SNAPSHOT_NOT_FOUND` | No se encontró el snapshot o falló. |
+| 409 | `OPERATION_IN_PROGRESS` | La snapshot del stack sigue `pending`: espera a que esté `ready`. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | Ninguno de los miembros del snapshot sigue en el stack. |
+
+Un job que termina `failed` después del `202` informa `STACK_RESTORE_MEMBER_FAILED` en su `reason` cuando un miembro anterior falló, así que este miembro no se restauró.

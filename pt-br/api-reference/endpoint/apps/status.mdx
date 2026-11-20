@@ -74,6 +74,10 @@ description: Retorna o status atual e o uso de recursos de uma aplicação pelo 
     O tempo em que a aplicação está no ar, em segundos.
   </ResponseField>
 
+  <ResponseField name="restore_job_id" type="string | null">
+    Preenchido enquanto um restore da aplicação está na fila ou rodando, e `null` nos demais casos. Acompanhe em [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`). Enquanto estiver preenchido, o status não traz `installing`.
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -92,7 +96,8 @@ description: Retorna o status atual e o uso de recursos de uma aplicação pelo 
       "total": "569.90KB ↓ 36.41KB ↑",
       "now": "18.78KB ↑ 1.20KB ↓"
     },
-    "uptime": 3600
+    "uptime": 3600,
+    "restore_job_id": null
   }
 }
 ```
@@ -105,8 +110,8 @@ description: Retorna o status atual e o uso de recursos de uma aplicação pelo 
   O código de erro que indica o motivo da falha. Valores possíveis:
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
-  - `ACCESS_DENIED`: o recurso pertence a outra conta, ou você não tem a permissão do workspace para ele (`403`).
-  - `APP_NOT_FOUND`: a aplicação informada não existe.
+  - `ACCESS_DENIED`: você é membro de um workspace sem a permissão para esta ação, ou não enviou o `workspace_id` (`403`).
+  - `APP_NOT_FOUND`: a aplicação informada não foi encontrada.
   - `FORBIDDEN`: o usuário não tem permissão para acessar a aplicação.
   - `INTERNAL_SERVER_ERROR`: o status não pôde ser lido. Uma aplicação parada **não** é este caso — veja a nota acima.
 </ResponseField>

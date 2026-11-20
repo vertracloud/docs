@@ -1,0 +1,174 @@
+---
+title: List Snapshot Jobs
+sidebarTitle: List Snapshot Jobs
+api: GET https://api.vertracloud.app/v1/users/{id}/snapshots/jobs
+authMethod: bearer
+description: Lists the snapshot and restore jobs of an application or database, most recent first. Requires the snapshots:read scope.
+---
+
+{/* @see APISnapshotJob[] — @vertracloud/api-types */}
+A snapshot or a restore can take longer than a request. Each one is a **job** you can follow: a manual snapshot that does
+not finish in 90 seconds answers `202` with a `job_id`, and a [restore](/api-reference/endpoint/apps/snapshots/restore)
+always answers `202` with one. This route lists the jobs of one resource; [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) reads a single job.
+
+<ParamField path="id" type="string" required>
+  The ID of the application or database.
+</ParamField>
+
+<ParamField query="scope" type="string" required>
+  The resource type. Possible values: `applications`, `databases`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the resource belongs to a workspace, the workspace's ID.
+</ParamField>
+
+<ParamField query="kind" type="string">
+  Only jobs of this kind: `snapshot` or `restore`. Default: both.
+</ParamField>
+
+<ParamField query="limit" type="number">
+  Maximum number of jobs, from `1` to `50`. Default `10`. A value outside that range answers `400 VALIDATION_ERROR`.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="array">
+  The jobs, most recent first.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">
+    The job ID.
+  </ResponseField>
+
+  <ResponseField name="kind" type="string">
+    `snapshot` or `restore`.
+  </ResponseField>
+
+  <ResponseField name="resource_id" type="string">
+    The resource the job acts on: the one being backed up, or the target of a restore.
+  </ResponseField>
+
+  <ResponseField name="origin" type="string">
+    Snapshot jobs only: what asked for the snapshot, the same `origin` the snapshot gets: `manual` (you) or `automatic` (the plan's daily backup, or the snapshot the platform takes before removing a resource, for example when the plan expires). Absent on restore jobs.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `queued` (waiting to start), `running`, `ready` (done), `skipped` (nothing was done because the resource is gone or, for a database, stopped) or `failed`. `ready`, `skipped` and `failed` are final: the job does not change again.
+  </ResponseField>
+
+  <ResponseField name="reason" type="string">
+    Present when the job is `failed` or `skipped`: the error code that says why, such as `SNAPSHOT_TIMEOUT` or `SNAPSHOT_CORRUPTED`. See [Error Codes](/api-reference/errors).
+  </ResponseField>
+
+  <ResponseField name="snapshot_id" type="string">
+    On a `snapshot` job, the snapshot it produced: always present when the job is `ready`, so you can read the snapshot right after. On a `restore` job, the snapshot being restored, present from the start.
+  </ResponseField>
+
+  <ResponseField name="details" type="object">
+    Present with `reason` when the error carries details: the same `details` the error would have on a direct response. `max_bytes` for `SNAPSHOT_TOO_LARGE`; `required_bytes`, `available_bytes` and, for a database, `required_ram_mb` for `SNAPSHOT_EXCEEDS_STORAGE`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string">
+    When the job was created.
+  </ResponseField>
+
+  <ResponseField name="started_at" type="string">
+    When the job started. Absent while `queued`.
+  </ResponseField>
+
+  <ResponseField name="finished_at" type="string">
+    When the job ended. Absent until then.
+  </ResponseField>
+
+  <ResponseField name="progress" type="object">
+    Only while the job is `running`, and it can be missing (for example right after it starts, or when the progress is not known). It is not sent in any other status.
+
+    <Expandable title="Toggle object">
+
+    <ResponseField name="phase" type="string">
+      `preparing`, `copying` or `finishing`.
+    </ResponseField>
+
+    <ResponseField name="percent" type="number">
+      Overall progress, from 0 to 100. Absent when the total size is not known.
+    </ResponseField>
+
+    <ResponseField name="done_bytes" type="number">
+      Bytes processed so far.
+    </ResponseField>
+
+    <ResponseField name="total_bytes" type="number">
+      Total bytes to process.
+    </ResponseField>
+
+    <ResponseField name="eta_seconds" type="number">
+      Estimated seconds left. Absent until the estimate is steady.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440002",
+      "kind": "restore",
+      "resource_id": "550e8400-e29b-41d4-a716-446655440001",
+      "status": "running",
+      "created_at": "2026-11-17T15:00:00.000Z",
+      "started_at": "2026-11-17T15:00:04.000Z",
+      "progress": {
+        "phase": "copying",
+        "percent": 42,
+        "done_bytes": 314572800,
+        "total_bytes": 734003200,
+        "eta_seconds": 18
+      }
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440003",
+      "kind": "snapshot",
+      "resource_id": "550e8400-e29b-41d4-a716-446655440001",
+      "origin": "automatic",
+      "status": "ready",
+      "snapshot_id": "550e8400-e29b-41d4-a716-446655440000",
+      "created_at": "2026-11-17T14:59:40.000Z",
+      "started_at": "2026-11-17T14:59:41.000Z",
+      "finished_at": "2026-11-17T14:59:58.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+Jobs of a resource that was deleted are still returned to the account that owned it. For a resource that does not exist, the list comes back empty. This route allows 120 requests per minute.
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: The `Authorization` header is missing, the API key is invalid, or the dashboard session was revoked (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: The API key is used from an IP outside its allowlist, or it lacks the `snapshots:read` scope (`403`).
+  - `ACCESS_DENIED`: You are a workspace member without the permission for this action, or you did not send the `workspace_id` (`403`).
+  - `VALIDATION_ERROR`: `limit` is not a number from 1 to 50, or `scope` or `kind` has a value that does not exist (`400`).
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+</ResponseExample>

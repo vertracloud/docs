@@ -3,11 +3,11 @@ title: Restore Stack Snapshot
 sidebarTitle: Restore Snapshot
 api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots/{snapshot_id}/restore
 authMethod: bearer
-description: Brings every member of a stack back to a snapshot, databases first and then applications.
+description: Starts the restore of every member of a stack to a snapshot, databases first and then applications. It answers 202 with one job per member.
 ---
 
 {/* @see RESTPostAPIStackSnapshotRestoreBody, RESTPostAPIStackSnapshotRestoreResponse — @vertracloud/api-types */}
-Restores all the members together: databases first, then applications. It stops at the first error and reports what was already restored in `details.restored`. Needs the `stacks:write` scope when called with an API key.
+Restores all the members together: databases first, then applications. The restore runs in the background and the request answers **`202`** as soon as it is accepted; nothing is restored yet. Needs the `stacks:write` scope when called with an API key.
 
 <ParamField path="stack_id" type="string" required>
   The stack ID.
@@ -27,11 +27,54 @@ Restores all the members together: databases first, then applications. It stops 
 
 ### Response
 
-The restore result, as in [Restore Application Snapshot](/api-reference/endpoint/apps/snapshots/restore).
+Unlike [Restore Application Snapshot](/api-reference/endpoint/apps/snapshots/restore), which restores one resource, this route starts one restore job per member that is still in the stack. Follow each `job_id` on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, where `{id}` is the job's `resource_id`) until its `status` is `ready` or `failed`. The stack is restored when all the jobs are `ready`.
+
+The members are restored in order: databases first, and each application only after them. If a member fails, the members after it are **not** restored and their jobs fail with `STACK_RESTORE_MEMBER_FAILED`; the failed job has the real `reason`. The restore replaces the current data of each member for good: [create a snapshot of the stack](/api-reference/endpoint/stacks/snapshots/create) first if you may need it again.
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="jobs" type="array">
+    One job per member that is still in the stack, in the order they run. Each item has `resource_id`, `resource_type` (`application` or `database`), `job_id` and, when it applies, `warning`: `IMAGE_VERSION_NOT_FOUND`, present when `restore_image_version` was `true` but the image version recorded for that application no longer exists. Only that application's data is restored.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (202)
+{
+  "response": {
+    "jobs": [
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440010",
+        "resource_type": "database",
+        "job_id": "550e8400-e29b-41d4-a716-446655440020"
+      },
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440011",
+        "resource_type": "application",
+        "job_id": "550e8400-e29b-41d4-a716-446655440021",
+        "warning": "IMAGE_VERSION_NOT_FOUND"
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
 
 ### Errors
+
+If a member cannot be restored (for example it has a restore or a deploy in progress, or the snapshot does not fit), the request answers with that member's error and nothing is started. See [Restore Application Snapshot](/api-reference/endpoint/apps/snapshots/restore) for those codes.
 
 | Status | Code | When |
 |---|---|---|
 | 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
-| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 404 | `STACK_NOT_FOUND` | The stack was not found. |
+| 404 | `SNAPSHOT_NOT_FOUND` | The snapshot was not found or failed. |
+| 409 | `OPERATION_IN_PROGRESS` | The stack snapshot is still `pending`: wait until it is `ready`. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | None of the snapshot's members is still in the stack. |
+
+A job that ends `failed` after the `202` reports `STACK_RESTORE_MEMBER_FAILED` in its `reason` when a previous member failed, so this member was not restored.

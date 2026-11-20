@@ -67,15 +67,15 @@ sufijo read/write (delete, envs, files, credentials).
 | `apps:write` | Aplicaciones | Crear; iniciar, detener y reiniciar (incluida la reinstalación de dependencias y el build forzado); actualizar la configuración; webhooks de despliegue; red; añadir, cambiar y eliminar dominios personalizados; volver a una release anterior con rollback. Cambiar el comando de inicio, el comando de build o el archivo principal también requiere `apps:files` |
 | `apps:delete` | Aplicaciones | Eliminar una aplicación |
 | `apps:envs` | Aplicaciones | Leer, crear y eliminar variables de entorno; previsualizar los cambios de variables de un rollback y restaurar variables con un rollback |
-| `apps:files` | Aplicaciones | Leer, escribir y subir archivos, y descargar la aplicación |
+| `apps:files` | Aplicaciones | Leer, escribir y subir archivos |
 | `databases:read` | Bases de datos | Leer el estado y las métricas de una base de datos |
-| `databases:write` | Bases de datos | Crear, actualizar, iniciar y detener, y restablecer |
-| `databases:delete` | Bases de datos | Eliminar una base de datos |
+| `databases:write` | Bases de datos | Crear, actualizar, iniciar y detener |
+| `databases:delete` | Bases de datos | Eliminar una base de datos y restablecer sus datos |
 | `databases:credentials` | Bases de datos | Leer y restablecer el certificado TLS, y restablecer las credenciales |
 | `images:read` | Imágenes de Docker | Listar y leer imágenes, sus versiones, los logs de build y el contexto actual, y comprobar un `Dockerfile` |
 | `images:write` | Imágenes de Docker | Crear, renombrar, describir y reconstruir imágenes, y vincular o desvincular GitHub |
 | `images:delete` | Imágenes de Docker | Eliminar una imagen |
-| `snapshots:read` | Snapshots | Listar snapshots y descargarlos |
+| `snapshots:read` | Snapshots | Listar snapshots, descargarlos y seguir jobs de snapshot y de restauración |
 | `snapshots:write` | Snapshots | Crear y restaurar snapshots |
 | `blob:read` | Blob Storage | Listar y leer archivos, obtener enlaces de descarga y URLs, leer enlaces para compartir, reglas de carpeta, dominios, uso y credenciales S3 |
 | `blob:write` | Blob Storage | Subir, cambiar, copiar, mover y eliminar archivos; crear enlaces para compartir, tokens de subida, reglas de carpeta y dominios personalizados |
@@ -92,7 +92,7 @@ sufijo read/write (delete, envs, files, credentials).
 | `stacks:write` | Stacks | Crear y modificar stacks, miembros y conexiones; añadir una base de datos o una carpeta de Blob; tomar y restaurar snapshots de stack; desvincular de una plantilla |
 | `stacks:delete` | Stacks | Eliminar un stack |
 <Note>
-  Descargar el código de una aplicación requiere `apps:files`; `apps:read` no lo cubre, así que una clave que solo tiene `apps:read` recibe `403 API_KEY_SCOPE_DENIED` con `details.required` en `apps:files`. Actualizar la configuración de una aplicación requiere `apps:write`, y cuando la petición cambia el comando de inicio, el comando de build o el archivo principal por un valor distinto, la clave también necesita `apps:files`, con la misma respuesta si falta. Cambiar el nombre, la memoria, el runtime o los ajustes de despliegue solo requiere `apps:write`. Las claves existentes conservan los scopes que ya tienen.
+  Descargar la aplicación entera pasa por un snapshot: crearlo requiere `snapshots:write` y descargarlo requiere `snapshots:read`, y una clave que solo tiene `apps:files` recibe `403 API_KEY_SCOPE_DENIED` con `details.required` en `snapshots:read`. Actualizar la configuración de una aplicación requiere `apps:write`, y cuando la petición cambia el comando de inicio, el comando de build o el archivo principal por un valor distinto, la clave también necesita `apps:files`; si falta, la API responde `403 API_KEY_SCOPE_DENIED` con `details.required` en `apps:files`. Cambiar el nombre, la memoria, el runtime o los ajustes de despliegue solo requiere `apps:write`. Las claves existentes conservan los scopes que ya tienen.
 </Note>
 
 <Note>
@@ -203,7 +203,7 @@ actuar (el scope que falta, el tiempo de espera, el límite). El estado HTTP ind
 }
 ```
 
-Una ruta sin nada que devolver (un borrado, un guardado de archivo, una purga de caché) responde `{ "response": null }`.
+Una ruta sin nada que devolver (un guardado de archivo, una purga de caché) responde `{ "response": null }`.
 
 **Error:**
 ```json
@@ -213,6 +213,8 @@ Una ruta sin nada que devolver (un borrado, un guardado de archivo, una purga de
   "details": { "retry_after": 30 }
 }
 ```
+
+Siempre que `details.retry_after` está presente, la respuesta también envía la cabecera `Retry-After` con el mismo número de segundos.
 
 ## ¿Qué códigos de error puede devolver la API?
 
@@ -224,7 +226,7 @@ son los que más vas a encontrar; las páginas de cada endpoint documentan los c
 | `AUTH_TOKEN_MISSING` | No hay cabecera `Authorization` (HTTP `401`) |
 | `API_KEY_INVALID` | La clave no existe o su secreto no coincide (HTTP `401`) |
 | `SESSION_REVOKED` | La sesión del panel detrás del token caducó o fue revocada (HTTP `401`) |
-| `ACCESS_DENIED` | El recurso existe, pero tu cuenta no puede actuar sobre él (HTTP `403`) |
+| `ACCESS_DENIED` | Eres miembro de un workspace sin el permiso de la acción (HTTP `403`); un recurso que no se encontró responde `404` |
 | `APP_NOT_FOUND` | Aplicación no encontrada |
 | `DATABASE_NOT_FOUND` | Base de datos no encontrada |
 | `APP_BANNED` | La aplicación está bloqueada y no puede gestionarse |
@@ -238,10 +240,12 @@ son los que más vas a encontrar; las páginas de cada endpoint documentan los c
 | `INSTALL_TIMEOUT` | La instalación de dependencias superó su límite de 15 minutos (HTTP `422`) |
 | `DEPLOY_RATE_LIMITED` | Se alcanzó el presupuesto horario de despliegues del plan de la cuenta (HTTP `429`); ver abajo |
 | `DAILY_QUOTA_EXCEEDED` | Se alcanzó la cuota diaria de peticiones a la API del plan de la cuenta (HTTP `429`); ver abajo |
-| `SNAPSHOT_RATE_LIMITED` | La creación manual de snapshots alcanzó su presupuesto por recurso o por cuenta (HTTP `429`); ver [Crear snapshot](/es-es/api-reference/endpoint/apps/snapshots/create) |
+| `SNAPSHOT_RATE_LIMITED` | La creación manual de snapshots alcanzó un límite: del recurso o la cuota de la cuenta (HTTP `429`); ver [Crear snapshot](/es-es/api-reference/endpoint/apps/snapshots/create) |
 | `INSTALL_SHIELD_BLOCKED` | Vertra Shield detuvo el despliegue porque el tráfico superó la asignación del plan (HTTP `422`) |
 | `DATABASE_NOT_RUNNING` | Se pidió un snapshot manual para una base de datos detenida (HTTP `409`); inicia la y vuelve a intentarlo: Redis no tiene ese requisito |
-| `SNAPSHOT_IMPORT_FAILED` | La restauración de un snapshot falló al cargar los datos; la base de datos queda en marcha y vacía, y el snapshot sigue disponible para reintentar (HTTP `500`) |
+| `SNAPSHOT_IMPORT_FAILED` | La restauración de un snapshot falló al cargar los datos; la base de datos conserva los datos que tenía y el snapshot sigue disponible para reintentar (HTTP `500`) |
+| `RESTORE_IN_PROGRESS` | Hay una restauración en curso en el recurso, así que las escrituras en él esperan (HTTP `409`); ver [Restaurar snapshot](/es-es/api-reference/endpoint/apps/snapshots/restore) |
+| `SNAPSHOT_EXCEEDS_STORAGE` | El contenido del snapshot no cabe en el almacenamiento del destino (HTTP `400`); `details` trae `required_bytes` y `available_bytes` |
 | `SNAPSHOT_ENGINE_MISMATCH` | El snapshot pertenece a un motor de base de datos distinto al del destino (HTTP `400`) |
 | `SNAPSHOT_VERSION_NEWER` | El snapshot se tomó en una versión mayor más nueva que la de la base de datos destino (HTTP `400`) |
 
@@ -327,11 +331,13 @@ el build command consumen todos un mismo contador por cuenta, dimensionado segú
 detener y un reinicio simple no consumen este contador. Al superar el límite, la API responde `429 DEPLOY_RATE_LIMITED`
 con `details.limit`, `details.window_seconds` (3600) y `details.retry_after`.
 
-**La creación manual de snapshots tiene además su propio presupuesto**, por encima del límite por ruta: como máximo
-**1 cada 5 minutos por proyecto**, hasta **5 al día por proyecto** y un presupuesto **diario por cuenta** que depende del plan (5 en Starter 1 y 2, hasta 64 en Enterprise). Al superar el límite, la API responde
-`429 SNAPSHOT_RATE_LIMITED` con `details: { scope: "resource", retry_after }`, `details: { scope: "resource_daily", limit, retry_after, resets_at }` o `details: { scope: "account", limit, retry_after, resets_at }`. Restaurar o descargar un
-snapshot no se ve afectado, y los snapshots que la plataforma toma automáticamente antes de una operación destructiva
-no cuentan contra este presupuesto.
+**La creación manual de snapshots tiene además sus propios límites**, por encima del límite por ruta: una petición por usuario cada
+**5 segundos** (un `429 RATE_LIMIT_EXCEEDED` genérico, con `retry_after`), un snapshot por recurso cada **3 minutos** y una **cuota por cuenta en cualquier ventana de 24 horas** de **8 por GB de RAM del plan** (como mínimo 2; 8 en Starter 1, 16 en Starter 2,
+32 a 64 en Pro). La plaza de un snapshot vuelve 24 horas después de hacerse, no a medianoche. Al superar un límite, la API responde
+`429 SNAPSHOT_RATE_LIMITED` con `details: { scope: "resource", retry_after }` o `details: { scope: "account", retry_after, resets_at }`.
+El backup diario de tu plan no usa la cuota.
+Descargar el proyecto entero crea primero un snapshot manual, así que usa la cuota y el intervalo de 3 minutos; descargar o restaurar un snapshot que ya existe, no.
+Una restauración tiene su propia espera: 60 segundos por aplicación y, en una base de datos, 60 segundos para quien pide y 120 segundos por base de datos (`429 RESTORE_COOLDOWN`, con `details.retry_after`).
 
 ## ¿Qué recursos cubre la API?
 

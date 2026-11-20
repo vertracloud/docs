@@ -3,11 +3,11 @@ title: Restaurar snapshot da stack
 sidebarTitle: Restaurar snapshot
 api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots/{snapshot_id}/restore
 authMethod: bearer
-description: Leva todos os membros de uma stack de volta a um snapshot, primeiro os bancos de dados e depois os apps.
+description: Inicia a restauração de todos os membros de uma stack para um snapshot, bancos primeiro e depois apps. Responde 202 com um job por membro.
 ---
 
 {/* @see RESTPostAPIStackSnapshotRestoreBody, RESTPostAPIStackSnapshotRestoreResponse — @vertracloud/api-types */}
-Restaura todos os membros juntos: primeiro os bancos de dados, depois os apps. Ela para no primeiro erro e informa o que já foi restaurado em `details.restored`. Precisa do escopo `stacks:write` quando chamado com uma chave de API.
+Restaura todos os membros juntos: primeiro os bancos de dados, depois os apps. A restauração roda em segundo plano e a requisição responde **`202`** assim que é aceita; nada foi restaurado ainda. Precisa do escopo `stacks:write` quando chamado com uma chave de API.
 
 <ParamField path="stack_id" type="string" required>
   O ID da stack.
@@ -27,11 +27,54 @@ Restaura todos os membros juntos: primeiro os bancos de dados, depois os apps. E
 
 ### Resposta
 
-O resultado da restauração, como em [Restaurar snapshot do app](/pt-br/api-reference/endpoint/apps/snapshots/restore).
+Diferente de [Restaurar snapshot da aplicação](/pt-br/api-reference/endpoint/apps/snapshots/restore), que restaura um recurso, esta rota inicia um job de restauração por membro que ainda está na stack. Acompanhe cada `job_id` em [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, onde `{id}` é o `resource_id` do job) até o `status` ser `ready` ou `failed`. A stack está restaurada quando todos os jobs estão `ready`.
+
+Os membros são restaurados em ordem: primeiro os bancos, e cada aplicação só depois deles. Se um membro falha, os membros seguintes **não** são restaurados e os jobs deles falham com `STACK_RESTORE_MEMBER_FAILED`; o job que falhou traz o `reason` real. A restauração substitui os dados atuais de cada membro de forma definitiva: [crie um snapshot da stack](/pt-br/api-reference/endpoint/stacks/snapshots/create) antes se puder precisar deles de novo.
+
+<ResponseField name="response" type="object">
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="jobs" type="array">
+    Um job por membro que ainda está na stack, na ordem em que rodam. Cada item tem `resource_id`, `resource_type` (`application` ou `database`), `job_id` e, quando se aplica, `warning`: `IMAGE_VERSION_NOT_FOUND`, presente quando `restore_image_version` era `true`, mas a versão da imagem registrada dessa aplicação não existe mais. Só os dados dessa aplicação são restaurados.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (202)
+{
+  "response": {
+    "jobs": [
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440010",
+        "resource_type": "database",
+        "job_id": "550e8400-e29b-41d4-a716-446655440020"
+      },
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440011",
+        "resource_type": "application",
+        "job_id": "550e8400-e29b-41d4-a716-446655440021",
+        "warning": "IMAGE_VERSION_NOT_FOUND"
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
 
 ### Erros
+
+Se um membro não puder ser restaurado (por exemplo, ele tem uma restauração ou um deploy em andamento, ou o snapshot não cabe), a requisição responde com o erro desse membro e nada é iniciado. Veja [Restaurar snapshot da aplicação](/pt-br/api-reference/endpoint/apps/snapshots/restore) para esses códigos.
 
 | Status | Código | Quando |
 |---|---|---|
 | 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
-| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |
+| 404 | `STACK_NOT_FOUND` | A stack não foi encontrada. |
+| 404 | `SNAPSHOT_NOT_FOUND` | O snapshot não foi encontrado ou falhou. |
+| 409 | `OPERATION_IN_PROGRESS` | O snapshot da stack ainda está `pending`: espere até ficar `ready`. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | Nenhum dos membros do snapshot continua na stack. |
+
+Um job que termina `failed` depois do `202` informa `STACK_RESTORE_MEMBER_FAILED` no `reason` quando um membro anterior falhou, então este membro não foi restaurado.

@@ -3,13 +3,13 @@ title: Update a Template or Move an App to Its Latest Version
 sidebarTitle: Update Template
 api: POST https://api.vertracloud.app/v1/apps/{id}/template/update
 authMethod: bearer
-description: Starts an update job that moves an application or stack to the latest version of its template, takes a safety snapshot first and goes back if a step fails.
+description: Starts an update job that moves an application or stack to the latest version of its template, takes a snapshot first and goes back if a step fails.
 ---
 
 {/* @see RESTPostAPITemplateUpdateBody, RESTPostAPITemplateUpdateResponse — @vertracloud/api-types */}
 Moves an application or a stack to the latest version of its template, as one asynchronous operation, and answers `202 Accepted` with a job of `kind: "update"`. There are two routes with the same body and response: `POST /v1/apps/{id}/template/update` and `POST /v1/stacks/{stack_id}/template/update`. The needed scope is `templates:deploy`. Only the **owner** of the account or workspace can update; a workspace member gets `WORKSPACE_OWNER_ONLY`. Check what will happen first with [Get Template Update Info](/api-reference/endpoint/templates/update-info). The update never runs by itself.
 
-The job takes a safety snapshot, updates the services one after the other and, if any step fails, goes back to the snapshot and removes what it created, so everything returns to how it was. An application of a stack made from a template is updated together with the whole stack. The job takes the same one-deploy-at-a-time lock as [Deploy Template](/api-reference/endpoint/templates/deploy). The steps are the ones of [Get Deploy Job](/api-reference/endpoint/templates/deploy-status), plus `snapshot`, and `rollback` when a failed update goes back. Follow it with that page or the [event stream](/api-reference/endpoint/templates/deploy-events). More on the behavior in [Updates and rollback](/templates/use/updates-and-rollback).
+The job takes a snapshot, updates the services one after the other and, if any step fails, goes back to the snapshot and removes what it created, so everything returns to how it was. An application of a stack made from a template is updated together with the whole stack. The job takes the same one-deploy-at-a-time lock as [Deploy Template](/api-reference/endpoint/templates/deploy). The steps are the ones of [Get Deploy Job](/api-reference/endpoint/templates/deploy-status), plus `snapshot`, and `rollback` when a failed update goes back. On the `snapshot` and `rollback` steps, `jobs` lists the snapshot or restore job of each resource so you can follow its progress (see [Get Deploy Job](/api-reference/endpoint/templates/deploy-status)). Follow it with that page or the [event stream](/api-reference/endpoint/templates/deploy-events). More on the behavior in [Updates and rollback](/templates/use/updates-and-rollback).
 
 What an update changes: the code or image version of the services, the memory they need, new variables the template introduced and new services. Variables you changed, variables you deleted and your own files stay as they are. Permissions are never made more restrictive. A service the new version drops leaves the template but is not deleted. Services new in the version are created with the same steps as a deploy.
 
@@ -94,7 +94,7 @@ curl -X POST https://api.vertracloud.app/v1/apps/9d2c7e41-60fa-4b13-8e75-c1a4b3f
   - `WORKSPACE_OWNER_ONLY`: Only the owner of the workspace can update (`403`).
   - `TEMPLATE_PLAN_REQUIRED`: The new version needs a plan above yours; `details.reason` says why (`403`).
   - `TEMPLATE_IMAGE_SLOTS_EXHAUSTED`: The new version needs an image slot and none is free (`403`).
-  - `APP_NOT_FOUND`, `STACK_NOT_FOUND`: The application or stack does not exist or is not yours (`404`).
+  - `APP_NOT_FOUND`, `STACK_NOT_FOUND`: The application or stack was not found (`404`).
   - `TEMPLATE_NOT_FOUND`: The application or stack did not come from a template (`404`).
   - `TEMPLATE_UPDATE_BLOCKED`: The update cannot go ahead. `details.reason` is one of `no_new_version`, `detached`, `template_removed`, `link_revoked` or `app_building` (`409`).
   - `TEMPLATE_DEPLOY_IN_PROGRESS`: Another deploy or update of your account is running (`409`).
@@ -135,4 +135,4 @@ curl -X POST https://api.vertracloud.app/v1/apps/9d2c7e41-60fa-4b13-8e75-c1a4b3f
   Up to 10 tags.
 </ParamField>
 
-The response is the template, in the same shape as [Get Template](/api-reference/endpoint/templates/get). A template that is not yours answers `TEMPLATE_NOT_FOUND` (`404`).
+The response is the template, in the same shape as [Get Template](/api-reference/endpoint/templates/get). A template that was not found answers `TEMPLATE_NOT_FOUND` (`404`).

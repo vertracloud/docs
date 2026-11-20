@@ -3,10 +3,19 @@ title: Restaurar snapshot da aplicação
 sidebarTitle: Restaurar snapshot
 api: POST https://api.vertracloud.app/v1/users/{id}/snapshots/{snapshot_id}/restore
 authMethod: bearer
-description: Restaura um snapshot especificado em uma aplicação ou banco de dados e, em seguida, refaz o build e reinicia o recurso automaticamente.
+description: Inicia a restauração de um snapshot em uma aplicação ou banco de dados. A restauração roda em segundo plano e responde 202 com um job para acompanhar.
 ---
 
 {/* @see success/error — @vertracloud/api-types */}
+Restaurar substitui o conteúdo atual do recurso pelo do snapshot. A requisição responde **`202`** assim que a
+restauração é aceita; o recurso **ainda não** foi restaurado. Acompanhe `response.job_id` em
+[Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) até o `status` ser `ready` ou `failed`. Quando a restauração termina, o recurso fica
+como estava antes: o que estava ligado volta a rodar, o que estava desligado continua desligado.
+
+A restauração começa na hora e substitui os dados atuais do destino de forma definitiva: não há como desfazer, então
+[crie um snapshot](/pt-br/api-reference/endpoint/apps/snapshots/create) do destino antes se puder precisar dos dados dele de novo. Um snapshot de qualquer tamanho pode ser
+restaurado, desde que o conteúdo caiba no armazenamento do destino.
+
 <ParamField path="id" type="string" required>
   O ID da aplicação ou do banco de dados para o qual o snapshot será restaurado.
 </ParamField>
@@ -27,19 +36,26 @@ description: Restaura um snapshot especificado em uma aplicação ou banco de da
   Somente para uma aplicação que roda uma imagem Docker personalizada. Quando `true`, a restauração também volta para a versão da imagem que a aplicação rodava no momento do snapshot, se ela ainda existir. Padrão `false`: só os dados são restaurados e a aplicação mantém a versão atual da imagem.
 </ParamField>
 
+<Note>
+  Enquanto uma restauração roda, toda escrita no recurso responde `409 RESTORE_IN_PROGRESS` (inclusive a aba Dados do banco),
+  e outra restauração nele é recusada da mesma forma. Ler e excluir a aplicação ou o banco continuam permitidos.
+  Uma restauração precisa de 60 segundos entre duas restaurações da mesma aplicação e, em um banco, de 60 segundos para quem pede e 120
+  segundos por banco (`429 RESTORE_COOLDOWN`, com `details.retry_after`).
+</Note>
+
 ### Resposta
 
 <ResponseField name="response" type="object">
-  Confirmação de que o processo de restauração foi iniciado.
+  Confirmação de que a restauração foi aceita.
 
   <Expandable title="Mostrar objeto">
 
-  <ResponseField name="message" type="string">
-    Uma mensagem confirmando que a restauração foi iniciada.
+  <ResponseField name="job_id" type="string">
+    O job de restauração. Acompanhe-o em [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get), onde `{id}` é o recurso que está sendo restaurado.
   </ResponseField>
 
   <ResponseField name="warning" type="string">
-    Presente quando `restore_image_version` era `true`, mas a versão da imagem registrada no snapshot não existe mais: `IMAGE_VERSION_NOT_FOUND`. Só os dados foram restaurados e a aplicação continua na versão atual.
+    Presente quando `restore_image_version` era `true`, mas a versão da imagem registrada no snapshot não existe mais: `IMAGE_VERSION_NOT_FOUND`. Só os dados são restaurados e a aplicação continua na versão atual.
   </ResponseField>
 
   </Expandable>
@@ -47,10 +63,10 @@ description: Restaura um snapshot especificado em uma aplicação ou banco de da
 
 <ResponseExample>
 
-```json Response
+```json Response (202)
 {
   "response": {
-    "message": "Restoration started and rebuild triggered"
+    "job_id": "550e8400-e29b-41d4-a716-446655440002"
   }
 }
 ```
@@ -64,18 +80,24 @@ description: Restaura um snapshot especificado em uma aplicação ou banco de da
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
   - `USER_NOT_FOUND`: o usuário autenticado não foi encontrado.
-  - `APP_NOT_FOUND`: a aplicação informada não existe.
-  - `DATABASE_NOT_FOUND`: o banco de dados informado não existe.
-  - `ACCESS_DENIED`: o usuário não é dono do recurso ou do snapshot.
-  - `RESTORE_COOLDOWN`: uma operação de restauração foi feita neste recurso há pouco tempo. Aguarde antes de tentar de novo.
+  - `APP_NOT_FOUND`: a aplicação informada não foi encontrada.
+  - `DATABASE_NOT_FOUND`: o banco de dados informado não foi encontrado.
+  - `ACCESS_DENIED`: você é membro de um workspace sem a permissão para esta ação (ou não enviou o `workspace_id`) (`403`).
+  - `PLAN_REQUIRED`: a conta da aplicação não tem plano ativo, então a aplicação não poderia ser iniciada de novo depois da restauração (`403`). Nada foi alterado.
+  - `RESTORE_COOLDOWN`: uma restauração foi pedida cedo demais depois de outra: 60 segundos na mesma aplicação e, em um banco, 60 segundos para quem pede e 120 segundos por banco (`429`). `details.retry_after` diz quantos segundos esperar, e o header `Retry-After` traz o mesmo número.
+  - `RESTORE_IN_PROGRESS`: já há uma restauração em andamento neste recurso (`409`).
+  - `APP_BUILDING`: a aplicação está em build ou deploy (`409`). Tente de novo quando terminar.
   - `TYPE_MISMATCH`: o tipo do recurso do snapshot não corresponde ao tipo do recurso de destino.
+  - `SNAPSHOT_TYPE_MISMATCH`: o snapshot é de uma aplicação e o destino é um banco, ou o contrário (`400`).
   - `SNAPSHOT_ENGINE_MISMATCH`: o snapshot pertence a um motor de banco de dados diferente do de destino (`400`).
   - `SNAPSHOT_VERSION_NEWER`: o snapshot foi feito em uma versão principal mais nova do que a do banco de dados de destino; nada é alterado (`400`).
-  - `SNAPSHOT_NOT_FOUND`: o snapshot informado não existe.
-  - `INVALID_ZIP_STRUCTURE`: o arquivo do snapshot está danificado, ou um snapshot de aplicação não tem arquivos (`400`). A restauração é recusada antes de qualquer alteração: os arquivos da aplicação e o banco de dados permanecem como estavam.
-  - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida no mesmo recurso já está em execução (`409`). Nada foi restaurado — aguarde alguns segundos e tente de novo. Veja [Códigos de erro comuns](/pt-br/api-reference/introduction#quais-códigos-de-erro-a-api-pode-retornar).
-  - `SNAPSHOT_IMPORT_FAILED`: a restauração falhou ao carregar os dados (`500`). O banco de dados fica em execução e vazio; o snapshot continua disponível para tentar de novo.
+  - `SNAPSHOT_EXCEEDS_STORAGE`: o conteúdo do snapshot não cabe no armazenamento do destino (`400`). `details` traz `required_bytes` e `available_bytes`; em um banco, também `required_ram_mb`, o menor tamanho de memória cujo armazenamento comporta o snapshot.
+  - `SNAPSHOT_NOT_FOUND`: o snapshot informado não foi encontrado.
+  - `TEMPLATE_CLOSED`: o snapshot ou o destino pertence a um [template fechado](/pt-br/templates/use/closed-templates) e a restauração não é permitida (`403`).
+  - `OPERATION_IN_PROGRESS`: outra operação no mesmo recurso está em execução (`409`). Aguarde alguns segundos e tente de novo.
   - `INTERNAL_SERVER_ERROR`: ocorreu um erro inesperado no servidor.
+
+  Uma restauração que falha depois do `202` é informada pelo job, com o motivo em `reason`: `SNAPSHOT_CORRUPTED` (o snapshot não confere com o que foi registrado quando foi feito; nada mudou), `SNAPSHOT_EXCEEDS_STORAGE`, `SNAPSHOT_IMPORT_FAILED` (um banco não conseguiu carregar os dados; ele mantém os que tinha), `SNAPSHOT_TIMEOUT`, `SERVICE_UNAVAILABLE`, `SNAPSHOT_ENGINE_MISMATCH`, `SNAPSHOT_VERSION_NEWER`, `DATABASE_NOT_READY`, `OPERATION_IN_PROGRESS` e `SNAPSHOT_NOT_FOUND`.
 </ResponseField>
 
 <ResponseExample>
@@ -86,46 +108,35 @@ description: Restaura um snapshot especificado em uma aplicação ou banco de da
 }
 ```
 
-```json Error Response (403)
-{
-  "code": "ACCESS_DENIED"
-}
-```
-
-```json Error Response (404)
-{
-  "code": "APP_NOT_FOUND"
-}
-```
-
 ```json Error Response (404)
 {
   "code": "SNAPSHOT_NOT_FOUND"
 }
 ```
 
+```json Error Response (409)
+{
+  "code": "RESTORE_IN_PROGRESS"
+}
+```
+
+```json Error Response (400)
+{
+  "code": "SNAPSHOT_EXCEEDS_STORAGE",
+  "details": {
+    "required_bytes": 6442450944,
+    "available_bytes": 5368709120,
+    "required_ram_mb": 2000
+  }
+}
+```
+
 ```json Error Response (429)
 {
-  "code": "RESTORE_COOLDOWN"
-}
-```
-
-```json Error Response (400)
-{
-  "code": "TYPE_MISMATCH",
-  "message": "Cannot restore snapshot to a different resource type"
-}
-```
-
-```json Error Response (400)
-{
-  "code": "SNAPSHOT_ENGINE_MISMATCH"
-}
-```
-
-```json Error Response (500)
-{
-  "code": "SNAPSHOT_IMPORT_FAILED"
+  "code": "RESTORE_COOLDOWN",
+  "details": {
+    "retry_after": 42
+  }
 }
 ```
 

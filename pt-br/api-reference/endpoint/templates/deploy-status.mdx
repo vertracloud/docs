@@ -49,7 +49,7 @@ Retorna um job de deploy ou de atualização iniciado por [Fazer deploy de templ
   </ResponseField>
 
   <ResponseField name="steps" type="object[]">
-    As etapas que se aplicam ao job, na ordem de execução. Cada uma tem `step`, `status`, `started_at` e `finished_at` (`null` até acontecerem). Uma etapa pode ser `pending`, `running`, `done`, `skipped` (não se aplica, por exemplo quando não há banco de dados) ou `failed`. Etapas: `validate`, `snapshot` (só em atualizações: um snapshot de segurança antes de qualquer mudança), `network`, `databases`, `blob`, `images`, `apps`, `variables`, `certificates`, `start`, `healthcheck`, `outputs` e `rollback` (só em atualizações, quando uma atualização que falhou volta para o snapshot).
+    As etapas que se aplicam ao job, na ordem de execução. Cada uma tem `step`, `status`, `started_at` e `finished_at` (`null` até acontecerem). Uma etapa pode ser `pending`, `running`, `done`, `skipped` (não se aplica, por exemplo quando não há banco de dados) ou `failed`. Etapas: `validate`, `snapshot` (só em atualizações: um snapshot antes de qualquer mudança), `network`, `databases`, `blob`, `images`, `apps`, `variables`, `certificates`, `start`, `healthcheck`, `outputs` e `rollback` (só em atualizações, quando uma atualização que falhou volta para o snapshot). Nas etapas `snapshot` e `rollback` de uma atualização, cada etapa também traz `jobs`: um job por aplicação ou banco de dados (jobs de snapshot em `snapshot`, jobs de restauração em `rollback`), presente assim que a etapa os enfileira. Cada job tem `resource_id`, `resource_type` (`application` ou `database`) e `job_id`; acompanhe-o em [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, com `{id}` igual a `resource_id`), que mostra o `progress` enquanto ele roda.
   </ResponseField>
 
   <ResponseField name="error" type="object | null">
@@ -208,6 +208,44 @@ curl https://api.vertracloud.app/v1/template-deploys/3f6a9c12-7e4b-4d58-a1c0-5b8
 }
 ```
 
+```json Response (atualização, etapa snapshot em andamento)
+{
+  "response": {
+    "id": "c8a15d73-2f90-4e6b-b7d4-0e9a6c3f1b58",
+    "kind": "update",
+    "template_id": "7c1d4f0e-3b8a-4d52-9a66-1f0c2e5a9b41",
+    "version_id": "e0b7a2c9-5d14-4f8e-8c3a-92d6b1f47a10",
+    "version": "1.1.0",
+    "status": "running",
+    "current_step": "snapshot",
+    "steps": [
+      { "step": "validate", "status": "done", "started_at": "2026-10-29T09:00:01Z", "finished_at": "2026-10-29T09:00:02Z" },
+      {
+        "step": "snapshot",
+        "status": "running",
+        "started_at": "2026-10-29T09:00:02Z",
+        "finished_at": null,
+        "jobs": [
+          { "resource_id": "9d2c7e41-60fa-4b13-8e75-c1a4b3f08d26", "resource_type": "application", "job_id": "5b0e8a37-91c4-4d6f-a2e8-7f3d1c6b9a05" },
+          { "resource_id": "2a6f1d93-84b7-4c0e-9d51-e8b3a7c40f12", "resource_type": "database", "job_id": "d41c7b60-3e85-4a9f-b1d2-06a9e5f83c77" }
+        ]
+      },
+      { "step": "apps", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "start", "status": "pending", "started_at": null, "finished_at": null },
+      { "step": "healthcheck", "status": "pending", "started_at": null, "finished_at": null }
+    ],
+    "error": null,
+    "resources": [],
+    "stack_id": "6e3b9f20-17d8-4a45-8c0b-f2d95a1e7c34",
+    "application_id": null,
+    "outputs": [],
+    "created_at": "2026-10-29T09:00:00Z",
+    "updated_at": "2026-10-29T09:00:03Z",
+    "finished_at": null
+  }
+}
+```
+
 </ResponseExample>
 
 ### Respostas de erro
@@ -216,7 +254,7 @@ curl https://api.vertracloud.app/v1/template-deploys/3f6a9c12-7e4b-4d58-a1c0-5b8
   O código de erro que indica o motivo da falha. Valores possíveis:
   - `VALIDATION_ERROR`: `deploy_id` não é um ID válido (`400`).
   - `API_KEY_SCOPE_DENIED`: A chave de API não tem o escopo `templates:deploy` (`403`).
-  - `TEMPLATE_DEPLOY_NOT_FOUND`: O job não existe ou pertence a outra conta (`404`).
+  - `TEMPLATE_DEPLOY_NOT_FOUND`: O job não foi encontrado (`404`).
   - `RATE_LIMIT_EXCEEDED`: Requisições demais (`429`).
   - `INTERNAL_SERVER_ERROR`: Falha inesperada (`500`).
 </ResponseField>

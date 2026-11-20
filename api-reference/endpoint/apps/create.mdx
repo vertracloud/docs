@@ -17,8 +17,9 @@ The application has **two mutually exclusive sources** — send exactly one of `
 
 <ParamField body="snapshot_id" type="string">
   Alternative source to `file`: the id of an **application** snapshot to create the app from. The
-  platform downloads the snapshot (which already carries the `vertracloud.config`) and builds the
-  app from it. Sent as a text field of the multipart body — same size limit as `file` (100 MB).
+  snapshot already carries the `vertracloud.config`. Sent as a text field of the multipart body. A
+  snapshot of any size works as long as its content fits in the new application's storage: the
+  100 MB limit of `file` does not apply. See the response below for how the restore runs.
 </ParamField>
 
 <ParamField body="memory" type="string">
@@ -80,7 +81,12 @@ The application has **two mutually exclusive sources** — send exactly one of `
 
 ### Response
 
-Creation is asynchronous: the response is `202 Accepted` with the application in `status: "building"`. Follow it with [Application Details](/api-reference/endpoint/apps/get) or the [real-time logs](/api-reference/endpoint/apps/realtime) until `status` is `up` or `down`. While it is `building`, start, stop, restart, file deploys, rollback, snapshots, restores and configuration changes answer `409 APP_BUILDING`; deleting the application is allowed. If the build is interrupted, the application stays `down` and `BUILD_INTERRUPTED` appears in its log; if the platform cancels the creation (for example, the queue is full), the application no longer exists and Application Details answers `404`.
+With `snapshot_id`, the response is **`202`** with the application and a `restore_job_id`: the application is created first
+and its files come back from the snapshot in the background. Follow the job on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get)
+(with the new application's ID) until it is `ready`; the application starts when the restore finishes. If the restore fails, an application created from
+a code snapshot is **deleted**, and one that runs a custom Docker image is **kept** as it is and started again; the job's `reason` says why.
+
+With `file`, creation is asynchronous: the response is `202 Accepted` with the application in `status: "building"`. Follow it with [Application Details](/api-reference/endpoint/apps/get) or the [real-time logs](/api-reference/endpoint/apps/realtime) until `status` is `up` or `down`. While it is `building`, start, stop, restart, file deploys, rollback, snapshots, restores and configuration changes answer `409 APP_BUILDING`; deleting the application is allowed. If the build is interrupted, the application stays `down` and `BUILD_INTERRUPTED` appears in its log; if the platform cancels the creation (for example, the queue is full), the application no longer exists and Application Details answers `404`.
 
 <ResponseField name="response" type="object">
   The details of the created application.
@@ -156,6 +162,10 @@ Creation is asynchronous: the response is `202 Accepted` with the application in
 
   <ResponseField name="last_snapshot" type="string | null" format="date-time">
     The timestamp of the application's last snapshot.
+  </ResponseField>
+
+  <ResponseField name="restore_job_id" type="string">
+    Only when created from `snapshot_id`: the restore job to follow.
   </ResponseField>
 
   <ResponseField name="main_file" type="string">
@@ -295,9 +305,10 @@ Creation is asynchronous: the response is `202 Accepted` with the application in
   - `FILE_TOO_LARGE`: The uploaded file exceeds the 100 MB limit (`400`).
   - `SOURCE_REQUIRED`: Neither `file` nor `snapshot_id` was sent (`400`).
   - `SOURCE_CONFLICT`: Both `file` and `snapshot_id` were sent (`400`).
-  - `SNAPSHOT_NOT_FOUND`: The `snapshot_id` doesn't exist or doesn't belong to the caller (`404`).
+  - `SNAPSHOT_NOT_FOUND`: The `snapshot_id` was not found (`404`).
   - `SNAPSHOT_TYPE_MISMATCH`: The snapshot is a database snapshot, not an application one (`400`).
-  - `SNAPSHOT_TOO_LARGE`: The snapshot exceeds the same 100 MB creation ceiling as `file` (`400`).
+  - `SNAPSHOT_EXCEEDS_STORAGE`: The snapshot's content does not fit in the new application's storage (`400`). `details` has `required_bytes` and `available_bytes`.
+  - `RESTORE_COOLDOWN`: With `snapshot_id`, the user asked for another restore within 60 seconds (`429`). Nothing was created; wait and retry.
   - `MEMORY_REQUIRED`: `memory` was omitted and the snapshot's `vertracloud.config` has no usable `MEMORY` (`400`).
   - `PLAN_REQUIRED`: The owner has no active plan, so a new application can't be created, or a `subdomain` was requested without one (`403`).
   - `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH`: A `subdomain` was requested but the owner's plan does not include

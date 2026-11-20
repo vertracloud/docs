@@ -38,6 +38,10 @@ description: Retorna o status de todos os bancos de dados do usuário autenticad
     Indica se o container do banco de dados está em execução.
   </ResponseField>
 
+  <ResponseField name="restore_job_id" type="string | null">
+    Preenchido enquanto um restore do banco de dados está na fila ou rodando, e `null` nos demais casos. Acompanhe em [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`).
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -51,14 +55,16 @@ description: Retorna o status de todos os bancos de dados do usuário autenticad
       "cpu": "0.00%",
       "ram": "0.00 MB",
       "storage": "0.00 MB",
-      "running": false
+      "running": false,
+      "restore_job_id": "550e8400-e29b-41d4-a716-446655440002"
     },
     {
       "id": "00000000000000000000000000000002",
       "cpu": "1.25%",
       "ram": "128.50 MB",
       "storage": "256.00 MB",
-      "running": true
+      "running": true,
+      "restore_job_id": null
     }
   ]
 }
@@ -72,8 +78,8 @@ description: Retorna o status de todos os bancos de dados do usuário autenticad
   O código de erro que indica o motivo da falha. Valores possíveis:
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: O header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: A chave de API é usada a partir de um IP fora da sua lista de IPs permitidos, ou não tem o escopo que a rota exige (`403`).
-  - `WORKSPACE_NOT_FOUND`: O workspace informado não existe.
-  - `USER_NOT_IN_WORKSPACE`: O usuário não é membro do workspace informado.
+  - `WORKSPACE_NOT_FOUND`: O workspace em `workspace_id` não foi encontrado (`404`).
+  - `WORKSPACE_PERMISSION_DENIED`: Você é membro do workspace, mas seu papel não tem `databases:read` (`403`).
 </ResponseField>
 
 <ResponseField name="message" type="string">
@@ -96,7 +102,7 @@ description: Retorna o status de todos os bancos de dados do usuário autenticad
 
 ```json Error Response (403)
 {
-  "code": "USER_NOT_IN_WORKSPACE"
+  "code": "WORKSPACE_PERMISSION_DENIED"
 }
 ```
 

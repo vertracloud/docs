@@ -24,10 +24,11 @@ Returns the stack snapshots, newest first. Needs the `stacks:read` scope when ca
 
   <ResponseField name="id" type="string">The stack snapshot ID.</ResponseField>
   <ResponseField name="stack_id" type="string">The stack ID.</ResponseField>
-  <ResponseField name="reason" type="string">Why it was taken: `manual`, `update` (a safety snapshot before updating to a newer template version) or `delete` (taken when the stack and its members were deleted).</ResponseField>
+  <ResponseField name="reason" type="string">Why it was taken: `manual` (you took it) or `update` (taken before updating to a newer template version).</ResponseField>
+  <ResponseField name="status" type="string">`pending` while the snapshots of the members are still being taken (see [Create Stack Snapshot](/api-reference/endpoint/stacks/snapshots/create)) or `ready` once every member has its snapshot and it can be restored. A stack snapshot that failed is not listed.</ResponseField>
   <ResponseField name="date" type="string" format="date-time">When it was taken.</ResponseField>
   <ResponseField name="size" type="string">Total size, human readable.</ResponseField>
-  <ResponseField name="members" type="object[]">The snapshot of each member that has data: `resource_type` (`application` or `database`), `resource_id` and `snapshot_id`.</ResponseField>
+  <ResponseField name="members" type="object[]">The snapshot of each member that has data: `resource_type` (`application` or `database`), `resource_id` and `snapshot_id`. While the stack snapshot is `pending`, `snapshot_id` is `null` and `job_id` is the [snapshot job](/api-reference/endpoint/apps/snapshots/jobs/get) to follow; once it is `ready`, `job_id` is no longer returned.</ResponseField>
   <ResponseField name="closed" type="boolean">`true` when the stack runs a [closed template](/templates/use/closed-templates): the snapshot cannot be downloaded, only restored.</ResponseField>
 
   </Expandable>
@@ -37,4 +38,4 @@ Returns the stack snapshots, newest first. Needs the `stacks:read` scope when ca
 
 | Status | Code | When |
 |---|---|---|
-| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 404 | `STACK_NOT_FOUND` | The stack was not found. |

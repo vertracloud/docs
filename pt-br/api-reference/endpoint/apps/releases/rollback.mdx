@@ -150,13 +150,13 @@ Códigos de erro possíveis:
 - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
 - `API_KEY_IP_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist (`403`).
 - `APP_NOT_FOUND`: a aplicação não existe, ou não pertence a esta conta ou workspace (`404`).
-- `RELEASE_NOT_FOUND`: a release não existe, ou pertence a outra aplicação (`404`).
+- `RELEASE_NOT_FOUND`: a release não foi encontrada (`404`).
 - `PLAN_DOES_NOT_SUPPORT_ROLLBACK`: o seu plano não inclui fazer rollback para releases anteriores (`403`). O rollback começa no Pro.
 - `API_KEY_SCOPE_DENIED`: a chave de API não tem o escopo `apps:write`, ou não tem `apps:envs` enquanto `restore_environment` é `true` (`403`).
 - `RELEASE_ALREADY_ACTIVE`: a release já é a que a aplicação roda, ou tem o mesmo código e `restore_environment` não mudaria nada (`409`).
 - `RELEASE_EXPIRED`: o código desta release não é mais mantido, porque expirou ou é mais antigo do que o número de releases que o seu plano mantém (`410`).
 - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida na mesma aplicação já está em execução (`409`). Nada foi alterado; aguarde alguns segundos e tente de novo.
-- `RESTORE_COOLDOWN`: o rollback anterior desta aplicação foi há menos de 30 segundos (`429`). Aguarde e tente de novo.
+- `RESTORE_COOLDOWN`: o rollback anterior desta aplicação foi há menos de 30 segundos (`429`). `details.retry_after` diz quantos segundos esperar, e o header `Retry-After` traz o mesmo número.
 - `DEPLOY_RATE_LIMITED`: o limite horário de rollbacks da conta foi atingido (`429`). `details` traz `limit`, `window_seconds` e `retry_after`. Aguarde e tente de novo.
 </ResponseField>
 
@@ -173,7 +173,10 @@ Códigos de erro possíveis:
 
 ```json Error Response (429)
 {
-  "code": "RESTORE_COOLDOWN"
+  "code": "RESTORE_COOLDOWN",
+  "details": {
+    "retry_after": 18
+  }
 }
 ```
 </ResponseExample>

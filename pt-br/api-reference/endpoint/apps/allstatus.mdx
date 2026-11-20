@@ -38,6 +38,10 @@ description: Retorna o status de todas as aplicações do usuário autenticado o
     Presente e `true` enquanto as dependências estão sendo instaladas ou a aplicação está sendo recriada. Durante esse período, `running` pode ser `false` mesmo com trabalho em andamento.
   </ResponseField>
 
+  <ResponseField name="restore_job_id" type="string | null">
+    Preenchido enquanto um restore da aplicação está na fila ou rodando, e `null` nos demais casos. Acompanhe em [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`). Enquanto estiver preenchido, o status não traz `installing`.
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -50,13 +54,15 @@ description: Retorna o status de todas as aplicações do usuário autenticado o
       "id": "app-abc123def456",
       "cpu": "25.50%",
       "ram": "512.00 MB",
-      "running": true
+      "running": true,
+      "restore_job_id": null
     },
     {
       "id": "app-xyz789mno012",
       "cpu": "0.00%",
       "ram": "0.00 MB",
-      "running": false
+      "running": false,
+      "restore_job_id": "550e8400-e29b-41d4-a716-446655440002"
     }
   ]
 }
@@ -70,8 +76,8 @@ description: Retorna o status de todas as aplicações do usuário autenticado o
   O código de erro que indica o motivo da falha. Valores possíveis:
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões, ou não tem o escopo que a rota exige (`403`).
-  - `WORKSPACE_NOT_FOUND`: o workspace especificado não existe.
-  - `USER_NOT_IN_WORKSPACE`: o usuário não é membro do workspace especificado.
+  - `WORKSPACE_NOT_FOUND`: O workspace em `workspace_id` não foi encontrado (`404`).
+  - `WORKSPACE_PERMISSION_DENIED`: Você é membro do workspace, mas seu papel não tem `apps:read` (`403`).
 </ResponseField>
 
 <ResponseField name="message" type="string">
@@ -94,7 +100,7 @@ description: Retorna o status de todas as aplicações do usuário autenticado o
 
 ```json Error Response (403)
 {
-  "code": "USER_NOT_IN_WORKSPACE"
+  "code": "WORKSPACE_PERMISSION_DENIED"
 }
 ```
 

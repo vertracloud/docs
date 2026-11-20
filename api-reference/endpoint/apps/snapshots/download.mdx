@@ -29,7 +29,7 @@ curl -o snapshot.zip \
   "https://api.vertracloud.app/v1/users/{id}/snapshots/{snapshot_id}/download?scope=applications"
 ```
 
-Requires the `snapshots:read` scope.
+Requires the `snapshots:read` scope. To download a whole application, take a [snapshot](/api-reference/endpoint/apps/snapshots/create) first (it needs `snapshots:write`) and, if it answers `202`, follow the job on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) until it is `ready`: the job brings the `snapshot_id` to download here. The file is named `snapshot-<name>-<id>.zip`. An account without an active plan can still download the snapshots it already has.
 
 ### Error Responses
 
@@ -38,10 +38,10 @@ Requires the `snapshots:read` scope.
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: The `Authorization` header is missing, the API key is invalid, or the dashboard session was revoked (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: The API key is used from an IP outside its allowlist, or it lacks the scope the route requires (`403`).
   - `USER_NOT_FOUND`: The authenticated user was not found.
-  - `ACCESS_DENIED`: The snapshot does not belong to the authenticated user.
+  - `ACCESS_DENIED`: You are a workspace member without the permission for this action (`403`).
   - `TEMPLATE_CLOSED`: The snapshot belongs to an application from a [closed template](/templates/use/closed-templates) and cannot be downloaded (`403`).
   - `SNAPSHOT_TYPE_MISMATCH`: The snapshot's resource type does not match the requested `scope` (`400`).
-  - `SNAPSHOT_NOT_FOUND`: The specified snapshot does not exist.
+  - `SNAPSHOT_NOT_FOUND`: The specified snapshot was not found (`404`).
   - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
 </ResponseField>
 

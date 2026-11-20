@@ -16,6 +16,8 @@ Every error uses the same envelope, described in the [API introduction](/api-ref
 }
 ```
 
+Whenever `details.retry_after` is present, the answer also sends the `Retry-After` header with the same number of seconds.
+
 `message` is for humans and can change; never branch your code on it. For deploy and runtime problems that don't come from the API itself (crash loops, missing dependencies, OOMKilled), see [Common Errors](/common-errors) — this page only covers the stable `code` values the API answers with.
 
 <Note>
@@ -36,7 +38,7 @@ Every error uses the same envelope, described in the [API introduction](/api-ref
 | 403 | `API_KEY_MANAGED` | The key was created by the platform for a stack. It cannot be edited; it is revoked together with the stack. |
 | 403 | `API_KEY_SCOPE_DENIED` | The key is missing the scope the route requires (`details.required`), or the route is dashboard-session only. See [Scopes](/api-reference/introduction#scopes). |
 | 403 | `WEBSITE_ONLY` | The route only accepts a dashboard session. API keys normally get `API_KEY_SCOPE_DENIED` first on these routes; `WEBSITE_ONLY` is the second check behind it. No scope unlocks the action — use the dashboard. |
-| 403 | `ACCESS_DENIED` | The resource exists but your account can't act on it. Confirm you own the resource or have the right workspace permission. |
+| 403 | `ACCESS_DENIED` | You are a workspace member without the permission the action needs, or you did not send the `workspace_id`. A resource that was not found answers `404`, for example `APP_NOT_FOUND`. |
 | 403 | `ACCOUNT_BANNED` | The account was banned. Contact support. |
 | 403 | `APP_BANNED` | The application was banned. Contact support. |
 | 403 | `DATABASE_BANNED` | The database was banned. Contact support. |
@@ -101,13 +103,13 @@ Every error uses the same envelope, described in the [API introduction](/api-ref
 | 400 | `INVALID_VERSION` | The runtime version doesn't exist for the application's language. Use `recommended`, `latest` or a version listed by [List Runtimes](/api-reference/endpoint/apps/runtimes). |
 | 409 | `APP_BUILDING` | The application is still building after creation. Start, stop, restart, file deploys, rollback, snapshots, restores and configuration changes wait for the build to end (`up` or `down`); deleting is allowed. Poll [Application Details](/api-reference/endpoint/apps/get) and retry. |
 | 409 | `CONTAINER_ALREADY_RUNNING` | Start was requested on an application that's already running. |
-| 409 | `OPERATION_IN_PROGRESS` | Another lifecycle operation on the same resource is already running. This is contention, not a failure — wait a few seconds and retry. |
+| 409 | `OPERATION_IN_PROGRESS` | Another lifecycle operation on the same resource is already running. This is contention, not a failure — wait a few seconds and retry. While an application is being snapshotted, deploys, rollbacks, restarts, starts, stops, environment variable changes, restores and the file manager's writes answer it too. |
 | 400 | `NO_FIELDS_TO_UPDATE` / `NO_CHANGES_PROVIDED` | The update body has nothing to change. |
 | 409 | `STORAGE_ABOVE_NEW_LIMIT` | A config change was refused because the volume already holds more than the new disk ceiling; `details` carries the numbers. |
 | 400 | `SOURCE_REQUIRED` / `SOURCE_CONFLICT` | Application creation needs exactly one source (`file` XOR `snapshot_id`); one is missing or both were sent. |
 | 400 | `INVALID_ZIP` / `INVALID_ZIP_STRUCTURE` | The ZIP is unreadable, or its files are wrapped in an extra top-level folder — files must sit at the ZIP root. A damaged ZIP is also refused when restoring a snapshot or a release, before anything changes. |
 | 413 | `ARCHIVE_TOO_LARGE` / `ARCHIVE_TOO_MANY_ENTRIES` | The ZIP holds more content than fits once decompressed, or more files than allowed. Send a smaller project. |
-| 413 | `DOWNLOAD_TOO_LARGE` | The project has more than 300 MB of files and can't be downloaded directly as a ZIP. Create a [snapshot](/api-reference/endpoint/apps/snapshots/create) and download the snapshot, which has no size limit. |
+| 413 | `DOWNLOAD_TOO_LARGE` | Saving the application as a template: the project is too large. |
 | 400 | `ZIP_TOO_SMALL` | The uploaded ZIP is too small to be a real project. |
 | 400 | `ZIP_TOO_LARGE` | The uploaded ZIP exceeds the 100 MB limit. |
 | 400 | `MAIN_FILE_NOT_FOUND` | The scanner couldn't find an entry point in the uploaded project. |
@@ -150,7 +152,7 @@ When a build or install fails, `GET /v1/apps/{id}` returns the code in `last_bui
 | 500 | `DEPLOY_FAILED` | The GitHub-triggered deploy failed while fetching or applying the commit. Check the Activity tab. |
 | 409 | `REPO_ALREADY_LINKED` | That repository is already linked to another application. Unlink it first. |
 | 404 | `INSTALLATION_NOT_FOUND` | The GitHub App installation for this account/repository wasn't found. Reconnect GitHub. When creating a Docker image from GitHub, it also means the repository is private or doesn't exist (or the branch doesn't) and isn't in your installations; public repositories outside them are built once with no link. |
-| 413 | `FILE_TOO_LARGE` | A single file from the repository exceeds the size the GitHub file endpoint allows. |
+| 413 | `FILE_TOO_LARGE` | A single file from the repository exceeds the size the GitHub file endpoint allows; or, in the file manager, the file is above the 10 MiB it reads or saves (`details.max_bytes`). Larger files go through upload; the whole project goes through a snapshot download. |
 | 502 | `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while the repository was fetched or checked. Try again in a few minutes. When creating or rebuilding an image, it is also `404` when GitHub did not return the repository archive, for example because the branch no longer exists. |
 | 400 / 403 | `FORBIDDEN_PATH` | The requested repository path is outside what the app is allowed to read (400 as a generic rejection, 403 when it's specifically a forbidden path). |
 
@@ -175,9 +177,9 @@ When a build or install fails, `GET /v1/apps/{id}` returns the code in `last_bui
 | Status | Code | Meaning & fix |
 |---|---|---|
 | 403 | `BLOB_PREFIX_DENIED` | The API key is restricted to a Blob folder and the operation is outside it, or it is an account-level operation (rules, domains, statistics). Use a key without the restriction. |
-| 404 | `BLOB_OBJECT_NOT_FOUND` | No object with that ID in this account (or it belongs to another account). Check the ID. |
+| 404 | `BLOB_OBJECT_NOT_FOUND` | No object with that ID was found. Check the ID. |
 | 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Another object already has that `path`. Send `overwrite: true` to replace it, or choose another path. |
-| 404 | `BLOB_UPLOAD_NOT_FOUND` | The upload doesn't exist, belongs to another account, or was already completed or aborted. Start a new upload. |
+| 404 | `BLOB_UPLOAD_NOT_FOUND` | The upload was not found, or was already completed or aborted. Start a new upload. |
 | 410 | `BLOB_UPLOAD_EXPIRED` | The upload's time limit has passed. Start a new upload. |
 | 409 | `BLOB_UPLOAD_INCOMPLETE` | At `complete`, parts are missing or the stored size differs from the declared `size`. Upload the missing parts (see `uploaded_parts`) and retry. |
 | 409 | `BLOB_UPLOAD_LIMIT` | The account has more uploads in progress than its plan allows. Complete or abort some, then retry. |
@@ -197,7 +199,7 @@ When a build or install fails, `GET /v1/apps/{id}` returns the code in `last_bui
 | 409 | `BLOB_RULE_LIMIT` | The account has more folder rules than its plan allows (5, 10 or 20). Delete a rule first. |
 | 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | The plan includes custom domains and the account already has as many as it allows. Below Pro the answer is `PLAN_RESTRICTED_FEATURE` instead. |
 | 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | The hostname is already in use. |
-| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | The domain doesn't exist or belongs to another account. |
+| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | The domain was not found. |
 
 Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDED` (with `retry_after`, also used for the one-upload-per-second limit below Business), `API_KEY_SCOPE_DENIED`, `WORKSPACE_PERMISSION_DENIED` and `INVALID_CUSTOM_DOMAIN_FORMAT`.
 
@@ -233,11 +235,12 @@ Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDE
 |---|---|---|
 | 404 | `DATABASE_NOT_FOUND` | No database with that ID (or not owned by this account/workspace). |
 | 409 | `DATABASE_NOT_RUNNING` | The database must be started for this operation (e.g. a manual snapshot); Redis has no such requirement. |
+| 503 | `DATABASE_NOT_READY` | The database is not ready yet (for example, right after it started). Try again shortly. |
 | 500 | `DATABASE_PERSISTENCE_FAILED` | The database was created but couldn't be read back. Retry, or contact support. |
 | 403 | `MAX_DATABASES_REACHED` | The plan's database count limit was reached. |
 | 404 | `CERTIFICATE_NOT_FOUND` | No TLS certificate available for this database yet. |
-| 429 | `FORCED_SNAPSHOT_RATE_LIMIT` | Too many safety snapshots (before a reset or a stack or image delete) in a short time; nothing was changed. |
-| 500 | `SNAPSHOT_FAILED` | The safety snapshot before a reset (or before deleting a stack or an image) failed; nothing was changed. Contact support. |
+| 422 | `SNAPSHOT_FAILED` | A manual snapshot of a database could not export its data (for example, a database with no data yet). Nothing was saved; add data or check the database, then try again. |
+| 500 | `SNAPSHOT_FAILED` | A snapshot could not be taken. Try again; if it keeps happening, contact support. |
 
 ## Environment variables
 
@@ -257,11 +260,14 @@ Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDE
 | 400 | `SNAPSHOT_ENGINE_MISMATCH` | The snapshot's database engine doesn't match the target database. |
 | 400 | `TYPE_MISMATCH` | Can't restore a snapshot onto a resource of a different type. |
 | 400 | `SNAPSHOT_VERSION_NEWER` | The snapshot was taken on a newer major version than the database being created or restored; nothing was changed. |
-| 400 | `SNAPSHOT_TOO_LARGE` | The snapshot exceeds the size the target plan/resource allows. |
-| 413 | `SNAPSHOT_TOO_LARGE` | Creating the snapshot (manual, daily or safety) was refused because the snapshot file would exceed 4 GB. |
-| 500 | `SNAPSHOT_IMPORT_FAILED` | The restore failed while loading data; the database is left running and empty, and the snapshot stays available to retry. |
-| 429 | `SNAPSHOT_RATE_LIMITED` | Manual snapshot creation hit its per-resource budget (1 every 5 minutes), the per-resource daily budget (5 a day) or the account's daily budget, which depends on the plan. `details.scope` is `resource` (with `retry_after`), `resource_daily` or `account` (both with `limit`, `retry_after` and `resets_at`, the moment the day's budget resets, in ISO 8601). |
-| 429 | `RESTORE_COOLDOWN` | A restore or rollback was requested too soon after a previous one on the same resource. |
+| 400 | `SNAPSHOT_EXCEEDS_STORAGE` | The snapshot's content does not fit in the target's storage, on a restore or when creating an application or database from a snapshot. `details` has `required_bytes` and `available_bytes`; for a database also `required_ram_mb`, the smallest memory size that fits it. |
+| 413 | `SNAPSHOT_TOO_LARGE` | Creating the snapshot was refused because the content is above the size a snapshot of this resource can hold (`details.max_bytes`). |
+| 409 | `RESTORE_IN_PROGRESS` | A restore is running on the resource. Writes to it, including the database's Data tab, wait for it to finish; reading and deleting it are allowed. |
+| 422 | `SNAPSHOT_CORRUPTED` | The snapshot does not match what was recorded when it was taken, so it cannot be restored. Nothing was changed; use another snapshot. |
+| 500 | `SNAPSHOT_IMPORT_FAILED` | The restore failed while loading data into a database; it keeps the data it had before (a database just created from the snapshot stays empty), and the snapshot stays available to retry. |
+| 504 | `SNAPSHOT_TIMEOUT` | The snapshot or restore took too long and was cancelled. Try again. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | Manual snapshot creation hit a limit: one snapshot per resource every 3 minutes, or the account's quota for any 24 hours (8 per GB of the plan's RAM, at least 2). `details.scope` is `resource` or `account`, with `retry_after`; `account` also has `resets_at`, the moment a slot frees up, in ISO 8601. |
+| 429 | `RESTORE_COOLDOWN` | A restore or rollback was requested too soon after a previous one on the same resource (60 seconds for an application; for a database, 60 seconds for the user who asks and 120 seconds per database). It also applies when creating an application or a database from a snapshot. `details.retry_after` says how many seconds to wait. |
 
 ## Custom Docker images
 
@@ -269,7 +275,7 @@ Reused codes: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDE
 |---|---|---|
 | 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | The plan does not include custom Docker images. They are available on the Pro, Business and Enterprise plans. |
 | 403 | `MAX_IMAGES_REACHED` | The plan's image limit was reached (2 on Pro, 6 on Business, 20 on Enterprise); images in any state count. Delete one. |
-| 404 | `IMAGE_NOT_FOUND` | The image does not exist or you cannot access it. |
+| 404 | `IMAGE_NOT_FOUND` | The image was not found. |
 | 404 | `IMAGE_VERSION_NOT_FOUND` | The image has no version with that ID. |
 | 400 | `DOCKERFILE_NOT_FOUND` | There is no file named exactly `Dockerfile` at the root of the build context. |
 | 400 | `DOCKERFILE_REFUSED` | The `Dockerfile` has a refused instruction (`# syntax=` other than the official frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh` or `--mount=type=secret`). `details` lists the findings; see [Check Dockerfile](/api-reference/endpoint/images/check). |
@@ -293,7 +299,7 @@ See [Custom Docker images](/guides/custom-docker-images).
 
 | Status | Code | Meaning & fix |
 |---|---|---|
-| 404 | `TEMPLATE_NOT_FOUND` | The template does not exist, was removed, or is not visible to you. |
+| 404 | `TEMPLATE_NOT_FOUND` | The template was not found or was removed. |
 | 404 | `TEMPLATE_VERSION_NOT_FOUND` | The template has no version with that number or ID. |
 | 409 | `TEMPLATE_SLUG_TAKEN` | Another template of yours already uses the slug. Choose another. |
 | 400 | `TEMPLATE_MANIFEST_INVALID` | The manifest is not valid. `details.issues` lists each problem. |
@@ -314,7 +320,7 @@ See [Custom Docker images](/guides/custom-docker-images).
 | 403 | `MANAGED_ENV_READONLY` | The variable is injected by the template and cannot be read or changed. |
 | 409 | `TEMPLATE_DEPLOY_IN_PROGRESS` | Another template deploy or update of the account is running. Wait for it to end. |
 | — | `TEMPLATE_DEPLOY_FAILED` | The deploy failed and everything it created was undone. `details.step` is the step that failed. |
-| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | The deploy job does not exist or belongs to another account. |
+| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | The deploy job was not found. |
 | 409 | `IDEMPOTENCY_KEY_CONFLICT` | The `Idempotency-Key` was already used with a different request. Use a new key. |
 | 409 | `TEMPLATE_UPDATE_BLOCKED` | The update cannot go ahead. `details` gives the reason (for example, the application is still building or there is no newer version). |
 | 409 | `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | The change detaches the application from its template, so it stops receiving versions. Repeat the request with `confirm_detach` set to confirm. `details.action` names the change. |
@@ -330,7 +336,7 @@ Deploying a template is asynchronous; failures arrive in the deploy job and its 
 
 | Status | Code | Meaning & fix |
 |---|---|---|
-| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 404 | `STACK_NOT_FOUND` | The stack was not found. |
 | 409 | `STACK_MEMBER_CONFLICT` | The resource is already in another stack, or is not in the same account or workspace as the stack. |
 | 404 | `STACK_MEMBER_NOT_FOUND` | The resource is not a member of the stack. |
 | 404 | `STACK_BINDING_NOT_FOUND` | The stack has no connection with that ID. |
@@ -339,6 +345,7 @@ Deploying a template is asynchronous; failures arrive in the deploy job and its 
 | 400 | `STACK_NAME_MISMATCH` | `confirm_name` is not the stack name. |
 | 400 | `STACK_TRANSFORM_EMPTY` | The folder has no application, or no database, to put in a stack. |
 | 409 | `STACK_BLOB_PREFIX_TAKEN` | The Blob folder is already used by a stack, or has files. Choose another prefix. |
+| 409 | `STACK_RESTORE_MEMBER_FAILED` | A member before this one failed while restoring a stack snapshot, so this member was not restored. It shows as the `reason` of the job; the failed member's job has the real cause. See [Restore Stack Snapshot](/api-reference/endpoint/stacks/snapshots/restore). |
 
 Changes that can alter variables or certificates return `restart_required` and `apps_to_restart`: see [Create Stack](/api-reference/endpoint/stacks/create).
 
@@ -346,14 +353,14 @@ Changes that can alter variables or certificates return `restart_required` and `
 
 | Status | Code | Meaning & fix |
 |---|---|---|
-| 404 | `WORKSPACE_NOT_FOUND` | No workspace with that ID, or you're not a member. |
+| 404 | `WORKSPACE_NOT_FOUND` | The workspace was not found. |
 | 400 | `WORKSPACE_NAME_ALREADY_EXISTS` | You already have a workspace with that name. |
 | 400 | `WORKSPACE_MEMBER_LIMIT_REACHED` | The workspace's plan-based member cap was reached; `details.limit`. |
 | 400 | `WORKSPACE_ROLE_LIMIT_REACHED` | The workspace's plan-based role cap was reached; `details.limit`. |
 | 404 | `WORKSPACE_ROLE_NOT_FOUND` | No role with that ID in this workspace. |
 | 400 | `WORKSPACE_ROLE_NAME_ALREADY_EXISTS` | Another role in the workspace already has that name (case-insensitive). |
 | 400 | `WORKSPACE_ROLE_IN_USE` | Can't delete a role that still has members or a pending invite assigned to it. |
-| 403 | `WORKSPACE_PERMISSION_DENIED` | You're not a member, your membership expired, or your role lacks the required permission. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | You're a member, but your role lacks the required permission. |
 | 403 | `WORKSPACE_PERMISSION_ESCALATION` | You tried to grant/edit a permission you don't hold yourself, or edit your own role/membership. |
 | 403 | `WORKSPACE_OWNER_ONLY` | Only the workspace owner can perform this action. |
 | 404 | `WORKSPACE_INVITE_NOT_FOUND` | The invite token is invalid, was revoked, accepted already, or exhausted its uses. |
@@ -368,7 +375,6 @@ Changes that can alter variables or certificates return `restart_required` and `
 | 409 | `WORKSPACE_ACTION_REQUEST_PENDING` | A pending request for the same action and resource already exists. |
 | 410 | `WORKSPACE_ACTION_REQUEST_EXPIRED` | The action request expired before anyone decided on it. Open a new one. |
 | 409 | `WORKSPACE_ACTION_REQUEST_ALREADY_DECIDED` | The action request was already approved or rejected. |
-| 400 | `WORKSPACE_INVITES_DISABLED` | The invited account turned off workspace invites by email in its settings. Ask them to turn invites back on, or share an invite link instead. |
 | 409 | `WORKSPACE_ALREADY_MEMBER` | You are already a member of this workspace. |
 | 404 | `WORKSPACE_RESOURCE_FOLDER_NOT_FOUND` | No resource folder with that ID. |
 | 409 | `WORKSPACE_RESOURCE_FOLDER_NAME_CONFLICT` | Another folder at the same level already has that name. |
@@ -381,9 +387,8 @@ Changes that can alter variables or certificates return `restart_required` and `
 | 429 | `RATE_LIMIT_EXCEEDED` | A per-route or per-minute budget was hit. `details` (when per-account) carries `scope`, `limit`, `used`, `retry_after`. |
 | 429 | `DAILY_QUOTA_EXCEEDED` | The account's daily API request quota for its plan was reached; resets at midnight America/Fortaleza. |
 | 429 | `DEPLOY_RATE_LIMITED` | The account's hourly deploy budget or its own hourly rollback budget was reached. |
-| 429 | `SNAPSHOT_RATE_LIMITED` | Manual snapshot creation budget was reached. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | A manual snapshot limit was reached: the resource or the account's quota. |
 | 429 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | Subdomain change budget was reached. |
-| 429 | `FORCED_SNAPSHOT_RATE_LIMIT` | Forced pre-operation snapshot budget was reached. |
 | 429 | `RESTORE_COOLDOWN` | Restore or rollback cooldown hasn't elapsed. |
 
 See [rate limits](/api-reference/introduction#how-is-the-api-rate-limited) for the full breakdown of budgets per plan.

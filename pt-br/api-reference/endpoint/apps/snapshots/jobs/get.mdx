@@ -1,0 +1,109 @@
+---
+title: Obter job de snapshot
+sidebarTitle: Obter job de snapshot
+api: GET https://api.vertracloud.app/v1/users/{id}/snapshots/jobs/{job_id}
+authMethod: bearer
+description: Lê um job de snapshot ou de restauração de uma aplicação ou banco de dados. Consulte-o até terminar. Exige o escopo snapshots:read.
+---
+
+{/* @see APISnapshotJob — @vertracloud/api-types */}
+Use esta rota para acompanhar uma [restauração](/pt-br/api-reference/endpoint/apps/snapshots/restore) (`response.job_id`) ou um snapshot manual
+que respondeu `202` (`response.job_id`). Consulte-a a cada poucos segundos até o `status` ser `ready`, `skipped` ou `failed`.
+O formato do job é o descrito em [Listar jobs de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/list).
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação ou do banco de dados a que o job pertence. Em uma restauração, é o recurso que está sendo restaurado.
+</ParamField>
+
+<ParamField path="job_id" type="string" required>
+  O ID do job.
+</ParamField>
+
+<ParamField query="scope" type="string">
+  Opcional. O tipo de recurso: `applications` ou `databases`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o recurso pertence a um workspace, o ID do workspace.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="object">
+  O job: `id`, `kind`, `resource_id`, `origin` (só nos jobs de snapshot), `status`, `reason` (quando `failed` ou `skipped`), `details` (os detalhes desse erro, quando houver), `snapshot_id` (o snapshot que um job `snapshot` produziu, sempre presente quando está `ready`; em um job `restore`, o snapshot que está sendo restaurado), `created_at`, `started_at`, `finished_at` e, enquanto está `running`, `progress`.
+</ResponseField>
+
+<ResponseField name="response.progress" type="object">
+  Só enquanto o job está `running`, e pode faltar (por exemplo logo depois de começar, ou quando o progresso não é conhecido). Não vem em nenhum outro status.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="phase" type="string">
+    `preparing`, `copying` ou `finishing`.
+  </ResponseField>
+
+  <ResponseField name="percent" type="number">
+    Progresso geral, de 0 a 100. Ausente quando o tamanho total não é conhecido.
+  </ResponseField>
+
+  <ResponseField name="done_bytes" type="number">
+    Bytes já processados.
+  </ResponseField>
+
+  <ResponseField name="total_bytes" type="number">
+    Total de bytes a processar.
+  </ResponseField>
+
+  <ResponseField name="eta_seconds" type="number">
+    Estimativa de segundos restantes. Ausente até a estimativa ficar estável.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "kind": "restore",
+    "resource_id": "550e8400-e29b-41d4-a716-446655440001",
+    "status": "failed",
+    "reason": "SNAPSHOT_EXCEEDS_STORAGE",
+    "details": {
+      "required_bytes": 734003200,
+      "available_bytes": 524288000
+    },
+    "snapshot_id": "550e8400-e29b-41d4-a716-446655440000",
+    "created_at": "2026-11-17T15:00:00.000Z",
+    "started_at": "2026-11-17T15:00:04.000Z",
+    "finished_at": "2026-11-17T15:00:06.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+Esta rota permite 120 requisições por minuto.
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo `snapshots:read` (`403`).
+  - `ACCESS_DENIED`: você é membro de um workspace sem a permissão para esta ação, ou não enviou o `workspace_id` (`403`).
+  - `SNAPSHOT_NOT_FOUND`: o job não foi encontrado (`404`).
+  - `INTERNAL_SERVER_ERROR`: ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "SNAPSHOT_NOT_FOUND"
+}
+```
+
+</ResponseExample>

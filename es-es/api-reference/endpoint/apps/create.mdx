@@ -16,9 +16,10 @@ La aplicación tiene **dos orígenes mutuamente excluyentes**: envía exactament
 </ParamField>
 
 <ParamField body="snapshot_id" type="string">
-  Origen alternativo a `file`: el ID de un snapshot de **aplicación** desde el que crear la aplicación. La
-  plataforma descarga el snapshot (que ya incluye el `vertracloud.config`) y construye la aplicación a partir de él.
-  Se envía como campo de texto del cuerpo multipart; tiene el mismo límite de tamaño que `file` (100 MB).
+  Origen alternativo a `file`: el ID de un snapshot de **aplicación** desde el que crear la aplicación. El
+  snapshot ya incluye el `vertracloud.config`. Se envía como campo de texto del cuerpo multipart. Sirve un snapshot de cualquier
+  tamaño, siempre que su contenido quepa en el almacenamiento de la nueva aplicación: el límite de 100 MB de `file` no se aplica.
+  Consulta la respuesta más abajo para ver cómo se ejecuta la restauración.
 </ParamField>
 
 <ParamField body="memory" type="string">
@@ -85,7 +86,12 @@ La aplicación tiene **dos orígenes mutuamente excluyentes**: envía exactament
 
 ### Respuesta
 
-La creación es asíncrona: la respuesta es `202 Accepted` con la aplicación en `status: "building"`. Después, consulta los
+Con `snapshot_id`, la respuesta es **`202`** con la aplicación y un `restore_job_id`: la aplicación se crea primero
+y sus archivos vuelven del snapshot en segundo plano. Sigue el job en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get)
+(con el ID de la nueva aplicación) hasta que esté `ready`; la aplicación arranca cuando termina la restauración. Si la restauración falla, una aplicación creada a partir de
+un snapshot de código se **elimina**, y una que ejecuta una imagen Docker propia se **conserva** tal como está y se vuelve a iniciar; el `reason` del job dice el motivo.
+
+Con `file`, la creación es asíncrona: la respuesta es `202 Accepted` con la aplicación en `status: "building"`. Después, consulta los
 [Detalles de la aplicación](/es-es/api-reference/endpoint/apps/get) o los [logs en tiempo real](/es-es/api-reference/endpoint/apps/realtime)
 hasta que `status` sea `up` o `down`. Mientras esté en `building`, iniciar, detener, reiniciar, los despliegues de archivos,
 el rollback, los snapshots, las restauraciones y los cambios de configuración responden `409 APP_BUILDING`; eliminar la aplicación
@@ -166,6 +172,10 @@ aplicación responden `404`.
 
   <ResponseField name="last_snapshot" type="string | null" format="date-time">
     La fecha y hora del último snapshot de la aplicación.
+  </ResponseField>
+
+  <ResponseField name="restore_job_id" type="string">
+    Solo cuando se crea a partir de `snapshot_id`: el job de restauración que seguir.
   </ResponseField>
 
   <ResponseField name="main_file" type="string">
@@ -305,9 +315,10 @@ aplicación responden `404`.
   - `FILE_TOO_LARGE`: El archivo subido supera el límite de 100 MB (`400`).
   - `SOURCE_REQUIRED`: No se envió ni `file` ni `snapshot_id` (`400`).
   - `SOURCE_CONFLICT`: Se enviaron `file` y `snapshot_id` a la vez (`400`).
-  - `SNAPSHOT_NOT_FOUND`: El `snapshot_id` no existe o no pertenece a quien hace la llamada (`404`).
+  - `SNAPSHOT_NOT_FOUND`: El `snapshot_id` no se encontró (`404`).
   - `SNAPSHOT_TYPE_MISMATCH`: El snapshot es de una base de datos, no de una aplicación (`400`).
-  - `SNAPSHOT_TOO_LARGE`: El snapshot supera el mismo límite de creación de 100 MB que `file` (`400`).
+  - `SNAPSHOT_EXCEEDS_STORAGE`: El contenido del snapshot no cabe en el almacenamiento de la nueva aplicación (`400`). `details` trae `required_bytes` y `available_bytes`.
+  - `RESTORE_COOLDOWN`: Con `snapshot_id`, el usuario pidió otra restauración en menos de 60 segundos (`429`). No se creó nada; espera y reintenta.
   - `MEMORY_REQUIRED`: No se envió `memory` y el `vertracloud.config` del snapshot no tiene un `MEMORY` utilizable (`400`).
   - `PLAN_REQUIRED`: El propietario no tiene un plan activo, así que no se puede crear una aplicación nueva, o se pidió un `subdomain` sin plan (`403`).
   - `PLAN_DOES_NOT_SUPPORT_WEB_PUBLISH`: Se pidió un `subdomain`, pero el plan del propietario no incluye la publicación web (`403`).

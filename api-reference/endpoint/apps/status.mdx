@@ -74,6 +74,10 @@ description: Retrieves the current status and resource usage of an application b
     The application uptime in seconds.
   </ResponseField>
 
+  <ResponseField name="restore_job_id" type="string | null">
+    Set while a restore of the application is queued or running, and `null` otherwise. Follow it on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`). While it is set, the status does not carry `installing`.
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -92,7 +96,8 @@ description: Retrieves the current status and resource usage of an application b
       "total": "569.90KB ↓ 36.41KB ↑",
       "now": "18.78KB ↑ 1.20KB ↓"
     },
-    "uptime": 3600
+    "uptime": 3600,
+    "restore_job_id": null
   }
 }
 ```
@@ -105,8 +110,8 @@ description: Retrieves the current status and resource usage of an application b
   The error code indicating the reason for the failure. Possible values:
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: The `Authorization` header is missing, the API key is invalid, or the dashboard session was revoked (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: The API key is used from an IP outside its allowlist, or it lacks the scope the route requires (`403`).
-  - `ACCESS_DENIED`: The resource belongs to another account, or you lack the workspace permission for it (`403`).
-  - `APP_NOT_FOUND`: The specified application does not exist.
+  - `ACCESS_DENIED`: You are a workspace member without the permission for this action, or you did not send the `workspace_id` (`403`).
+  - `APP_NOT_FOUND`: The specified application was not found.
   - `FORBIDDEN`: The user does not have permission to access the application.
   - `INTERNAL_SERVER_ERROR`: The status could not be read. A stopped application is **not** this case — see the note above.
 </ResponseField>

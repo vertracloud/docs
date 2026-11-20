@@ -1,0 +1,109 @@
+---
+title: Get Snapshot Job
+sidebarTitle: Get Snapshot Job
+api: GET https://api.vertracloud.app/v1/users/{id}/snapshots/jobs/{job_id}
+authMethod: bearer
+description: Reads one snapshot or restore job of an application or database. Poll it until it ends. Requires the snapshots:read scope.
+---
+
+{/* @see APISnapshotJob — @vertracloud/api-types */}
+Use this route to follow a [restore](/api-reference/endpoint/apps/snapshots/restore) (`response.job_id`) or a manual snapshot
+that answered `202` (`response.job_id`). Poll it every few seconds until `status` is `ready`, `skipped` or `failed`.
+The shape of the job is the one described in [List Snapshot Jobs](/api-reference/endpoint/apps/snapshots/jobs/list).
+
+<ParamField path="id" type="string" required>
+  The ID of the application or database the job belongs to. For a restore it is the resource being restored.
+</ParamField>
+
+<ParamField path="job_id" type="string" required>
+  The job ID.
+</ParamField>
+
+<ParamField query="scope" type="string">
+  Optional. The resource type: `applications` or `databases`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  If the resource belongs to a workspace, the workspace's ID.
+</ParamField>
+
+### Response
+
+<ResponseField name="response" type="object">
+  The job: `id`, `kind`, `resource_id`, `origin` (snapshot jobs only), `status`, `reason` (when `failed` or `skipped`), `details` (the details of that error, when it has any), `snapshot_id` (the snapshot a `snapshot` job produced, always set when it is `ready`; on a `restore` job, the snapshot being restored), `created_at`, `started_at`, `finished_at` and, while it is `running`, `progress`.
+</ResponseField>
+
+<ResponseField name="response.progress" type="object">
+  Only while the job is `running`, and it can be missing (for example right after it starts, or when the progress is not known). It is not sent in any other status.
+
+  <Expandable title="Toggle object">
+
+  <ResponseField name="phase" type="string">
+    `preparing`, `copying` or `finishing`.
+  </ResponseField>
+
+  <ResponseField name="percent" type="number">
+    Overall progress, from 0 to 100. Absent when the total size is not known.
+  </ResponseField>
+
+  <ResponseField name="done_bytes" type="number">
+    Bytes processed so far.
+  </ResponseField>
+
+  <ResponseField name="total_bytes" type="number">
+    Total bytes to process.
+  </ResponseField>
+
+  <ResponseField name="eta_seconds" type="number">
+    Estimated seconds left. Absent until the estimate is steady.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "kind": "restore",
+    "resource_id": "550e8400-e29b-41d4-a716-446655440001",
+    "status": "failed",
+    "reason": "SNAPSHOT_EXCEEDS_STORAGE",
+    "details": {
+      "required_bytes": 734003200,
+      "available_bytes": 524288000
+    },
+    "snapshot_id": "550e8400-e29b-41d4-a716-446655440000",
+    "created_at": "2026-11-17T15:00:00.000Z",
+    "started_at": "2026-11-17T15:00:04.000Z",
+    "finished_at": "2026-11-17T15:00:06.000Z"
+  }
+}
+```
+
+</ResponseExample>
+
+This route allows 120 requests per minute.
+
+### Error Responses
+
+<ResponseField name="code" type="string">
+  The error code indicating the reason for failure. Possible values:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: The `Authorization` header is missing, the API key is invalid, or the dashboard session was revoked (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: The API key is used from an IP outside its allowlist, or it lacks the `snapshots:read` scope (`403`).
+  - `ACCESS_DENIED`: You are a workspace member without the permission for this action, or you did not send the `workspace_id` (`403`).
+  - `SNAPSHOT_NOT_FOUND`: The job was not found (`404`).
+  - `INTERNAL_SERVER_ERROR`: An unexpected server error occurred.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (404)
+{
+  "code": "SNAPSHOT_NOT_FOUND"
+}
+```
+
+</ResponseExample>

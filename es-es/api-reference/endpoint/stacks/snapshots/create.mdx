@@ -3,11 +3,11 @@ title: Crear snapshot del stack
 sidebarTitle: Crear snapshot
 api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots
 authMethod: bearer
-description: Toma una snapshot de todos los miembros de un stack que tengan datos, juntos, para poder restaurarlos como grupo.
+description: Inicia una snapshot de todos los miembros de un stack que tengan datos, juntos. Responde 202 con un job por miembro.
 ---
 
-{/* @see RESTPostAPIStackSnapshotResponse, APIStackSnapshot — @vertracloud/api-types */}
-Toma una snapshot de cada aplicación y base de datos del stack y las agrupa. Se aplican las reglas y ventanas de snapshots del plan, igual que en las [snapshots de un recurso individual](/es-es/api-reference/endpoint/apps/snapshots/create). Requiere el scope `stacks:write` cuando se llama con una clave de API.
+{/* @see RESTPostAPIStackSnapshotResponse, APIStackSnapshotAccepted — @vertracloud/api-types */}
+Toma una snapshot de cada aplicación y base de datos del stack y las agrupa. Cada miembro es una snapshot manual común: aparece en la lista de snapshots de su aplicación o base de datos, usa la cuota de snapshots manuales de la cuenta y se conserva 30 días. La snapshot corre en segundo plano y la solicitud responde **`202`** en cuanto se acepta; todavía no se tomó nada. Requiere el scope `stacks:write` cuando se llama con una clave de API.
 
 <ParamField path="stack_id" type="string" required>
   El ID del stack.
@@ -17,14 +17,55 @@ Toma una snapshot de cada aplicación y base de datos del stack y las agrupa. Se
   El workspace al que pertenece el stack, cuando actúas sobre él como propietario del workspace.
 </ParamField>
 
-### Response
+### Respuesta
 
-La snapshot creada, con los mismos campos que un elemento de [Listar snapshots del stack](/es-es/api-reference/endpoint/stacks/snapshots/list), con `reason` igual a `manual`.
+La cuota y las comprobaciones de **todos** los miembros se hacen antes del `202`: si un miembro no puede tener snapshot (sin cuota, plan sin snapshots manuales, restauración o despliegue en curso), la solicitud responde con el error de ese miembro, no se inicia nada y la cuota usada se devuelve. Consulta [Crear snapshot de aplicación](/es-es/api-reference/endpoint/apps/snapshots/create) para esos códigos.
+
+Sigue cada `job_id` en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, donde `{id}` es el `resource_id` del job) hasta que su `status` sea `ready` o `failed`. El `id` de la snapshot del stack aparece en [Listar snapshots del stack](/es-es/api-reference/endpoint/stacks/snapshots/list) como `pending` y pasa a `ready` cuando todos los jobs están `ready`; solo entonces puede restaurarse. Si un miembro falla, la snapshot del stack no se lista, y las snapshots de los miembros que salieron bien siguen en sus listas como snapshots comunes.
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">El ID de la snapshot del stack, el mismo que devuelve la lista.</ResponseField>
+
+  <ResponseField name="jobs" type="array">
+    Un job de snapshot por miembro que tenga datos, bases de datos primero. Cada elemento tiene `resource_id`, `resource_type` (`application` o `database`) y `job_id`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (202)
+{
+  "response": {
+    "id": "550e8400-e29b-41d4-a716-446655440030",
+    "jobs": [
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440010",
+        "resource_type": "database",
+        "job_id": "550e8400-e29b-41d4-a716-446655440020"
+      },
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440011",
+        "resource_type": "application",
+        "job_id": "550e8400-e29b-41d4-a716-446655440021"
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
 
 ### Errores
 
-| Estado | Código | Cuándo |
+| Status | Código | Cuándo |
 |---|---|---|
-| 403 | `PLAN_RESTRICTED_FEATURE` | El plan no incluye snapshots manuales. |
-| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no su propietario. |
-| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 403 | `PLAN_NOT_ALLOWED` | El plan no incluye snapshots manuales. |
+| 403 | `WORKSPACE_OWNER_ONLY` | Eres miembro del workspace, no el propietario. |
+| 404 | `STACK_NOT_FOUND` | El stack no se encontró. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | El stack no tiene aplicación ni base de datos. |
+| 409 | `OPERATION_IN_PROGRESS` | Ya hay una snapshot de este stack en curso. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | Un miembro no tiene cuota de snapshots manuales o tuvo una snapshot hace menos de 3 minutos. |

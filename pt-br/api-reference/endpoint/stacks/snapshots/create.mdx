@@ -3,11 +3,11 @@ title: Criar snapshot da stack
 sidebarTitle: Criar snapshot
 api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots
 authMethod: bearer
-description: Faz um snapshot de todos os membros de uma stack que têm dados, juntos, para que possam ser restaurados como um grupo.
+description: Inicia um snapshot de todos os membros de uma stack que têm dados, juntos. Responde 202 com um job por membro.
 ---
 
-{/* @see RESTPostAPIStackSnapshotResponse, APIStackSnapshot — @vertracloud/api-types */}
-Faz um snapshot de cada app e banco de dados da stack e os agrupa. Valem as regras e as janelas de snapshot do plano, como nos [snapshots de um único recurso](/pt-br/api-reference/endpoint/apps/snapshots/create). Precisa do escopo `stacks:write` quando chamado com uma chave de API.
+{/* @see RESTPostAPIStackSnapshotResponse, APIStackSnapshotAccepted — @vertracloud/api-types */}
+Faz um snapshot de cada app e banco de dados da stack e os agrupa. Cada membro é um snapshot manual comum: aparece na lista de snapshots do app ou do banco, usa a cota de snapshots manuais da conta e fica guardado por 30 dias. O snapshot roda em segundo plano e a requisição responde **`202`** assim que é aceita; nada foi feito ainda. Precisa do escopo `stacks:write` quando chamado com uma chave de API.
 
 <ParamField path="stack_id" type="string" required>
   O ID da stack.
@@ -19,12 +19,53 @@ Faz um snapshot de cada app e banco de dados da stack e os agrupa. Valem as regr
 
 ### Resposta
 
-O snapshot criado, com os mesmos campos de um item de [Listar snapshots da stack](/pt-br/api-reference/endpoint/stacks/snapshots/list), com `reason` igual a `manual`.
+A cota e as conferências de **todos** os membros acontecem antes do `202`: se um membro não pode ter snapshot (sem cota, plano sem snapshots manuais, restore ou deploy em andamento), a requisição responde com o erro dele, nada é iniciado e a cota usada volta. Veja [Criar snapshot de app](/pt-br/api-reference/endpoint/apps/snapshots/create) para esses códigos.
+
+Acompanhe cada `job_id` em [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, em que `{id}` é o `resource_id` do job) até o `status` ser `ready` ou `failed`. O `id` do snapshot da stack aparece em [Listar snapshots da stack](/pt-br/api-reference/endpoint/stacks/snapshots/list) como `pending` e vira `ready` quando todos os jobs estão `ready`; só então pode ser restaurado. Se um membro falha, o snapshot da stack não é listado, e os snapshots dos membros que deram certo continuam nas listas deles como snapshots comuns.
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">O ID do snapshot da stack, o mesmo que a lista devolve.</ResponseField>
+
+  <ResponseField name="jobs" type="array">
+    Um job de snapshot por membro que tem dados, bancos primeiro. Cada item tem `resource_id`, `resource_type` (`application` ou `database`) e `job_id`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (202)
+{
+  "response": {
+    "id": "550e8400-e29b-41d4-a716-446655440030",
+    "jobs": [
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440010",
+        "resource_type": "database",
+        "job_id": "550e8400-e29b-41d4-a716-446655440020"
+      },
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440011",
+        "resource_type": "application",
+        "job_id": "550e8400-e29b-41d4-a716-446655440021"
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
 
 ### Erros
 
 | Status | Código | Quando |
 |---|---|---|
-| 403 | `PLAN_RESTRICTED_FEATURE` | O plano não inclui snapshots manuais. |
+| 403 | `PLAN_NOT_ALLOWED` | O plano não inclui snapshots manuais. |
 | 403 | `WORKSPACE_OWNER_ONLY` | Você é membro do workspace, não o dono. |
-| 404 | `STACK_NOT_FOUND` | A stack não existe ou pertence a outra conta. |
+| 404 | `STACK_NOT_FOUND` | A stack não foi encontrada. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | A stack não tem app nem banco. |
+| 409 | `OPERATION_IN_PROGRESS` | Já há um snapshot desta stack em andamento. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | Um membro não tem mais cota de snapshots manuais, ou teve snapshot há menos de 3 minutos. |

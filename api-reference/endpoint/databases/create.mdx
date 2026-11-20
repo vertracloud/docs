@@ -43,9 +43,11 @@ default; to create it from an existing snapshot, send `snapshot_id`.
 
 <ParamField body="snapshot_id" type="string">
   Creates the database from an existing **database** snapshot. The engine comes from the snapshot
-  `resource_type`, and its volume is restored after provisioning. If restoration fails after the
-  database is created, the new database is deleted instead of leaving an empty database that could be
-  mistaken for the restored copy.
+  `resource_type`. The answer is `202` with the database and a `restore_job_id`: the database is created
+  first and its data comes back from the snapshot in the background, with no limit on the snapshot's size beyond the
+  database's storage. Follow the job on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) (with the new
+  database's ID, `scope=databases`) until it is `ready`. **If the restore fails, the database is kept** as it is, ready to accept
+  connections but empty or with what you have written since; the job's `reason` says why.
 </ParamField>
 
 ### Response
@@ -115,6 +117,10 @@ default; to create it from an existing snapshot, send `snapshot_id`.
     The timestamp of the most recent snapshot, if available.
   </ResponseField>
 
+  <ResponseField name="restore_job_id" type="string">
+    Only when created from `snapshot_id`: the restore job to follow.
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -159,12 +165,13 @@ default; to create it from an existing snapshot, send `snapshot_id`.
     Redis (`400`).
   - `USER_LIMITS_NOT_FOUND`: The owner's limits could not be loaded (`404`).
   - `MEMORY_LIMIT_EXCEEDED`: The requested RAM exceeds the memory remaining on the plan (`400`).
-  - `SNAPSHOT_NOT_FOUND`: The `snapshot_id` does not exist or does not belong to the caller (`404`).
+  - `SNAPSHOT_NOT_FOUND`: The `snapshot_id` was not found (`404`).
   - `SNAPSHOT_TYPE_MISMATCH`: The snapshot is for an application, not a database, or the supplied `type` does not
     match its engine (`400`).
   - `INVALID_DATABASE_VERSION`: `version` is not available for this engine (`400`).
   - `SNAPSHOT_VERSION_NEWER`: `version` is older than the snapshot's major version (`400`).
-  - `SNAPSHOT_TOO_LARGE`: The snapshot exceeds the same size limit as database creation (`400`).
+  - `SNAPSHOT_EXCEEDS_STORAGE`: The snapshot's data does not fit in the storage of the chosen `ram` (`400`). `details` has `required_bytes`, `available_bytes` and `required_ram_mb`, the smallest memory size that fits it.
+  - `RESTORE_COOLDOWN`: With `snapshot_id`, the user asked for another database restore within 60 seconds (`429`). Nothing was created; wait and retry.
   - `DB_CREATION_FAILED`: The platform could not provision the database (`500`).
   - `DATABASE_PERSISTENCE_FAILED`: The database was created but could not be read back (`500`).
   - `INTERNAL_SERVER_ERROR`: An unexpected failure occurred (`500`).

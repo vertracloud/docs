@@ -3,7 +3,7 @@ title: Crear snapshot de la aplicación
 sidebarTitle: Crear snapshot
 api: POST https://api.vertracloud.app/v1/users/{id}/snapshots
 authMethod: bearer
-description: Toma ahora un snapshot del volumen de una aplicación o base de datos. Aparece en la lista y se puede restaurar o descargar como cualquier otro.
+description: Toma ahora un snapshot de una aplicación o base de datos. Responde 201 con el snapshot, o 202 con un job que seguir cuando tarda más de 90 segundos.
 ---
 
 {/* @see success/error — @vertracloud/api-types */}
@@ -16,18 +16,28 @@ description: Toma ahora un snapshot del volumen de una aplicación o base de dat
 </ParamField>
 
 <Note>
-  **Se aplican tres límites a los snapshots manuales, además de las 5 peticiones por minuto de la ruta.** El mismo
-  recurso solo puede tener un snapshot cada **5 minutos** y hasta **5 al día**, y una cuenta puede crear al día una cantidad de
-  snapshots, entre todos sus recursos, que depende del plan (5 en Starter 1 y 2, hasta 64 en Enterprise). El día sigue la
-  hora de Brasilia. Si se supera cualquiera de los límites, la API responde
-  `429 SNAPSHOT_RATE_LIMITED` con `details.scope` (`resource`, `resource_daily` o `account`) y
-  `details.retry_after` en segundos; con `resource_daily` y `account`, `details` incluye también `limit` y `resets_at`, el momento en que se restablece el presupuesto, en ISO 8601. Los snapshots que toma la plataforma por su cuenta (antes de un reset o de eliminar un stack o una imagen) no cuentan. Un snapshot puede tener como máximo 4 GB (el archivo comprimido). Consulta [Límite de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
+  **Se aplican tres límites a los snapshots manuales.** Cada usuario puede pedir uno cada **5 segundos**; el mismo recurso puede
+  tener un snapshot cada **3 minutos**; y la cuenta tiene una cuota en cualquier ventana de **24 horas**, contada desde cada snapshot
+  (la plaza vuelve 24 horas después de usarse, no a medianoche): **8 por GB de RAM del plan, como mínimo 2**, entre todos
+  sus recursos (8 en Starter 1, 16 en Starter 2, 32 a 64 en Pro, 96 a 192 en Business). No hay límite diario por recurso. Volver a pedir
+  en menos de 5 segundos responde el `429 RATE_LIMIT_EXCEEDED` genérico, con `retry_after`. Si se supera el límite del recurso o de la cuenta,
+  la API responde `429 SNAPSHOT_RATE_LIMITED` con `details.scope` (`resource` o `account`) y
+  `details.retry_after` en segundos; con `account`, `details` incluye también `resets_at`, el momento en que vuelve una plaza, en ISO 8601.
+  El backup diario de tu plan no usa la cuota. Consulta [Límite de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api).
 </Note>
+
+Mientras una aplicación recibe un snapshot, los despliegues, rollbacks, reinicios, arranques, paradas, cambios de variables de entorno, restauraciones y las escrituras del gestor de
+archivos responden `409 OPERATION_IN_PROGRESS`; reintenta en unos instantes.
 
 ### Respuesta
 
+El snapshot queda listo en 90 segundos en la mayoría de los casos: la respuesta es **`201`** con el snapshot. Cuando tarda más, la
+respuesta es **`202`** con un `job_id`: no es un error y el snapshot sigue haciéndose. Sigue
+`response.job_id` en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get); el snapshot aparece en la
+[lista](/es-es/api-reference/endpoint/apps/snapshots/getall) cuando está listo. Los clientes deben tratar ambas respuestas.
+
 <ResponseField name="response" type="object">
-  El snapshot que se creó.
+  El snapshot que se creó (`201`).
 
   <Expandable title="Mostrar objeto">
 
@@ -60,6 +70,10 @@ description: Toma ahora un snapshot del volumen de una aplicación o base de dat
     Cuándo se eliminará automáticamente el snapshot.
   </ResponseField>
 
+  <ResponseField name="origin" type="string">
+    Qué hizo el snapshot: `manual` (tú) o `automatic` (el backup diario del plan, o el snapshot que la plataforma hace antes de quitar un recurso, por ejemplo cuando vence el plan). Ausente en snapshots antiguos.
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -74,7 +88,16 @@ description: Toma ahora un snapshot del volumen de una aplicación o base de dat
     "size": 1260,
     "resource_name": "my-bot",
     "created_at": "2026-09-16T15:00:00.000Z",
-    "expires_at": "2026-10-16T15:00:00.000Z"
+    "expires_at": "2026-10-16T15:00:00.000Z",
+    "origin": "manual"
+  }
+}
+```
+
+```json Response (202)
+{
+  "response": {
+    "job_id": "550e8400-e29b-41d4-a716-446655440003"
   }
 }
 ```
@@ -88,14 +111,21 @@ description: Toma ahora un snapshot del volumen de una aplicación o base de dat
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
   - `USER_NOT_FOUND`: No se encontró el usuario autenticado.
-  - `APP_NOT_FOUND`: La aplicación indicada no existe.
-  - `DATABASE_NOT_FOUND`: La base de datos indicada no existe.
-  - `ACCESS_DENIED`: El usuario no es propietario del recurso.
+  - `APP_NOT_FOUND`: La aplicación indicada no se encontró.
+  - `DATABASE_NOT_FOUND`: La base de datos indicada no se encontró.
+  - `ACCESS_DENIED`: Eres miembro de un workspace sin el permiso para esta acción, o no enviaste el `workspace_id` (`403`).
   - `PLAN_NOT_ALLOWED`: El plan de la cuenta no incluye los snapshots manuales (`403`).
   - `DATABASE_NOT_RUNNING`: La base de datos debe estar en ejecución para tomar un snapshot (`409`). Redis no tiene este requisito.
-  - `SNAPSHOT_RATE_LIMITED`: El recurso tiene un snapshot de hace menos de 5 minutos, el recurso ya tuvo 5 snapshots manuales hoy, o la cuenta ya usó el presupuesto diario de snapshots manuales (`429`). Viene con `details.scope` y `details.retry_after`; con `resource_daily` o `account`, también `details.limit` y `details.resets_at`.
-  - `SNAPSHOT_TOO_LARGE`: El archivo del snapshot superaría el límite de 4 GB (`413`).
-  - `OPERATION_IN_PROGRESS`: Otra operación de ciclo de vida sobre el mismo recurso ya está en curso (`409`). No se tomó ningún snapshot; espera unos segundos y vuelve a intentarlo.
+  - `DATABASE_NOT_READY`: La base de datos todavía no está lista (`503`). Reintenta en unos instantes; la plaza de la cuota se devuelve.
+  - `APP_BUILDING`: La aplicación está en build o en deploy (`409`). Reintenta cuando termine.
+  - `RESTORE_IN_PROGRESS`: Hay una restauración en curso en este recurso (`409`).
+  - `RATE_LIMIT_EXCEEDED`: El usuario volvió a pedir en menos de 5 segundos (`429`). Viene con `retry_after`.
+  - `SNAPSHOT_RATE_LIMITED`: El recurso tuvo un snapshot hace menos de 3 minutos, o la cuenta usó la cuota de las últimas 24 horas (`429`). Viene con `details.scope` (`resource` o `account`) y `details.retry_after`; con `account`, también `details.resets_at`.
+  - `SNAPSHOT_TOO_LARGE`: El contenido supera el tamaño que admite un snapshot de este recurso (`413`). `details.max_bytes` trae el límite.
+  - `OPERATION_IN_PROGRESS`: Otra operación sobre el mismo recurso, u otro snapshot tuyo, ya está en curso (`409`). No se hizo ningún snapshot nuevo; la plaza de la cuota se devuelve.
+  - `SNAPSHOT_FAILED`: No se pudo hacer el snapshot. `422` para una base de datos cuyos datos no se pudieron exportar (por ejemplo, una base de datos aún sin datos): no se guardó nada; agrega datos o revisa la base de datos y reintenta. `500` en cualquier otro caso: reintenta; si sigue ocurriendo, contacta con soporte.
+  - `SERVICE_UNAVAILABLE`: El servicio no está disponible temporalmente (`503`). Reintenta en unos instantes.
+  - `SNAPSHOT_TIMEOUT`: El snapshot tardó demasiado y se canceló (`504`).
   - `INTERNAL_SERVER_ERROR`: No se pudo guardar el snapshot, o se produjo un fallo inesperado (`500`). Vuelve a intentarlo más tarde.
 </ResponseField>
 
@@ -118,19 +148,7 @@ description: Toma ahora un snapshot del volumen de una aplicación o base de dat
   "code": "SNAPSHOT_RATE_LIMITED",
   "details": {
     "scope": "resource",
-    "retry_after": 212
-  }
-}
-```
-
-```json Error Response (429, resource_daily)
-{
-  "code": "SNAPSHOT_RATE_LIMITED",
-  "details": {
-    "scope": "resource_daily",
-    "limit": 5,
-    "retry_after": 14520,
-    "resets_at": "2026-12-02T03:00:00.000Z"
+    "retry_after": 112
   }
 }
 ```
@@ -140,7 +158,6 @@ description: Toma ahora un snapshot del volumen de una aplicación o base de dat
   "code": "SNAPSHOT_RATE_LIMITED",
   "details": {
     "scope": "account",
-    "limit": 8,
     "retry_after": 14520,
     "resets_at": "2026-12-02T03:00:00.000Z"
   }

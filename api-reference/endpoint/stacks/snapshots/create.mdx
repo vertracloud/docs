@@ -3,11 +3,11 @@ title: Create Stack Snapshot
 sidebarTitle: Create Snapshot
 api: POST https://api.vertracloud.app/v1/stacks/{stack_id}/snapshots
 authMethod: bearer
-description: Takes a snapshot of every member of a stack that has data, together, so they can be restored as a group.
+description: Starts a snapshot of every member of a stack that has data, together. It answers 202 with one job per member.
 ---
 
-{/* @see RESTPostAPIStackSnapshotResponse, APIStackSnapshot — @vertracloud/api-types */}
-Takes a snapshot of each application and database of the stack and groups them. The plan's snapshot rules and windows apply, as for [snapshots of a single resource](/api-reference/endpoint/apps/snapshots/create). Needs the `stacks:write` scope when called with an API key.
+{/* @see RESTPostAPIStackSnapshotResponse, APIStackSnapshotAccepted — @vertracloud/api-types */}
+Takes a snapshot of each application and database of the stack and groups them. Each member is a regular manual snapshot: it appears in the snapshot list of its application or database, uses the account's manual snapshot quota and is kept for 30 days. The snapshot runs in the background and the request answers **`202`** as soon as it is accepted; nothing is taken yet. Needs the `stacks:write` scope when called with an API key.
 
 <ParamField path="stack_id" type="string" required>
   The stack ID.
@@ -19,12 +19,53 @@ Takes a snapshot of each application and database of the stack and groups them. 
 
 ### Response
 
-The snapshot created, with the same fields as an item of [List Stack Snapshots](/api-reference/endpoint/stacks/snapshots/list), with `reason` set to `manual`.
+The quota and the checks of **every** member are made before the `202`: if one member cannot be snapshotted (no quota, a plan without manual snapshots, a restore or a deploy in progress), the request answers with that member's error, nothing is started and the quota used is given back. See [Create Application Snapshot](/api-reference/endpoint/apps/snapshots/create) for those codes.
+
+Follow each `job_id` on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`, where `{id}` is the job's `resource_id`) until its `status` is `ready` or `failed`. The stack snapshot `id` is listed on [List Stack Snapshots](/api-reference/endpoint/stacks/snapshots/list) as `pending` and becomes `ready` when every job is `ready`; only then can it be restored. If a member fails, the stack snapshot is not listed, and the snapshots of the members that succeeded stay in their lists as regular snapshots.
+
+<ResponseField name="response" type="object">
+  <Expandable title="Toggle object">
+
+  <ResponseField name="id" type="string">The stack snapshot ID, the one the list returns.</ResponseField>
+
+  <ResponseField name="jobs" type="array">
+    One snapshot job per member that has data, databases first. Each item has `resource_id`, `resource_type` (`application` or `database`) and `job_id`.
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response (202)
+{
+  "response": {
+    "id": "550e8400-e29b-41d4-a716-446655440030",
+    "jobs": [
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440010",
+        "resource_type": "database",
+        "job_id": "550e8400-e29b-41d4-a716-446655440020"
+      },
+      {
+        "resource_id": "550e8400-e29b-41d4-a716-446655440011",
+        "resource_type": "application",
+        "job_id": "550e8400-e29b-41d4-a716-446655440021"
+      }
+    ]
+  }
+}
+```
+
+</ResponseExample>
 
 ### Errors
 
 | Status | Code | When |
 |---|---|---|
-| 403 | `PLAN_RESTRICTED_FEATURE` | The plan does not include manual snapshots. |
+| 403 | `PLAN_NOT_ALLOWED` | The plan does not include manual snapshots. |
 | 403 | `WORKSPACE_OWNER_ONLY` | You are a workspace member, not the owner. |
-| 404 | `STACK_NOT_FOUND` | The stack does not exist or belongs to another account. |
+| 404 | `STACK_NOT_FOUND` | The stack was not found. |
+| 404 | `STACK_MEMBER_NOT_FOUND` | The stack has no application or database. |
+| 409 | `OPERATION_IN_PROGRESS` | A snapshot of this stack is already running. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | A member has no manual snapshot quota left, or was snapshotted less than 3 minutes ago. |

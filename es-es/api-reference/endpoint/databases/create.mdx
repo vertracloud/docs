@@ -38,7 +38,11 @@ El cuerpo es **JSON**, no multipart, a diferencia de `POST /v1/apps`. La base de
 </ParamField>
 
 <ParamField body="snapshot_id" type="string">
-  Crea la base de datos a partir de un snapshot **de base de datos** existente. El motor se toma del `resource_type` del snapshot, y su volumen se restaura después del aprovisionamiento. Si la restauración falla después de crear la base de datos, la nueva base de datos se elimina en lugar de dejar una base de datos vacía que podría confundirse con la copia restaurada.
+  Crea la base de datos a partir de un snapshot **de base de datos** existente. El motor se toma del `resource_type` del snapshot. La respuesta es `202` con la base de datos y un `restore_job_id`: la base de datos se crea
+  primero y los datos vuelven del snapshot en segundo plano, sin límite de tamaño del snapshot más allá del almacenamiento de la
+  base de datos. Sigue el job en [Obtener job de snapshot](/es-es/api-reference/endpoint/apps/snapshots/jobs/get) (con el ID de la nueva
+  base de datos, `scope=databases`) hasta que esté `ready`. **Si la restauración falla, la base de datos se conserva** tal como está, lista para aceptar
+  conexiones pero vacía o con lo que hayas escrito desde entonces; el `reason` del job dice el motivo.
 </ParamField>
 
 ### Respuesta
@@ -108,6 +112,10 @@ El cuerpo es **JSON**, no multipart, a diferencia de `POST /v1/apps`. La base de
     La marca de tiempo del snapshot más reciente, si está disponible.
   </ResponseField>
 
+  <ResponseField name="restore_job_id" type="string">
+    Solo cuando se crea a partir de `snapshot_id`: el job de restauración que seguir.
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -150,11 +158,12 @@ El cuerpo es **JSON**, no multipart, a diferencia de `POST /v1/apps`. La base de
   - `INVALID_RAM_LIMIT`: `ram` está por debajo del mínimo para este tipo de base de datos: 1024 MB, o 512 MB para Redis (`400`).
   - `USER_LIMITS_NOT_FOUND`: No se pudieron cargar los límites del propietario (`404`).
   - `MEMORY_LIMIT_EXCEEDED`: La RAM solicitada supera la memoria que queda en el plan (`400`).
-  - `SNAPSHOT_NOT_FOUND`: El `snapshot_id` no existe o no pertenece a quien hace la petición (`404`).
+  - `SNAPSHOT_NOT_FOUND`: El `snapshot_id` no se encontró (`404`).
   - `SNAPSHOT_TYPE_MISMATCH`: El snapshot es de una aplicación, no de una base de datos, o el `type` indicado no coincide con su motor (`400`).
   - `INVALID_DATABASE_VERSION`: `version` no está disponible para este motor (`400`).
   - `SNAPSHOT_VERSION_NEWER`: `version` es anterior a la versión mayor del snapshot (`400`).
-  - `SNAPSHOT_TOO_LARGE`: El snapshot supera el mismo límite de tamaño que la creación de bases de datos (`400`).
+  - `SNAPSHOT_EXCEEDS_STORAGE`: Los datos del snapshot no caben en el almacenamiento del `ram` elegido (`400`). `details` trae `required_bytes`, `available_bytes` y `required_ram_mb`, el menor tamaño de memoria que los admite.
+  - `RESTORE_COOLDOWN`: Con `snapshot_id`, el usuario pidió otra restauración de base de datos en menos de 60 segundos (`429`). No se creó nada; espera y reintenta.
   - `DB_CREATION_FAILED`: La plataforma no pudo aprovisionar la base de datos (`500`).
   - `DATABASE_PERSISTENCE_FAILED`: La base de datos se creó, pero no pudo leerse después (`500`).
   - `INTERNAL_SERVER_ERROR`: Se produjo un fallo inesperado (`500`).

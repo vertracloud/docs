@@ -66,12 +66,12 @@ description: Retorna o conteúdo de um arquivo específico de uma aplicação pe
   O código de erro que indica o motivo da falha. Valores possíveis:
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o cabeçalho `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API está sendo usada a partir de um IP fora da sua lista de permissões, ou não tem o escopo que a rota exige (`403`).
-  - `FORBIDDEN` / `ACCESS_DENIED`: o usuário não tem permissão para acessar a aplicação.
-  - `APP_NOT_FOUND`: a aplicação especificada não existe.
+  - `FORBIDDEN` / `ACCESS_DENIED`: você é membro de um workspace sem a permissão para esta ação, ou não enviou o `workspace_id` (`403`).
+  - `APP_NOT_FOUND`: a aplicação especificada não foi encontrada.
   - `PLAN_RESTRICTED_FEATURE`: o plano do usuário não oferece suporte ao acesso ao gerenciador de arquivos.
   - `MISSING_PATH`: o parâmetro de query `path` não foi informado.
   - `FILE_NOT_FOUND`: o arquivo solicitado não existe.
-  - `FILE_TOO_LARGE`: o arquivo ultrapassa o limite de 10 MB para obtenção de conteúdo.
+  - `FILE_TOO_LARGE`: o arquivo passa dos 10 MiB que o gerenciador de arquivos lê (`413`). `details.max_bytes` traz o limite. Para o projeto inteiro, faça um [snapshot](/pt-br/api-reference/endpoint/apps/snapshots/create) e [baixe-o](/pt-br/api-reference/endpoint/apps/snapshots/download).
   - `FILE_CONTENT_ERROR`: falha ao obter o conteúdo do arquivo.
 </ResponseField>
 
@@ -93,10 +93,12 @@ description: Retorna o conteúdo de um arquivo específico de uma aplicação pe
 }
 ```
 
-```json Error Response (400)
+```json Error Response (413)
 {
   "code": "FILE_TOO_LARGE",
-  "message": "File exceeds the 10 MB limit for content retrieval"
+  "details": {
+    "max_bytes": 10485760
+  }
 }
 ```
 

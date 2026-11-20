@@ -38,6 +38,10 @@ description: Retrieves the status of all databases owned by the authenticated us
     Indicates whether the database container is running.
   </ResponseField>
 
+  <ResponseField name="restore_job_id" type="string | null">
+    Set while a restore of the database is queued or running, and `null` otherwise. Follow it on [Get Snapshot Job](/api-reference/endpoint/apps/snapshots/jobs/get) (`GET /v1/users/{id}/snapshots/jobs/{job_id}`).
+  </ResponseField>
+
   </Expandable>
 </ResponseField>
 
@@ -51,14 +55,16 @@ description: Retrieves the status of all databases owned by the authenticated us
       "cpu": "0.00%",
       "ram": "0.00 MB",
       "storage": "0.00 MB",
-      "running": false
+      "running": false,
+      "restore_job_id": "550e8400-e29b-41d4-a716-446655440002"
     },
     {
       "id": "00000000000000000000000000000002",
       "cpu": "1.25%",
       "ram": "128.50 MB",
       "storage": "256.00 MB",
-      "running": true
+      "running": true,
+      "restore_job_id": null
     }
   ]
 }
@@ -72,8 +78,8 @@ description: Retrieves the status of all databases owned by the authenticated us
   The error code indicating the reason for failure. Possible values:
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: The `Authorization` header is missing, the API key is invalid, or the dashboard session was revoked (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: The API key is used from an IP outside its allowlist, or it lacks the scope the route requires (`403`).
-  - `WORKSPACE_NOT_FOUND`: The specified workspace does not exist.
-  - `USER_NOT_IN_WORKSPACE`: The user is not a member of the specified workspace.
+  - `WORKSPACE_NOT_FOUND`: The workspace in `workspace_id` was not found (`404`).
+  - `WORKSPACE_PERMISSION_DENIED`: You're a member of the workspace, but your role lacks `databases:read` (`403`).
 </ResponseField>
 
 <ResponseField name="message" type="string">
@@ -96,7 +102,7 @@ description: Retrieves the status of all databases owned by the authenticated us
 
 ```json Error Response (403)
 {
-  "code": "USER_NOT_IN_WORKSPACE"
+  "code": "WORKSPACE_PERMISSION_DENIED"
 }
 ```
 

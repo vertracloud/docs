@@ -18,6 +18,8 @@ y `details` (cuando está presente) contiene los números que necesitas para act
 }
 ```
 
+Siempre que `details.retry_after` está presente, la respuesta también envía la cabecera `Retry-After` con el mismo número de segundos.
+
 `message` es para personas y puede cambiar; nunca decidas nada en tu código a partir de él. Para los problemas de despliegue
 y de ejecución que no vienen de la propia API (bucles de caída, dependencias que faltan, OOMKilled), consulta
 [Errores comunes](/es-es/common-errors); esta página solo cubre los valores `code` estables con los que responde la API.
@@ -39,7 +41,7 @@ y de ejecución que no vienen de la propia API (bucles de caída, dependencias q
 | 403 | `API_KEY_MANAGED` | La plataforma creó la clave para un stack. No puede editarse; se revoca junto con el stack. |
 | 403 | `API_KEY_SCOPE_DENIED` | A la clave le falta el scope que requiere la ruta (`details.required`), o la ruta es solo con sesión del panel. Ver [Scopes](/es-es/api-reference/introduction#scopes). |
 | 403 | `WEBSITE_ONLY` | La ruta solo acepta una sesión del panel. Las claves de API suelen recibir primero `API_KEY_SCOPE_DENIED` en estas rutas; `WEBSITE_ONLY` es la segunda comprobación que viene después. Ningún scope desbloquea la acción: usa el panel. |
-| 403 | `ACCESS_DENIED` | El recurso existe, pero tu cuenta no puede actuar sobre él. Confirma que eres el propietario del recurso o que tienes el permiso correcto del workspace. |
+| 403 | `ACCESS_DENIED` | Eres miembro de un workspace sin el permiso que exige la acción, o no enviaste el `workspace_id`. Un recurso que no se encontró responde `404`, por ejemplo `APP_NOT_FOUND`. |
 | 403 | `ACCOUNT_BANNED` | La cuenta fue bloqueada. Contacta con soporte. |
 | 403 | `APP_BANNED` | La aplicación fue bloqueada. Contacta con soporte. |
 | 403 | `DATABASE_BANNED` | La base de datos fue bloqueada. Contacta con soporte. |
@@ -104,13 +106,13 @@ y de ejecución que no vienen de la propia API (bucles de caída, dependencias q
 | 400 | `INVALID_VERSION` | La versión del runtime no existe para el lenguaje de la aplicación. Usa `recommended`, `latest` o una versión listada en [Listar runtimes](/es-es/api-reference/endpoint/apps/runtimes). |
 | 409 | `APP_BUILDING` | La aplicación todavía está haciendo el build tras su creación. Iniciar, detener, reiniciar, desplegar archivos, hacer rollback, crear o restaurar snapshots y cambiar la configuración esperan a que el build termine (`up` o `down`); eliminar sí está permitido. Consulta de forma repetida [Detalles de la aplicación](/es-es/api-reference/endpoint/apps/get) y reintenta. |
 | 409 | `CONTAINER_ALREADY_RUNNING` | Se pidió iniciar una aplicación que ya está en marcha. |
-| 409 | `OPERATION_IN_PROGRESS` | Ya hay otra operación de ciclo de vida sobre el mismo recurso en curso. Es contención, no un fallo: espera unos segundos y reintenta. |
+| 409 | `OPERATION_IN_PROGRESS` | Ya hay otra operación de ciclo de vida sobre el mismo recurso en curso. Es contención, no un fallo: espera unos segundos y reintenta. Mientras una aplicación recibe un snapshot, los despliegues, rollbacks, reinicios, arranques, paradas, cambios de variables de entorno, restauraciones y las escrituras del gestor de archivos también responden este código. |
 | 400 | `NO_FIELDS_TO_UPDATE` / `NO_CHANGES_PROVIDED` | El body de la actualización no tiene nada que cambiar. |
 | 409 | `STORAGE_ABOVE_NEW_LIMIT` | Se rechazó un cambio de configuración porque el volumen ya ocupa más que el nuevo techo de disco; `details` incluye los números. |
 | 400 | `SOURCE_REQUIRED` / `SOURCE_CONFLICT` | La creación de una aplicación necesita exactamente un origen (`file` XOR `snapshot_id`); falta uno o se enviaron los dos. |
 | 400 | `INVALID_ZIP` / `INVALID_ZIP_STRUCTURE` | El ZIP no se puede leer, o sus archivos están dentro de una carpeta superior extra: los archivos deben estar en la raíz del ZIP. Un ZIP dañado también se rechaza al restaurar un snapshot o una release, antes de que cambie nada. |
 | 413 | `ARCHIVE_TOO_LARGE` / `ARCHIVE_TOO_MANY_ENTRIES` | El ZIP tiene más contenido del que cabe al descomprimirlo, o más archivos de los permitidos. Envía un proyecto más pequeño. |
-| 413 | `DOWNLOAD_TOO_LARGE` | El proyecto tiene más de 300 MB de archivos y no se puede descargar directamente como ZIP. Crea un [snapshot](/es-es/api-reference/endpoint/apps/snapshots/create) y descarga el snapshot, que no tiene límite de tamaño. |
+| 413 | `DOWNLOAD_TOO_LARGE` | Guardar la aplicación como template: el proyecto es demasiado grande. |
 | 400 | `ZIP_TOO_SMALL` | El ZIP subido es demasiado pequeño para ser un proyecto real. |
 | 400 | `ZIP_TOO_LARGE` | El ZIP subido supera el límite de 100 MB. |
 | 400 | `MAIN_FILE_NOT_FOUND` | El escáner no encontró un punto de entrada en el proyecto subido. |
@@ -153,7 +155,7 @@ Cuando un build o una instalación fallan, `GET /v1/apps/{id}` devuelve el códi
 | 500 | `DEPLOY_FAILED` | El despliegue activado por GitHub falló al obtener o aplicar el commit. Revisa la pestaña Actividad. |
 | 409 | `REPO_ALREADY_LINKED` | Ese repositorio ya está vinculado a otra aplicación. Desvincúlalo primero. |
 | 404 | `INSTALLATION_NOT_FOUND` | No se encontró la instalación de la GitHub App para esta cuenta o repositorio. Vuelve a conectar GitHub. Al crear una imagen de Docker desde GitHub, también significa que el repositorio es privado o no existe (o que la rama no existe) y no está en tus instalaciones; los repositorios públicos fuera de ellas se construyen una vez, sin vínculo. |
-| 413 | `FILE_TOO_LARGE` | Un archivo individual del repositorio supera el tamaño que permite el endpoint de archivos de GitHub. |
+| 413 | `FILE_TOO_LARGE` | Un archivo individual del repositorio supera el tamaño que permite el endpoint de archivos de GitHub; o, en el gestor de archivos, el archivo supera los 10 MiB que lee o guarda (`details.max_bytes`). Los archivos mayores pasan por la subida; el proyecto entero, por la descarga de un snapshot. |
 | 502 | `FETCH_ZIP_ERROR` | No se pudo contactar con GitHub, o estaba limitando las peticiones mientras se obtenía o comprobaba el repositorio. Inténtalo de nuevo en unos minutos. Al crear o reconstruir una imagen, también sale como `404` cuando GitHub no devolvió el archivo del repositorio, por ejemplo porque la rama ya no existe. |
 | 400 / 403 | `FORBIDDEN_PATH` | La ruta del repositorio solicitada está fuera de lo que la aplicación puede leer (400 como rechazo genérico, 403 cuando es específicamente una ruta prohibida). |
 
@@ -178,9 +180,9 @@ Cuando un build o una instalación fallan, `GET /v1/apps/{id}` devuelve el códi
 | Estado | Código | Significado y solución |
 |---|---|---|
 | 403 | `BLOB_PREFIX_DENIED` | La clave de API está restringida a una carpeta de Blob y la operación queda fuera de ella, o es una operación a nivel de cuenta (reglas, dominios, estadísticas). Usa una clave sin esa restricción. |
-| 404 | `BLOB_OBJECT_NOT_FOUND` | No hay ningún objeto con ese ID en esta cuenta (o pertenece a otra cuenta). Revisa el ID. |
+| 404 | `BLOB_OBJECT_NOT_FOUND` | No se encontró ningún objeto con ese ID. Revisa el ID. |
 | 409 | `BLOB_OBJECT_ALREADY_EXISTS` | Otro objeto ya tiene ese `path`. Envía `overwrite: true` para reemplazarlo, o elige otra ruta. |
-| 404 | `BLOB_UPLOAD_NOT_FOUND` | La subida no existe, pertenece a otra cuenta o ya se completó o se canceló. Inicia una nueva subida. |
+| 404 | `BLOB_UPLOAD_NOT_FOUND` | No se encontró la subida o ya se completó o se canceló. Inicia una nueva subida. |
 | 410 | `BLOB_UPLOAD_EXPIRED` | Pasó el tiempo límite de la subida. Inicia una nueva subida. |
 | 409 | `BLOB_UPLOAD_INCOMPLETE` | Al hacer `complete`, faltan partes o el tamaño almacenado no coincide con el `size` declarado. Sube las partes que faltan (ver `uploaded_parts`) y reintenta. |
 | 409 | `BLOB_UPLOAD_LIMIT` | La cuenta tiene más subidas en curso de las que permite su plan. Completa o cancela algunas y reintenta. |
@@ -200,7 +202,7 @@ Cuando un build o una instalación fallan, `GET /v1/apps/{id}` devuelve el códi
 | 409 | `BLOB_RULE_LIMIT` | La cuenta tiene más reglas de carpeta de las que permite su plan (5, 10 o 20). Elimina una regla primero. |
 | 409 | `BLOB_CUSTOM_DOMAIN_LIMIT` | El plan incluye dominios personalizados y la cuenta ya tiene todos los que permite. Por debajo de Pro la respuesta es `PLAN_RESTRICTED_FEATURE`. |
 | 409 | `BLOB_CUSTOM_DOMAIN_TAKEN` | El nombre de host ya está en uso. |
-| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | El dominio no existe o pertenece a otra cuenta. |
+| 404 | `BLOB_CUSTOM_DOMAIN_NOT_FOUND` | El dominio no se encontró. |
 
 Códigos reutilizados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMIT_EXCEEDED` (con `retry_after`; también se usa para el límite de una subida por segundo por debajo de Business), `API_KEY_SCOPE_DENIED`, `WORKSPACE_PERMISSION_DENIED` e `INVALID_CUSTOM_DOMAIN_FORMAT`.
 
@@ -236,11 +238,12 @@ Códigos reutilizados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMI
 |---|---|---|
 | 404 | `DATABASE_NOT_FOUND` | No hay ninguna base de datos con ese ID (o no pertenece a esta cuenta o workspace). |
 | 409 | `DATABASE_NOT_RUNNING` | La base de datos debe estar iniciada para esta operación (por ejemplo, un snapshot manual); Redis no tiene ese requisito. |
+| 503 | `DATABASE_NOT_READY` | La base de datos todavía no está lista (por ejemplo, justo después de iniciar). Reintenta en unos instantes. |
 | 500 | `DATABASE_PERSISTENCE_FAILED` | La base de datos se creó, pero no se pudo volver a leer. Reintenta o contacta con soporte. |
 | 403 | `MAX_DATABASES_REACHED` | Se alcanzó el límite de bases de datos del plan. |
 | 404 | `CERTIFICATE_NOT_FOUND` | Todavía no hay ningún certificado TLS disponible para esta base de datos. |
-| 429 | `FORCED_SNAPSHOT_RATE_LIMIT` | Demasiados snapshots de seguridad (antes de un reset o de eliminar un stack o una imagen) en poco tiempo; no se cambió nada. |
-| 500 | `SNAPSHOT_FAILED` | Falló el snapshot de seguridad previo a un reset (o a eliminar un stack o una imagen); no se cambió nada. Contacta con soporte. |
+| 422 | `SNAPSHOT_FAILED` | El snapshot manual de una base de datos no pudo exportar los datos (por ejemplo, una base de datos aún sin datos). No se guardó nada; agrega datos o revisa la base de datos y reintenta. |
+| 500 | `SNAPSHOT_FAILED` | No se pudo hacer un snapshot. Reintenta; si sigue ocurriendo, contacta con soporte. |
 
 ## Variables de entorno
 
@@ -260,11 +263,14 @@ Códigos reutilizados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMI
 | 400 | `SNAPSHOT_ENGINE_MISMATCH` | El motor de base de datos del snapshot no coincide con el de la base de datos destino. |
 | 400 | `TYPE_MISMATCH` | No se puede restaurar un snapshot sobre un recurso de otro tipo. |
 | 400 | `SNAPSHOT_VERSION_NEWER` | El snapshot se tomó en una versión mayor más nueva que la de la base de datos que se está creando o restaurando; no se cambió nada. |
-| 400 | `SNAPSHOT_TOO_LARGE` | El snapshot supera el tamaño que permiten el plan o el recurso destino. |
-| 413 | `SNAPSHOT_TOO_LARGE` | Se rechazó la creación del snapshot (manual, diario o de seguridad) porque el archivo del snapshot superaría 4 GB. |
-| 500 | `SNAPSHOT_IMPORT_FAILED` | La restauración falló al cargar los datos; la base de datos queda en marcha y vacía, y el snapshot sigue disponible para reintentar. |
-| 429 | `SNAPSHOT_RATE_LIMITED` | La creación manual de snapshots alcanzó el presupuesto por recurso (1 cada 5 minutos), el presupuesto diario por recurso (5 al día) o el presupuesto diario de la cuenta, que depende del plan. `details.scope` es `resource` (con `retry_after`), `resource_daily` o `account` (ambos con `limit`, `retry_after` y `resets_at`, el momento en que se restablece el presupuesto del día, en ISO 8601). |
-| 429 | `RESTORE_COOLDOWN` | Se pidió una restauración o un rollback demasiado pronto después de otro anterior sobre el mismo recurso. |
+| 400 | `SNAPSHOT_EXCEEDS_STORAGE` | El contenido del snapshot no cabe en el almacenamiento del destino, en una restauración o al crear una aplicación o base de datos a partir de un snapshot. `details` trae `required_bytes` y `available_bytes`; en una base de datos, también `required_ram_mb`, el menor tamaño de memoria que lo admite. |
+| 413 | `SNAPSHOT_TOO_LARGE` | Se rechazó la creación del snapshot porque el contenido supera el tamaño que admite un snapshot del recurso (`details.max_bytes`). |
+| 409 | `RESTORE_IN_PROGRESS` | Hay una restauración en curso en el recurso. Las escrituras en él, incluida la pestaña Datos de la base de datos, esperan a que termine; leer y eliminar están permitidos. |
+| 422 | `SNAPSHOT_CORRUPTED` | El snapshot no coincide con lo registrado cuando se hizo, así que no se puede restaurar. No se cambió nada; usa otro snapshot. |
+| 500 | `SNAPSHOT_IMPORT_FAILED` | La restauración falló al cargar los datos en una base de datos; conserva los datos que tenía antes (una base de datos recién creada a partir del snapshot sigue vacía), y el snapshot sigue disponible para reintentar. |
+| 504 | `SNAPSHOT_TIMEOUT` | El snapshot o la restauración tardó demasiado y se canceló. Reintenta. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | La creación manual de snapshots alcanzó un límite: un snapshot por recurso cada 3 minutos, o la cuota de la cuenta en cualquier ventana de 24 horas (8 por GB de RAM del plan, como mínimo 2). `details.scope` es `resource` o `account`, con `retry_after`; `account` también trae `resets_at`, el momento en que vuelve una plaza, en ISO 8601. |
+| 429 | `RESTORE_COOLDOWN` | Se pidió una restauración o un rollback demasiado pronto después de otro anterior sobre el mismo recurso (60 segundos en una aplicación; en una base de datos, 60 segundos para quien pide y 120 segundos por base de datos). También vale al crear una aplicación o una base de datos a partir de un snapshot. `details.retry_after` indica cuántos segundos esperar. |
 
 ## Imágenes de Docker personalizadas
 
@@ -272,7 +278,7 @@ Códigos reutilizados: `VALIDATION_ERROR`, `PLAN_RESTRICTED_FEATURE`, `RATE_LIMI
 |---|---|---|
 | 403 | `PLAN_DOES_NOT_SUPPORT_CUSTOM_IMAGES` | El plan no incluye imágenes de Docker personalizadas. Están disponibles en los planes Pro, Business y Enterprise. |
 | 403 | `MAX_IMAGES_REACHED` | Se alcanzó el límite de imágenes del plan (2 en Pro, 6 en Business, 20 en Enterprise); cuentan las imágenes en cualquier estado. Elimina una. |
-| 404 | `IMAGE_NOT_FOUND` | La imagen no existe o no tienes acceso a ella. |
+| 404 | `IMAGE_NOT_FOUND` | No se encontró la imagen. |
 | 404 | `IMAGE_VERSION_NOT_FOUND` | La imagen no tiene ninguna versión con ese ID. |
 | 400 | `DOCKERFILE_NOT_FOUND` | No hay ningún archivo llamado exactamente `Dockerfile` en la raíz del contexto de build. |
 | 400 | `DOCKERFILE_REFUSED` | El `Dockerfile` tiene una instrucción rechazada (`# syntax=` distinto del frontend oficial, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh` o `--mount=type=secret`). `details` enumera los hallazgos; ver [Comprobar Dockerfile](/es-es/api-reference/endpoint/images/check). |
@@ -296,7 +302,7 @@ Ver [Imágenes de Docker personalizadas](/es-es/guides/custom-docker-images).
 
 | Estado | Código | Significado y solución |
 |---|---|---|
-| 404 | `TEMPLATE_NOT_FOUND` | La plantilla no existe, fue eliminada o no es visible para ti. |
+| 404 | `TEMPLATE_NOT_FOUND` | No se encontró la plantilla o fue eliminada. |
 | 404 | `TEMPLATE_VERSION_NOT_FOUND` | La plantilla no tiene ninguna versión con ese número o ID. |
 | 409 | `TEMPLATE_SLUG_TAKEN` | Otra plantilla tuya ya usa ese slug. Elige otro. |
 | 400 | `TEMPLATE_MANIFEST_INVALID` | El manifiesto no es válido. `details.issues` enumera cada problema. |
@@ -317,7 +323,7 @@ Ver [Imágenes de Docker personalizadas](/es-es/guides/custom-docker-images).
 | 403 | `MANAGED_ENV_READONLY` | La plantilla inyecta la variable y no puede leerse ni cambiarse. |
 | 409 | `TEMPLATE_DEPLOY_IN_PROGRESS` | Hay otro despliegue o una actualización de plantilla de la cuenta en curso. Espera a que termine. |
 | — | `TEMPLATE_DEPLOY_FAILED` | El despliegue falló y se deshizo todo lo que había creado. `details.step` indica el paso que falló. |
-| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | El job de despliegue no existe o pertenece a otra cuenta. |
+| 404 | `TEMPLATE_DEPLOY_NOT_FOUND` | El job de despliegue no se encontró. |
 | 409 | `IDEMPOTENCY_KEY_CONFLICT` | La `Idempotency-Key` ya se usó con una petición distinta. Usa una clave nueva. |
 | 409 | `TEMPLATE_UPDATE_BLOCKED` | La actualización no puede continuar. `details` indica el motivo (por ejemplo, la aplicación todavía está haciendo el build o no hay una versión más nueva). |
 | 409 | `TEMPLATE_DETACH_CONFIRMATION_REQUIRED` | El cambio desvincula la aplicación de su plantilla, así que dejará de recibir versiones. Repite la petición con `confirm_detach` establecido a confirmar. `details.action` indica el cambio. |
@@ -333,7 +339,7 @@ Desplegar una plantilla es asíncrono: los fallos llegan en el job de despliegue
 
 | Estado | Código | Significado y solución |
 |---|---|---|
-| 404 | `STACK_NOT_FOUND` | El stack no existe o pertenece a otra cuenta. |
+| 404 | `STACK_NOT_FOUND` | El stack no se encontró. |
 | 409 | `STACK_MEMBER_CONFLICT` | El recurso ya está en otro stack, o no está en la misma cuenta o workspace que el stack. |
 | 404 | `STACK_MEMBER_NOT_FOUND` | El recurso no es miembro del stack. |
 | 404 | `STACK_BINDING_NOT_FOUND` | El stack no tiene ninguna conexión con ese ID. |
@@ -342,6 +348,7 @@ Desplegar una plantilla es asíncrono: los fallos llegan en el job de despliegue
 | 400 | `STACK_NAME_MISMATCH` | `confirm_name` no es el nombre del stack. |
 | 400 | `STACK_TRANSFORM_EMPTY` | La carpeta no tiene ninguna aplicación ni ninguna base de datos que meter en un stack. |
 | 409 | `STACK_BLOB_PREFIX_TAKEN` | La carpeta de Blob ya la usa un stack, o tiene archivos. Elige otro prefijo. |
+| 409 | `STACK_RESTORE_MEMBER_FAILED` | Un miembro anterior falló al restaurar un snapshot del stack, así que este miembro no se restauró. Aparece como `reason` del job; el job del miembro que falló trae la causa real. Mira [Restaurar snapshot del stack](/es-es/api-reference/endpoint/stacks/snapshots/restore). |
 
 Los cambios que pueden alterar variables o certificados devuelven `restart_required` y `apps_to_restart`: ver [Crear stack](/es-es/api-reference/endpoint/stacks/create).
 
@@ -349,14 +356,14 @@ Los cambios que pueden alterar variables o certificados devuelven `restart_requi
 
 | Estado | Código | Significado y solución |
 |---|---|---|
-| 404 | `WORKSPACE_NOT_FOUND` | No hay ningún workspace con ese ID, o no eres miembro. |
+| 404 | `WORKSPACE_NOT_FOUND` | No se encontró el workspace. |
 | 400 | `WORKSPACE_NAME_ALREADY_EXISTS` | Ya tienes un workspace con ese nombre. |
 | 400 | `WORKSPACE_MEMBER_LIMIT_REACHED` | Se alcanzó el límite de miembros del workspace según el plan; `details.limit`. |
 | 400 | `WORKSPACE_ROLE_LIMIT_REACHED` | Se alcanzó el límite de roles del workspace según el plan; `details.limit`. |
 | 404 | `WORKSPACE_ROLE_NOT_FOUND` | No hay ningún rol con ese ID en este workspace. |
 | 400 | `WORKSPACE_ROLE_NAME_ALREADY_EXISTS` | Otro rol del workspace ya tiene ese nombre (sin distinguir mayúsculas de minúsculas). |
 | 400 | `WORKSPACE_ROLE_IN_USE` | No se puede eliminar un rol que todavía tiene miembros o una invitación pendiente asignada. |
-| 403 | `WORKSPACE_PERMISSION_DENIED` | No eres miembro, tu pertenencia caducó o tu rol no tiene el permiso necesario. |
+| 403 | `WORKSPACE_PERMISSION_DENIED` | Eres miembro, pero tu rol no tiene el permiso necesario. |
 | 403 | `WORKSPACE_PERMISSION_ESCALATION` | Intentaste conceder o editar un permiso que tú mismo no tienes, o editar tu propio rol o pertenencia. |
 | 403 | `WORKSPACE_OWNER_ONLY` | Solo el propietario del workspace puede realizar esta acción. |
 | 404 | `WORKSPACE_INVITE_NOT_FOUND` | El token de invitación no es válido, fue revocado, ya se aceptó o agotó sus usos. |
@@ -371,11 +378,10 @@ Los cambios que pueden alterar variables o certificados devuelven `restart_requi
 | 409 | `WORKSPACE_ACTION_REQUEST_PENDING` | Ya existe una solicitud pendiente para la misma acción y el mismo recurso. |
 | 410 | `WORKSPACE_ACTION_REQUEST_EXPIRED` | La solicitud de acción caducó antes de que alguien decidiera sobre ella. Abre una nueva. |
 | 409 | `WORKSPACE_ACTION_REQUEST_ALREADY_DECIDED` | La solicitud de acción ya fue aprobada o rechazada. |
-| 400 | `WORKSPACE_INVITES_DISABLED` | La cuenta invitada desactivó en sus ajustes las invitaciones a workspaces por email. Pídele que las vuelva a activar, o comparte un enlace de invitación. |
 | 409 | `WORKSPACE_ALREADY_MEMBER` | Ya eres miembro de este workspace. |
 | 404 | `WORKSPACE_RESOURCE_FOLDER_NOT_FOUND` | No hay ninguna carpeta de recursos con ese ID. |
 | 409 | `WORKSPACE_RESOURCE_FOLDER_NAME_CONFLICT` | Otra carpeta del mismo nivel ya tiene ese nombre. |
-| 404 | `WORKSPACE_RESOURCE_NOT_FOUND` | El recurso referenciado en una operación de carpeta o de favorito no existe o no es tuyo. |
+| 404 | `WORKSPACE_RESOURCE_NOT_FOUND` | El recurso referenciado en una operación de carpeta o de favorito no se encontró. |
 
 ## Límites de peticiones y cuotas
 
@@ -384,9 +390,8 @@ Los cambios que pueden alterar variables o certificados devuelven `restart_requi
 | 429 | `RATE_LIMIT_EXCEEDED` | Se alcanzó un presupuesto por ruta o por minuto. `details` (cuando es por cuenta) incluye `scope`, `limit`, `used` y `retry_after`. |
 | 429 | `DAILY_QUOTA_EXCEEDED` | Se alcanzó la cuota diaria de peticiones a la API del plan de la cuenta; se reinicia a medianoche en America/Fortaleza. |
 | 429 | `DEPLOY_RATE_LIMITED` | Se alcanzó el presupuesto horario de despliegues de la cuenta o su propio presupuesto horario de rollbacks. |
-| 429 | `SNAPSHOT_RATE_LIMITED` | Se alcanzó el presupuesto de creación manual de snapshots. |
+| 429 | `SNAPSHOT_RATE_LIMITED` | Se alcanzó un límite de snapshots manuales: del recurso o la cuota de la cuenta. |
 | 429 | `SUBDOMAIN_CHANGE_RATE_LIMITED` | Se alcanzó el presupuesto de cambios de subdominio. |
-| 429 | `FORCED_SNAPSHOT_RATE_LIMIT` | Se alcanzó el presupuesto de snapshots forzados previos a una operación. |
 | 429 | `RESTORE_COOLDOWN` | Todavía no ha transcurrido el enfriamiento de la restauración o del rollback. |
 
 Ver [límites de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api) para el desglose completo de presupuestos por plan.

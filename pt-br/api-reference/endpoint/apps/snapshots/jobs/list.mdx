@@ -1,0 +1,174 @@
+---
+title: Listar jobs de snapshot
+sidebarTitle: Listar jobs de snapshot
+api: GET https://api.vertracloud.app/v1/users/{id}/snapshots/jobs
+authMethod: bearer
+description: Lista os jobs de snapshot e de restauração de uma aplicação ou banco de dados, do mais recente para o mais antigo. Exige o escopo snapshots:read.
+---
+
+{/* @see APISnapshotJob[] — @vertracloud/api-types */}
+Um snapshot ou uma restauração pode demorar mais que uma requisição. Cada um é um **job** que você pode acompanhar: um snapshot manual que
+não termina em 90 segundos responde `202` com um `job_id`, e uma [restauração](/pt-br/api-reference/endpoint/apps/snapshots/restore)
+sempre responde `202` com um. Esta rota lista os jobs de um recurso; [Obter job de snapshot](/pt-br/api-reference/endpoint/apps/snapshots/jobs/get) lê um job só.
+
+<ParamField path="id" type="string" required>
+  O ID da aplicação ou do banco de dados.
+</ParamField>
+
+<ParamField query="scope" type="string" required>
+  O tipo do recurso. Valores possíveis: `applications`, `databases`.
+</ParamField>
+
+<ParamField query="workspace_id" type="string">
+  Se o recurso pertence a um workspace, o ID do workspace.
+</ParamField>
+
+<ParamField query="kind" type="string">
+  Só jobs deste tipo: `snapshot` ou `restore`. Padrão: os dois.
+</ParamField>
+
+<ParamField query="limit" type="number">
+  Número máximo de jobs, de `1` a `50`. Padrão `10`. Um valor fora desse intervalo responde `400 VALIDATION_ERROR`.
+</ParamField>
+
+### Resposta
+
+<ResponseField name="response" type="array">
+  Os jobs, do mais recente para o mais antigo.
+
+  <Expandable title="Mostrar objeto">
+
+  <ResponseField name="id" type="string">
+    O ID do job.
+  </ResponseField>
+
+  <ResponseField name="kind" type="string">
+    `snapshot` ou `restore`.
+  </ResponseField>
+
+  <ResponseField name="resource_id" type="string">
+    O recurso em que o job age: o que está recebendo o backup ou o destino de uma restauração.
+  </ResponseField>
+
+  <ResponseField name="origin" type="string">
+    Só nos jobs de snapshot: o que pediu o snapshot, o mesmo `origin` que ele recebe: `manual` (você) ou `automatic` (o backup diário do plano, ou o snapshot que a plataforma tira antes de remover um recurso, por exemplo quando o plano vence). Ausente nos jobs de restauração.
+  </ResponseField>
+
+  <ResponseField name="status" type="string">
+    `queued` (esperando para começar), `running`, `ready` (concluído), `skipped` (nada foi feito porque o recurso deixou de existir ou, em um banco, está parado) ou `failed`. `ready`, `skipped` e `failed` são finais: o job não muda mais.
+  </ResponseField>
+
+  <ResponseField name="reason" type="string">
+    Presente quando o job está `failed` ou `skipped`: o código de erro que diz o motivo, como `SNAPSHOT_TIMEOUT` ou `SNAPSHOT_CORRUPTED`. Veja os [códigos de erro](/pt-br/api-reference/errors).
+  </ResponseField>
+
+  <ResponseField name="snapshot_id" type="string">
+    Em um job `snapshot`, o snapshot que ele produziu: sempre presente quando o job está `ready`, então dá para ler o snapshot logo depois. Em um job `restore`, o snapshot que está sendo restaurado, presente desde o início.
+  </ResponseField>
+
+  <ResponseField name="details" type="object">
+    Presente junto com `reason` quando o erro traz detalhes: os mesmos `details` que o erro teria em uma resposta direta. `max_bytes` para `SNAPSHOT_TOO_LARGE`; `required_bytes`, `available_bytes` e, em um banco, `required_ram_mb` para `SNAPSHOT_EXCEEDS_STORAGE`.
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string">
+    Quando o job foi criado.
+  </ResponseField>
+
+  <ResponseField name="started_at" type="string">
+    Quando o job começou. Ausente enquanto `queued`.
+  </ResponseField>
+
+  <ResponseField name="finished_at" type="string">
+    Quando o job terminou. Ausente até lá.
+  </ResponseField>
+
+  <ResponseField name="progress" type="object">
+    Só enquanto o job está `running`, e pode faltar (por exemplo logo depois de começar, ou quando o progresso não é conhecido). Não vem em nenhum outro status.
+
+    <Expandable title="Mostrar objeto">
+
+    <ResponseField name="phase" type="string">
+      `preparing`, `copying` ou `finishing`.
+    </ResponseField>
+
+    <ResponseField name="percent" type="number">
+      Progresso geral, de 0 a 100. Ausente quando o tamanho total não é conhecido.
+    </ResponseField>
+
+    <ResponseField name="done_bytes" type="number">
+      Bytes já processados.
+    </ResponseField>
+
+    <ResponseField name="total_bytes" type="number">
+      Total de bytes a processar.
+    </ResponseField>
+
+    <ResponseField name="eta_seconds" type="number">
+      Estimativa de segundos restantes. Ausente até a estimativa ficar estável.
+    </ResponseField>
+
+    </Expandable>
+  </ResponseField>
+
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+
+```json Response
+{
+  "response": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440002",
+      "kind": "restore",
+      "resource_id": "550e8400-e29b-41d4-a716-446655440001",
+      "status": "running",
+      "created_at": "2026-11-17T15:00:00.000Z",
+      "started_at": "2026-11-17T15:00:04.000Z",
+      "progress": {
+        "phase": "copying",
+        "percent": 42,
+        "done_bytes": 314572800,
+        "total_bytes": 734003200,
+        "eta_seconds": 18
+      }
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440003",
+      "kind": "snapshot",
+      "resource_id": "550e8400-e29b-41d4-a716-446655440001",
+      "origin": "automatic",
+      "status": "ready",
+      "snapshot_id": "550e8400-e29b-41d4-a716-446655440000",
+      "created_at": "2026-11-17T14:59:40.000Z",
+      "started_at": "2026-11-17T14:59:41.000Z",
+      "finished_at": "2026-11-17T14:59:58.000Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+Os jobs de um recurso que foi excluído continuam sendo devolvidos à conta que era dona dele. Para um recurso que não existe, a lista volta vazia. Esta rota permite 120 requisições por minuto.
+
+### Respostas de erro
+
+<ResponseField name="code" type="string">
+  O código de erro que indica o motivo da falha. Valores possíveis:
+  - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
+  - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo `snapshots:read` (`403`).
+  - `ACCESS_DENIED`: você é membro de um workspace sem a permissão para esta ação, ou não enviou o `workspace_id` (`403`).
+  - `VALIDATION_ERROR`: `limit` não é um número de 1 a 50, ou `scope` ou `kind` tem um valor que não existe (`400`).
+  - `INTERNAL_SERVER_ERROR`: ocorreu um erro inesperado no servidor.
+</ResponseField>
+
+<ResponseExample>
+
+```json Error Response (403)
+{
+  "code": "ACCESS_DENIED"
+}
+```
+
+</ResponseExample>
