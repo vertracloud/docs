@@ -28,7 +28,7 @@ description: Atualiza a configuração salva de uma aplicação pelo seu ID.
 </ParamField>
 
 <ParamField body="main_file" type="string">
-  O arquivo de entrada da aplicação (por exemplo, `index.js`). Não pode ser vazio.
+  O arquivo de entrada da aplicação (por exemplo, `index.js`). Não pode ser vazio. O arquivo precisa existir nos arquivos da aplicação e não pode ser uma pasta; caso contrário a requisição falha com `MAIN_FILE_NOT_FOUND` e nada é salvo.
 </ParamField>
 
 <ParamField body="language" type="string">
@@ -44,24 +44,23 @@ description: Atualiza a configuração salva de uma aplicação pelo seu ID.
 </ParamField>
 
 <ParamField body="start_command" type="string | null">
-  Um comando de início personalizado (por exemplo, `node index.js`). Máximo de 512 caracteres. Envie `null` para usar o comando padrão da linguagem.
+  Um comando de início personalizado (por exemplo, `node index.js`). Máximo de 512 caracteres, em uma linha. Envie `null` para usar o comando padrão da linguagem.
 </ParamField>
 
 <ParamField body="build_command" type="string | null">
-  Um comando de build opcional (por exemplo, `npm run build`). Máximo de 512 caracteres. Envie `null` para
+  Um comando de build opcional (por exemplo, `npm run build`). Máximo de 512 caracteres, em uma linha. Envie `null` para
   removê-lo. Roda no próximo deploy, após a instalação das dependências e antes de a aplicação
-  iniciar, em um ambiente de build isolado (2× a RAM da aplicação, mínimo 1.024 MB e máximo 4.096 MB;
-  timeout de 10 minutos). Disponível em todos os planos. Um restart simples não
+  iniciar (timeout de 10 minutos). Disponível em todos os planos. Um restart simples não
   roda o build de novo se o anterior teve sucesso com o mesmo comando.
 </ParamField>
 
-<ParamField body="ram" type="integer">
-  A memória alocada para a aplicação, em MB. Deve ser um inteiro de no mínimo `100`. Aplicações publicadas na web (com subdomínio ou domínio personalizado) exigem no mínimo `512`.
+<ParamField body="auto_restart" type="boolean">
+  Define se a aplicação reinicia sozinha depois de uma queda. A mudança vale sem reiniciar a aplicação.
 </ParamField>
 
-<Note>
-  **Mudar a memória muda o teto de disco da aplicação.** A cota do volume é derivada da memória alocada, então reduzir `ram` reduz quanto a aplicação pode armazenar — por isso a redução pode ser recusada com `409 STORAGE_ABOVE_NEW_LIMIT`. Veja [Códigos de erro comuns](/pt-br/api-reference/introduction#quais-códigos-de-erro-a-api-pode-retornar).
-</Note>
+<ParamField body="ram" type="integer">
+  A memória alocada para a aplicação, em MB. Deve ser um inteiro de no mínimo `100`. Aplicações publicadas na web (com subdomínio ou domínio personalizado) exigem no mínimo `512`. Mudar a memória vale na hora, ao subir ou ao baixar. Se a aplicação estiver usando mais memória do que o novo limite naquele momento, ela é encerrada por falta de memória; o painel avisa e pede confirmação antes de salvar.
+</ParamField>
 
 <ParamField body="deploy" type="object">
   Como um novo deploy é aplicado e o que acontece se ele falhar. Envie apenas os subcampos que quer alterar.
@@ -133,7 +132,7 @@ curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
 <ResponseField name="code" type="string">
   O código de erro que indica o motivo da falha. Valores possíveis:
   - `USER_NOT_FOUND`: a requisição não está autenticada (`401`).
-  - `VALIDATION_ERROR`: um campo falhou na validação — tipo errado, acima do limite de tamanho, ou body vazio (`400`). A resposta traz `message` e `path` apontando para o campo com problema.
+  - `VALIDATION_ERROR`: um campo falhou na validação — tipo errado, acima do limite de tamanho, ou body vazio (`400`). A resposta traz `message` e `details.path` apontando para o campo com problema.
   - `APP_NOT_FOUND`: a aplicação informada não foi encontrada (`404`).
   - `ACCESS_DENIED`: você é membro de um workspace sem a permissão para esta ação, ou não enviou o `workspace_id` (`403`).
   - `API_KEY_SCOPE_DENIED`: a chave de API não tem `apps:write`, ou não tem `apps:files` enquanto a requisição troca `start_command`, `build_command` ou `main_file` (`403`).
@@ -141,19 +140,15 @@ curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
   - `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`: `deploy.zero_downtime: "on"` foi enviado e o plano do dono não é o Enterprise (`403`).
   - `APP_SHIELD_COOLDOWN`: a Vertra Shield pausou a aplicação; esta ação fica bloqueada até a pausa terminar (`403`). `details.until` informa quando.
   - `OWNER_APP_WITHOUT_LIMITS`: os limites do plano do dono da aplicação não puderam ser lidos, então a memória pedida não pode ser validada (`404`).
+  - `MAIN_FILE_NOT_FOUND`: `main_file` não existe nos arquivos da aplicação, ou é uma pasta (`400`). Nada foi salvo.
   - `MEMORY_BELOW_MINIMUM`: a memória pedida está abaixo do mínimo para esta aplicação — `512` MB para uma aplicação publicada na web (`400`).
   - `MEMORY_LIMIT_EXCEEDED`: a memória pedida não cabe na memória restante do plano, contando todos os outros recursos do dono (`400`).
-  - `STORAGE_ABOVE_NEW_LIMIT`: o volume já guarda mais do que o teto de disco implicado pela memória pedida (`409`). Nada foi alterado. Veja abaixo.
   - `DEPLOY_RATE_LIMITED`: foi pedida uma mudança de `build_command` e o orçamento horário de deploy da conta para o seu plano já foi atingido (`429`).
   - `INTERNAL_SERVER_ERROR`: a configuração não pôde ser atualizada (`500`).
 </ResponseField>
 
 <ResponseField name="message" type="string">
   Uma mensagem descritiva com detalhes adicionais sobre o erro.
-</ResponseField>
-
-<ResponseField name="details" type="object">
-  Presente em `STORAGE_ABOVE_NEW_LIMIT`. Traz `used_mb`, `limit_mb` e `free_mb` — quanto o volume guarda, o teto que a memória pedida imporia e quanto precisa ser apagado antes de a mudança ser aceita.
 </ResponseField>
 
 <ResponseExample>
@@ -176,19 +171,8 @@ curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
 }
 ```
 
-```json Error Response (409)
-{
-  "code": "STORAGE_ABOVE_NEW_LIMIT",
-  "details": {
-    "used_mb": 2048,
-    "limit_mb": 1024,
-    "free_mb": 1024
-  }
-}
-```
-
 </ResponseExample>
 
 <Note>
-  Esta rota grava configuração; ela não reinicia nem refaz o build do container. Os novos valores passam a valer no próximo rebuild da aplicação. As configurações de `deploy` passam a valer no próximo restart ou deploy.
+  Esta rota grava configuração; ela não reinicia a aplicação. Mudar a memória (subir ou baixar) e mudar o `auto_restart` valem na hora. Mudar o comando de início ou de build vale no próximo reinício; as demais mudanças valem no próximo deploy. As configurações de `deploy` passam a valer no próximo restart ou deploy.
 </Note>

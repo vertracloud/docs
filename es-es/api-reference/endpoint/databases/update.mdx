@@ -25,70 +25,18 @@ description: Actualiza el nombre, la descripción o la RAM de una base de datos 
 </ParamField>
 
 <ParamField body="ram" type="number">
-  La nueva RAM en MB, un entero positivo. Debe caber en la memoria libre del plan y respetar el mínimo del motor (512 MB para Redis, 1024 MB para los demás).
+  La nueva RAM en MB, un entero positivo. Debe caber en la memoria libre del plan y respetar el mínimo del motor (512 MB para Redis, 1024 MB para los demás). Cambiar la memoria se aplica al instante, al subirla o al bajarla. Si la base de datos está usando más memoria que el nuevo límite en ese momento, se cierra por falta de memoria; el panel te avisa y pide confirmación antes de guardar. El almacenamiento de la base de datos sigue a su memoria, así que bajar la memoria de una base de datos que guarda más datos de los que cabe en el nuevo almacenamiento se rechaza con `409` `STORAGE_ABOVE_NEW_LIMIT`.
 </ParamField>
 
 ### Respuesta
 
 <ResponseField name="response" type="object">
-  Los detalles actualizados de la base de datos.
+  La respuesta con el estado de la operación.
 
   <Expandable title="Mostrar objeto">
 
-  <ResponseField name="id" type="string">
-    El ID de la base de datos.
-  </ResponseField>
-
-  <ResponseField name="cluster" type="number">
-    El ID del clúster de la base de datos.
-  </ResponseField>
-
-  <ResponseField name="type" type="number">
-    El tipo de la base de datos.
-  </ResponseField>
-
-  <ResponseField name="name" type="string">
-    El nombre de la base de datos.
-  </ResponseField>
-
-  <ResponseField name="description" type="string">
-    La descripción de la base de datos.
-  </ResponseField>
-
-  <ResponseField name="owner_id" type="string">
-    El ID del propietario de la base de datos.
-  </ResponseField>
-
-  <ResponseField name="owner_plan" type="string | null">
-    El nombre del plan del propietario (por ejemplo, `starter-1` o `pro-4`), o `null` cuando el propietario no tiene plan.
-  </ResponseField>
-
   <ResponseField name="status" type="string">
-    El estado de la base de datos (por ejemplo, `up`).
-  </ResponseField>
-
-  <ResponseField name="ram" type="number">
-    La RAM asignada a la base de datos, en MB.
-  </ResponseField>
-
-  <ResponseField name="host" type="string">
-    La dirección del host de la base de datos.
-  </ResponseField>
-
-  <ResponseField name="port" type="number">
-    El puerto que usa la base de datos.
-  </ResponseField>
-
-  <ResponseField name="last_snapshot" type="string | null" format="date-time">
-    La marca de tiempo del último snapshot, si está disponible.
-  </ResponseField>
-
-  <ResponseField name="created_at" type="string" format="date-time">
-    La marca de tiempo en que se creó la base de datos.
-  </ResponseField>
-
-  <ResponseField name="updated_at" type="string" format="date-time">
-    La marca de tiempo de la última actualización de la base de datos.
+    El estado de la operación (`success`).
   </ResponseField>
 
   </Expandable>
@@ -99,22 +47,7 @@ description: Actualiza el nombre, la descripción o la RAM de una base de datos 
 ```json Response
 {
   "response": {
-    "id": "00000000000000000000000000000001",
-    "cluster": 1,
-    "type": 1,
-    "name": "UpdatedDatabase",
-    "description": "Updated description",
-    "owner_id": "123456789012345678",
-    "owner_plan": "pro",
-    "status": "up",
-    "ram": 256,
-    "host": "database.example.com",
-    "port": 5432,
-    "username": "vertracloud",
-    "version": "18",
-    "last_snapshot": "2026-03-14T19:58:00Z",
-    "created_at": "2026-03-14T19:58:00Z",
-    "updated_at": "2026-03-14T20:00:00Z"
+    "status": "success"
   }
 }
 ```
@@ -131,6 +64,11 @@ description: Actualiza el nombre, la descripción o la RAM de una base de datos 
   - `ACCESS_DENIED`: Eres miembro de un workspace sin el permiso para esta acción, o no enviaste el `workspace_id` (`403`).
   - `DATABASE_NOT_FOUND`: La base de datos no se encontró (`404`).
   - `OPERATION_IN_PROGRESS`: Hay otra operación del ciclo de vida en curso sobre esta base de datos (`409`).
+  - `STORAGE_ABOVE_NEW_LIMIT`: La base de datos guarda más datos de los que permite el almacenamiento de la nueva RAM (`409`). No se cambió nada.
+</ResponseField>
+
+<ResponseField name="details" type="object">
+  Presente en `STORAGE_ABOVE_NEW_LIMIT`. Incluye `used_mb`, `limit_mb` y `free_mb`: cuánto guarda la base de datos, el almacenamiento que permitiría la RAM solicitada y cuánto hay que borrar antes de que se acepte el cambio.
 </ResponseField>
 
 <ResponseExample>
@@ -138,6 +76,17 @@ description: Actualiza el nombre, la descripción o la RAM de una base de datos 
 ```json Error Response (404)
 {
   "code": "DATABASE_NOT_FOUND"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "STORAGE_ABOVE_NEW_LIMIT",
+  "details": {
+    "used_mb": 9216,
+    "limit_mb": 8192,
+    "free_mb": 1024
+  }
 }
 ```
 

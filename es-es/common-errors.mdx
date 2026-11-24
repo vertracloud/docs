@@ -29,14 +29,15 @@ contenedor, subida de archivos y límites del plan.
     - Optimiza el código para reducir el uso de memoria
   </Accordion>
 
-  <Accordion title="Crash loop — reinicio automático desactivado" icon="rotate">
-    **Síntoma:** La aplicación se cayó 5 veces en 10 minutos y el reinicio automático se desactivó durante 24 horas.
+  <Accordion title="Crash loop — reinicio automático pausado" icon="rotate">
+    **Síntoma:** La 6.ª caída en 10 minutos pausó el reinicio automático durante 24 horas.
 
     **Causa:** Un error persistente en el código (token no válido, dependencia ausente, error de sintaxis).
 
     **Solución:**
     - Revisa los logs para identificar el error de origen
     - Corrige el problema y vuelve a desplegar
+    - Si desactivaste el reinicio automático, una caída deja la aplicación detenida: vuelve a activarlo en **Ajustes → General**
     - Los errores de sintaxis y las salidas con código 0 NO activan el reinicio automático: la aplicación simplemente se detiene
   </Accordion>
 
@@ -64,8 +65,8 @@ contenedor, subida de archivos y límites del plan.
     - **Go:** `vendor` | **Rust:** `target` | **.NET:** `bin`, `obj` | **Elixir:** `_build`, `deps` | **Java:** `target`, `.gradle`, `build`
   </Accordion>
 
-  <Accordion title="La instalación de dependencias supera el límite de tiempo (15 minutos)" icon="clock">
-    **Causa:** Instalar las dependencias tarda demasiado (demasiados paquetes, compilación nativa). Error: `INSTALL_TIMEOUT`.
+  <Accordion title="La instalación supera el límite de tiempo (15 minutos por paso, 25 en total)" icon="clock">
+    **Causa:** Instalar las dependencias tarda demasiado (demasiados paquetes, compilación nativa): cada paso tiene un límite de 15 minutos, y la instalación más el build juntos, de 25 minutos. Error: `INSTALL_TIMEOUT`.
 
     **Solución:**
     - Elimina las dependencias innecesarias
@@ -75,12 +76,13 @@ contenedor, subida de archivos y límites del plan.
   <Accordion title="El comando de build falla o supera el límite de tiempo (10 minutos)" icon="hammer">
     **Causa:** El `build_command` (el campo `BUILD` de `vertracloud.config`) terminó con un error
     (`BUILD_FAILED`) o no acabó a tiempo (`BUILD_TIMEOUT`). Se ejecuta después de instalar las dependencias
-    y antes de que la aplicación arranque, en un entorno con 2× la RAM de la aplicación. Una aplicación nueva
-    se sigue creando, detenida, con la salida del build en sus logs.
+    y antes de que la aplicación arranque. Una aplicación nueva
+    se sigue creando, detenida, con la salida del build en sus logs. Si el build se queda sin memoria,
+    `last_build_error` muestra `INSTALL_OUT_OF_MEMORY`.
 
     **Solución:**
     - Ejecuta el comando en local para ver el error real
-    - Simplifica el build o aumenta la memoria de la aplicación (el entorno de build escala con ella)
+    - Simplifica el build o aumenta la memoria de la aplicación
   </Accordion>
 
   <Accordion title="Límite de despliegues por hora alcanzado" icon="hourglass">
@@ -91,6 +93,15 @@ contenedor, subida de archivos y límites del plan.
     **Solución:**
     - Espera el tiempo indicado en `details.retry_after`
     - Reiniciar y detener la aplicación no cuentan para este límite
+  </Accordion>
+
+  <Accordion title="Archivo principal no encontrado" icon="file-circle-question">
+    **Causa:** El archivo principal (`main_file`) no existe en los archivos de la aplicación, o apunta a una carpeta. Error: `MAIN_FILE_NOT_FOUND`. La misma comprobación se aplica al crear una aplicación desde un ZIP, al subir un ZIP a una aplicación existente, al desplegar desde GitHub y al cambiar el archivo principal en los ajustes; cuando falla, no se guarda nada.
+
+    **Solución:**
+    - Revisa la ruta, incluidas mayúsculas y minúsculas y la carpeta en la que está
+    - Si el archivo se genera durante el build, sube el proyecto con el archivo incluido o apunta a un archivo que exista
+    - Borrar o mover el archivo principal en el gestor de archivos también impide que la aplicación arranque; el panel te avisa antes
   </Accordion>
 
   <Accordion title="Estructura de ZIP no válida" icon="folder-tree">
@@ -136,8 +147,8 @@ contenedor, subida de archivos y límites del plan.
     **Causa:** Conexión sin TLS, sin el certificado de cliente o usando el puerto por defecto del motor.
 
     **Solución:**
-    - Descarga los tres archivos de certificado en la pestaña **Certificados** de la base de datos
-    - Pasa el certificado de cliente (`.crt` + `.key`) y usa el `.pem` como CA: todos los motores lo exigen
+    - Descarga los tres archivos de certificado en la pestaña **Conexión** de la base de datos
+    - Pasa el certificado de cliente (`.crt` + `.key`) y usa el `.ca.pem` como CA: todos los motores lo exigen
     - Usa el puerto propio de la base de datos que aparece en su página; no es 5432, 27017, 6379 ni 3306
     - En MongoDB, añade `authSource=admin` a la URI
     - Consulta [¿Cómo me conecto a cada motor?](/es-es/databases#cómo-me-conecto-a-cada-motor)
@@ -234,6 +245,12 @@ contenedor, subida de archivos y límites del plan.
     **Causa:** Los módulos nativos compilados en macOS/Windows no funcionan en el contenedor Linux.
 
     **Solución:** No incluyas `node_modules/` en la subida. La plataforma compila automáticamente los módulos nativos para Linux.
+  </Accordion>
+
+  <Accordion title="Un paquete falla después de que Node.js cambió de línea de versión" icon="rotate">
+    **Causa:** Una versión de Node.js retirada pasa a la recomendada en el próximo reinicio (la consola lo avisa), y un paquete con código nativo puede no ser compatible con la nueva versión.
+
+    **Solución:** Actualiza el paquete a una versión compatible con la nueva, o fija otra versión que siga disponible con `VERSION` en **Ajustes → General**.
   </Accordion>
 </AccordionGroup>
 

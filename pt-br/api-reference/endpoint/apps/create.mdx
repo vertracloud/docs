@@ -27,14 +27,17 @@ A aplicação tem **duas fontes mutuamente exclusivas** — envie exatamente uma
 </ParamField>
 
 <ParamField body="start" type="string">
-  O comando de inicialização da aplicação.
+  O comando de inicialização da aplicação. Precisa ser de uma linha.
 </ParamField>
 
 <ParamField body="build" type="string">
-  Um comando de build opcional, de até 512 caracteres (por exemplo `npm run build`). É executado após a instalação das
-  dependências e antes de a aplicação iniciar, em um ambiente de build isolado — 2× a RAM da aplicação (mínimo de 1.024 MB,
-  máximo de 4.096 MB), com timeout de 10 minutos. As `devDependencies` são instaladas quando um comando de build está
+  Um comando de build opcional, de até 512 caracteres, em uma linha (por exemplo `npm run build`). É executado após a instalação das
+  dependências e antes de a aplicação iniciar, com timeout de 10 minutos. As `devDependencies` são instaladas quando um comando de build está
   definido. Disponível em todos os planos. Veja [Atualizar configuração da aplicação](/pt-br/api-reference/endpoint/apps/updateconfig) para alterá-lo depois.
+</ParamField>
+
+<ParamField body="auto_restart" type="boolean">
+  Opcional, `true` por padrão. Define se a aplicação reinicia sozinha depois de uma queda. Veja [Atualizar configuração da aplicação](/pt-br/api-reference/endpoint/apps/updateconfig). Quando o campo não vem, vale o `AUTORESTART` (`true` ou `false`) do `vertracloud.config`.
 </ParamField>
 
 <ParamField body="main" type="string">
@@ -122,8 +125,8 @@ Com `file`, a criação é assíncrona: a resposta é `202 Accepted` com a aplic
 
   <ResponseField name="last_build_error" type="string | null">
     O código da última falha de build ou de instalação, ou `null` após um build bem-sucedido. Um de `BUILD_FAILED`,
-    `BUILD_TIMEOUT`, `BUILD_INTERRUPTED`, `INSTALL_FAILED`, `INSTALL_OUT_OF_MEMORY`, `INSTALL_TIMEOUT` ou
-    `INSTALL_SHIELD_BLOCKED`. O detalhe está nos logs da aplicação; veja [Erros](/pt-br/api-reference/errors#códigos-de-falha-de-build)
+    `BUILD_TIMEOUT`, `BUILD_INTERRUPTED`, `INSTALL_FAILED`, `INSTALL_OUT_OF_MEMORY`, `INSTALL_TIMEOUT`,
+    `INSTALL_SHIELD_BLOCKED`, `IMAGE_VOLUME_REFUSED`, `IMAGE_LABEL_REFUSED` ou `IMAGE_PULL_FAILED`. O detalhe está nos logs da aplicação; veja [Erros](/pt-br/api-reference/errors#códigos-de-falha-de-build)
     para saber o que fazer com cada código.
   </ResponseField>
 
@@ -292,7 +295,7 @@ Com `file`, a criação é assíncrona: a resposta é `202 Accepted` com a aplic
 
 <ResponseField name="code" type="string">
   O código de erro que indica o motivo da falha. Valores possíveis:
-  - `VALIDATION_ERROR`: o corpo multipart falhou na validação (`400`). A resposta também traz `message` e `path` apontando para o campo com problema.
+  - `VALIDATION_ERROR`: o corpo multipart falhou na validação (`400`). A resposta também traz `message` e `details.path` apontando para o campo com problema.
   - `USER_NOT_FOUND`: não foi possível identificar o usuário autenticado (`401`).
   - `MAX_APPS_REACHED`: foi atingido o limite de aplicações do plano (`403`).
   - `INVALID_ZIP`: o arquivo enviado não é um ZIP legível (truncado ou corrompido) (`400`).
@@ -330,7 +333,7 @@ Com `file`, a criação é assíncrona: a resposta é `202 Accepted` com a aplic
 {
   "code": "VALIDATION_ERROR",
   "message": "Main file is required",
-  "path": "main"
+  "details": { "path": "main" }
 }
 ```
 

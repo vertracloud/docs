@@ -1,7 +1,7 @@
 ---
 title: 'Template Best Practices: Data, Disk, Port, Healthcheck and Secrets'
 sidebarTitle: 'Best practices'
-description: 'Write templates that run in the Vertra Cloud sandbox: data in stack databases, /app as the only disk, uid 1000, the right port, healthcheck, no secrets.'
+description: 'Write templates for the Vertra Cloud sandbox: data in stack databases, /app as the only persistent disk, no root, the right port, healthcheck, no secrets.'
 icon: 'list-check'
 ---
 
@@ -15,7 +15,7 @@ When the software offers a choice, expose it: n8n lets the user pick managed Pos
 
 ## `/app` is the only persistent disk
 
-The root file system is **read-only**. `/app` is the app's working directory and `HOME`, and the only place where files survive a restart, a deploy and a snapshot. Point everything the software writes there with a variable:
+`/app` is the app's working directory and `HOME`, and the only place where files are guaranteed to survive a restart, a deploy and a snapshot. Point everything the software writes there with a variable:
 
 ```yaml
 env:
@@ -23,17 +23,17 @@ env:
   OPENCLAW_HOME: /app
 ```
 
-There is no persistence property in the manifest, and a `VOLUME` instruction in a Dockerfile is ignored. Do not rely on any other path for state: the rest of the file system is read-only.
+There is no persistence property in the manifest, and a `VOLUME` instruction in a Dockerfile is ignored. Do not rely on any other path for state.
 
 `/app/.vertra/` is reserved for the platform (database certificates). Never write there and never ship files there.
 
-## Run as uid 1000
+## Run without root
 
-Processes run as the unprivileged user with uid 1000, with no new privileges and a read-only root. Software that must start as root, change users at boot (`usermod`, `chown` of system paths), use an init system as PID 1 or write to `/opt` or `/var` does not run as it is. Adapt it:
+Processes run as an unprivileged user, with no new privileges. Software that must start as root, change users at boot (`usermod`, `chown` of system paths), use an init system as PID 1 or write to `/opt` or `/var` does not run as it is. Adapt it:
 
 - Use an image or a Dockerfile that starts as a normal user and keeps its data under `/app`.
 - Remove boot steps that need root.
-- Test with a read-only root and uid 1000 before you publish; see [Validate and test](/templates/create/validate-and-test).
+- Test without root before you publish; see [Validate and test](/templates/create/validate-and-test).
 
 ## Set the port
 

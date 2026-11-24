@@ -1,7 +1,7 @@
 ---
 title: 'Boas práticas de template: dados, disco, porta, healthcheck e segredos'
 sidebarTitle: 'Boas práticas'
-description: 'Escreva templates que rodam no sandbox da Vertra Cloud: dados em bancos da stack, /app como único disco, uid 1000, porta certa, healthcheck, sem segredos.'
+description: 'Escreva templates para o sandbox da Vertra Cloud: dados em bancos da stack, /app como único disco persistente, sem root, porta certa e sem segredos.'
 icon: 'list-check'
 ---
 
@@ -15,7 +15,7 @@ Quando o software oferece uma escolha, exponha-a: o n8n deixa o usuário escolhe
 
 ## `/app` é o único disco persistente
 
-O sistema de arquivos raiz é **somente leitura**. `/app` é o diretório de trabalho do app e o `HOME`, e o único lugar onde os arquivos sobrevivem a um restart, a um deploy e a um snapshot. Aponte tudo o que o software grava para lá com uma variável:
+`/app` é o diretório de trabalho do app e o `HOME`, e o único lugar onde os arquivos têm garantia de sobreviver a um restart, a um deploy e a um snapshot. Aponte tudo o que o software grava para lá com uma variável:
 
 ```yaml
 env:
@@ -23,17 +23,17 @@ env:
   OPENCLAW_HOME: /app
 ```
 
-Não existe propriedade de persistência no manifesto, e uma instrução `VOLUME` em um Dockerfile é ignorada. Não dependa de nenhum outro caminho para guardar estado: o resto do sistema de arquivos é somente leitura.
+Não existe propriedade de persistência no manifesto, e uma instrução `VOLUME` em um Dockerfile é ignorada. Não dependa de nenhum outro caminho para guardar estado.
 
 `/app/.vertra/` é reservado para a plataforma (certificados de banco de dados). Nunca grave lá e nunca envie arquivos para lá.
 
-## Rode como uid 1000
+## Rode sem root
 
-Os processos rodam como o usuário sem privilégios de uid 1000, sem novos privilégios e com raiz somente leitura. Um software que precisa iniciar como root, trocar de usuário no boot (`usermod`, `chown` de caminhos do sistema), usar um sistema init como PID 1 ou gravar em `/opt` ou `/var` não roda como está. Adapte-o:
+Os processos rodam como um usuário sem privilégios, sem novos privilégios. Um software que precisa iniciar como root, trocar de usuário no boot (`usermod`, `chown` de caminhos do sistema), usar um sistema init como PID 1 ou gravar em `/opt` ou `/var` não roda como está. Adapte-o:
 
 - Use uma imagem ou um Dockerfile que inicie como usuário comum e mantenha seus dados em `/app`.
 - Remova etapas de boot que precisam de root.
-- Teste com raiz somente leitura e uid 1000 antes de publicar; veja [Validar e testar](/pt-br/templates/create/validate-and-test).
+- Teste sem root antes de publicar; veja [Validar e testar](/pt-br/templates/create/validate-and-test).
 
 ## Defina a porta
 

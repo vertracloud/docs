@@ -12,9 +12,9 @@ internet. Estas duas rotas ligam e desligam a publicação na web a qualquer mom
 aplicação.
 
 <Warning>
-  **As duas rotas recriam o container, então a aplicação reinicia.** A configuração de roteamento e a
-  porta exposta só existem desde a criação do container, então o estado de publicação não pode mudar no lugar.
-  Espere uma indisponibilidade curta em cada chamada.
+  **As duas rotas valem na hora, sem reiniciar a aplicação.** A exceção é uma aplicação criada a partir da
+  [sua própria imagem Docker](/pt-br/guides/custom-docker-images): publicá-la ou despublicá-la reinicia
+  a aplicação.
 </Warning>
 
 <Warning>
@@ -94,7 +94,7 @@ DELETE https://api.vertracloud.app/v1/apps/{id}/network/publish
 ```
 
 Não recebe body. Libera o subdomínio, remove todos os domínios personalizados (os registros de DNS no seu provedor continuam até
-você apagá-los) e transforma a aplicação de volta em uma aplicação privada, depois recria o container. A resposta tem o mesmo formato, com `subdomain`
+você apagá-los) e transforma a aplicação de volta em uma aplicação privada, sem reiniciá-la (uma aplicação criada a partir da sua própria imagem Docker reinicia). A resposta tem o mesmo formato, com `subdomain`
 em `null`, `domains` vazio e `type` de volta para `1`.
 
 ### Piso de memória
@@ -119,7 +119,7 @@ a aplicação tiver menos, a requisição falha com `MEMORY_BELOW_MINIMUM` e os 
   O código de erro que indica o motivo da falha. Valores possíveis:
   - `VALIDATION_ERROR`: o path parameter ou o body falhou na validação (`400`). É o que retorna um
     `subdomain` malformado — de 3 a 50 caracteres, `^[a-z0-9][a-z0-9-]*[a-z0-9]$`. A resposta
-    também traz `message` e `path`.
+    também traz `message` e `details.path`.
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: o header `Authorization` está ausente, a chave de API é inválida ou a sessão do painel foi revogada (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: a chave de API é usada a partir de um IP fora da sua allowlist, ou não tem o escopo que a rota exige (`403`).
   - `USER_NOT_FOUND`: o usuário autenticado não pôde ser identificado (`401`).
@@ -136,8 +136,13 @@ a aplicação tiver menos, a requisição falha com `MEMORY_BELOW_MINIMUM` e os 
     (`400`), com `details: { current_mb, minimum_mb }`.
   - `SUBDOMAIN_FORBIDDEN`: o subdomínio pedido está na lista de nomes reservados da plataforma (`400`).
   - `SUBDOMAIN_TAKEN`: outra aplicação já usa esse subdomínio (`409`).
-  - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida na mesma aplicação está em execução; o
-    container não foi tocado (`409`). Aguarde alguns segundos e tente de novo.
+  - `APP_BUILDING`: a aplicação ainda está sendo criada; aguarde o fim do build (`409`).
+  - `OPERATION_IN_PROGRESS`: outra operação de ciclo de vida na mesma aplicação está em execução; nada foi
+    alterado (`409`). Aguarde alguns segundos e tente de novo. Aplicações criadas a partir da sua própria
+    imagem Docker também podem retornar esse código.
+  - `SERVICE_UNAVAILABLE`: a alteração não pôde ser aplicada agora e a aplicação ficou como estava (`503`).
+    Tente de novo em alguns segundos. No `DELETE`, a aplicação continua publicada no subdomínio, mas os
+    domínios personalizados já removidos precisam ser adicionados de novo.
   - `INTERNAL_SERVER_ERROR`: falha inesperada (`500`).
 </ResponseField>
 
@@ -168,8 +173,8 @@ a aplicação tiver menos, a requisição falha com `MEMORY_BELOW_MINIMUM` e os 
 </ResponseExample>
 
 <Note>
-  **Dois limites se aplicam, e eles são propositalmente rígidos.** Publicar e despublicar recriam o
-  container, então dividem o orçamento de ciclo de vida por aplicação com `start`, `stop`, `restart` e
+  **Dois limites se aplicam, e eles são propositalmente rígidos.** Publicar e despublicar dividem o
+  orçamento de ciclo de vida por aplicação com `start`, `stop`, `restart` e
   instalações de dependências: **10 requisições por minuto para todas elas juntas**, por aplicação — não
   um orçamento por rota. Além disso, uma publicação bem-sucedida inicia um **cooldown de 5 minutos no endereço público
   da aplicação**, compartilhado com a

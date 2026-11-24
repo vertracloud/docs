@@ -29,14 +29,15 @@ limites do plano.
     - Otimize o código para reduzir o uso de memória
   </Accordion>
 
-  <Accordion title="Crash loop — reinício automático desativado" icon="rotate">
-    **Sintoma:** A aplicação caiu 5 vezes em 10 minutos e o reinício automático foi desativado por 24 horas.
+  <Accordion title="Crash loop — reinício automático pausado" icon="rotate">
+    **Sintoma:** A 6ª queda em 10 minutos pausou o reinício automático por 24 horas.
 
     **Causa:** Um erro persistente no código (token inválido, dependência ausente, erro de sintaxe).
 
     **Correção:**
     - Verifique os logs para identificar o erro principal
     - Corrija o problema e faça um novo deploy
+    - Se você desativou o reinício automático, uma queda deixa a aplicação parada: ative-o de novo em **Config → Geral**
     - Erros de sintaxe e saída com código 0 NÃO disparam o reinício automático — a aplicação simplesmente para
   </Accordion>
 
@@ -64,8 +65,8 @@ limites do plano.
     - **Go:** `vendor` | **Rust:** `target` | **.NET:** `bin`, `obj` | **Elixir:** `_build`, `deps` | **Java:** `target`, `.gradle`, `build`
   </Accordion>
 
-  <Accordion title="A instalação de dependências excede o limite de tempo (15 minutos)" icon="clock">
-    **Causa:** Instalar as dependências leva tempo demais (muitos pacotes, compilação nativa). Erro: `INSTALL_TIMEOUT`.
+  <Accordion title="A instalação excede o limite de tempo (15 minutos por etapa, 25 no total)" icon="clock">
+    **Causa:** Instalar as dependências leva tempo demais (muitos pacotes, compilação nativa): cada etapa é limitada a 15 minutos, e a instalação mais o build juntos a 25 minutos. Erro: `INSTALL_TIMEOUT`.
 
     **Correção:**
     - Remova as dependências desnecessárias
@@ -75,12 +76,13 @@ limites do plano.
   <Accordion title="O comando de build falha ou excede o limite de tempo (10 minutos)" icon="hammer">
     **Causa:** O `build_command` (o campo `BUILD` no `vertracloud.config`) terminou com erro
     (`BUILD_FAILED`) ou não terminou a tempo (`BUILD_TIMEOUT`). Ele roda depois da instalação das
-    dependências e antes de a aplicação iniciar, em um ambiente com 2× a RAM da aplicação. Uma
-    aplicação nova continua sendo criada, parada, com a saída do build nos seus logs.
+    dependências e antes de a aplicação iniciar. Uma
+    aplicação nova continua sendo criada, parada, com a saída do build nos seus logs. Se o build ficar sem
+    memória, `last_build_error` mostra `INSTALL_OUT_OF_MEMORY`.
 
     **Correção:**
     - Rode o comando localmente para ver o erro real
-    - Simplifique o build ou aumente a memória da aplicação (o ambiente de build escala com ela)
+    - Simplifique o build ou aumente a memória da aplicação
   </Accordion>
 
   <Accordion title="Limite de deploys por hora atingido" icon="hourglass">
@@ -91,6 +93,15 @@ limites do plano.
     **Correção:**
     - Aguarde o tempo indicado em `details.retry_after`
     - Reiniciar e parar a aplicação não contam para este limite
+  </Accordion>
+
+  <Accordion title="Arquivo principal não encontrado" icon="file-circle-question">
+    **Causa:** O arquivo principal (`main_file`) não existe nos arquivos da aplicação, ou aponta para uma pasta. Erro: `MAIN_FILE_NOT_FOUND`. A mesma conferência vale ao criar uma aplicação por ZIP, ao enviar um ZIP para uma aplicação existente, ao fazer deploy pelo GitHub e ao trocar o arquivo principal nas configurações; quando falha, nada é salvo.
+
+    **Solução:**
+    - Confira o caminho, incluindo maiúsculas e minúsculas e a pasta em que ele está
+    - Se o arquivo é gerado durante o build, envie o projeto com o arquivo incluído ou aponte para um arquivo que exista
+    - Apagar ou mover o arquivo principal no gerenciador de arquivos também impede a aplicação de iniciar; o painel avisa antes
   </Accordion>
 
   <Accordion title="Estrutura de ZIP inválida" icon="folder-tree">
@@ -136,8 +147,8 @@ limites do plano.
     **Causa:** Conexão sem TLS, sem o certificado de cliente ou na porta padrão do motor.
 
     **Correção:**
-    - Baixe os três arquivos de certificado na aba **Certificados** do banco de dados
-    - Informe o certificado de cliente (`.crt` + `.key`) e use o `.pem` como CA — todos os motores exigem isso
+    - Baixe os três arquivos de certificado na aba **Conexão** do banco de dados
+    - Informe o certificado de cliente (`.crt` + `.key`) e use o `.ca.pem` como CA — todos os motores exigem isso
     - Use a porta própria do banco de dados, mostrada na página dele — ela não é 5432, 27017, 6379 nem 3306
     - No MongoDB, adicione `authSource=admin` à URI
     - Veja [Como me conecto a cada motor?](/pt-br/databases#como-me-conecto-a-cada-motor)
@@ -234,6 +245,12 @@ limites do plano.
     **Causa:** Módulos nativos compilados no macOS/Windows não funcionam no container Linux.
 
     **Correção:** Não inclua `node_modules/` no upload. A plataforma compila os módulos nativos para Linux automaticamente.
+  </Accordion>
+
+  <Accordion title="Um pacote falha depois que o Node.js mudou de linha de versão" icon="rotate">
+    **Causa:** Uma versão do Node.js retirada passa para a recomendada no próximo restart (o console avisa), e um pacote com código nativo pode não suportar a nova versão.
+
+    **Correção:** Atualize o pacote para uma versão que suporte a nova, ou fixe outra versão ainda disponível com `VERSION` em **Config → Geral**.
   </Accordion>
 </AccordionGroup>
 

@@ -3,7 +3,7 @@ title: Real-Time Application Logs
 sidebarTitle: Real-Time Application Logs
 api: GET https://api.vertracloud.app/v1/apps/{id}/realtime
 authMethod: bearer
-description: Retrieves real-time logs for an application by its ID, streamed as a text event stream.
+description: Streams the real-time logs of an application as a text event stream, with optional live CPU, memory and network metrics.
 ---
 
 {/* @see SSE stream — @vertracloud/api-types */}
@@ -15,22 +15,76 @@ description: Retrieves real-time logs for an application by its ID, streamed as 
   If the application belongs to a workspace, the workspace's ID. Required for workspace members acting on an application they don't own.
 </ParamField>
 
+<ParamField query="metrics" type="boolean">
+  When `true`, the stream also carries `metrics` events with the live CPU, memory and network reading of the application. Off by default.
+</ParamField>
+
 ### Response
 
 The response is streamed as a text event stream (`text/event-stream`). Each log entry is sent as an event with the following format:
 
-- **Event Type**: `logs` for log messages, `system` for stream and platform notices (e.g., `install_note:started`), `heartbeat` for keep-alive events with no content.
-- **Data**: Plain text (not JSON). A `logs` event carries one or more lines separated by newlines, each an ISO 8601 timestamp followed by the log message.
+- **Event Type**: `logs` for log messages, `next_logs` for the output of the new version while a zero-downtime deploy prepares it, `system` for stream and platform notices (e.g., `install_note:started`), `metrics` for the live reading of the application (only with `metrics=true`), `heartbeat` for keep-alive events with no content.
+- **Data**: Plain text (not JSON), except in `metrics` events, whose data is a JSON object. A `logs` event carries one or more lines separated by newlines, each an ISO 8601 timestamp followed by the log message.
+
+When the connection opens, notices that already happened are sent again before the live stream, each prefixed with the time it happened (`<ISO 8601> <notice>`). Notices that arrive while you are connected have no prefix.
 
 After a deploy, `system` events can also report what happened to the new version. The notice names the releases involved by their ID, as listed in [List Application Releases](/api-reference/endpoint/apps/releases/list):
 
 - `deploy_note:failed:<release_id>`: the new version stopped right after it started. The log of the failure is available on that release.
 - `deploy_note:rollback:<from>:<to>`: the platform went back to the previous version automatically, because the new one stopped within 60 seconds of the deploy. `<from>` is the release that failed and `<to>` is the one that is running again.
-- `deploy_note:discarded:<release_id>`: on the Enterprise plan, the new version did not become healthy and was discarded; the previous version kept running.
+- `deploy_note:discarded:<release_id>:<reason>`: on the Enterprise plan, the new version did not become healthy and was discarded; the previous version kept running. `<reason>` can be absent, and new values may appear:
 
-While dependencies are being installed, the stream carries installation output preceded by the
-`install_note:started` system event.
-The installation runs outside the plan's memory limit and the application starts as soon as it finishes.
+| `<reason>` | Meaning |
+|---|---|
+| `install_oom` | The new version ran out of memory while installing dependencies. |
+| `install_build_oom` | The new version ran out of memory during the build. |
+| `install_failed` | The dependency installation failed. |
+| `install_build_failed` | The build failed. |
+| `install_timeout` | The installation exceeded its time limit. |
+| `install_build_timeout` | The build exceeded its time limit. |
+| `install_shield` | The installation was stopped by the platform's protection. |
+| `crashed` | The new version stopped before it was ready. |
+| `unhealthy` | The new version did not become ready to receive traffic. |
+| `timeout` | The new version did not respond in time. |
+
+During a zero-downtime deploy (Enterprise plan), `next_logs` events carry the output of the new version, installation and build included, while the current version keeps serving and keeps writing to `logs`. The lines have the same format as `logs`. When the new version takes over, its output continues as `logs`.
+
+Installation and build output are part of the same stream, followed by the application's own output. Anything your application prints arrives as `logs`, never as `system`.
+
+Other `system` notices:
+
+| Notice | Meaning |
+|---|---|
+| `install_note:started` | An installation started. |
+| `install_note:done` | The dependency installation finished. |
+| `install_note:build_oom` | The build command ran out of memory and was stopped. Raise the application's memory or reduce what the build processes. |
+| `install_note:timeout:<seconds>` | The installation failed because of a time limit: `900` is a single step, `1500` is the whole installation. Without the number, the limit is not stated. |
+| `run_note:started:<ISO 8601>` | The application process started at that moment. |
+| `run_note:port_not_listening:<port>` | The application started but did not begin listening on the expected port (`<port>`) in time. Check that it listens on that port on all interfaces. |
+| `runtime_note:line_changed:<language>:<from>:<to>:<reason>` | The application started on a different version line than before. `<reason>` is `retired` (the previous line was retired), `unavailable` (it is no longer available) or `requested` (you asked for the change, or the version you follow, such as the recommended one, moved to a new line). |
+| `image_note:pulling:<0-100>` | An application from a custom image is being prepared, with the progress in percent. |
+| `image_note:creating` | The environment is ready and the application is being created. |
+| `image_note:starting` | The application is starting. |
+| `image_note:waiting_port` | The application started and the platform is waiting for it to listen on its port. |
+| `restart_note:auto_restart_disabled` | The application stopped unexpectedly and was not restarted because auto-restart is off. |
+
+### Live metrics
+
+With `metrics=true`, a `metrics` event arrives about every 5 seconds while the application is running and the connection is open. Nothing is sent while the application is stopped. Unlike the other events, its `data` is a JSON object:
+
+| Field | Type | Description |
+|---|---|---|
+| `at` | string | Time of the reading (ISO 8601). |
+| `cpu_percent` | number | CPU in use as a percentage of the CPU of the application's plan, from 0 to 100. |
+| `cpu_cores` | number | CPU in use, in cores (`0.25` is a quarter of one core). |
+| `memory_bytes` | number | Memory in use, in bytes, without the file cache that can be reclaimed. |
+| `memory_limit_bytes` | number or `null` | Memory limit of the application, in bytes; `null` when it has no limit. |
+| `net_rx_bps` | number | Bytes per second received by the application. |
+| `net_tx_bps` | number | Bytes per second sent by the application. |
+| `net_rx_bytes` | number | Bytes received since the application started. |
+| `net_tx_bytes` | number | Bytes sent since the application started. |
+
+The rates (`net_rx_bps`, `net_tx_bps`) are measured between two consecutive readings.
 
 <ResponseExample>
 
@@ -43,6 +97,12 @@ data: 2026-03-20T19:58:01Z [DEBUG] Connected to database
 
 event: logs
 data: 2026-03-20T19:58:02Z [ERROR] Failed to process request
+
+event: next_logs
+data: 2026-03-20T19:58:02Z added 120 packages in 8s
+
+event: metrics
+data: {"at":"2026-03-20T19:58:02Z","cpu_percent":12.5,"cpu_cores":0.125,"memory_bytes":134217728,"memory_limit_bytes":536870912,"net_rx_bps":2048,"net_tx_bps":8192,"net_rx_bytes":10485760,"net_tx_bytes":52428800}
 
 event: system
 data: 2026-03-20T19:58:03Z Connection Closed

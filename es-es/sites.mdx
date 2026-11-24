@@ -62,9 +62,11 @@ subdominio funciona en privado, y puedes activar la publicación más adelante �
 configuración de **Red** de la aplicación, o mediante la API con
 [Publicar aplicación en la web](/es-es/api-reference/endpoint/apps/network/publish).
 
-<Warning>
-  Activar o desactivar la publicación **recrea el contenedor, así que la aplicación se reinicia**. Prevé una breve interrupción.
-</Warning>
+<Note>
+  Activar o desactivar la publicación surte efecto al instante, **sin reiniciar la aplicación**. Una aplicación
+  creada a partir de [tu propia imagen Docker](/es-es/guides/custom-docker-images) es la excepción:
+  publicarla o despublicarla la reinicia.
+</Note>
 
 <Warning>
   Despublicar **libera el subdominio**. No queda reservado para ti: cualquiera puede registrarlo justo después.
@@ -116,10 +118,9 @@ Cada aplicación y cada base de datos se ejecuta en un contenedor aislado, con:
 
 El sistema detecta los contenedores que entran en bucles de reinicio y aplica medidas preventivas:
 
-- **Detección inteligente** — 5 caídas en 10 minutos desactivan el reinicio automático durante 24 horas
+- **Detección inteligente** — la 6.ª caída en 10 minutos pausa el reinicio automático durante 24 horas
 - **Filtro por código de salida** — la terminación normal (código 0) no cuenta
-- **Enfriamiento entre reinicios** — intervalo mínimo de 1 hora entre reinicios automáticos
-- **Tiempo mínimo de actividad** — el contenedor debe estar en línea al menos 60 segundos para considerarse estable
+- **Espera creciente entre reinicios** — de inmediato, y después 10 s, 30 s, 60 s y 2 min
 
 ### SSL/TLS automático
 
@@ -210,6 +211,7 @@ conexión durante más de 30 días se eliminan automáticamente, con un snapshot
 | Tamaño máximo de subida de ZIP | 100 MB |
 | Subdominio | Único por aplicación |
 | Dominios personalizados | De 1 a 20 por aplicación, según el plan (el `www` automático no cuenta) |
-| Tiempo máximo de instalación de dependencias | 15 minutos |
+| Tiempo máximo de instalación de dependencias | 15 minutos por paso |
 | Tiempo máximo de `build_command` | 10 minutos |
+| Tiempo máximo de instalación y build juntos | 25 minutos |
 | Puertos expuestos | Puerto 80, más hasta 5 a través de dominios personalizados |

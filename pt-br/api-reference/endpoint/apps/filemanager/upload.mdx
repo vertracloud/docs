@@ -31,6 +31,8 @@ Quando a aplicação roda uma imagem Docker personalizada, o envio é um commit 
   Um ZIP é **extraído sobre** a pasta de destino (`path`, ou a raiz da aplicação): os arquivos que ele contém sobrescrevem os caminhos correspondentes, mas os arquivos já no disco que não estão no ZIP são mantidos — é uma mesclagem, não uma substituição. Diretórios proibidos (`node_modules`, `.git`, `.local` e similares) são removidos do ZIP no servidor antes da extração, independentemente do que o arquivo contenha.
 
   O envio multipart é limitado a 100 MB; um ZIP também é limitado a 512 MB descompactado.
+
+  Depois do envio, o arquivo principal da aplicação precisa existir: o ZIP o traz (considerando a pasta de destino) ou a aplicação já o tem. Caso contrário nada é salvo e a requisição falha com `MAIN_FILE_NOT_FOUND`.
 </ParamField>
 
 <ParamField body="message" type="string">
@@ -92,6 +94,7 @@ Quando a aplicação roda uma imagem Docker personalizada, o envio é um commit 
   - `APP_NOT_FOUND`: a aplicação especificada não foi encontrada.
   - `NO_FILE_UPLOADED`: nenhum arquivo foi enviado na requisição (`400`).
   - `INVALID_ZIP_STRUCTURE`: o zip não pôde ser lido (`400`).
+  - `MAIN_FILE_NOT_FOUND`: depois do envio a aplicação ficaria sem arquivo principal: o ZIP não o inclui e a aplicação não o tem (`400`). Nada foi salvo.
   - `INVALID_PATH`: o parâmetro de query `path` está malformado ou tenta sair da raiz da aplicação, por exemplo com `..` (`400`).
   - `FORBIDDEN_PATH`: o destino é uma pasta reservada pela plataforma (`403`).
   - `PATH_IS_FILE`: o destino existe e é um arquivo, não uma pasta (`409`).

@@ -35,8 +35,10 @@ publicada puede volver a ser una aplicación privada, desde la configuración de
 mediante [Publicar aplicación en la web](/es-es/api-reference/endpoint/apps/network/publish).
 
 <Warning>
-  Activar o desactivar la publicación **recrea el contenedor, así que la aplicación se reinicia**. Y despublicar
-  **libera el subdominio**: no queda reservado para ti, así que otra persona puede registrarlo.
+  Activar o desactivar la publicación surte efecto al instante, **sin reiniciar la aplicación**. La excepción
+  es una aplicación creada a partir de [tu propia imagen Docker](/es-es/guides/custom-docker-images):
+  publicarla o despublicarla la reinicia. Y despublicar **libera el subdominio**: no queda reservado para ti,
+  así que otra persona puede registrarlo.
 </Warning>
 
 También puedes crear una aplicación desde una [plantilla](/es-es/templates/overview): un proyecto listo que despliegas en unos clics, a veces junto con su base de datos, como una [stack](/es-es/templates/use/stacks).
@@ -111,7 +113,7 @@ stateDiagram-v2
     Online --> Error: crash
     Error --> Starting: auto-restart
     Stopped --> Starting: start
-    Error --> Stopped: crash loop (5x in 10min)
+    Error --> Stopped: crash loop (6th crash in 10min)
 ```
 
 Una aplicación pasa por los siguientes estados:
@@ -131,8 +133,7 @@ dependencias y antes de que la aplicación arranque, en cada despliegue que inst
 subida de ZIP, despliegue desde GitHub, reinstalación de dependencias o cambio del propio comando. Un reinicio
 normal lo omite cuando el build anterior ya terminó con éxito usando el mismo comando.
 
-El build se ejecuta en un entorno de build aislado: 2× la RAM de la aplicación (mínimo 1.024 MB, máximo
-4.096 MB), con un timeout de 10 minutos. Con un comando de build, las `devDependencies` también se instalan.
+El build usa la memoria de la aplicación y tiene un timeout de 10 minutos. Con un comando de build, las `devDependencies` también se instalan.
 Un comando que falla hace fallar el despliegue (`BUILD_FAILED`); superar el timeout también (`BUILD_TIMEOUT`).
 Una aplicación nueva se sigue creando, detenida, para que puedas leer la salida del build en sus logs,
 corregirla y volver a arrancarla.
@@ -167,9 +168,12 @@ El panel incluye un gestor de archivos integrado, con resaltado de sintaxis y ed
 
 <AccordionGroup>
   <Accordion title="Navegación y edición" icon="folder-open">
-    - Árbol de archivos de hasta 6 niveles de profundidad
+    - Árbol de archivos que abre cada carpeta a medida que navegas, con filtro por nombre
+    - Selección de varios archivos o carpetas para moverlos a otra carpeta de una vez
+    - Creación de un archivo o una carpeta en cualquier carpeta; `/` en el nombre crea las carpetas del camino
+    - Buscar y reemplazar en el editor, y pantalla completa
     - Resaltado de sintaxis para todos los lenguajes compatibles
-    - Crear, editar, mover y eliminar archivos y carpetas
+    - Crear, editar, mover y eliminar archivos y carpetas; un archivo eliminado que la aplicación en ejecución aún tiene abierto libera su espacio en el próximo reinicio, y el panel lo avisa
   </Accordion>
   <Accordion title="Subida de archivos" icon="upload">
     - Arrastrar y soltar archivos individuales o un ZIP
@@ -246,26 +250,31 @@ Cada dominio puede usar un puerto, un prefijo de ruta o una redirección propios
 
 ## Reinicio automático y detección de fallos
 
-El reinicio automático está **activado por defecto en todos los planes**: no hay interruptor ni nada que configurar:
+El reinicio automático está **activado por defecto, en todos los planes**. Puedes desactivarlo en una aplicación en **Ajustes → General**, con `auto_restart` en [Actualizar configuración de la aplicación](/es-es/api-reference/endpoint/apps/updateconfig) o con `AUTORESTART=false` en [`vertracloud.config`](/es-es/configuration) al crearla (para una aplicación existente, usa Ajustes → General, la API o `vertra app config`):
 
 <AccordionGroup>
   <Accordion title="Cómo funciona el reinicio automático" icon="rotate">
-    - Los contenedores que terminan de forma inesperada se reinician automáticamente
-    - Los códigos de salida normales (0) y los errores de sintaxis o de dependencias **no** activan el reinicio
-    - Se aplica un intervalo de 1 hora entre reinicios consecutivos
-    - El contenedor debe estar en línea al menos 60 segundos para contar como estable
+    - Una aplicación que termina de forma inesperada se reinicia automáticamente, incluso si solo llevaba unos segundos en marcha
+    - Una salida normal (código 0) y los errores que un reinicio no puede arreglar (errores de sintaxis, módulos que faltan, falta de memoria, una instalación o un build fallidos) **no** activan el reinicio
+    - La espera entre intentos crece: de inmediato, y después 10 s, 30 s, 60 s y 2 min
+    - Con el reinicio automático desactivado, una aplicación que se cae se queda detenida, y el panel muestra el motivo
   </Accordion>
   <Accordion title="Detección de crash loop" icon="shield">
-    - Si un contenedor falla **5 veces en 10 minutos**, el reinicio automático se desactiva durante 24 horas
-    - El sistema registra el motivo de la parada por reinicio automático
-    - Pasadas 24 horas, el reinicio automático se reanuda solo
+    - Hasta 5 reinicios automáticos en una ventana de 10 minutos; la 6.ª caída en la ventana pausa el reinicio automático durante 24 horas y la aplicación permanece detenida
+    - El panel registra el motivo
+    - Iniciar o reiniciar la aplicación a mano borra el contador y levanta la pausa
   </Accordion>
 </AccordionGroup>
 
 ## Logs en tiempo real
 
-La terminal del panel muestra la salida de la aplicación en directo; cuando la aplicación está detenida, muestra
-los logs más recientes. Desde fuera del panel, usa `vertra logs -f` en la [CLI](/es-es/cli) o consulta
+La consola del panel muestra la salida de la aplicación en directo, como texto que puedes seleccionar y copiar. El
+historial es continuo: parar, reiniciar o desplegar **nunca borra** el historial, cada ejecución se separa con una
+línea como **Reiniciado**, y **Limpiar Registros** vacía la vista solo cuando tú lo pides. Al abrir la consola, ves la ejecución actual. La consola sigue el final
+mientras te mantienes cerca del pie y muestra cuántas líneas nuevas llegaron cuando subes. La salida de la instalación
+y del build aparece en la misma consola, antes de la salida de la propia aplicación. Durante un despliegue sin caída, la salida de la nueva versión también aparece en la consola antes de que tome el relevo y, si se descarta, la consola dice el motivo. Si un build se queda sin memoria, la consola lo avisa. En una aplicación de una
+[imagen Docker personalizada](/es-es/guides/custom-docker-images), también muestra cada paso, uno por línea, antes del arranque del
+proceso. Desde fuera del panel, usa `vertra logs -f` en la [CLI](/es-es/cli) o consulta
 [Logs de la aplicación](/es-es/api-reference/endpoint/apps/logs).
 
 ## Métricas
@@ -283,3 +292,5 @@ El panel muestra métricas de rendimiento en tiempo real:
     Bytes recibidos y enviados, con el total acumulado.
   </Card>
 </CardGroup>
+
+Mientras la consola está abierta, una lectura en vivo de CPU, memoria y red aparece encima de ella y se actualiza cada pocos segundos. Los gráficos de historial (últimos 5 minutos y últimas 24 horas) marcan reinicios, reinicios automáticos y caídas, y señalan una caída causada por falta de memoria. Los mismos datos están en la API: [Métricas de la aplicación](/es-es/api-reference/endpoint/apps/metrics) devuelve las marcas en `events`, y [Logs de la aplicación en tiempo real](/es-es/api-reference/endpoint/apps/realtime) transmite la lectura en vivo con `metrics=true`.

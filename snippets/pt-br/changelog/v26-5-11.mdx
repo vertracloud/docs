@@ -1,0 +1,56 @@
+### O reinício automático voltou a ser opcional
+
+O reinício automático continua ligado por padrão em todos os planos, e você pode desligá-lo por aplicação: em **Config → Geral**, ao criar a aplicação (`AUTORESTART=false` no `vertracloud.config`) ou com `auto_restart` na API. Com ele desligado, uma aplicação que cai fica parada e o painel mostra o motivo. `GET /v1/apps/{id}` volta a devolver `auto_restart`, e `POST /v1/apps` e `PATCH /v1/apps/{id}/config` o aceitam (ele havia saído na v26.3.16). A espera entre reinícios agora cresce de imediata até 2 minutos, e a 6ª queda em 10 minutos pausa o reinício automático por 24 horas.
+
+### Um console contínuo
+
+O console de logs agora é texto que você pode selecionar e copiar. Parar, reiniciar ou fazer um deploy não o limpa: quando a aplicação reinicia com o console aberto, uma linha avisa que os logs acima são da execução anterior, e ao abrir o console você vê a execução atual. O console acompanha o fim enquanto você fica perto do rodapé. A saída da instalação e do build aparece no mesmo console da saída da aplicação, e aplicações de uma imagem Docker personalizada mostram cada etapa, uma por linha, antes de o processo iniciar. Quando uma instalação ou um build falha, o painel explica o motivo e oferece tentar de novo, e quando o ambiente de execução passou para outra linha de versão, o console avisa.
+
+### Métricas ao vivo e gráficos de histórico
+
+Enquanto o console de uma aplicação está aberto, uma leitura ao vivo de CPU, memória e rede aparece acima dele e se atualiza a cada poucos segundos. Os gráficos de histórico de aplicações e bancos (últimos 5 minutos e últimas 24 horas) agora marcam reinícios, reinícios automáticos e quedas, e sinalizam uma queda causada por falta de memória.
+
+### A nova versão no console durante um deploy sem queda
+
+Durante um deploy sem queda, a saída da nova versão aparece no console antes de ela assumir, e, quando a nova versão é descartada, o console diz o motivo. Quando um build fica sem memória, o console agora avisa com clareza.
+
+### Instalação e build usam a memória da aplicação
+
+A instalação das dependências e o build não ganham mais memória extra além da da aplicação: agora usam a memória da própria aplicação. Um build que dependia dessa folga pode ficar sem memória; quando isso acontece, o console avisa, e aumentar a memória da aplicação resolve.
+
+### Instalação e build mais rápidos
+
+A instalação das dependências e o build ficaram mais rápidos.
+
+### Mudanças que valem na hora
+
+Ligar ou desligar a publicação na web não reinicia mais a aplicação (uma aplicação de imagem Docker personalizada ainda reinicia). Mudar a memória de uma aplicação ou de um banco vale na hora, ao subir ou ao baixar. Se ele estiver usando mais memória do que o novo limite naquele momento, é encerrado por falta de memória; o painel avisa e pede confirmação antes de salvar. Baixar a memória de um banco é recusado com `409` `STORAGE_ABOVE_NEW_LIMIT` enquanto os dados dele não couberem no novo armazenamento.
+
+### O arquivo principal precisa existir
+
+Salvar um arquivo principal que não existe (ou é uma pasta) em **Configurações** ou com `PATCH /v1/apps/{id}/config` agora falha com `400` `MAIN_FILE_NOT_FOUND`, e nada é salvo. Enviar um ZIP para uma aplicação existente falha do mesmo jeito quando, depois do envio, a aplicação ficaria sem arquivo principal. O painel mostra o erro no campo e avisa antes de você apagar ou mover o arquivo principal no gerenciador de arquivos.
+
+### Comandos em uma linha
+
+Um comando de início ou de build com quebra de linha agora é recusado com `400` `VALIDATION_ERROR`. Escreva-o em uma linha, encadeando as etapas com `&&`. Uma aplicação que já tem um comando assim recebe o mesmo erro no próximo início ou deploy e continua como estava até você alterá-lo.
+
+### Bancos de dados
+
+- A senha é mostrada **uma única vez**, logo depois de o banco ser criado (também em uma stack ou template), e devolvida apenas por `POST /v1/databases`, `POST /v1/stacks/{stack_id}/databases` e pelo deploy de template. Para vê-la de novo, redefina-a.
+- Bancos novos usam o endereço `ny1`, no formato `vertra-cloud-<database-id>.db.ny1.vertraweb.app`. Os mais antigos mantêm o deles até você redefinir os certificados, o que também os passa para o novo endereço; isso é feito somente no painel, que avisa antes (uma chave de API recebe `403` `WEBSITE_ONLY`). `GET /v1/databases/{id}` devolve `legacy_host` para distingui-los.
+- Ao criar um banco, a caixa de diálogo mostra os certificados para copiar ou baixar, e o card de conexão indica onde encontrar a senha.
+
+### Arquivos e ações
+
+Excluir um arquivo que a aplicação em execução ainda mantém aberto agora avisa que o espaço dele volta no próximo reinício (`space_released` na resposta). **Forçar build** e **Reinstalar dependências** foram para o menu **Mais ações** da aplicação.
+
+O gerenciador de arquivos foi redesenhado: uma árvore que abre cada pasta conforme você navega, com filtro por nome; selecione vários arquivos ou pastas e mova todos para outra pasta de uma vez; crie arquivo ou pasta em qualquer pasta, usando `/` no nome para criar as pastas do caminho; e um editor com buscar e substituir, e tela cheia.
+
+### Aplicações a partir de imagem Docker
+
+Quando a plataforma recusa a imagem de uma aplicação, a aplicação agora mostra o motivo: `last_build_error` devolve `IMAGE_VOLUME_REFUSED` (um caminho ou permissão que a plataforma não permite), `IMAGE_LABEL_REFUSED` (uma label reservada) ou `IMAGE_PULL_FAILED` (não foi possível baixar a imagem), em vez de um `BUILD_FAILED` genérico.
+
+### API: métricas ao vivo e marcas nos gráficos
+
+- `GET /v1/apps/{id}/realtime` aceita `metrics=true`, que acrescenta eventos `metrics` com a leitura ao vivo de CPU, memória e rede a cada 5 segundos, aproximadamente, e envia eventos `next_logs` com a saída da nova versão durante um deploy sem queda. `deploy_note:discarded` agora pode trazer o motivo, os avisos reenviados quando a conexão abre trazem o horário em que ocorreram, e o novo aviso `install_note:build_oom` informa um build que ficou sem memória.
+- As métricas de aplicações e de bancos (`GET /v1/apps/{id}/metrics`, `GET /v1/databases/{id}/metrics`) devolvem `events` em cada ponto: os reinícios, reinícios automáticos e quedas desde aquele ponto, com `out_of_memory` para uma queda causada por falta de memória.

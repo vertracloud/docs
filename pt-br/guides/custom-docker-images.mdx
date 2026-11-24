@@ -29,7 +29,7 @@ As imagens que vêm de um [template](/pt-br/templates/overview) também ocupam v
 
 ## Limites do build
 
-Cada build roda no seu próprio ambiente de build isolado, com os mesmos limites do build de uma aplicação comum:
+Cada build roda no seu próprio ambiente de build isolado, com estes limites:
 
 - RAM de 2x a RAM por app do plano, com mínimo de 1.024 MB e máximo de 4.096 MB.
 - Um limite de tempo de **26 minutos**.
@@ -91,12 +91,11 @@ Você pode rodar a mesma verificação pela API com [Verificar Dockerfile](/pt-b
 
 A aplicação roda com o mesmo isolamento de qualquer outra aplicação da plataforma.
 
-- **Caminhos graváveis.** `/app` é o disco **persistente** do app (cota, gerenciador de arquivos, snapshots). `/tmp`, `/var/tmp` e
-  `/run` são graváveis, mas **temporários**: são limpos quando o app reinicia. **O resto é somente leitura.** Uma imagem que
-  escreve em outro lugar falha, então aponte logs, caches e dados para `/app`. A aba **Arquivos** do app mostra `/app`, não o
-  código dentro da imagem.
-- **Usuário.** O app sempre roda como usuário `1000:1000`. A instrução `USER` do `Dockerfile` é ignorada, então uma imagem
-  que precisa de root para escrever fora dos caminhos acima não roda.
+- **Disco persistente.** `/app` é o disco **persistente** do app (cota, gerenciador de arquivos, snapshots). Aponte logs,
+  caches e dados para `/app`. A aba **Arquivos** do app mostra `/app`, não o código dentro da imagem.
+- **Usuário.** O app não roda como root. A instrução `USER` do `Dockerfile` é ignorada, então uma imagem que precisa de
+  root não roda. Deixe os arquivos que a imagem traz legíveis por qualquer usuário.
+- **Console.** Enquanto a imagem é preparada e a aplicação inicia, o console mostra cada etapa.
 - **Comando.** O `ENTRYPOINT` e o `CMD` da imagem. Não são configuráveis.
 - **Instruções ignoradas.** `HEALTHCHECK` é ignorado. `EXPOSE` apenas sugere a porta.
 
@@ -104,7 +103,7 @@ A aplicação roda com o mesmo isolamento de qualquer outra aplicação da plata
 
 Só apps web têm porta. Ao criar o app, o padrão é o **primeiro `EXPOSE`** do `Dockerfile`, ou **80**
 quando não há nenhum. A imagem devolve esse valor como `suggested_port` em [Obter imagem](/pt-br/api-reference/endpoint/images/get). A plataforma injeta-o como a variável de ambiente `PORT` e roteia o tráfego para ele, então o seu servidor
-deve escutar em `PORT`. Um app criado com web desligado (um bot ou um worker) não tem porta nem subdomínio. Você pode publicá-lo na web depois com [Publicar aplicação](/pt-br/api-reference/endpoint/apps/network/publish), informando em `port` a porta em que a imagem escuta; sem ela, a chamada falha com `IMAGE_APP_PORT_REQUIRED`.
+deve escutar em `PORT`. Um app criado com web desligado (um bot ou um worker) não tem porta nem subdomínio. Você pode publicá-lo na web depois com [Publicar aplicação](/pt-br/api-reference/endpoint/apps/network/publish), informando em `port` a porta em que a imagem escuta; sem ela, a chamada falha com `IMAGE_APP_PORT_REQUIRED`. Publicar ou despublicar um app criado a partir de uma imagem o reinicia.
 
 ### Variáveis de ambiente
 

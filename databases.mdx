@@ -8,8 +8,8 @@ icon: 'database'
 ## What is a managed database on Vertra Cloud?
 
 A managed database on Vertra Cloud is a PostgreSQL, MongoDB, Redis or MySQL instance that the
-platform provisions, secures and monitors for you: TLS is mandatory, the CA, server and client
-certificates are generated automatically, and each database runs in its own container with
+platform provisions, secures and monitors for you: TLS is mandatory with certificates generated
+automatically, and each database runs in its own container with
 dedicated memory and storage.
 
 ## Which database engines are available?
@@ -68,16 +68,17 @@ ICU collations work too, for example `CREATE COLLATION pt_br_icu (provider = icu
 
 ## What do I need to connect?
 
-Four things, all on the database page in the dashboard (or through the API):
+Five things. The host, port, user and certificates are on the database page in the dashboard (or through the API). The password is shown **once**, in a dialog right after the database is created, also for databases created inside a stack or by a template; the same dialog lets you copy or download the certificates. The password is never shown again, and the connection card on the database page tells you where to find it. Applications linked to the database in a stack already receive the password in their managed variables; anywhere else, copy it into your application's environment variables. If you lose it, [reset the password](/api-reference/endpoint/databases/credentials/resetpassword); in the dashboard, that asks for a confirmation code.
 
-- **Host** — `<database-id-without-hyphens>.db.usa1.vertraweb.app`, shown on the database page and in
+- **Host** — `vertra-cloud-<database-id>.db.<region>.vertraweb.app`, where `<region>` is `ny1` (`usa1` on databases
+  created before v26.5.11); the exact address is on the database page and in
   [Get Database](/api-reference/endpoint/databases/get).
 - **Port** — **unique per database**, not the engine's default (5432, 27017, 6379, 3306). Always
   copy it from the database page or the API response.
 - **User** — `vertracloud` (or the engine's user on older databases), shown on the database page and as `username` in
   [Get Database](/api-reference/endpoint/databases/get).
-- **Password** — shown on the database page; [reset it](/api-reference/endpoint/databases/credentials/resetpassword) if needed.
-- **Certificates** — download them in the database's **Certificates** tab or through
+- **Password** — shown once, when the database is created; [reset it](/api-reference/endpoint/databases/credentials/resetpassword) if you lost it.
+- **Certificates** — download them in the database's **Connection** tab or through
   [Get Database Certificate](/api-reference/endpoint/databases/credentials/get):
 
 | File | What it is | Use it as |
@@ -85,11 +86,11 @@ Four things, all on the database page in the dashboard (or through the API):
 | `certificate-<id>.ca.pem` | The CA that signs the database's server certificate | CA file (`ca`, `sslrootcert`, `--cacert`, `tlsCAFile`, `--ssl-ca`) |
 | `certificate-<id>.crt` | Your client certificate — **not** the CA | client certificate (`cert`, `sslcert`, `--cert`, `--ssl-cert`) |
 | `certificate-<id>.key` | Your client private key | client key (`key`, `sslkey`, `--key`, `--ssl-key`) |
-| `certificate-<id>.pem` | Bundle: client key + client certificate + the CA, in that order | MongoDB's certificate-key file (`tlsCertificateKeyFile`) |
+| `certificate-<id>.pem` | Client key + client certificate in one file | MongoDB's certificate-key file (`tlsCertificateKeyFile`) |
 | `certificate-<id>.p12` | Your client key and certificate as PKCS#12, empty password | drivers that only take a PKCS#12 identity, such as [Prisma 6](#how-do-i-connect-with-prisma-6) |
 
 Most connections need three of them: `.ca.pem`, `.crt` and `.key`. Older databases may not offer the
-`.ca.pem`; there, use the `.pem` as the CA file, since the CA is its last part.
+`.ca.pem`; download the files from the **Connection** tab and use the ones it lists.
 
 The server certificate matches the database host, so full verification (`verify-full`,
 `VERIFY_IDENTITY`, `rejectUnauthorized: true`) works. Keep the `.key`, `.pem` and `.p12` files private —
@@ -98,7 +99,7 @@ issues new ones and invalidates the old files.
 
 ## How do I connect to each engine?
 
-In the examples, `<host>`, `<port>` and `<password>` come from the database page, the user and database are
+In the examples, `<host>` and `<port>` come from the database page and `<password>` is the one shown when the database was created, the user and database are
 `vertracloud` (swap in your database's `username` if it was created before v26.4.8), and
 `certificate.ca.pem` / `certificate.crt` / `certificate.key` / `certificate.pem` are the downloaded files.
 
@@ -222,7 +223,7 @@ drivers word the same cause differently.
 | `connection requires a valid client certificate` | TLS is on, but the client certificate and key were not sent | Add the `.crt` and the `.key` (`cert`/`key`, `sslcert`/`sslkey`) |
 | `pg_hba.conf rejects connection ... no encryption` | TLS is off | Turn TLS on with the three files; a plain connection is always refused |
 | `pg_hba.conf rejects connection ... user "postgres"` | Wrong user: databases created from v26.4.8 on use `vertracloud` | Use the user shown on the database page (`username` in the API) |
-| `password authentication failed for user` | Wrong password, or it changed after **Reset Password** | Copy the password again and restart the application |
+| `password authentication failed for user` | Wrong password, or it changed after **Reset Password** | Use the password you saved; if it was lost, reset it, update it in your application and restart |
 | `Hostname/IP does not match certificate's altnames` | Connected by IP address or by another name | Connect by the host shown on the database page |
 | `ENOENT: no such file or directory` | The certificate path does not exist where the process runs | Paths are relative to the working directory; check the files were deployed |
 | `Error opening a TLS connection` (Prisma `P1011`) | Same causes as the certificate rows above | See [Prisma 6](#how-do-i-connect-with-prisma-6) |
@@ -269,11 +270,11 @@ is in [Connect a database](/guides/connect-database#use-drizzle-kit-and-drizzle-
 
 ### Does Python 3.13 connect to the database?
 
-Yes, but Python 3.13 and later turn on strict X.509 checks in the default TLS context (`ssl.create_default_context()`), and databases created before the certificate fix can fail with `Missing Authority Key Identifier`. Libraries that use the default context are the ones affected, such as redis-py and pg8000; psycopg, asyncpg, PyMySQL and pymongo are not. New databases and databases whose certificates you reset already issue compliant certificates. If you cannot reset right now, redis-py 6 or later accepts `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`.
+Yes, but Python 3.13 and later turn on strict X.509 checks in the default TLS context (`ssl.create_default_context()`), and databases created before the certificate fix can fail with `Missing Authority Key Identifier`. Libraries that use the default context are the ones affected, such as redis-py and pg8000; psycopg, asyncpg, PyMySQL and pymongo are not. New databases and databases whose certificates you reset already issue compliant certificates. If you cannot reset right now, redis-py 6 or later accepts `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`. On an older database, resetting the certificates also moves it to the new address, and only in the dashboard; see [What happens when I reset the certificates?](#what-happens-when-i-reset-the-certificates).
 
 ### What happens when I reset the certificates?
 
-Resetting issues a new CA, server and client certificate and invalidates the old files. Applications linked to a stack have the files in `/app/.vertra/certs/` rewritten automatically, but the running process still holds the old ones: the response flags `restart_required` and lists the applications to restart. Files you downloaded and placed in a project yourself must be downloaded and deployed again.
+Resetting issues new certificates and invalidates the old files. A database created before v26.5.11 also moves to the new address (`vertra-cloud-…db.ny1.vertraweb.app` instead of `…db.usa1.vertraweb.app`); this is done only in the dashboard, which first lists the variables you wrote that contain the old address, so you can update them and your certificate files. With an API key, resetting the certificates of an older database answers `403 WEBSITE_ONLY`. Applications linked by a stack or template have the files in `/app/.vertra/certs/` and the managed variables (including the new address) rewritten automatically; they apply on the application's next restart: the response flags `restart_required` and lists the applications to restart. Files you downloaded and placed in a project yourself must be downloaded and deployed again.
 
 ## Lifecycle
 
@@ -307,7 +308,7 @@ stateDiagram-v2
     Generates a new random and secure password for the database.
   </Card>
   <Card title="Reset Certificates" icon="certificate">
-    Regenerates all TLS certificates (CA, server and client).
+    Issues new TLS certificates. A database created before v26.5.11 also moves to the new address, from the dashboard only.
   </Card>
   <Card title="Download Snapshot" icon="download">
     Downloads a copy of the database data.
@@ -338,6 +339,8 @@ The panel displays real-time metrics for each database:
     Used disk space vs. quota.
   </Card>
 </CardGroup>
+
+The history charts (last 5 minutes and last 24 hours) mark restarts, automatic restarts and crashes, and flag a crash caused by running out of memory. The same markers come as `events` in [Database Metrics](/api-reference/endpoint/databases/metrics).
 
 ## Storage
 

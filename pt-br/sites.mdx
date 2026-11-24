@@ -56,9 +56,11 @@ Os subdomínios são únicos e validados automaticamente. Você pode escolher o 
 
 A publicação na web **não** é decidida de uma vez por todas na criação. Uma aplicação criada sem subdomínio roda de forma privada, e você pode ligar a publicação depois — ou desligá-la novamente — pelas configurações de **Rede** da aplicação, ou pela API com [Publicar aplicação na web](/pt-br/api-reference/endpoint/apps/network/publish).
 
-<Warning>
-  Ligar ou desligar a publicação **recria o container, então a aplicação reinicia**. Planeje uma pequena indisponibilidade.
-</Warning>
+<Note>
+  Ligar ou desligar a publicação tem efeito na hora, **sem reiniciar a aplicação**. Uma aplicação
+  criada a partir da [sua própria imagem Docker](/pt-br/guides/custom-docker-images) é a exceção:
+  publicá-la ou despublicá-la a reinicia.
+</Note>
 
 <Warning>
   Despublicar **libera o subdomínio**. Ele não fica reservado para você — qualquer pessoa pode registrá-lo logo em seguida. Todos os domínios personalizados são removidos ao mesmo tempo, mas os registros `CNAME` e `TXT` continuam no seu provedor de DNS: apague-os, ou outro cliente poderá reivindicar o nome.
@@ -104,10 +106,9 @@ Cada aplicação e banco de dados roda em um container isolado, com:
 
 O sistema detecta containers que entram em loops de reinício e aplica medidas preventivas:
 
-- **Detecção inteligente** — 5 quedas em 10 minutos desativam o reinício automático por 24 horas
+- **Detecção inteligente** — a 6ª queda em 10 minutos pausa o reinício automático por 24 horas
 - **Filtragem de exit code** — término normal (código 0) não é contabilizado
-- **Cooldown entre reinícios** — intervalo mínimo de 1 hora entre reinícios automáticos
-- **Tempo mínimo de atividade** — o container precisa ficar online por pelo menos 60 segundos para ser considerado estável
+- **Espera crescente entre reinícios** — imediatamente, depois 10 s, 30 s, 60 s e 2 min
 
 ### SSL/TLS automático
 
@@ -193,6 +194,7 @@ Para manter a saúde da plataforma, projetos de uma conta sem plano ativo que fi
 | Tamanho máximo de upload de ZIP | 100 MB |
 | Subdomínio | Único por aplicação |
 | Domínios personalizados | De 1 a 20 por aplicação, conforme o plano (o `www` automático não conta) |
-| Tempo máximo de instalação de dependências | 15 minutos |
+| Tempo máximo de instalação de dependências | 15 minutos por etapa |
 | Tempo máximo do `build_command` | 10 minutos |
+| Tempo máximo de instalação e build juntos | 25 minutos |
 | Portas expostas | Porta 80, mais até 5 adicionais por meio de domínios personalizados |

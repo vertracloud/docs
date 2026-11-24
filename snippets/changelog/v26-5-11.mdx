@@ -1,0 +1,56 @@
+### Auto-restart is optional again
+
+Auto-restart stays on by default on every plan, and you can turn it off per application: in **Settings → General**, when you create the application (`AUTORESTART=false` in `vertracloud.config`), or with `auto_restart` in the API. With it off, an application that crashes stays stopped and the dashboard shows why. `GET /v1/apps/{id}` returns `auto_restart` again, and `POST /v1/apps` and `PATCH /v1/apps/{id}/config` accept it (it was removed in v26.3.16). The wait between restarts now grows from immediate to 2 minutes, and the 6th crash in 10 minutes pauses auto-restart for 24 hours.
+
+### A continuous console
+
+The log console is now text you can select and copy. A stop, a restart or a deploy does not clear it: when the application restarts with the console open, a line says the logs above are from the previous run, and opening the console shows the current run. The console follows the end while you stay near the bottom. Installation and build output appear in the same console as the application's output, and applications from a custom Docker image show each step, one per line, before the process starts. When an installation or build fails, the dashboard explains the reason and offers to try again, and when the runtime moved to another version line, the console says so.
+
+### Live metrics and history charts
+
+While an application's console is open, a live reading of CPU, memory and network appears above it and updates every few seconds. The history charts of applications and databases (last 5 minutes and last 24 hours) now mark restarts, automatic restarts and crashes, and flag a crash caused by running out of memory.
+
+### The new version in the console during a zero-downtime deploy
+
+During a zero-downtime deploy, the output of the new version appears in the console before it takes over, and when the new version is discarded the console tells you why. When a build runs out of memory, the console now says so clearly.
+
+### Installation and build use the application's memory
+
+Dependency installation and the build no longer get extra memory beyond the application's: they now use the application's own memory. A build that relied on that extra can now run out of memory; when that happens the console says so, and raising the application's memory solves it.
+
+### Faster installation and build
+
+Installing dependencies and building are faster.
+
+### Changes that apply right away
+
+Turning web publishing on or off no longer restarts the application (an application from a custom Docker image still restarts). Changing the memory of an application or database applies right away, whether you raise or lower it. If it is using more memory than the new limit at that moment, it is shut down for lack of memory; the dashboard warns you and asks you to confirm before saving. Lowering a database's memory is refused with `409` `STORAGE_ABOVE_NEW_LIMIT` while its data would not fit the new storage.
+
+### The main file must exist
+
+Saving a main file that does not exist (or is a folder) in **Settings** or with `PATCH /v1/apps/{id}/config` now fails with `400` `MAIN_FILE_NOT_FOUND`, and nothing is saved. Uploading a ZIP to an existing application fails the same way when, after the upload, the application would have no main file. The dashboard shows the error on the field and warns you before you delete or move the main file in the file manager.
+
+### Single-line commands
+
+A start or build command with a line break is now refused with `400` `VALIDATION_ERROR`. Write it on one line, chaining steps with `&&`. An application that already has such a command gets the same error on its next start or deploy and stays as it was until you change it.
+
+### Databases
+
+- The password is shown **once**, right after the database is created (also in a stack or a template), and returned only by `POST /v1/databases`, `POST /v1/stacks/{stack_id}/databases` and the template deploy. To see it again, reset it.
+- New databases use the `ny1` address, in the format `vertra-cloud-<database-id>.db.ny1.vertraweb.app`. Older ones keep theirs until you reset the certificates, which also moves them to the new address; that is done only in the dashboard, which warns you first (an API key gets `403` `WEBSITE_ONLY`). `GET /v1/databases/{id}` returns `legacy_host` to tell them apart.
+- When a database is created, the dialog shows the certificates to copy or download, and the connection card tells you where to find the password.
+
+### Files and actions
+
+Deleting a file that the running application still has open now tells you its space comes back at the next restart (`space_released` in the response). **Force build** and **Reinstall dependencies** moved to the application's **More actions** menu.
+
+The file manager was redesigned: an expandable tree that opens each folder as you go, with a filter by name; select several files or folders and move them to another folder at once; create a file or folder in any folder, using `/` in the name to create the folders on the way; and an editor with find and replace, and full screen.
+
+### Applications from a Docker image
+
+When the platform refuses the image of an application, the application now shows why: `last_build_error` returns `IMAGE_VOLUME_REFUSED` (a path or permission the platform does not allow), `IMAGE_LABEL_REFUSED` (a reserved label) or `IMAGE_PULL_FAILED` (the image could not be downloaded), instead of a generic `BUILD_FAILED`.
+
+### API: live metrics and chart markers
+
+- `GET /v1/apps/{id}/realtime` accepts `metrics=true`, which adds `metrics` events with the live CPU, memory and network reading about every 5 seconds, and sends `next_logs` events with the output of the new version during a zero-downtime deploy. `deploy_note:discarded` can now carry the reason, notices sent again when the connection opens carry the time they happened, and the new notice `install_note:build_oom` reports a build that ran out of memory.
+- The metrics of applications and databases (`GET /v1/apps/{id}/metrics`, `GET /v1/databases/{id}/metrics`) return `events` in each point: the restarts, automatic restarts and crashes since that point, with `out_of_memory` for a crash caused by lack of memory.

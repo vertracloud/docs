@@ -11,8 +11,8 @@ Una aplicación creada sin `subdomain` es privada: se ejecuta, pero nada la enru
 la publicación web en cualquier momento, sin recrear la aplicación.
 
 <Warning>
-  **Ambas rutas recrean el contenedor, así que la aplicación se reinicia.** La configuración de enrutamiento y el puerto expuesto solo existen desde la creación
-  del contenedor, por lo que el estado de publicación no puede cambiar en caliente. Espera una breve interrupción en cada llamada.
+  **Ambas rutas surten efecto al instante, sin reiniciar la aplicación.** La excepción es una aplicación creada a partir de
+  [tu propia imagen Docker](/es-es/guides/custom-docker-images): publicarla o despublicarla reinicia la aplicación.
 </Warning>
 
 <Warning>
@@ -89,7 +89,7 @@ la publicación web en cualquier momento, sin recrear la aplicación.
 DELETE https://api.vertracloud.app/v1/apps/{id}/network/publish
 ```
 
-No recibe cuerpo. Libera el subdominio, elimina cada dominio personalizado (sus registros DNS en tu proveedor se mantienen hasta que los borres) y vuelve a convertir la aplicación en privada; después recrea el contenedor. La respuesta tiene la misma forma, con `subdomain`
+No recibe cuerpo. Libera el subdominio, elimina cada dominio personalizado (sus registros DNS en tu proveedor se mantienen hasta que los borres) y vuelve a convertir la aplicación en privada, sin reiniciarla (una aplicación creada a partir de tu propia imagen Docker sí se reinicia). La respuesta tiene la misma forma, con `subdomain`
 en `null`, `domains` vacío y `type` de nuevo en `1`.
 
 ### Mínimo de memoria
@@ -115,7 +115,7 @@ llegan en `details`. Súbela con
   El código de error que indica el motivo del fallo. Valores posibles:
   - `VALIDATION_ERROR`: El parámetro de ruta o el cuerpo no superaron la validación (`400`). Es lo que devuelve un
     `subdomain` mal formado: de 3 a 50 caracteres, `^[a-z0-9][a-z0-9-]*[a-z0-9]$`. La respuesta
-    también incluye `message` y `path`.
+    también incluye `message` y `details.path`.
   - `AUTH_TOKEN_MISSING`, `API_KEY_INVALID`, `SESSION_REVOKED`: Falta la cabecera `Authorization`, la clave de API no es válida o la sesión del panel fue revocada (`401`).
   - `API_KEY_IP_DENIED`, `API_KEY_SCOPE_DENIED`: La clave de API se usa desde una IP fuera de su lista de permitidas, o no tiene el scope que requiere la ruta (`403`).
   - `USER_NOT_FOUND`: No se pudo resolver el usuario autenticado (`401`).
@@ -131,8 +131,13 @@ llegan en `details`. Súbela con
     con `details: { current_mb, minimum_mb }`.
   - `SUBDOMAIN_FORBIDDEN`: El subdominio solicitado está en la lista de nombres reservados de la plataforma (`400`).
   - `SUBDOMAIN_TAKEN`: Otra aplicación ya usa ese subdominio (`409`).
-  - `OPERATION_IN_PROGRESS`: Otra operación de ciclo de vida sobre la misma aplicación está en curso; el
-    contenedor no se tocó (`409`). Espera unos segundos y vuelve a intentarlo.
+  - `APP_BUILDING`: La aplicación todavía se está creando; espera a que termine el build (`409`).
+  - `OPERATION_IN_PROGRESS`: Otra operación de ciclo de vida sobre la misma aplicación está en curso; no se
+    cambió nada (`409`). Espera unos segundos y vuelve a intentarlo. Las aplicaciones creadas a partir de tu
+    propia imagen Docker también pueden devolver este código.
+  - `SERVICE_UNAVAILABLE`: El cambio no se pudo aplicar ahora y la aplicación quedó como estaba (`503`).
+    Vuelve a intentarlo en unos segundos. En `DELETE`, la aplicación sigue publicada en su subdominio, pero
+    los dominios personalizados ya eliminados deben añadirse de nuevo.
   - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
 </ResponseField>
 
@@ -163,8 +168,8 @@ llegan en `details`. Súbela con
 </ResponseExample>
 
 <Note>
-  **Se aplican dos límites, y son deliberadamente estrictos.** Publicar y despublicar recrean el
-  contenedor, así que comparten el presupuesto de ciclo de vida por aplicación con `start`, `stop`, `restart` y las
+  **Se aplican dos límites, y son deliberadamente estrictos.** Publicar y despublicar comparten el
+  presupuesto de ciclo de vida por aplicación con `start`, `stop`, `restart` y las
   instalaciones de dependencias: **10 peticiones por minuto entre todas ellas**, por aplicación, no un presupuesto por ruta. Además, una publicación correcta inicia un **enfriamiento de 5 minutos en la dirección pública de la aplicación**, compartido con
   [Cambiar subdominio](/es-es/api-reference/endpoint/apps/network/subdomain): publicar de nuevo dentro de esa
   ventana devuelve `429 SUBDOMAIN_CHANGE_RATE_LIMITED`. Despublicar y volver a publicar con un nombre nuevo es un cambio de dirección como cualquier otro y no se salta el límite. Los rechazos no consumen el enfriamiento:

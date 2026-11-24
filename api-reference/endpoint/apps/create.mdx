@@ -29,14 +29,16 @@ The application has **two mutually exclusive sources** — send exactly one of `
 </ParamField>
 
 <ParamField body="start" type="string">
-  The application startup command.
+  The application startup command. It must be a single line.
 </ParamField>
 
 <ParamField body="build" type="string">
-  An optional build command, up to 512 characters (e.g. `npm run build`). Runs after dependency
-  installation and before the application starts, in an isolated build environment — 2× the
-  application's RAM (min 1,024 MB, max 4,096 MB) with a 10-minute
-  timeout. `devDependencies` are installed when a build command is set. Available on every plan. See [Update Application Configuration](/api-reference/endpoint/apps/updateconfig) to change it later.
+  An optional build command, up to 512 characters, on a single line (e.g. `npm run build`). Runs after dependency
+  installation and before the application starts, with a 10-minute timeout. `devDependencies` are installed when a build command is set. Available on every plan. See [Update Application Configuration](/api-reference/endpoint/apps/updateconfig) to change it later.
+</ParamField>
+
+<ParamField body="auto_restart" type="boolean">
+  Optional, `true` by default. Whether the application restarts by itself after a crash. See [Update Application Configuration](/api-reference/endpoint/apps/updateconfig). When the field is omitted, `AUTORESTART` (`true` or `false`) in the `vertracloud.config` applies.
 </ParamField>
 
 <ParamField body="main" type="string">
@@ -127,7 +129,7 @@ With `file`, creation is asynchronous: the response is `202 Accepted` with the a
   <ResponseField name="last_build_error" type="string | null">
     The code of the last build or install failure, or `null` after a successful build. One of
     `BUILD_FAILED`, `BUILD_TIMEOUT`, `BUILD_INTERRUPTED`, `INSTALL_FAILED`, `INSTALL_OUT_OF_MEMORY`,
-    `INSTALL_TIMEOUT` or `INSTALL_SHIELD_BLOCKED`. The detail is in the application's logs; see
+    `INSTALL_TIMEOUT`, `INSTALL_SHIELD_BLOCKED`, `IMAGE_VOLUME_REFUSED`, `IMAGE_LABEL_REFUSED` or `IMAGE_PULL_FAILED`. The detail is in the application's logs; see
     [Errors](/api-reference/errors#build-failure-codes) for what to do about each code.
   </ResponseField>
 
@@ -296,7 +298,7 @@ With `file`, creation is asynchronous: the response is `202 Accepted` with the a
 <ResponseField name="code" type="string">
   The error code indicating the reason for the failure. Possible values:
   - `VALIDATION_ERROR`: The multipart body failed validation (`400`). The response also carries
-    `message` and `path` pointing at the offending field.
+    `message` and `details.path` pointing at the offending field.
   - `USER_NOT_FOUND`: The authenticated user could not be resolved (`401`).
   - `MAX_APPS_REACHED`: The plan's application limit has been reached (`403`).
   - `INVALID_ZIP`: The uploaded file is not a readable ZIP (truncated or corrupted) (`400`).
@@ -335,7 +337,7 @@ With `file`, creation is asynchronous: the response is `202 Accepted` with the a
 {
   "code": "VALIDATION_ERROR",
   "message": "Main file is required",
-  "path": "main"
+  "details": { "path": "main" }
 }
 ```
 

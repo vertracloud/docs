@@ -13,7 +13,7 @@ Usa una plantilla de imagen cuando la aplicación necesite otro lenguaje o versi
 
 <Check>La CLI de Vertra con la sesión iniciada con una clave de API que tenga los scopes `templates:read`, `templates:write` y `templates:deploy`, además de los scopes que compilan imágenes.</Check>
 <Check>Un plan que pueda crear imágenes Docker y plantillas privadas (consulta [Planes y límites](/es-es/plans-and-limits)). Cada cuenta mantiene hasta 5 plantillas privadas.</Check>
-<Check>Conoces las reglas de las [imágenes Docker personalizadas](/es-es/guides/custom-docker-images): rutas escribibles, usuario `1000:1000`, la variable `PORT` y lo que rechaza el build.</Check>
+<Check>Conoces las reglas de las [imágenes Docker personalizadas](/es-es/guides/custom-docker-images): el disco persistente, la variable `PORT` y lo que rechaza el build.</Check>
 
 <Note>Cada imagen en uso ocupa **un cupo de imagen** en la cuenta que la usa, sin importar cuántas aplicaciones se ejecuten a partir de ella. Cuando despliegas tu propia plantilla, la imagen ya es tuya; quienes la reciben mediante un enlace obtienen su propia copia y usan un cupo cada uno.</Note>
 
@@ -21,7 +21,7 @@ Usa una plantilla de imagen cuando la aplicación necesite otro lenguaje o versi
 
 <Steps>
   <Step title="Escribe una aplicación que siga las reglas de la plataforma">
-    Una imagen se ejecuta con el mismo aislamiento que cualquier aplicación: el sistema de archivos raíz es de solo lectura, el usuario es siempre `1000:1000`, `/app` es el único disco persistente y el servidor debe escuchar en la variable `PORT`. Crea esta carpeta:
+    Una imagen se ejecuta con el mismo aislamiento que cualquier aplicación: `/app` es el único disco persistente y el servidor debe escuchar en la variable `PORT`. Crea esta carpeta:
 
     ```text
     hello-counter/
@@ -78,7 +78,7 @@ Usa una plantilla de imagen cuando la aplicación necesite otro lenguaje o versi
     CMD ["node", "server.js"]
     ```
 
-    <Tip>Pruébalo en local de la misma forma en que se ejecutará: `docker run --rm --read-only --user 1000:1000 --tmpfs /tmp -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. Si solo funciona con una raíz escribible o como root, no funcionará en la plataforma.</Tip>
+    <Tip>Pruébalo primero en local: `docker run --rm -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. Si necesita root para ejecutarse, no funcionará en la plataforma.</Tip>
   </Step>
   <Step title="Compila la imagen en la plataforma">
     La plantilla no lleva el `Dockerfile`: hace referencia a una imagen que ya existe en tu cuenta. Compílala desde la carpeta:
@@ -186,7 +186,7 @@ Usa una plantilla de imagen cuando la aplicación necesite otro lenguaje o versi
 |---|---|
 | El build falla con `IMAGE_VOLUME_REFUSED` o un aviso sobre `WORKDIR /app` | Nada de lo que la imagen ponga en `/app` sobrevive, porque `/app` es el disco persistente. Usa otro directorio como `/srv` y nunca `VOLUME /app`. |
 | La aplicación arranca y el asistente falla en el healthcheck | La ruta responde un error o el servidor escucha en otro puerto. Escucha en `PORT` en `0.0.0.0` y confirma que `healthcheck.path` devuelve 200. Sube `timeout` si el arranque es lento. |
-| La aplicación se cae con un error de permisos | La imagen escribe fuera de `/app`, `/tmp`, `/var/tmp` y `/run`. Todo lo demás es de solo lectura; dirige logs, cachés y datos a `/app`. |
+| La aplicación se cae con un error de permisos | La aplicación no puede escribir donde la imagen lo intenta. Dirige logs, cachés y datos a `/app`. |
 | `create` falla con `IMAGE_NOT_FOUND` | `source.image` no es el id de una imagen de tu propia cuenta. Compruébalo con `vertra image list`. |
 | `create` falla con `IMAGE_NOT_READY` | La imagen aún no tiene ningún build correcto. Espera a `success`. |
 | `validate` informa `invalid_source` | Un campo de tipo incorrecto: `main`, `start` y `language` son solo para servicios de código; `port` es solo para servicios de imagen. |
@@ -196,7 +196,7 @@ Usa una plantilla de imagen cuando la aplicación necesite otro lenguaje o versi
 
 - [Requisitos y plan](/es-es/templates/create/requirements): cómo `ram`, `web` y la imagen determinan el plan y los cupos necesarios.
 - [Ajustes de despliegue](/es-es/templates/create/deploy-settings): cuándo bloquear el blue-green y exigir rollback con datos.
-- [Buenas prácticas](/es-es/templates/create/best-practices): dónde van los datos, la raíz de solo lectura, el usuario 1000 y el puerto.
+- [Buenas prácticas](/es-es/templates/create/best-practices): dónde van los datos y el puerto.
 - [Referencia del manifiesto](/es-es/templates/create/manifest-reference): todos los campos de un servicio de aplicación.
 - [Imágenes Docker personalizadas](/es-es/guides/custom-docker-images): las reglas de build, las versiones y el rollback de la propia imagen.
 - Siguiente tutorial: [un stack con Postgres y Redis](/es-es/templates/tutorials/postgres-redis-stack).

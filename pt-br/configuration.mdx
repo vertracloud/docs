@@ -23,6 +23,7 @@ MEMORY=512
 VERSION=recommended
 BUILD=npm run build
 START=npm start
+AUTORESTART=true
 SUBDOMAIN=my-app
 LANGUAGE=javascript
 ```
@@ -36,11 +37,12 @@ LANGUAGE=javascript
 | `VERSION` | Versão do runtime: `recommended`, `latest` ou uma versão específica da [lista de runtimes](/pt-br/plans-and-limits#quais-linguagens-e-versões-a-vertra-cloud-suporta). Quando o arquivo está no seu `.zip` ou snapshot, o assistente preenche o valor e você ainda pode alterá-lo antes de criar | precisa existir para a linguagem da aplicação, senão `INVALID_VERSION` | Sim, em Config → Geral |
 | `BUILD` | Comando de build, executa antes da inicialização a cada deploy | 512 caracteres | Sim; conta como um deploy |
 | `START` | Comando de inicialização | 512 caracteres | Sim, em Config → Geral |
+| `AUTORESTART` | Reinicia a aplicação sozinha depois de uma queda | `true` (padrão) ou `false` | Sim, em Config → Geral |
 | `LANGUAGE` | Força a linguagem do runtime em vez de detectá-la: `javascript`, `typescript`, `bun`, `python`, `static`, `php`, `go`, `ruby`, `java`, `rust`, `deno`, `dotnet` ou `elixir`. A precedência é: o campo `language` de `POST /v1/apps`, depois esta chave (ou `"language"` em `vertracloud.config.json`), depois a detecção | um dos slugs acima, senão `INVALID_LANGUAGE` | Sim, em Config → Geral |
 | `SUBDOMAIN` | Subdomínio em `*.vertraweb.app` (ativa a publicação web) | 3 a 50 caracteres, `a-z`, `0-9` e `-` | Sim, em Config → Rede, com 5 minutos entre as mudanças |
 | `ID` | A aplicação à qual esta pasta está vinculada. Escrita por `vertra upload` e `vertra link`, removida por `vertra unlink`; usada só pela [CLI](/pt-br/cli#vincular-uma-pasta-a-uma-aplicação) | um ID de aplicação | Não se aplica; a plataforma ignora |
 
-As chaves não diferenciam maiúsculas de minúsculas, e um valor pode vir entre aspas simples ou duplas. Linhas que começam com `#` são comentários; a CLI também aceita `;`, mas a API lê as linhas com `;` como texto comum, então prefira `#`. Ao criar uma aplicação com `vertra upload`, a CLI lê `NAME`, `MEMORY`, `MAIN`, `VERSION`, `SUBDOMAIN`, `START` e `LANGUAGE` do arquivo, mas não `DESCRIPTION` nem `BUILD`: passe `--description` e defina o comando de build em Config → Geral. Restaurar um snapshot cujo `vertracloud.config` tenha mais de 64 KB ou mais de 64 linhas falha com `INVALID_CONFIG`.
+As chaves não diferenciam maiúsculas de minúsculas, e um valor pode vir entre aspas simples ou duplas. Linhas que começam com `#` são comentários; a CLI também aceita `;`, mas a API lê as linhas com `;` como texto comum, então prefira `#`. Ao criar uma aplicação com `vertra upload`, a CLI lê `NAME`, `MEMORY`, `MAIN`, `VERSION`, `SUBDOMAIN`, `START`, `LANGUAGE` e `AUTORESTART` do arquivo, mas não `DESCRIPTION` nem `BUILD`: passe `--description` e defina o comando de build em Config → Geral. Restaurar um snapshot cujo `vertracloud.config` tenha mais de 64 KB ou mais de 64 linhas falha com `INVALID_CONFIG`.
 
 `vertracloud.config.json` também é aceito, com chaves em minúsculas: `name`, `description`,
 `main`, `memory`, `build`, `start`, `subdomain` e `language`. A linguagem é definida por `LANGUAGE=` no arquivo de texto e por `"language"` no arquivo JSON.
@@ -67,6 +69,7 @@ Sem `MAIN`, a plataforma procura o arquivo principal pelo `main` e pelo script `
 ## Configuração avançada: comandos de inicialização e de build
 
 O **comando de inicialização** substitui a forma padrão de iniciar o runtime a partir do arquivo principal.
+Os dois comandos precisam ser de uma linha.
 O **comando de build** roda depois da instalação das dependências e antes da inicialização, a cada deploy:
 upload de código, deploy via GitHub, **Forçar build** e a alteração do próprio comando. Um simples reinício
 não executa o build de novo.
@@ -82,8 +85,8 @@ não executa o build de novo.
 
 Se o build falhar, a aplicação não sobe (`BUILD_FAILED`); se passar de 10 minutos,
 o deploy é interrompido (`BUILD_TIMEOUT`). Uma aplicação nova ainda é criada, parada, com a
-saída do build nos logs — corrija os arquivos e inicie-a de novo. O ambiente de build recebe o dobro da memória
-da aplicação, entre 1 GB e 4 GB.
+saída do build nos logs — corrija os arquivos e inicie-a de novo. O build usa a memória da aplicação:
+se ela acabar, aumente-a.
 
 ## Porta e publicação web
 
@@ -94,8 +97,8 @@ por você.
 
 Sem publicação web, a aplicação não recebe tráfego de entrada e roda em segundo plano,
 como um bot ou um worker. A publicação exige 512 MB de
-memória, e pode ser ativada ou desativada a qualquer momento. Ativar ou desativar recria o container, então
-a aplicação reinicia. Quando desativada, o subdomínio é liberado e outra pessoa pode
+memória, e pode ser ativada ou desativada a qualquer momento, sem reiniciar a aplicação (uma aplicação
+criada a partir da sua própria imagem Docker reinicia quando você a publica ou despublica). Quando desativada, o subdomínio é liberado e outra pessoa pode
 registrá-lo.
 
 ## Variáveis de ambiente
@@ -126,8 +129,9 @@ criar.
 |---|---|
 | Tamanho do `.zip` | 100 MB |
 | Armazenamento | 10 GB por aplicação, independentemente da memória |
-| Instalação de dependências | 15 minutos (`INSTALL_TIMEOUT`) |
+| Instalação de dependências | 15 minutos por etapa (`INSTALL_TIMEOUT`) |
 | Comando de build | 10 minutos (`BUILD_TIMEOUT`) |
+| Instalação e build juntos | 25 minutos (`INSTALL_TIMEOUT`) |
 | Portas expostas | Porta 80, mais até 5 adicionais por meio de domínios personalizados |
 | Deploys por hora | de 20 (Starter 1) a 60 (Pro e superiores) |
 

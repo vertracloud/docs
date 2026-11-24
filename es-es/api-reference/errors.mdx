@@ -40,7 +40,7 @@ y de ejecución que no vienen de la propia API (bucles de caída, dependencias q
 | 403 | `API_KEY_IP_DENIED` | La IP de la petición no está en `allowed_ips` de la clave. Añade la IP o el CIDR del cliente a la clave, o vacía la lista para permitir cualquier IP. |
 | 403 | `API_KEY_MANAGED` | La plataforma creó la clave para un stack. No puede editarse; se revoca junto con el stack. |
 | 403 | `API_KEY_SCOPE_DENIED` | A la clave le falta el scope que requiere la ruta (`details.required`), o la ruta es solo con sesión del panel. Ver [Scopes](/es-es/api-reference/introduction#scopes). |
-| 403 | `WEBSITE_ONLY` | La ruta solo acepta una sesión del panel. Las claves de API suelen recibir primero `API_KEY_SCOPE_DENIED` en estas rutas; `WEBSITE_ONLY` es la segunda comprobación que viene después. Ningún scope desbloquea la acción: usa el panel. |
+| 403 | `WEBSITE_ONLY` | La ruta solo acepta una sesión del panel. Las claves de API suelen recibir primero `API_KEY_SCOPE_DENIED` en estas rutas; `WEBSITE_ONLY` es la segunda comprobación que viene después. Ningún scope desbloquea la acción: usa el panel. Un restablecimiento de certificados que movería una base de datos antigua a la nueva dirección recibe `WEBSITE_ONLY` directamente, incluso con una clave de API con el scope. |
 | 403 | `ACCESS_DENIED` | Eres miembro de un workspace sin el permiso que exige la acción, o no enviaste el `workspace_id`. Un recurso que no se encontró responde `404`, por ejemplo `APP_NOT_FOUND`. |
 | 403 | `ACCOUNT_BANNED` | La cuenta fue bloqueada. Contacta con soporte. |
 | 403 | `APP_BANNED` | La aplicación fue bloqueada. Contacta con soporte. |
@@ -98,7 +98,7 @@ y de ejecución que no vienen de la propia API (bucles de caída, dependencias q
 | 400 | `MEMORY_BELOW_MINIMUM` | La memoria solicitada está por debajo del mínimo del plan; `details` incluye los números. |
 | 400 | `MEMORY_LIMIT_EXCEEDED` | La memoria solicitada supera lo que el plan permite a esta cuenta. |
 | 400 | `INVALID_MEMORY_FORMAT` | `memory` no es un entero válido. |
-| 422 | `INSUFFICIENT_MEMORY` | El build se quedó sin memoria mientras instalaba las dependencias. |
+| 422 | `INSUFFICIENT_MEMORY` | La instalación o el build se quedó sin la memoria de la aplicación; aumenta la memoria de la aplicación. |
 | 400 | `INVALID_RAM_LIMIT` | El valor de RAM está por debajo del mínimo del motor de base de datos seleccionado. |
 | 403 | `MAX_APPS_REACHED` | Se alcanzó el límite de aplicaciones del plan. Elimina una o mejora de plan. |
 | 400 | `INVALID_LANGUAGE` | El lenguaje de runtime seleccionado no es compatible. |
@@ -108,20 +108,20 @@ y de ejecución que no vienen de la propia API (bucles de caída, dependencias q
 | 409 | `CONTAINER_ALREADY_RUNNING` | Se pidió iniciar una aplicación que ya está en marcha. |
 | 409 | `OPERATION_IN_PROGRESS` | Ya hay otra operación de ciclo de vida sobre el mismo recurso en curso. Es contención, no un fallo: espera unos segundos y reintenta. Mientras una aplicación recibe un snapshot, los despliegues, rollbacks, reinicios, arranques, paradas, cambios de variables de entorno, restauraciones y las escrituras del gestor de archivos también responden este código. |
 | 400 | `NO_FIELDS_TO_UPDATE` / `NO_CHANGES_PROVIDED` | El body de la actualización no tiene nada que cambiar. |
-| 409 | `STORAGE_ABOVE_NEW_LIMIT` | Se rechazó un cambio de configuración porque el volumen ya ocupa más que el nuevo techo de disco; `details` incluye los números. |
+| 409 | `STORAGE_ABOVE_NEW_LIMIT` | Se rechazó bajar la memoria de una base de datos porque ya guarda más datos de los que permite el nuevo almacenamiento; `details` incluye los números. |
 | 400 | `SOURCE_REQUIRED` / `SOURCE_CONFLICT` | La creación de una aplicación necesita exactamente un origen (`file` XOR `snapshot_id`); falta uno o se enviaron los dos. |
 | 400 | `INVALID_ZIP` / `INVALID_ZIP_STRUCTURE` | El ZIP no se puede leer, o sus archivos están dentro de una carpeta superior extra: los archivos deben estar en la raíz del ZIP. Un ZIP dañado también se rechaza al restaurar un snapshot o una release, antes de que cambie nada. |
 | 413 | `ARCHIVE_TOO_LARGE` / `ARCHIVE_TOO_MANY_ENTRIES` | El ZIP tiene más contenido del que cabe al descomprimirlo, o más archivos de los permitidos. Envía un proyecto más pequeño. |
 | 413 | `DOWNLOAD_TOO_LARGE` | Guardar la aplicación como template: el proyecto es demasiado grande. |
 | 400 | `ZIP_TOO_SMALL` | El ZIP subido es demasiado pequeño para ser un proyecto real. |
 | 400 | `ZIP_TOO_LARGE` | El ZIP subido supera el límite de 100 MB. |
-| 400 | `MAIN_FILE_NOT_FOUND` | El escáner no encontró un punto de entrada en el proyecto subido. |
+| 400 | `MAIN_FILE_NOT_FOUND` | El archivo principal no existe en los archivos de la aplicación (o es una carpeta): en el proyecto subido, al guardar la configuración o tras subir un ZIP a una aplicación existente. |
 | 422 | `BUILD_FAILED` | El `build_command` terminó con error al iniciar o reiniciar. Revisa el log del build y corrige el comando. Al crear la aplicación esto no es un error: la aplicación termina el build detenida (`status: "down"`), con la salida en sus logs. |
 | 422 | `BUILD_TIMEOUT` | El `build_command` superó su límite de 10 minutos. Simplifica el build. Al crear la aplicación, queda creada detenida. |
 | — | `BUILD_INTERRUPTED` | El build no terminó (fue interrumpido). La aplicación queda `down` y este error aparece en su log. Vuelve a iniciarla o vuelve a desplegar. |
-| 422 | `INSTALL_TIMEOUT` | La instalación de dependencias superó su límite de 15 minutos. Al crear la aplicación, queda creada detenida. |
+| 422 | `INSTALL_TIMEOUT` | La instalación de dependencias superó los 15 minutos en un paso, o la instalación y el build juntos superaron los 25 minutos. Al crear la aplicación, queda creada detenida. |
 | 422 | `INSTALL_FAILED` | La instalación de dependencias falló. Revisa el manifiesto de dependencias. Al crear la aplicación, queda creada detenida. |
-| 422 | `INSTALL_OUT_OF_MEMORY` | La instalación de dependencias se quedó sin memoria. Aumenta la memoria de la aplicación. Al crear la aplicación, queda creada detenida. |
+| 422 | `INSTALL_OUT_OF_MEMORY` | La instalación o el build se quedó sin memoria. Aumenta la memoria de la aplicación. Al crear la aplicación, queda creada detenida. |
 | 422 | `INSTALL_CANCELLED` | La instalación se canceló (por ejemplo, porque un nuevo despliegue la reemplazó). |
 | 422 | `INSTALL_SHIELD_BLOCKED` | Vertra Shield detuvo el despliegue porque el tráfico superó la asignación del plan. Al crear la aplicación, queda creada detenida. |
 | 429 | `DEPLOY_RATE_LIMITED` | Se alcanzó el presupuesto horario de despliegues de la cuenta o su propio presupuesto horario de rollbacks; `details.retry_after` indica cuánto esperar. Ver [límites de peticiones](/es-es/api-reference/introduction#cómo-se-aplican-los-límites-de-peticiones-a-la-api) más abajo. |
@@ -137,6 +137,9 @@ Cuando un build o una instalación fallan, `GET /v1/apps/{id}` devuelve el códi
 | `BUILD_TIMEOUT` / `INSTALL_TIMEOUT` | Haz el build o la instalación más cortos. |
 | `BUILD_INTERRUPTED` | Vuelve a intentarlo. |
 | `INSTALL_SHIELD_BLOCKED` | La protección de red bloqueó el tráfico durante el build; reduce el tráfico que genera el build. |
+| `IMAGE_VOLUME_REFUSED` | La imagen Docker de la aplicación declara una ruta o un permiso que la plataforma no permite. Ajusta el Dockerfile y publica una nueva versión de la imagen. |
+| `IMAGE_LABEL_REFUSED` | La imagen Docker de la aplicación usa una label reservada por la plataforma. Elimínala del Dockerfile y publica una nueva versión de la imagen. |
+| `IMAGE_PULL_FAILED` | La plataforma no pudo descargar la imagen Docker de la aplicación. Vuelve a intentarlo; si sigue fallando, publica una nueva versión de la imagen. |
 
 ## Web Analytics
 

@@ -79,12 +79,14 @@ Si un paso falla, el trabajo pasa a `undoing`, elimina en orden inverso solo lo 
 
 Cuando el trabajo termina con éxito, sus `outputs` contienen lo que la plantilla quiere que veas, como la dirección de la aplicación o credenciales generadas. Una salida marcada como `once` **se muestra una sola vez**: la primera lectura del trabajo terminado devuelve su valor, y cada lectura posterior devuelve `null`. Cópiala en ese momento. Las salidas nunca se envían por el flujo de eventos. Las aplicaciones de una [plantilla cerrada](/es-es/templates/use/closed-templates) mantienen su código oculto.
 
+Las contraseñas de las bases de datos que creó el trabajo están en `database_passwords` (`database_id`, `service_id` y `password`), también **solo en la primera lectura** del trabajo terminado con éxito, dentro de 24 horas: cualquier lectura posterior, y cualquier lectura pasadas 24 horas, devuelve una lista vacía. Cópialas en ese momento; si pierdes una, [restablécela](/es-es/api-reference/endpoint/databases/credentials/resetpassword).
+
 ### Respuesta
 
 Estado `202` con el trabajo nuevo. Estado `200` con el mismo trabajo cuando la `Idempotency-Key` ya se usó con la misma petición.
 
 <ResponseField name="response" type="object">
-  El trabajo, en estado `queued`. Sus campos se describen en [Obtener trabajo de despliegue](/es-es/api-reference/endpoint/templates/deploy-status): `id`, `kind` (`deploy`), `template_id`, `version_id`, `version`, `status`, `current_step`, `steps`, `error`, `resources`, `stack_id`, `application_id`, `outputs`, `created_at`, `updated_at` y `finished_at`.
+  El trabajo, en estado `queued`. Sus campos se describen en [Obtener trabajo de despliegue](/es-es/api-reference/endpoint/templates/deploy-status): `id`, `kind` (`deploy`), `template_id`, `version_id`, `version`, `status`, `current_step`, `steps`, `error`, `resources`, `stack_id`, `application_id`, `outputs`, `database_passwords`, `created_at`, `updated_at` y `finished_at`.
 </ResponseField>
 
 <RequestExample>
@@ -128,6 +130,7 @@ curl -X POST https://api.vertracloud.app/v1/templates/discord-bot-js/deploy \
     "stack_id": null,
     "application_id": null,
     "outputs": [],
+    "database_passwords": [],
     "created_at": "2026-10-28T14:00:00Z",
     "updated_at": "2026-10-28T14:00:00Z",
     "finished_at": null

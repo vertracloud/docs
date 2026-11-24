@@ -79,12 +79,14 @@ If a step fails, the job moves to `undoing`, removes in reverse order only what 
 
 When the job succeeds, its `outputs` carry what the template wants you to see, such as the address of the application or generated credentials. An output marked `once` **is shown only once**: the first read of the finished job returns its value, and every later read returns `null`. Copy it then. Outputs are never sent on the event stream. Applications of a [closed template](/templates/use/closed-templates) keep their code hidden.
 
+The passwords of the databases the job created are in `database_passwords` (`database_id`, `service_id` and `password`), also **only on the first read** of the succeeded job, within 24 hours: every later read, and any read after 24 hours, returns an empty list. Copy them then; if you lose one, [reset it](/api-reference/endpoint/databases/credentials/resetpassword).
+
 ### Response
 
 Status `202` with the new job. Status `200` with the same job when the `Idempotency-Key` was already used with the same request.
 
 <ResponseField name="response" type="object">
-  The job, in the `queued` status. Its fields are described in [Get Deploy Job](/api-reference/endpoint/templates/deploy-status): `id`, `kind` (`deploy`), `template_id`, `version_id`, `version`, `status`, `current_step`, `steps`, `error`, `resources`, `stack_id`, `application_id`, `outputs`, `created_at`, `updated_at` and `finished_at`.
+  The job, in the `queued` status. Its fields are described in [Get Deploy Job](/api-reference/endpoint/templates/deploy-status): `id`, `kind` (`deploy`), `template_id`, `version_id`, `version`, `status`, `current_step`, `steps`, `error`, `resources`, `stack_id`, `application_id`, `outputs`, `database_passwords`, `created_at`, `updated_at` and `finished_at`.
 </ResponseField>
 
 <RequestExample>
@@ -128,6 +130,7 @@ curl -X POST https://api.vertracloud.app/v1/templates/discord-bot-js/deploy \
     "stack_id": null,
     "application_id": null,
     "outputs": [],
+    "database_passwords": [],
     "created_at": "2026-10-28T14:00:00Z",
     "updated_at": "2026-10-28T14:00:00Z",
     "finished_at": null

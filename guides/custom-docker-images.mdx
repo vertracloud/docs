@@ -29,7 +29,7 @@ Images that come from a [template](/templates/overview) also take image slots: o
 
 ## Limits of the build
 
-Each build runs in its own isolated build environment, with the same limits as the build of a regular application:
+Each build runs in its own isolated build environment, with these limits:
 
 - RAM of 2x the plan's per-app RAM, at least 1,024 MB and at most 4,096 MB.
 - A time limit of **26 minutes**.
@@ -91,12 +91,11 @@ You can run the same check through the API with [Check Dockerfile](/api-referenc
 
 The application runs with the same isolation as any other application on the platform.
 
-- **Writable paths.** `/app` is the app's **persistent** disk (quota, file manager, snapshots). `/tmp`, `/var/tmp` and
-  `/run` are writable but **temporary**: they are cleared when the app restarts. **Everything else is read-only.** An
-  image that writes anywhere else will fail, so point logs, caches and data to `/app`. The app's **Files** tab shows
-  `/app`, not the code inside the image.
-- **User.** The app always runs as user `1000:1000`. The `USER` instruction of the `Dockerfile` is ignored, so an image
-  that needs root to write outside the paths above does not run.
+- **Persistent disk.** `/app` is the app's **persistent** disk (quota, file manager, snapshots). Point logs, caches and
+  data to `/app`. The app's **Files** tab shows `/app`, not the code inside the image.
+- **User.** The app does not run as root. The `USER` instruction of the `Dockerfile` is ignored, so an image that needs
+  root does not run. Make the files the image ships readable by any user.
+- **Console.** While the image is prepared and the application starts, the console shows each step.
 - **Command.** The `ENTRYPOINT` and `CMD` of the image. They are not configurable.
 - **Ignored instructions.** `HEALTHCHECK` is ignored. `EXPOSE` only suggests the port.
 
@@ -104,7 +103,7 @@ The application runs with the same isolation as any other application on the pla
 
 Only web apps have a port. When you create the app, the default is the **first `EXPOSE`** of the `Dockerfile`, or **80**
 when there is none. The image returns that value as `suggested_port` in [Get Image](/api-reference/endpoint/images/get). The platform injects it as the `PORT` environment variable and routes traffic to it, so your server
-should listen on `PORT`. An app created with web turned off (a bot or a worker) has no port and no subdomain. You can publish it on the web later with [Publish Application](/api-reference/endpoint/apps/network/publish), informing the port the image listens on in `port`; without it the call fails with `IMAGE_APP_PORT_REQUIRED`.
+should listen on `PORT`. An app created with web turned off (a bot or a worker) has no port and no subdomain. You can publish it on the web later with [Publish Application](/api-reference/endpoint/apps/network/publish), informing the port the image listens on in `port`; without it the call fails with `IMAGE_APP_PORT_REQUIRED`. Publishing or unpublishing an app created from an image restarts it.
 
 ### Environment variables
 

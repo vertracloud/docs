@@ -13,7 +13,7 @@ Use an image template when the app needs another language or version, system pac
 
 <Check>The Vertra CLI signed in with an API key that has the `templates:read`, `templates:write` and `templates:deploy` scopes, plus the scopes that build images.</Check>
 <Check>A plan that can create Docker images and private templates (see [Plans and limits](/plans-and-limits)). Each account keeps up to 5 private templates.</Check>
-<Check>You know the rules of [custom Docker images](/guides/custom-docker-images): writable paths, user `1000:1000`, the `PORT` variable and what the build refuses.</Check>
+<Check>You know the rules of [custom Docker images](/guides/custom-docker-images): the persistent disk, the `PORT` variable and what the build refuses.</Check>
 
 <Note>Every image in use takes **one image slot** in the account that uses it, no matter how many apps run from it. When you deploy your own template, the image is already yours; people who receive it through a link get their own copy and use one slot each.</Note>
 
@@ -21,7 +21,7 @@ Use an image template when the app needs another language or version, system pac
 
 <Steps>
   <Step title="Write an app that follows the platform rules">
-    An image runs with the same isolation as any application: the root filesystem is read-only, the user is always `1000:1000`, `/app` is the only persistent disk, and the server must listen on the `PORT` variable. Create this folder:
+    An image runs with the same isolation as any application: `/app` is the only persistent disk, and the server must listen on the `PORT` variable. Create this folder:
 
     ```text
     hello-counter/
@@ -78,7 +78,7 @@ Use an image template when the app needs another language or version, system pac
     CMD ["node", "server.js"]
     ```
 
-    <Tip>Test it locally the same way it will run: `docker run --rm --read-only --user 1000:1000 --tmpfs /tmp -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. If it only works with a writable root or as root, it will not work on the platform.</Tip>
+    <Tip>Test it locally first: `docker run --rm -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. If it needs root to run, it will not work on the platform.</Tip>
   </Step>
   <Step title="Build the image on the platform">
     The template does not carry the `Dockerfile`: it references an image that already exists in your account. Build it from the folder:
@@ -186,7 +186,7 @@ Use an image template when the app needs another language or version, system pac
 |---|---|
 | The build fails with `IMAGE_VOLUME_REFUSED` or a warning about `WORKDIR /app` | Nothing the image puts in `/app` survives, because `/app` is the persistent disk. Use another directory such as `/srv` and never `VOLUME /app`. |
 | The app boots and the wizard fails at the healthcheck | The path answers an error or the server listens on another port. Listen on `PORT` on `0.0.0.0` and confirm that `healthcheck.path` returns 200. Raise `timeout` if the boot is slow. |
-| The app crashes with a permission error | The image writes outside `/app`, `/tmp`, `/var/tmp` and `/run`. Everything else is read-only; point logs, caches and data to `/app`. |
+| The app crashes with a permission error | The app can't write where the image tries to. Point logs, caches and data to `/app`. |
 | `create` fails with `IMAGE_NOT_FOUND` | `source.image` is not the id of an image of your own account. Check it with `vertra image list`. |
 | `create` fails with `IMAGE_NOT_READY` | The image has no successful build yet. Wait for `success`. |
 | `validate` reports `invalid_source` | A field of the wrong kind: `main`, `start` and `language` are only for code services; `port` is only for image services. |
@@ -196,7 +196,7 @@ Use an image template when the app needs another language or version, system pac
 
 - [Requirements and plan](/templates/create/requirements): how `ram`, `web` and the image decide the required plan and slots.
 - [Deploy settings](/templates/create/deploy-settings): when to lock blue-green and require rollback with data.
-- [Best practices](/templates/create/best-practices): where data goes, the read-only root, user 1000 and the port.
+- [Best practices](/templates/create/best-practices): where data goes and the port.
 - [Manifest reference](/templates/create/manifest-reference): every field of an app service.
 - [Custom Docker images](/guides/custom-docker-images): the build rules, versions and rollback of the image itself.
 - Next tutorial: [a stack with Postgres and Redis](/templates/tutorials/postgres-redis-stack).

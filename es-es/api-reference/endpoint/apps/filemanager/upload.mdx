@@ -31,6 +31,8 @@ Cuando la aplicación ejecuta una imagen Docker personalizada, la subida es un c
   Un ZIP se **extrae encima de** la carpeta de destino (`path`, o la raíz de la aplicación): los archivos que contiene sobrescriben las rutas coincidentes, pero los archivos que ya están en disco y no están en el ZIP se dejan intactos; es una fusión, no un reemplazo. Los directorios prohibidos (`node_modules`, `.git`, `.local` y similares) se eliminan del ZIP en el servidor antes de extraerlo, sea cual sea el contenido del archivo.
 
   La subida multipart está limitada a 100 MB; un ZIP también tiene un límite de 512 MB una vez descomprimido.
+
+  Después de la subida, el archivo principal de la aplicación debe existir: el ZIP lo incluye (contando la carpeta de destino) o la aplicación ya lo tiene. De lo contrario no se guarda nada y la solicitud falla con `MAIN_FILE_NOT_FOUND`.
 </ParamField>
 
 <ParamField body="message" type="string">
@@ -92,6 +94,7 @@ Cuando la aplicación ejecuta una imagen Docker personalizada, la subida es un c
   - `APP_NOT_FOUND`: La aplicación indicada no se encontró.
   - `NO_FILE_UPLOADED`: No se envió ningún archivo en la petición (`400`).
   - `INVALID_ZIP_STRUCTURE`: No se pudo leer el ZIP (`400`).
+  - `MAIN_FILE_NOT_FOUND`: Después de la subida la aplicación se quedaría sin archivo principal: el ZIP no lo incluye y la aplicación no lo tiene (`400`). No se guardó nada.
   - `INVALID_PATH`: El parámetro de query `path` está mal formado o intenta salir de la raíz de la aplicación, por ejemplo con `..` (`400`).
   - `FORBIDDEN_PATH`: El destino es una carpeta reservada por la plataforma (`403`).
   - `PATH_IS_FILE`: El destino existe y es un archivo, no una carpeta (`409`).

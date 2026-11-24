@@ -8,8 +8,8 @@ icon: 'database'
 ## O que é um banco de dados gerenciado na Vertra Cloud?
 
 Um banco de dados gerenciado na Vertra Cloud é uma instância de PostgreSQL, MongoDB, Redis ou MySQL que a
-plataforma provisiona, protege e monitora para você: o TLS é obrigatório, os certificados de CA, servidor
-e cliente são gerados automaticamente, e cada banco roda no próprio container, com memória e
+plataforma provisiona, protege e monitora para você: o TLS é obrigatório, com certificados gerados
+automaticamente, e cada banco roda no próprio container, com memória e
 armazenamento dedicados.
 
 ## Quais motores de banco estão disponíveis?
@@ -70,17 +70,18 @@ Collations ICU também funcionam, por exemplo `CREATE COLLATION pt_br_icu (provi
 
 ## O que preciso para me conectar?
 
-São quatro itens, todos na página do banco no painel (ou pela API):
+São cinco itens. O host, a porta, o usuário e os certificados estão na página do banco no painel (ou pela API). A senha aparece **uma única vez**, em uma caixa de diálogo logo depois que o banco é criado, inclusive nos bancos criados dentro de uma stack ou por um template; a mesma caixa permite copiar ou baixar os certificados. A senha nunca é mostrada de novo, e o card de conexão na página do banco indica onde encontrá-la. As aplicações ligadas ao banco em uma stack já recebem a senha nas variáveis gerenciadas; em qualquer outro caso, copie-a para as variáveis de ambiente da sua aplicação. Se a perder, [redefina a senha](/pt-br/api-reference/endpoint/databases/credentials/resetpassword); no painel, isso pede um código de confirmação.
 
-- **Host** — `<id-do-banco-sem-hifens>.db.usa1.vertraweb.app`, mostrado na página do banco e em
+- **Host** — `vertra-cloud-<database-id>.db.<região>.vertraweb.app`, em que `<região>` é `ny1` (`usa1` nos bancos criados
+  antes da v26.5.11); o endereço exato está na página do banco e em
   [Obter banco de dados](/pt-br/api-reference/endpoint/databases/get).
 - **Porta** — **única por banco**, não a porta padrão do motor (5432, 27017, 6379, 3306). Sempre copie-a da
   página do banco ou da resposta da API.
 - **Usuário** — `vertracloud` (ou o usuário do motor, em bancos mais antigos), mostrado na página do banco e
   como `username` em [Obter banco de dados](/pt-br/api-reference/endpoint/databases/get).
-- **Senha** — mostrada na página do banco; [redefina-a](/pt-br/api-reference/endpoint/databases/credentials/resetpassword)
-  se necessário.
-- **Certificados** — baixe-os na aba **Certificados** do banco ou pelo
+- **Senha** — mostrada uma única vez, quando o banco é criado; [redefina-a](/pt-br/api-reference/endpoint/databases/credentials/resetpassword)
+  se você a perdeu.
+- **Certificados** — baixe-os na aba **Conexão** do banco ou pelo
   [Obter certificado do banco de dados](/pt-br/api-reference/endpoint/databases/credentials/get):
 
 | Arquivo | O que é | Use como |
@@ -88,11 +89,11 @@ São quatro itens, todos na página do banco no painel (ou pela API):
 | `certificate-<id>.ca.pem` | A CA que assina o certificado de servidor do banco | arquivo de CA (`ca`, `sslrootcert`, `--cacert`, `tlsCAFile`, `--ssl-ca`) |
 | `certificate-<id>.crt` | Seu certificado de cliente — **não** é a CA | certificado de cliente (`cert`, `sslcert`, `--cert`, `--ssl-cert`) |
 | `certificate-<id>.key` | Sua chave privada de cliente | chave de cliente (`key`, `sslkey`, `--key`, `--ssl-key`) |
-| `certificate-<id>.pem` | Pacote: chave de cliente + certificado de cliente + a CA, nessa ordem | arquivo de certificado com chave do MongoDB (`tlsCertificateKeyFile`) |
+| `certificate-<id>.pem` | Chave de cliente + certificado de cliente em um só arquivo | arquivo de certificado com chave do MongoDB (`tlsCertificateKeyFile`) |
 | `certificate-<id>.p12` | Sua chave e seu certificado de cliente em PKCS#12, senha vazia | drivers que só aceitam uma identidade PKCS#12, como o [Prisma 6](#como-me-conecto-com-o-prisma-6) |
 
 A maioria das conexões usa três deles: `.ca.pem`, `.crt` e `.key`. Bancos mais antigos podem não oferecer o
-`.ca.pem`; nesses, use o `.pem` como arquivo de CA, já que a CA é a última parte dele.
+`.ca.pem`; baixe os arquivos na aba **Conexão** e use os que ela lista.
 
 O certificado do servidor corresponde ao host do banco, então a verificação completa (`verify-full`,
 `VERIFY_IDENTITY`, `rejectUnauthorized: true`) funciona. Mantenha os arquivos `.key`, `.pem` e `.p12` privados —
@@ -101,7 +102,7 @@ emite novos certificados e invalida os arquivos antigos.
 
 ## Como me conecto a cada motor?
 
-Nos exemplos, `<host>`, `<port>` e `<password>` vêm da página do banco; o usuário e o banco são
+Nos exemplos, `<host>` e `<port>` vêm da página do banco e `<password>` é a senha mostrada quando o banco foi criado; o usuário e o banco são
 `vertracloud` (troque pelo `username` do seu banco se ele foi criado antes da v26.4.8); e
 `certificate.ca.pem` / `certificate.crt` / `certificate.key` / `certificate.pem` são os arquivos baixados.
 
@@ -225,7 +226,7 @@ outros drivers descrevem a mesma causa com outras palavras.
 | `connection requires a valid client certificate` | O TLS está ativo, mas o certificado de cliente e a chave não foram enviados | Adicione o `.crt` e o `.key` (`cert`/`key`, `sslcert`/`sslkey`) |
 | `pg_hba.conf rejects connection ... no encryption` | O TLS está desativado | Ative o TLS com os três arquivos; uma conexão sem TLS é sempre recusada |
 | `pg_hba.conf rejects connection ... user "postgres"` | Usuário errado: bancos criados a partir da v26.4.8 usam `vertracloud` | Use o usuário mostrado na página do banco (`username` na API) |
-| `password authentication failed for user` | Senha errada, ou ela mudou depois de **Redefinir senha** | Copie a senha novamente e reinicie a aplicação |
+| `password authentication failed for user` | Senha errada, ou ela mudou depois de **Redefinir senha** | Use a senha que você salvou; se a perdeu, redefina-a, atualize-a na sua aplicação e reinicie |
 | `Hostname/IP does not match certificate's altnames` | Conexão por endereço IP ou por outro nome | Conecte-se pelo host mostrado na página do banco |
 | `ENOENT: no such file or directory` | O caminho do certificado não existe onde o processo roda | Os caminhos são relativos ao diretório de trabalho; confira se os arquivos foram implantados |
 | `Error opening a TLS connection` (Prisma `P1011`) | Mesmas causas das linhas de certificado acima | Veja [Prisma 6](#como-me-conecto-com-o-prisma-6) |
@@ -272,11 +273,11 @@ está em [Conectar a um banco](/pt-br/guides/connect-database#use-o-drizzle-kit-
 
 ### O Python 3.13 conecta ao banco de dados?
 
-Conecta, mas o Python 3.13 em diante liga verificações X.509 estritas no contexto TLS padrão (`ssl.create_default_context()`), e bancos criados antes da correção dos certificados podem falhar com `Missing Authority Key Identifier`. Quem usa o contexto padrão é afetado, como redis-py e pg8000; psycopg, asyncpg, PyMySQL e pymongo não são. Bancos novos e bancos cujos certificados você redefiniu já emitem certificados compatíveis. Se não puder redefinir agora, o redis-py 6 ou superior aceita `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`.
+Conecta, mas o Python 3.13 em diante liga verificações X.509 estritas no contexto TLS padrão (`ssl.create_default_context()`), e bancos criados antes da correção dos certificados podem falhar com `Missing Authority Key Identifier`. Quem usa o contexto padrão é afetado, como redis-py e pg8000; psycopg, asyncpg, PyMySQL e pymongo não são. Bancos novos e bancos cujos certificados você redefiniu já emitem certificados compatíveis. Se não puder redefinir agora, o redis-py 6 ou superior aceita `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`. Em um banco mais antigo, redefinir os certificados também o passa para o novo endereço, e somente no painel; veja [O que acontece quando redefino os certificados?](#o-que-acontece-quando-redefino-os-certificados).
 
 ### O que acontece quando redefino os certificados?
 
-A redefinição emite uma nova CA, um novo certificado de servidor e um novo de cliente, e invalida os arquivos antigos. Nas aplicações ligadas a uma stack, os arquivos em `/app/.vertra/certs/` são regravados automaticamente, mas o processo em execução ainda guarda os antigos: a resposta indica `restart_required` e lista as aplicações a reiniciar. Arquivos que você baixou e colocou num projeto por conta própria precisam ser baixados e implantados de novo.
+A redefinição emite novos certificados e invalida os arquivos antigos. Um banco criado antes da v26.5.11 também passa para o novo endereço (`vertra-cloud-…db.ny1.vertraweb.app` em vez de `…db.usa1.vertraweb.app`); isso é feito somente no painel, que antes lista as variáveis suas que contêm o endereço antigo, para você atualizá-las junto com seus arquivos de certificado. Com uma chave de API, redefinir os certificados de um banco mais antigo responde `403 WEBSITE_ONLY`. Nas aplicações ligadas por uma stack ou template, os arquivos em `/app/.vertra/certs/` e as variáveis gerenciadas (inclusive o novo endereço) são regravados automaticamente e valem no próximo reinício da aplicação: a resposta indica `restart_required` e lista as aplicações a reiniciar. Arquivos que você baixou e colocou num projeto por conta própria precisam ser baixados e implantados de novo.
 
 ## Ciclo de vida
 
@@ -310,7 +311,7 @@ stateDiagram-v2
     Gera uma nova senha aleatória e segura para o banco.
   </Card>
   <Card title="Redefinir certificados" icon="certificate">
-    Regenera todos os certificados TLS (CA, servidor e cliente).
+    Emite novos certificados TLS. Um banco criado antes da v26.5.11 também passa para o novo endereço, somente pelo painel.
   </Card>
   <Card title="Baixar snapshot" icon="download">
     Baixa uma cópia dos dados do banco.
@@ -341,6 +342,8 @@ O painel exibe métricas em tempo real para cada banco:
     Espaço em disco usado vs. a cota.
   </Card>
 </CardGroup>
+
+Os gráficos de histórico (últimos 5 minutos e últimas 24 horas) marcam reinícios, reinícios automáticos e quedas, e sinalizam uma queda causada por falta de memória. As mesmas marcas vêm como `events` em [Métricas do banco](/pt-br/api-reference/endpoint/databases/metrics).
 
 ## Armazenamento
 

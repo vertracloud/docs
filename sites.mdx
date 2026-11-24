@@ -61,10 +61,11 @@ subdomain runs privately, and you can turn publishing on later — or off again 
 **Network** settings, or through the API with
 [Publish Application on the Web](/api-reference/endpoint/apps/network/publish).
 
-<Warning>
-  Turning publishing on or off **recreates the container, so the application restarts**. Plan for a
-  short downtime.
-</Warning>
+<Note>
+  Turning publishing on or off takes effect right away, **without restarting the application**. An
+  application created from your [own Docker image](/guides/custom-docker-images) is the exception:
+  publishing or unpublishing it restarts it.
+</Note>
 
 <Warning>
   Unpublishing **releases the subdomain**. It is not reserved for you — anyone can register it right
@@ -112,10 +113,9 @@ Each application and database runs in an isolated container with:
 
 The system detects containers entering restart loops and applies preventive measures:
 
-- **Intelligent detection** — 5 crashes in 10 minutes disables auto-restart for 24 hours
-- **Exit code filtering** — Normal termination (code 0) is not counted
-- **Cooldown between restarts** — Minimum interval of 1 hour between automatic restarts
-- **Minimum uptime time** — The container must be online for at least 60 seconds to count as stable
+- **Intelligent detection** — the 6th crash in 10 minutes pauses auto-restart for 24 hours
+- **Exit code filtering** — normal termination (code 0) is not counted
+- **Growing wait between restarts** — immediately, then 10 s, 30 s, 60 s and 2 min
 
 ### Automatic SSL/TLS
 
@@ -201,6 +201,7 @@ To maintain platform health, projects on an account without an active plan that 
 | Maximum ZIP upload size | 100 MB |
 | Subdomain | Unique per application |
 | Custom domains | 1 to 20 per application, by plan (the automatic `www` doesn't count) |
-| Maximum dependency install time | 15 minutes |
+| Maximum dependency install time | 15 minutes per step |
 | Maximum `build_command` time | 10 minutes |
+| Maximum installation and build time together | 25 minutes |
 | Exposed ports | Port 80, plus up to 5 more through custom domains |

@@ -1,7 +1,7 @@
 ---
 title: 'Buenas prácticas de plantillas: datos, disco, puerto, healthcheck y secretos'
 sidebarTitle: 'Buenas prácticas'
-description: 'Escribe plantillas que funcionen en el sandbox de Vertra Cloud: datos en bases del stack, /app como único disco, uid 1000, puerto correcto y sin secretos.'
+description: 'Escribe plantillas para el sandbox de Vertra Cloud: datos en bases del stack, /app como único disco persistente, sin root, puerto correcto y sin secretos.'
 icon: 'list-check'
 ---
 
@@ -15,7 +15,7 @@ Cuando el software ofrece una opción, exponla: n8n deja al usuario elegir entre
 
 ## `/app` es el único disco persistente
 
-El sistema de archivos raíz es de **solo lectura**. `/app` es el directorio de trabajo y el `HOME` de la app, y el único lugar donde los archivos sobreviven a un reinicio, a un despliegue y a un snapshot. Apunta todo lo que escribe el software ahí con una variable:
+`/app` es el directorio de trabajo y el `HOME` de la app, y el único lugar donde los archivos tienen garantizado sobrevivir a un reinicio, a un despliegue y a un snapshot. Apunta todo lo que escribe el software ahí con una variable:
 
 ```yaml
 env:
@@ -23,17 +23,17 @@ env:
   OPENCLAW_HOME: /app
 ```
 
-No hay ninguna propiedad de persistencia en el manifiesto, y una instrucción `VOLUME` en un Dockerfile se ignora. No dependas de ninguna otra ruta para el estado: el resto del sistema de archivos es de solo lectura.
+No hay ninguna propiedad de persistencia en el manifiesto, y una instrucción `VOLUME` en un Dockerfile se ignora. No dependas de ninguna otra ruta para el estado.
 
 `/app/.vertra/` está reservada para la plataforma (certificados de bases de datos). Nunca escribas ahí ni incluyas archivos ahí.
 
-## Ejecuta como uid 1000
+## Ejecuta sin root
 
-Los procesos se ejecutan como el usuario sin privilegios con uid 1000, sin nuevos privilegios y con raíz de solo lectura. El software que debe arrancar como root, cambiar de usuario al arrancar (`usermod`, `chown` de rutas del sistema), usar un sistema init como PID 1 o escribir en `/opt` o `/var` no funciona tal cual. Adáptalo:
+Los procesos se ejecutan como un usuario sin privilegios, sin nuevos privilegios. El software que debe arrancar como root, cambiar de usuario al arrancar (`usermod`, `chown` de rutas del sistema), usar un sistema init como PID 1 o escribir en `/opt` o `/var` no funciona tal cual. Adáptalo:
 
 - Usa una imagen o un Dockerfile que arranque como usuario normal y guarde sus datos bajo `/app`.
 - Elimina los pasos de arranque que necesiten root.
-- Prueba con raíz de solo lectura y uid 1000 antes de publicar; consulta [Validar y probar](/es-es/templates/create/validate-and-test).
+- Prueba sin root antes de publicar; consulta [Validar y probar](/es-es/templates/create/validate-and-test).
 
 ## Define el puerto
 

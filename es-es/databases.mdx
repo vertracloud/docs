@@ -8,8 +8,8 @@ icon: 'database'
 ## ¿Qué es una base de datos gestionada en Vertra Cloud?
 
 Una base de datos gestionada en Vertra Cloud es una instancia de PostgreSQL, MongoDB, Redis o MySQL que la
-plataforma aprovisiona, protege y monitoriza por ti: TLS es obligatorio, los certificados de CA, de servidor
-y de cliente se generan automáticamente, y cada base de datos se ejecuta en su propio contenedor, con memoria
+plataforma aprovisiona, protege y monitoriza por ti: TLS es obligatorio, con certificados generados
+automáticamente, y cada base de datos se ejecuta en su propio contenedor, con memoria
 y almacenamiento dedicados.
 
 ## ¿Qué motores de base de datos están disponibles?
@@ -71,17 +71,18 @@ Las collations ICU también funcionan, por ejemplo `CREATE COLLATION pt_br_icu (
 
 ## ¿Qué necesito para conectarme?
 
-Cuatro datos, todos en la página de la base de datos del panel (o a través de la API):
+Cinco datos. El host, el puerto, el usuario y los certificados están en la página de la base de datos del panel (o a través de la API). La contraseña se muestra **una sola vez**, en un cuadro de diálogo justo después de crear la base de datos, también en las bases de datos creadas dentro de una stack o por una plantilla; el mismo cuadro permite copiar o descargar los certificados. La contraseña no se vuelve a mostrar, y la tarjeta de conexión de la página de la base de datos indica dónde encontrarla. Las aplicaciones enlazadas a la base de datos en una stack ya reciben la contraseña en sus variables gestionadas; en cualquier otro caso, cópiala en las variables de entorno de tu aplicación. Si la pierdes, [restablece la contraseña](/es-es/api-reference/endpoint/databases/credentials/resetpassword); en el panel, eso pide un código de confirmación.
 
-- **Host** — `<id-de-la-base-de-datos-sin-guiones>.db.usa1.vertraweb.app`, visible en la página de la base de
-  datos y en [Obtener base de datos](/es-es/api-reference/endpoint/databases/get).
+- **Host** — `vertra-cloud-<database-id>.db.<región>.vertraweb.app`, donde `<región>` es `ny1` (`usa1` en las
+  bases de datos creadas antes de la v26.5.11); la dirección exacta está en la página de la base de datos y en
+  [Obtener base de datos](/es-es/api-reference/endpoint/databases/get).
 - **Puerto** — **único por base de datos**, no el puerto por defecto del motor (5432, 27017, 6379, 3306).
   Cópialo siempre desde la página de la base de datos o desde la respuesta de la API.
 - **Usuario** — `vertracloud` (o el usuario del motor en bases de datos antiguas), visible en la página de la
   base de datos y como `username` en [Obtener base de datos](/es-es/api-reference/endpoint/databases/get).
-- **Contraseña** — visible en la página de la base de datos; [restablécela](/es-es/api-reference/endpoint/databases/credentials/resetpassword)
-  si es necesario.
-- **Certificados** — descárgalos en la pestaña **Certificados** de la base de datos o mediante
+- **Contraseña** — se muestra una sola vez, cuando se crea la base de datos; [restablécela](/es-es/api-reference/endpoint/databases/credentials/resetpassword)
+  si la perdiste.
+- **Certificados** — descárgalos en la pestaña **Conexión** de la base de datos o mediante
   [Obtener certificado de base de datos](/es-es/api-reference/endpoint/databases/credentials/get):
 
 | Archivo | Qué es | Úsalo como |
@@ -89,11 +90,11 @@ Cuatro datos, todos en la página de la base de datos del panel (o a través de 
 | `certificate-<id>.ca.pem` | La CA que firma el certificado de servidor de la base de datos | archivo de CA (`ca`, `sslrootcert`, `--cacert`, `tlsCAFile`, `--ssl-ca`) |
 | `certificate-<id>.crt` | Tu certificado de cliente — **no** es la CA | certificado de cliente (`cert`, `sslcert`, `--cert`, `--ssl-cert`) |
 | `certificate-<id>.key` | Tu clave privada de cliente | clave de cliente (`key`, `sslkey`, `--key`, `--ssl-key`) |
-| `certificate-<id>.pem` | Paquete: clave de cliente + certificado de cliente + la CA, en ese orden | archivo de certificado con clave de MongoDB (`tlsCertificateKeyFile`) |
+| `certificate-<id>.pem` | Clave de cliente + certificado de cliente en un solo archivo | archivo de certificado con clave de MongoDB (`tlsCertificateKeyFile`) |
 | `certificate-<id>.p12` | Tu clave y tu certificado de cliente en PKCS#12, contraseña vacía | drivers que solo aceptan una identidad PKCS#12, como [Prisma 6](#cómo-me-conecto-con-prisma-6) |
 
 La mayoría de las conexiones necesitan tres: `.ca.pem`, `.crt` y `.key`. Es posible que las bases de datos
-antiguas no ofrezcan el `.ca.pem`; en ellas, usa el `.pem` como archivo de CA, ya que la CA es su última parte.
+antiguas no ofrezcan el `.ca.pem`; descarga los archivos de la pestaña **Conexión** y usa los que ella lista.
 
 El certificado del servidor coincide con el host de la base de datos, así que funciona la verificación completa
 (`verify-full`, `VERIFY_IDENTITY`, `rejectUnauthorized: true`). Mantén los archivos `.key`, `.pem` y `.p12` en privado:
@@ -102,7 +103,7 @@ emite otros nuevos e invalida los archivos antiguos.
 
 ## ¿Cómo me conecto a cada motor?
 
-En los ejemplos, `<host>`, `<port>` y `<password>` proceden de la página de la base de datos; el usuario y la
+En los ejemplos, `<host>` y `<port>` proceden de la página de la base de datos y `<password>` es la contraseña mostrada al crearla; el usuario y la
 base de datos son `vertracloud` (sustitúyelo por el `username` de tu base de datos si se creó antes de la
 v26.4.8), y `certificate.ca.pem` / `certificate.crt` / `certificate.key` / `certificate.pem` son los archivos descargados.
 
@@ -226,7 +227,7 @@ equivocado o el usuario equivocado. Busca abajo el mensaje que recibiste; los ej
 | `connection requires a valid client certificate` | TLS está activado, pero no se enviaron el certificado de cliente ni la clave | Añade el `.crt` y el `.key` (`cert`/`key`, `sslcert`/`sslkey`) |
 | `pg_hba.conf rejects connection ... no encryption` | TLS está desactivado | Activa TLS con los tres archivos; una conexión sin TLS siempre se rechaza |
 | `pg_hba.conf rejects connection ... user "postgres"` | Usuario equivocado: las bases de datos creadas desde la v26.4.8 usan `vertracloud` | Usa el usuario que aparece en la página de la base de datos (`username` en la API) |
-| `password authentication failed for user` | Contraseña equivocada, o cambió tras **Restablecer Contraseña** | Copia de nuevo la contraseña y reinicia la aplicación |
+| `password authentication failed for user` | Contraseña equivocada, o cambió tras **Restablecer Contraseña** | Usa la contraseña que guardaste; si la perdiste, restablécela, actualízala en tu aplicación y reinicia |
 | `Hostname/IP does not match certificate's altnames` | Conexión por dirección IP o por otro nombre | Conéctate con el host que aparece en la página de la base de datos |
 | `ENOENT: no such file or directory` | La ruta del certificado no existe donde se ejecuta el proceso | Las rutas son relativas al directorio de trabajo; comprueba que los archivos se desplegaron |
 | `Error opening a TLS connection` (Prisma `P1011`) | Las mismas causas que las filas de certificados anteriores | Consulta [Prisma 6](#cómo-me-conecto-con-prisma-6) |
@@ -273,11 +274,11 @@ está en [Conectar una base de datos](/es-es/guides/connect-database#usa-drizzle
 
 ### ¿Se conecta Python 3.13 a la base de datos?
 
-Sí, pero Python 3.13 y posteriores activan comprobaciones X.509 estrictas en el contexto TLS por defecto (`ssl.create_default_context()`), y las bases de datos creadas antes de la corrección de los certificados pueden fallar con `Missing Authority Key Identifier`. Se ven afectadas las librerías que usan el contexto por defecto, como redis-py y pg8000; psycopg, asyncpg, PyMySQL y pymongo no. Las bases de datos nuevas y aquellas cuyos certificados has restablecido ya emiten certificados compatibles. Si no puedes restablecer ahora, redis-py 6 o superior acepta `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`.
+Sí, pero Python 3.13 y posteriores activan comprobaciones X.509 estrictas en el contexto TLS por defecto (`ssl.create_default_context()`), y las bases de datos creadas antes de la corrección de los certificados pueden fallar con `Missing Authority Key Identifier`. Se ven afectadas las librerías que usan el contexto por defecto, como redis-py y pg8000; psycopg, asyncpg, PyMySQL y pymongo no. Las bases de datos nuevas y aquellas cuyos certificados has restablecido ya emiten certificados compatibles. Si no puedes restablecer ahora, redis-py 6 o superior acepta `ssl_exclude_verify_flags=[ssl.VERIFY_X509_STRICT]`. En una base de datos antigua, restablecer los certificados también la pasa a la nueva dirección, y solo desde el panel; consulta [¿Qué ocurre al restablecer los certificados?](#qué-ocurre-al-restablecer-los-certificados).
 
 ### ¿Qué ocurre al restablecer los certificados?
 
-El restablecimiento emite una CA, un certificado de servidor y uno de cliente nuevos, e invalida los archivos antiguos. En las aplicaciones ligadas a una stack, los archivos de `/app/.vertra/certs/` se reescriben automáticamente, pero el proceso en ejecución aún conserva los antiguos: la respuesta indica `restart_required` y lista las aplicaciones que hay que reiniciar. Los archivos que descargaste y colocaste tú en un proyecto deben descargarse y desplegarse de nuevo.
+El restablecimiento emite certificados nuevos e invalida los archivos antiguos. Una base de datos creada antes de la v26.5.11 también pasa a la nueva dirección (`vertra-cloud-…db.ny1.vertraweb.app` en lugar de `…db.usa1.vertraweb.app`); esto se hace solo en el panel, que antes lista las variables tuyas que contienen la dirección antigua, para que las actualices junto con tus archivos de certificado. Con una clave de API, restablecer los certificados de una base de datos antigua responde `403 WEBSITE_ONLY`. En las aplicaciones ligadas por una stack o plantilla, los archivos de `/app/.vertra/certs/` y las variables gestionadas (incluida la nueva dirección) se reescriben automáticamente y se aplican en el próximo reinicio de la aplicación: la respuesta indica `restart_required` y lista las aplicaciones que hay que reiniciar. Los archivos que descargaste y colocaste tú en un proyecto deben descargarse y desplegarse de nuevo.
 
 ## Ciclo de vida
 
@@ -311,7 +312,7 @@ stateDiagram-v2
     Genera una contraseña nueva, aleatoria y segura, para la base de datos.
   </Card>
   <Card title="Restablecer certificados" icon="certificate">
-    Regenera todos los certificados TLS (CA, servidor y cliente).
+    Emite nuevos certificados TLS. Una base de datos creada antes de la v26.5.11 también pasa a la nueva dirección, solo desde el panel.
   </Card>
   <Card title="Descargar snapshot" icon="download">
     Descarga una copia de los datos de la base de datos.
@@ -342,6 +343,8 @@ El panel muestra métricas en tiempo real para cada base de datos:
     Espacio de disco usado frente a la cuota.
   </Card>
 </CardGroup>
+
+Los gráficos de historial (últimos 5 minutos y últimas 24 horas) marcan reinicios, reinicios automáticos y caídas, y señalan una caída causada por falta de memoria. Las mismas marcas llegan como `events` en [Métricas de la base de datos](/es-es/api-reference/endpoint/databases/metrics).
 
 ## Almacenamiento
 

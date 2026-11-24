@@ -116,25 +116,32 @@ e `root` (banco `default`) no MySQL. O campo `username` do banco na API indica q
 
 A porta é **única por banco** — não é a padrão do motor — e aparece na página do banco.
 
-Todos os bancos geram certificados TLS automaticamente (CA, servidor, cliente). **Todo motor exige TLS
+Todos os bancos geram certificados TLS automaticamente. **Todo motor exige TLS
 e certificado de cliente** — só a senha nunca conecta.
 
 ### Como conectar a cada banco
 
-- **Host**: `<database-id-sem-hifens>.db.usa1.vertraweb.app`. **Porta**: única por banco
+- **Host**: `vertra-cloud-<database-id>.db.<região>.vertraweb.app`, em que `<região>` é `ny1` (`usa1` nos bancos criados antes da v26.5.11); o endereço exato está na página do banco. **Porta**: única por banco
   (não 5432/27017/6379/3306) — copie-a na página do banco ou em `GET /v1/databases/{id}`.
-- **Arquivos** (aba Certificados ou `GET /v1/databases/{id}/credentials/certificate`):
-  `certificate-<id>.crt` = certificado de cliente, `certificate-<id>.key` = chave privada do cliente,
-  `certificate-<id>.pem` = pacote com a chave privada do cliente + certificado do cliente + a CA. Use o `.pem`
-  como arquivo de CA em todos os lugares, e como arquivo de chave e certificado no MongoDB.
+- **Senha**: retornada uma única vez, na resposta de `POST /v1/databases` (também `POST /v1/stacks/{stack_id}/databases` e nos deploys de template) e mostrada uma única vez no dashboard; nunca é retornada de novo. As aplicações ligadas ao banco em uma stack já recebem a senha nas variáveis gerenciadas. Para obter uma nova, redefina-a (`POST /v1/databases/{id}/credentials/reset`; no dashboard, isso pede um código de confirmação).
+- **Arquivos** (aba Conexão ou `GET /v1/databases/{id}/credentials/certificate`):
+  `certificate-<id>.ca.pem` = a CA que assina o certificado do servidor (o arquivo de CA em todos os lugares),
+  `certificate-<id>.crt` = certificado de cliente (não é a CA), `certificate-<id>.key` = chave privada do cliente,
+  `certificate-<id>.pem` = chave do cliente + certificado do cliente (o arquivo de chave e certificado do MongoDB),
+  `certificate-<id>.p12` = identidade do cliente em PKCS#12 com senha vazia (Prisma 6). Bancos mais
+  antigos podem não oferecer o `.ca.pem`. Redefinir os certificados de um banco mais antigo
+  também o passa para o endereço `ny1`, somente pelo painel (uma chave de API recebe `403 WEBSITE_ONLY`).
+- Erros comuns: `self-signed certificate in certificate chain` = CA errada ou ausente (geralmente o `.crt`
+  passado como CA); `key values mismatch` = `.crt` e `.key` não formam um par; `connection requires a
+  valid client certificate` = `.crt`/`.key` não enviados. Tabela completa em Bancos de dados › Por que a conexão com o meu banco de dados falha?
 - O certificado do servidor corresponde ao host, então a verificação completa funciona.
 
 | Motor | Conexão |
 |---|---|
-| PostgreSQL | `psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.pem sslcert=certificate.crt sslkey=certificate.key"` |
-| MongoDB | `mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.pem --tlsCertificateKeyFile certificate.pem` |
-| Redis | `redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.pem --cert certificate.crt --key certificate.key` |
-| MySQL | `mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.pem --ssl-cert=certificate.crt --ssl-key=certificate.key` |
+| PostgreSQL | `psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.ca.pem sslcert=certificate.crt sslkey=certificate.key"` |
+| MongoDB | `mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.ca.pem --tlsCertificateKeyFile certificate.pem` |
+| Redis | `redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.ca.pem --cert certificate.crt --key certificate.key` |
+| MySQL | `mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.ca.pem --ssl-cert=certificate.crt --ssl-key=certificate.key` |
 
 Exemplos em Node.js para cada driver (pg, mongodb, ioredis, mysql2) estão na página
 [Bancos de dados](/pt-br/databases#como-me-conecto-a-cada-motor).
@@ -144,7 +151,7 @@ Exemplos em Node.js para cada driver (pg, mongodb, ioredis, mysql2) estão na p�
 **Armazenamento**: 6 GB + 1 GB a cada 512 MB de RAM alocada, arredondado para cima em GB, ou 3× a RAM quando
 esse valor for maior (a partir de 6 GB de RAM) — a cota é sempre um número inteiro de GB (ex.: 512 MB → 7 GB;
 1 GB → 8 GB; 2 GB → 10 GB; 4 GB → 14 GB; 8 GB → 24 GB). Nenhum banco existente perde espaço quando a fórmula
-muda — o teto só aumenta.
+muda — o teto só aumenta. Baixar a memória de um banco também baixa o armazenamento dele, então a mudança é recusada (`STORAGE_ABOVE_NEW_LIMIT`, com `used_mb`, `limit_mb` e `free_mb`) enquanto os dados não couberem.
 
 
 **Operações**: Iniciar, Parar, Reiniciar, Redefinir (ação destrutiva, limitada a 1 por hora), Redefinir senha,
@@ -214,6 +221,8 @@ A Vertra Cloud vende 22 planos em quatro famílias: **Starter** (1 e 2 GB de RAM
 **Nenhum plano tem teto de quantidade.** O limite real é a **RAM do plano**, e o que recusa uma criação é
 `MEMORY_LIMIT_EXCEEDED` — uma aplicação de 100 MB cabe 10 vezes no Starter 1. Mínimos que consomem essa RAM:
 aplicação 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1.024 MB.
+
+Mudar a memória de uma aplicação ou de um banco vale na hora, sem reiniciar, tanto ao subir quanto ao baixar. Se a aplicação ou o banco estiver usando mais memória do que o novo limite naquele momento, ele é encerrado por falta de memória (o painel avisa e pede confirmação antes de salvar).
 
 A listagem pública dos planos à venda, com o preço, a RAM, o vCPU, o Blob e os limites de cada um e os períodos de cobrança com seus descontos, é `GET /v1/plans` (sem autenticação).
 
@@ -298,7 +307,7 @@ deve ler `plan.name` e `owner_plan` (quebra de compatibilidade da API, dos SDKs,
 | Escolher o nome do subdomínio | Sim | Sim | Sim | Sim | Sim |
 | Selo "Powered by Vertra Cloud" no site | Sim | — | — | — | — |
 | Domínios personalizados por aplicação | — | 1 | 2 | 5 | 20 |
-| Reinício automático | Sim | Sim | Sim | Sim | Sim |
+| Reinício automático (opcional por aplicação) | Sim | Sim | Sim | Sim | Sim |
 | Gerenciador de arquivos | Sim | Sim | Sim | Sim | Sim |
 | Métricas avançadas | Sim | Sim | Sim | Sim | Sim |
 | Web Analytics: resumo, tráfego, erros e comparação | Sim | Sim | Sim | Sim | Sim |
@@ -440,8 +449,8 @@ O tipo **não é decidido de uma vez por todas na criação**. Uma aplicação c
 depois (`POST /v1/apps/{id}/network/publish`) e despublicada novamente (`DELETE /v1/apps/{id}/network/publish`), o que
 alterna o tipo entre `1` e `2`. Duas consequências que os usuários precisam conhecer:
 
-- **Ligar e desligar recria o container, então a aplicação reinicia** — regras de rede e a porta exposta só existem a
-  partir do momento em que o container é criado.
+- **Ligar e desligar vale na hora, sem reiniciar a aplicação.** A exceção é uma aplicação criada a partir da
+  própria imagem Docker do usuário: publicá-la ou despublicá-la a reinicia.
 - **Ao desligar, o subdomínio é liberado**: não há reserva, e outra pessoa pode reivindicá-lo. Todo domínio
   personalizado também é removido, e seus registros `CNAME` e `TXT` de validação permanecem no provedor de DNS do
   usuário até que ele os apague.
@@ -457,8 +466,7 @@ aplicação pode rodar a partir de uma imagem construída a partir do `Dockerfil
   raiz. Até 2 imagens por conta no Pro, 6 no Business e 20 no Enterprise, contando todos os estados. Plataforma `linux/amd64`.
 - Build: ambiente de build isolado, limite de tempo de 26 minutos, imagem construída de até 10 GB descompactada
   (`IMAGE_TOO_LARGE`). Arquivos `.env*` são removidos do contexto.
-- Runtime: sempre o usuário `1000:1000`. `/app` é o disco persistente; `/tmp`, `/var/tmp` e `/run` são graváveis, mas
-  temporários; todo o resto é somente leitura. A porta é a primeira `EXPOSE` ou `80`, injetada como `PORT`.
+- Runtime: `/app` é o disco persistente. A porta é a primeira `EXPOSE` ou `80`, injetada como `PORT`.
 - Recusado: um `# syntax=` diferente do frontend oficial, `RUN --security=insecure`, `RUN --network=host`,
   `--mount=type=ssh`, `--mount=type=secret`. Gera aviso: `WORKDIR /app`, `.env*` no contexto, `COPY`/`ADD` de `.env`,
   `VOLUME` fora de `/app`.
@@ -502,7 +510,7 @@ Acima de 10 GB de RAM, o limite cresce cerca de 50 Mbit a cada 256 MB adicionais
 ```
 Creating (building) → Online, or Stopped if the install or build fails
 Online → Stopped (manual) or Error (crash)
-Error → Starting (auto-restart) or Stopped (crash loop: 5x in 10min)
+Error → Starting (auto-restart) or Stopped (crash loop: 6th crash in 10min, or auto-restart off)
 ```
 
 **A criação é assíncrona.** `POST /v1/apps` responde `202 Accepted` imediatamente com a aplicação em
@@ -522,8 +530,7 @@ deploy do GitHub, reinstalação de dependências ou alteração do próprio com
 dependências e **antes** de a aplicação iniciar. Um restart simples não roda o build de novo se o build anterior teve
 sucesso com o mesmo comando.
 
-O build roda em um **ambiente de build** isolado da aplicação: 2× a RAM da aplicação (mínimo 1.024 MB, máximo
-4.096 MB), com limite de tempo de **10 minutos**. Se o comando falhar → o deploy falha e a aplicação não inicia
+O build usa a memória da aplicação e tem um limite de tempo de **10 minutos**. Se o comando falhar → o deploy falha e a aplicação não inicia
 (`BUILD_FAILED`); se estourar o tempo → `BUILD_TIMEOUT`. Na criação, uma instalação ou build com falha ainda cria a
 aplicação, **parada**, com a saída nos logs; o usuário corrige os arquivos e a inicia novamente.
 
@@ -531,10 +538,6 @@ Quando a aplicação tem um comando de build, a instalação de dependências ta
 TypeScript, PostCSS e ferramentas semelhantes funcionam sem precisar movê-las para `dependencies`); sem comando de
 build, só `dependencies` são instaladas. O Puppeteer usa o Chromium já disponível na imagem de runtime, então nenhum
 navegador é baixado durante a instalação.
-
-O ambiente de build tem **o dobro da banda da aplicação** (a mesma tabela de banda por RAM, ×2) — baixar dependências
-pesa mais que servir tráfego, e a janela é curta. Ultrapassar o limite interrompe o deploy, da mesma forma que acontece
-com a aplicação enquanto ela está rodando.
 
 Exemplos comuns:
 
@@ -559,7 +562,7 @@ arquivo principal, sem comando de build.
 Um arquivo opcional `KEY=value` na raiz do zip enviado. Ele apenas **preenche previamente** o formulário de
 criação/upload — a configuração de fato fica no dashboard (aba Configurações).
 Chaves reconhecidas: `NAME`, `DESCRIPTION`, `MAIN`, `MEMORY`, `START`, `BUILD`, `VERSION`,
-`SUBDOMAIN`, `LANGUAGE`; qualquer outra chave (inclusive a antiga `AUTORESTART`) é ignorada. `VERSION` preenche
+`SUBDOMAIN`, `LANGUAGE`, `AUTORESTART` (`true` ou `false`); qualquer outra chave é ignorada. `VERSION` preenche
 previamente o assistente no upload do zip e é usada na criação a partir de um snapshot; a versão confirmada no
 assistente é a que a aplicação roda, e uma versão que não existe para a linguagem é recusada com `INVALID_VERSION`.
 `vertracloud.config.json` também é aceito, com chaves em minúsculas.
@@ -573,6 +576,7 @@ START=npm start
 SUBDOMAIN=my-app
 VERSION=24
 MEMORY=512
+AUTORESTART=true
 ```
 **O arquivo não existe no volume da aplicação** (desde 14/09/2026). Ele é descartado quando o zip é extraído e
 **gerado a partir do banco de dados** com os valores atuais ao baixar o projeto ou criar um snapshot — por isso um zip
@@ -622,8 +626,8 @@ um arquivo com esse nome criado manualmente é ignorado e sobrescrito no downloa
 ---
 ## 6. Reinício automático e detecção de crash loop
 
-- Containers que travam são reiniciados automaticamente — **o padrão em todos os planos, sempre ativo, sem opção de
-  desligar**
+- Containers que travam são reiniciados automaticamente — **ativado por padrão em todos os planos; você o desativa por
+  aplicação** (Config → Geral ou `auto_restart`; ou `AUTORESTART=false` no `vertracloud.config` ao criá-la)
 - O código de saída 0 (término normal) NÃO dispara um reinício. Também não disparam erros que um reinício não resolve:
   erros de sintaxe, módulos ausentes, falta de memória, uma instalação ou build com falha, ou uma pausa do Vertra Shield
 - **Todo outro crash é reiniciado**, mesmo que a aplicação tenha ficado no ar por apenas alguns segundos, com espera
@@ -631,6 +635,7 @@ um arquivo com esse nome criado manualmente é ignorado e sobrescrito no downloa
 - **Crash loop**: até 5 reinícios automáticos em uma janela de 10 minutos. O 6º crash nessa janela suspende o reinício
   automático por 24 horas: a aplicação fica parada e o dashboard informa o motivo
 - **Iniciar ou reiniciar a aplicação manualmente** zera a contagem de crashes e levanta a suspensão
+- Com o reinício automático desativado, um crash deixa a aplicação parada e o dashboard informa o motivo
 - Uma aplicação que fica no ar por 10 minutos sai da janela, então os crashes antigos deixam de contar
 
 ---
@@ -904,8 +909,8 @@ expirado **congela as gravações** (convites, ações, edições), mas nunca ap
 - Realce de sintaxe para todas as linguagens
 - Upload por arrastar e soltar (arquivos ou ZIP); o **Destino do commit** do diálogo de upload começa na pasta aberta e
   pode apontar para qualquer outra pasta, e um ZIP é mesclado nela
-- Árvore de arquivos de até 6 níveis de profundidade
-- Criar, editar, mover e excluir arquivos e pastas
+- Árvore de arquivos que abre cada pasta conforme você navega (a rota `GET /v1/apps/{id}/files/tree` devolve até 6 níveis)
+- Criar, editar, mover e excluir arquivos e pastas; excluir um arquivo que a aplicação em execução ainda mantém aberto libera o espaço no próximo reinício (`space_released: "on_restart"`), e o painel avisa
 - Lista todas as pastas do projeto, incluindo pastas de dependências como `node_modules`; somente o endpoint da árvore
   de arquivos (`GET /v1/apps/{id}/files/tree`) pula as pastas de dependências e de build para ficar pequeno
 - Lê e salva arquivos de até **10 MiB** (`FILE_TOO_LARGE`, HTTP 413, com `details.max_bytes`); arquivos maiores passam pelo envio, e o projeto inteiro por um download de snapshot. Enquanto um snapshot da aplicação está sendo feito, salvar, mover, excluir e enviar respondem `OPERATION_IN_PROGRESS` (409)
@@ -925,13 +930,14 @@ expirado **congela as gravações** (convites, ações, edições), mas nunca ap
 4. **Extensão do VSCode** — faça o deploy direto do editor
 
 ### Processo
-Upload do código → Instalação de dependências → Build (se houver `build_command`) → Inicialização do container →
+Upload do código → Instalação de dependências → Build (se houver `build_command`) → Início da aplicação →
 Atribuição de subdomínio → Provisionamento de SSL
 
 ### Limites de upload
 - Tamanho máximo do ZIP: 100 MB
-- Tempo máximo de instalação de dependências: 15 minutos (`INSTALL_TIMEOUT` se exceder)
-- Tempo máximo do comando de build: 10 minutos (`BUILD_TIMEOUT` se exceder)
+- Instalação de dependências: até 15 minutos por etapa (`INSTALL_TIMEOUT` se exceder)
+- Comando de build: 10 minutos (`BUILD_TIMEOUT` se exceder)
+- Instalação e build juntos: 25 minutos (`INSTALL_TIMEOUT` se exceder)
 - 1 porta exposta por aplicação
 
 ### Rollback automático (Pro+)
@@ -1151,8 +1157,9 @@ alterações de subdomínio, consultas de dados e exportação de atividades.
 | `APP_NOT_FOUND` | Aplicação não encontrada |
 | `DATABASE_NOT_FOUND` | Banco não encontrado |
 | `ACCESS_DENIED` | Sem permissão para acessar este recurso |
+| `WEBSITE_ONLY` | Esta ação só pode ser feita pelo painel, não com uma chave de API |
 | `PLAN_RESTRICTED_FEATURE` | Recurso não disponível no plano atual |
-| `INSUFFICIENT_MEMORY` | O build ficou sem memória durante a instalação das dependências |
+| `INSUFFICIENT_MEMORY` | A instalação ou o build ficou sem a memória da aplicação; aumente a memória da aplicação |
 | `MAX_APPS_REACHED` | Limite de aplicações do plano atingido |
 | `MAX_DATABASES_REACHED` | Limite de bancos do plano atingido |
 | `VALIDATION_ERROR` | Body, parâmetro ou query inválidos |
@@ -1162,11 +1169,14 @@ alterações de subdomínio, consultas de dados e exportação de atividades.
 | `FETCH_ZIP_ERROR` | Não foi possível acessar o GitHub, ou ele estava limitando requisições ao buscar um repositório (HTTP 502); ao criar ou refazer o build de uma imagem, também HTTP 404 quando o GitHub não devolveu o arquivo do repositório (por exemplo, a branch não existe mais) |
 | `INVALID_LANGUAGE` | A linguagem não é suportada (HTTP 400). Veja [Linguagens suportadas](#2-linguagens-suportadas) |
 | `MAIN_FILE_NOT_FOUND` | Arquivo principal não encontrado |
-| `INSTALL_TIMEOUT` | A instalação de dependências excedeu o limite de tempo |
+| `INSTALL_TIMEOUT` | A instalação de dependências passou de 15 minutos em uma etapa, ou a instalação e o build juntos passaram de 25 minutos |
 | `BUILD_FAILED` | O comando de build terminou com erro |
 | `BUILD_TIMEOUT` | O comando de build excedeu o limite de tempo |
-| `INSTALL_OUT_OF_MEMORY` | A instalação de dependências ficou sem memória; aumente a memória da aplicação |
+| `INSTALL_OUT_OF_MEMORY` | A instalação ou o build ficou sem memória; aumente a memória da aplicação |
 | `BUILD_INTERRUPTED` | O build não terminou (foi interrompido); a aplicação permanece parada e o erro aparece no log dela |
+| `IMAGE_VOLUME_REFUSED` | A imagem Docker da aplicação declara um caminho ou uma permissão que a plataforma não permite; ajuste o Dockerfile e publique uma nova versão |
+| `IMAGE_LABEL_REFUSED` | A imagem Docker da aplicação usa um label reservado pela plataforma; remova-o e publique uma nova versão |
+| `IMAGE_PULL_FAILED` | A plataforma não conseguiu baixar a imagem Docker da aplicação; tente de novo ou publique uma nova versão da imagem |
 | `APP_BUILDING` | A aplicação ainda está em build; aguarde o fim do build |
 | `DEPLOY_RATE_LIMITED` | Limite de deploys atingido |
 | `OPERATION_IN_PROGRESS` | Outra operação no recurso ainda está em andamento |
@@ -1414,11 +1424,11 @@ snapshot feito antes:
 ### Plataforma
 
 - **Aplicação caindo / OOMKilled**: memória insuficiente. Aumente a RAM alocada. Java/Puppeteer precisam de 512 MB+.
-- **Crash loop (reinício automático desativado)**: 5 crashes em 10 min. Verifique os logs, corrija o erro raiz e faça um novo deploy.
+- **Crash loop (reinício automático pausado)**: a 6ª queda em 10 min. Verifique os logs, corrija o erro raiz e faça um novo deploy.
 - **Aplicação para imediatamente (código de saída 0)**: o processo não tem nada que o mantenha vivo. Confirme que o bot
   está logado ou que o servidor está escutando.
 - **ZIP grande demais**: exclua `node_modules`, `venv`, `.git`, `vendor`, `target`, `__pycache__`.
-- **Instalação de dependências passa de 15 minutos (`INSTALL_TIMEOUT`)**: remova as dependências desnecessárias.
+- **Instalação passa de 15 minutos em uma etapa, ou de 25 minutos com o build (`INSTALL_TIMEOUT`)**: remova as dependências desnecessárias.
 - **Comando de build passa de 10 minutos (`BUILD_TIMEOUT`)**: simplifique o `build_command` ou a etapa de build do framework.
 - **Site com timeout**: faça o bind em `0.0.0.0` (não em `localhost`). Use o valor de `PORT`.
 - **Domínio personalizado não funciona**: plano Starter 2+, CNAME correto, aguarde a propagação do DNS. Um domínio
@@ -1661,7 +1671,7 @@ workspace não faz deploy de templates nele: só o dono faz (`WORKSPACE_OWNER_ON
 | `code` | Um ZIP de código no runtime de sua escolha, como uma aplicação normal | Nenhum |
 | `image` | Uma imagem construída ou fixada pelo template | 1 por imagem distinta em uso |
 
-Nos dois casos, `/app` é o disco persistente e o restante do sistema de arquivos é somente leitura; o usuário é `1000:1000`.
+Nos dois casos, `/app` é o disco persistente.
 
 ### Plano necessário
 
@@ -1831,11 +1841,10 @@ Use isto para orientar um usuário que pergunta sobre o programa.
 | MCP | O servidor Model Context Protocol da Vertra (`@vertracloud/mcp` localmente ou `mcp.vertracloud.app/mcp`): dá ao agente de IA do usuário as ferramentas da plataforma, usando a chave de API dele |
 | Subdomain | A URL de uma aplicação publicada, `app-name.vertraweb.app`, com um nome que você escolhe |
 | Custom domain | Um domínio próprio do usuário conectado a uma aplicação |
-| Auto-restart | Reinício automático do container após um crash; padrão em todos os planos, sempre ativo |
-| Crash loop | 5 crashes em 10 minutos — desativa o reinício automático por 24 horas |
+| Auto-restart | Reinício automático do container após um crash; ativado por padrão em todos os planos, opcional por aplicação |
+| Crash loop | A 6ª queda em 10 minutos — pausa o reinício automático por 24 horas |
 | vertracloud.config | Um arquivo opcional `KEY=value` no zip enviado; preenche previamente o formulário. Gerado a partir do banco no download e no snapshot, nunca armazenado no volume |
 | Deploy | O processo de enviar e publicar código na plataforma |
 | Build | Uma etapa opcional, definida por `build_command`, que roda após a instalação das dependências e antes de a aplicação iniciar |
-| Build environment | O ambiente isolado da aplicação onde o `build_command` roda (2× a RAM, limite de 10 minutos) |
 | Container | O ambiente isolado onde a aplicação ou o banco roda |
 | Blob Storage | Armazenamento de arquivos para projetos: URLs públicas, links temporários, páginas de compartilhamento e um endpoint compatível com S3 |

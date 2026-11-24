@@ -28,7 +28,7 @@ description: Actualiza la configuración guardada de una aplicación a partir de
 </ParamField>
 
 <ParamField body="main_file" type="string">
-  El archivo de entrada de la aplicación (por ejemplo, `index.js`). No puede estar vacío.
+  El archivo de entrada de la aplicación (por ejemplo, `index.js`). No puede estar vacío. El archivo debe existir en los archivos de la aplicación y no puede ser una carpeta; de lo contrario la solicitud falla con `MAIN_FILE_NOT_FOUND` y no se guarda nada.
 </ParamField>
 
 <ParamField body="language" type="string">
@@ -44,24 +44,23 @@ description: Actualiza la configuración guardada de una aplicación a partir de
 </ParamField>
 
 <ParamField body="start_command" type="string | null">
-  Un comando de inicio personalizado (por ejemplo, `node index.js`). Máximo 512 caracteres. Envía `null` para volver al comando predeterminado del lenguaje.
+  Un comando de inicio personalizado (por ejemplo, `node index.js`). Máximo 512 caracteres, en una sola línea. Envía `null` para volver al comando predeterminado del lenguaje.
 </ParamField>
 
 <ParamField body="build_command" type="string | null">
-  Un comando de build opcional (por ejemplo, `npm run build`). Máximo 512 caracteres. Envía `null` para
+  Un comando de build opcional (por ejemplo, `npm run build`). Máximo 512 caracteres, en una sola línea. Envía `null` para
   eliminarlo. Se ejecuta en el siguiente despliegue, después de instalar las dependencias y antes de que la aplicación
-  arranque, en un entorno de build aislado (2× la RAM de la aplicación, mínimo 1.024 MB y máximo 4.096 MB;
-  tiempo límite de 10 minutos). Disponible en todos los planes. Un simple reinicio no
+  arranque (tiempo límite de 10 minutos). Disponible en todos los planes. Un simple reinicio no
   vuelve a ejecutar el build si el anterior terminó bien con el mismo comando.
 </ParamField>
 
-<ParamField body="ram" type="integer">
-  La memoria asignada a la aplicación, en MB. Debe ser un entero de al menos `100`. Las aplicaciones publicadas en la web (con un subdominio o un dominio personalizado) requieren al menos `512`.
+<ParamField body="auto_restart" type="boolean">
+  Indica si la aplicación se reinicia sola tras una caída. El cambio se aplica sin reiniciar la aplicación.
 </ParamField>
 
-<Note>
-  **Cambiar la memoria cambia el límite de disco de la aplicación.** La cuota de volumen se deriva de la memoria asignada, así que bajar `ram` reduce cuánto puede almacenar la aplicación; por eso bajarla puede rechazarse con `409 STORAGE_ABOVE_NEW_LIMIT`. Consulta [Códigos de error comunes](/es-es/api-reference/introduction#qué-códigos-de-error-puede-devolver-la-api).
-</Note>
+<ParamField body="ram" type="integer">
+  La memoria asignada a la aplicación, en MB. Debe ser un entero de al menos `100`. Las aplicaciones publicadas en la web (con un subdominio o un dominio personalizado) requieren al menos `512`. Cambiar la memoria se aplica al instante, al subirla o al bajarla. Si la aplicación está usando más memoria que el nuevo límite en ese momento, se cierra por falta de memoria; el panel te avisa y pide confirmación antes de guardar.
+</ParamField>
 
 <ParamField body="deploy" type="object">
   Cómo se aplica un nuevo despliegue y qué pasa si falla. Envía solo los subcampos que quieres cambiar.
@@ -134,7 +133,7 @@ curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
 <ResponseField name="code" type="string">
   El código de error que indica el motivo del fallo. Valores posibles:
   - `USER_NOT_FOUND`: La petición no está autenticada (`401`).
-  - `VALIDATION_ERROR`: Un campo no superó la validación: tipo incorrecto, longitud máxima superada o cuerpo vacío (`400`). La respuesta incluye `message` y `path`, que apuntan al campo con problemas.
+  - `VALIDATION_ERROR`: Un campo no superó la validación: tipo incorrecto, longitud máxima superada o cuerpo vacío (`400`). La respuesta incluye `message` y `details.path`, que apuntan al campo con problemas.
   - `APP_NOT_FOUND`: La aplicación indicada no se encontró (`404`).
   - `ACCESS_DENIED`: Eres miembro de un workspace sin el permiso para esta acción, o no enviaste el `workspace_id` (`403`).
   - `API_KEY_SCOPE_DENIED`: La clave de API no tiene `apps:write`, o le falta `apps:files` mientras la petición cambia `start_command`, `build_command` o `main_file` (`403`).
@@ -142,19 +141,15 @@ curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
   - `PLAN_DOES_NOT_SUPPORT_ZERO_DOWNTIME`: Se envió `deploy.zero_downtime: "on"` y el plan del propietario no es Enterprise (`403`).
   - `APP_SHIELD_COOLDOWN`: Vertra Shield pausó la aplicación; esta acción queda bloqueada hasta que termine la pausa (`403`). `details.until` indica cuándo.
   - `OWNER_APP_WITHOUT_LIMITS`: No se pudieron leer los límites del plan del propietario de la aplicación, así que la memoria solicitada no se puede validar (`404`).
+  - `MAIN_FILE_NOT_FOUND`: `main_file` no existe en los archivos de la aplicación, o es una carpeta (`400`). No se guardó nada.
   - `MEMORY_BELOW_MINIMUM`: La memoria solicitada está por debajo del mínimo para esta aplicación: `512` MB para una aplicación publicada en la web (`400`).
   - `MEMORY_LIMIT_EXCEEDED`: La memoria solicitada no cabe en la memoria restante del plan, contando todos los demás recursos del propietario (`400`).
-  - `STORAGE_ABOVE_NEW_LIMIT`: El volumen ya contiene más que el límite de disco que implica la memoria solicitada (`409`). No se cambió nada. Consulta más abajo.
   - `DEPLOY_RATE_LIMITED`: Se pidió un cambio de `build_command` y ya se alcanzó el presupuesto horario de despliegues de la cuenta para su plan (`429`).
   - `INTERNAL_SERVER_ERROR`: No se pudo actualizar la configuración (`500`).
 </ResponseField>
 
 <ResponseField name="message" type="string">
   Un mensaje descriptivo con más detalles sobre el error.
-</ResponseField>
-
-<ResponseField name="details" type="object">
-  Presente en `STORAGE_ABOVE_NEW_LIMIT`. Incluye `used_mb`, `limit_mb` y `free_mb`: cuánto ocupa el volumen, el límite que impondría la memoria solicitada y cuánto hay que borrar antes de que se acepte el cambio.
 </ResponseField>
 
 <ResponseExample>
@@ -177,19 +172,8 @@ curl -X PATCH https://api.vertracloud.app/v1/apps/{id}/config \
 }
 ```
 
-```json Error Response (409)
-{
-  "code": "STORAGE_ABOVE_NEW_LIMIT",
-  "details": {
-    "used_mb": 2048,
-    "limit_mb": 1024,
-    "free_mb": 1024
-  }
-}
-```
-
 </ResponseExample>
 
 <Note>
-  Esta ruta escribe la configuración; no reinicia ni reconstruye el contenedor. Los nuevos valores surten efecto en la siguiente reconstrucción de la aplicación. Los ajustes de `deploy` surten efecto en el siguiente reinicio o despliegue.
+  Esta ruta escribe la configuración; no reinicia la aplicación. Cambiar la memoria (subirla o bajarla) y cambiar `auto_restart` se aplican al instante. Cambiar el comando de inicio o de build se aplica en el próximo reinicio; los demás cambios surten efecto en el próximo despliegue. Los ajustes de `deploy` surten efecto en el siguiente reinicio o despliegue.
 </Note>

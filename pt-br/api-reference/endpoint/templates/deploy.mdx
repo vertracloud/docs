@@ -79,12 +79,14 @@ Se uma etapa falhar, o job passa para `undoing`, remove na ordem inversa apenas 
 
 Quando o job tem sucesso, seus `outputs` trazem o que o template quer que você veja, como o endereço da aplicação ou credenciais geradas. Um output marcado com `once` **é mostrado uma única vez**: a primeira leitura do job finalizado retorna o valor, e todas as leituras seguintes retornam `null`. Copie-o nesse momento. Os outputs nunca são enviados pelo stream de eventos. As aplicações de um [template fechado](/pt-br/templates/use/closed-templates) mantêm o código oculto.
 
+As senhas dos bancos de dados que o job criou ficam em `database_passwords` (`database_id`, `service_id` e `password`), também **apenas na primeira leitura** do job concluído com sucesso, dentro de 24 horas: toda leitura seguinte, e qualquer leitura depois de 24 horas, retorna uma lista vazia. Copie-as nesse momento; se perder uma, [redefina-a](/pt-br/api-reference/endpoint/databases/credentials/resetpassword).
+
 ### Resposta
 
 Status `202` com o novo job. Status `200` com o mesmo job quando o `Idempotency-Key` já foi usado com a mesma requisição.
 
 <ResponseField name="response" type="object">
-  O job, no status `queued`. Os campos dele são descritos em [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status): `id`, `kind` (`deploy`), `template_id`, `version_id`, `version`, `status`, `current_step`, `steps`, `error`, `resources`, `stack_id`, `application_id`, `outputs`, `created_at`, `updated_at` e `finished_at`.
+  O job, no status `queued`. Os campos dele são descritos em [Obter job de deploy](/pt-br/api-reference/endpoint/templates/deploy-status): `id`, `kind` (`deploy`), `template_id`, `version_id`, `version`, `status`, `current_step`, `steps`, `error`, `resources`, `stack_id`, `application_id`, `outputs`, `database_passwords`, `created_at`, `updated_at` e `finished_at`.
 </ResponseField>
 
 <RequestExample>
@@ -128,6 +130,7 @@ curl -X POST https://api.vertracloud.app/v1/templates/discord-bot-js/deploy \
     "stack_id": null,
     "application_id": null,
     "outputs": [],
+    "database_passwords": [],
     "created_at": "2026-10-28T14:00:00Z",
     "updated_at": "2026-10-28T14:00:00Z",
     "finished_at": null

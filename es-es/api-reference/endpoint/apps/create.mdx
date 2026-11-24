@@ -29,15 +29,18 @@ La aplicación tiene **dos orígenes mutuamente excluyentes**: envía exactament
 </ParamField>
 
 <ParamField body="start" type="string">
-  El comando de inicio de la aplicación.
+  El comando de inicio de la aplicación. Debe ser de una sola línea.
 </ParamField>
 
 <ParamField body="build" type="string">
-  Un comando de build opcional, de hasta 512 caracteres (por ejemplo, `npm run build`). Se ejecuta después de
-  instalar las dependencias y antes de que la aplicación arranque, en un entorno de build aislado: 2× la RAM de la
-  aplicación (mínimo 1.024 MB, máximo 4.096 MB) con un tiempo límite de 10 minutos. Las `devDependencies` se
+  Un comando de build opcional, de hasta 512 caracteres, en una sola línea (por ejemplo, `npm run build`). Se ejecuta después de
+  instalar las dependencias y antes de que la aplicación arranque, con un tiempo límite de 10 minutos. Las `devDependencies` se
   instalan cuando hay un comando de build. Disponible en todos los planes. Consulta
   [Actualizar configuración de la aplicación](/es-es/api-reference/endpoint/apps/updateconfig) para cambiarlo más adelante.
+</ParamField>
+
+<ParamField body="auto_restart" type="boolean">
+  Opcional, `true` de forma predeterminada. Indica si la aplicación se reinicia sola tras una caída. Consulta [Actualizar configuración de la aplicación](/es-es/api-reference/endpoint/apps/updateconfig). Si el campo no se envía, vale el `AUTORESTART` (`true` o `false`) del `vertracloud.config`.
 </ParamField>
 
 <ParamField body="main" type="string">
@@ -136,8 +139,8 @@ aplicación responden `404`.
 
   <ResponseField name="last_build_error" type="string | null">
     El código del último fallo de build o de instalación, o `null` tras un build correcto. Uno de `BUILD_FAILED`,
-    `BUILD_TIMEOUT`, `BUILD_INTERRUPTED`, `INSTALL_FAILED`, `INSTALL_OUT_OF_MEMORY`, `INSTALL_TIMEOUT` o
-    `INSTALL_SHIELD_BLOCKED`. El detalle está en los logs de la aplicación; consulta [Errores](/es-es/api-reference/errors#códigos-de-fallo-del-build)
+    `BUILD_TIMEOUT`, `BUILD_INTERRUPTED`, `INSTALL_FAILED`, `INSTALL_OUT_OF_MEMORY`, `INSTALL_TIMEOUT`,
+    `INSTALL_SHIELD_BLOCKED`, `IMAGE_VOLUME_REFUSED`, `IMAGE_LABEL_REFUSED` o `IMAGE_PULL_FAILED`. El detalle está en los logs de la aplicación; consulta [Errores](/es-es/api-reference/errors#códigos-de-fallo-del-build)
     para saber qué hacer con cada código.
   </ResponseField>
 
@@ -306,7 +309,7 @@ aplicación responden `404`.
 
 <ResponseField name="code" type="string">
   El código de error que indica el motivo del fallo. Valores posibles:
-  - `VALIDATION_ERROR`: El cuerpo multipart no superó la validación (`400`). La respuesta incluye también `message` y `path`, que apuntan al campo con el problema.
+  - `VALIDATION_ERROR`: El cuerpo multipart no superó la validación (`400`). La respuesta incluye también `message` y `details.path`, que apuntan al campo con el problema.
   - `USER_NOT_FOUND`: No se pudo resolver el usuario autenticado (`401`).
   - `MAX_APPS_REACHED`: Se alcanzó el límite de aplicaciones del plan (`403`).
   - `INVALID_ZIP`: El archivo subido no es un ZIP legible (truncado o dañado) (`400`).
@@ -344,7 +347,7 @@ aplicación responden `404`.
 {
   "code": "VALIDATION_ERROR",
   "message": "Main file is required",
-  "path": "main"
+  "details": { "path": "main" }
 }
 ```
 

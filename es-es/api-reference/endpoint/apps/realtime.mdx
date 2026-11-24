@@ -3,7 +3,7 @@ title: Logs de la aplicación en tiempo real
 sidebarTitle: Logs en tiempo real
 api: GET https://api.vertracloud.app/v1/apps/{id}/realtime
 authMethod: bearer
-description: Devuelve los logs en tiempo real de una aplicación a partir de su ID, transmitidos como un flujo de eventos de texto.
+description: Transmite los logs en tiempo real de una aplicación como un flujo de eventos de texto, con métricas en vivo opcionales de CPU, memoria y red.
 ---
 
 {/* @see SSE stream — @vertracloud/api-types */}
@@ -15,22 +15,76 @@ description: Devuelve los logs en tiempo real de una aplicación a partir de su 
   Si la aplicación pertenece a un workspace, el ID del workspace. Es obligatorio para los miembros del workspace que actúen sobre una aplicación que no les pertenece.
 </ParamField>
 
+<ParamField query="metrics" type="boolean">
+  Con `true`, el flujo también incluye eventos `metrics` con la lectura en vivo de CPU, memoria y red de la aplicación. Desactivado por defecto.
+</ParamField>
+
 ### Respuesta
 
 La respuesta se transmite como un flujo de eventos de texto (`text/event-stream`). Cada entrada de log se envía como un evento con el siguiente formato:
 
-- **Tipo de evento**: `logs` para los mensajes de log, `system` para los avisos del flujo y de la plataforma (por ejemplo, `install_note:started`), `heartbeat` para los eventos de keep-alive sin contenido.
-- **Data**: Texto plano (no JSON). Un evento `logs` lleva una o más líneas separadas por saltos de línea, cada una con una marca de tiempo ISO 8601 seguida del mensaje del log.
+- **Tipo de evento**: `logs` para los mensajes de log, `next_logs` para la salida de la nueva versión mientras un despliegue sin caída la prepara, `system` para los avisos del flujo y de la plataforma (por ejemplo, `install_note:started`), `metrics` para la lectura en vivo de la aplicación (solo con `metrics=true`), `heartbeat` para los eventos de keep-alive sin contenido.
+- **Data**: Texto plano (no JSON), salvo en los eventos `metrics`, cuyo data es un objeto JSON. Un evento `logs` lleva una o más líneas separadas por saltos de línea, cada una con una marca de tiempo ISO 8601 seguida del mensaje del log.
+
+Cuando se abre la conexión, los avisos que ya ocurrieron se envían de nuevo antes del flujo en vivo, cada uno con la hora en que ocurrió al principio (`<ISO 8601> <aviso>`). Los avisos que llegan mientras estás conectado no llevan prefijo.
 
 Tras un despliegue, los eventos `system` también pueden informar de lo que ocurrió con la nueva versión. El aviso nombra las releases implicadas por su ID, tal como aparecen en [Listar releases de la aplicación](/es-es/api-reference/endpoint/apps/releases/list):
 
 - `deploy_note:failed:<release_id>`: la nueva versión se detuvo justo después de arrancar. El log del fallo está disponible en esa release.
 - `deploy_note:rollback:<from>:<to>`: la plataforma volvió automáticamente a la versión anterior, porque la nueva se detuvo en los 60 segundos posteriores al despliegue. `<from>` es la release que falló y `<to>` es la que vuelve a estar en ejecución.
-- `deploy_note:discarded:<release_id>`: en el plan Enterprise, la nueva versión no llegó a estar sana y se descartó; la versión anterior siguió ejecutándose.
+- `deploy_note:discarded:<release_id>:<reason>`: en el plan Enterprise, la nueva versión no llegó a estar sana y se descartó; la versión anterior siguió ejecutándose. `<reason>` puede faltar, y pueden aparecer valores nuevos:
 
-Mientras se instalan las dependencias, el flujo lleva la salida de la instalación precedida por el
-evento de sistema `install_note:started`.
-La instalación se ejecuta fuera del límite de memoria del plan, y la aplicación arranca en cuanto termina.
+| `<reason>` | Significado |
+|---|---|
+| `install_oom` | La nueva versión se quedó sin memoria al instalar las dependencias. |
+| `install_build_oom` | La nueva versión se quedó sin memoria durante el build. |
+| `install_failed` | Falló la instalación de las dependencias. |
+| `install_build_failed` | Falló el build. |
+| `install_timeout` | La instalación superó su límite de tiempo. |
+| `install_build_timeout` | El build superó su límite de tiempo. |
+| `install_shield` | La protección de la plataforma interrumpió la instalación. |
+| `crashed` | La nueva versión se detuvo antes de estar lista. |
+| `unhealthy` | La nueva versión no llegó a estar lista para recibir tráfico. |
+| `timeout` | La nueva versión no respondió a tiempo. |
+
+Durante un despliegue sin caída (plan Enterprise), los eventos `next_logs` llevan la salida de la nueva versión, incluidas la instalación y el build, mientras la versión actual sigue atendiendo y escribiendo en `logs`. Las líneas tienen el mismo formato que `logs`. Cuando la nueva versión toma el relevo, su salida continúa como `logs`.
+
+La salida de la instalación y del build forma parte del mismo flujo, seguida de la salida de la propia aplicación. Todo lo que imprime tu aplicación llega como `logs`, nunca como `system`.
+
+Otros avisos `system`:
+
+| Aviso | Significado |
+|---|---|
+| `install_note:started` | Empezó una instalación. |
+| `install_note:done` | Terminó la instalación de las dependencias. |
+| `install_note:build_oom` | El comando de build se quedó sin memoria y se detuvo. Aumenta la memoria de la aplicación o reduce lo que procesa el build. |
+| `install_note:timeout:<seconds>` | La instalación falló por un límite de tiempo: `900` es un solo paso, `1500` es la instalación completa. Sin el número, no se indica el límite. |
+| `run_note:started:<ISO 8601>` | El proceso de la aplicación arrancó en ese momento. |
+| `run_note:port_not_listening:<port>` | La aplicación arrancó, pero no empezó a escuchar a tiempo en el puerto esperado (`<port>`). Comprueba que escuche en ese puerto en todas las interfaces. |
+| `runtime_note:line_changed:<language>:<from>:<to>:<reason>` | La aplicación arrancó en una línea de versión distinta de la anterior. `<reason>` es `retired` (la línea anterior se retiró), `unavailable` (ya no está disponible) o `requested` (pediste el cambio, o la versión que sigues, como la recomendada, cambió de línea). |
+| `image_note:pulling:<0-100>` | Se está preparando una aplicación de imagen personalizada, con el progreso en porcentaje. |
+| `image_note:creating` | El entorno está listo y la aplicación se está creando. |
+| `image_note:starting` | La aplicación está arrancando. |
+| `image_note:waiting_port` | La aplicación arrancó y la plataforma espera a que escuche en su puerto. |
+| `restart_note:auto_restart_disabled` | La aplicación se detuvo de forma inesperada y no se reinició porque el auto-restart está desactivado. |
+
+### Métricas en vivo
+
+Con `metrics=true`, un evento `metrics` llega cada 5 segundos aproximadamente mientras la aplicación está en ejecución y la conexión está abierta. No se envía nada mientras la aplicación está detenida. A diferencia de los demás eventos, su `data` es un objeto JSON:
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `at` | string | Hora de la lectura (ISO 8601). |
+| `cpu_percent` | number | CPU en uso como porcentaje de la CPU del plan de la aplicación, de 0 a 100. |
+| `cpu_cores` | number | CPU en uso, en núcleos (`0.25` es un cuarto de núcleo). |
+| `memory_bytes` | number | Memoria en uso, en bytes, sin la caché de archivos que se puede liberar. |
+| `memory_limit_bytes` | number o `null` | Límite de memoria de la aplicación, en bytes; `null` cuando no tiene límite. |
+| `net_rx_bps` | number | Bytes por segundo recibidos por la aplicación. |
+| `net_tx_bps` | number | Bytes por segundo enviados por la aplicación. |
+| `net_rx_bytes` | number | Bytes recibidos desde que arrancó la aplicación. |
+| `net_tx_bytes` | number | Bytes enviados desde que arrancó la aplicación. |
+
+Las tasas (`net_rx_bps`, `net_tx_bps`) se miden entre dos lecturas consecutivas.
 
 <ResponseExample>
 
@@ -43,6 +97,12 @@ data: 2026-03-20T19:58:01Z [DEBUG] Connected to database
 
 event: logs
 data: 2026-03-20T19:58:02Z [ERROR] Failed to process request
+
+event: next_logs
+data: 2026-03-20T19:58:02Z added 120 packages in 8s
+
+event: metrics
+data: {"at":"2026-03-20T19:58:02Z","cpu_percent":12.5,"cpu_cores":0.125,"memory_bytes":134217728,"memory_limit_bytes":536870912,"net_rx_bps":2048,"net_tx_bps":8192,"net_rx_bytes":10485760,"net_tx_bytes":52428800}
 
 event: system
 data: 2026-03-20T19:58:03Z Connection Closed

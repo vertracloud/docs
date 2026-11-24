@@ -121,26 +121,33 @@ datos `postgres`), `default` en MongoDB (base de datos de autenticación `admin`
 El puerto es **único por base de datos**, no el predeterminado del motor, y se muestra en la página de
 la base de datos.
 
-Todas las bases de datos generan certificados TLS automáticamente (CA, servidor y cliente). **Todos los
+Todas las bases de datos generan certificados TLS automáticamente. **Todos los
 motores exigen TLS y un certificado de cliente**: una contraseña sola nunca conecta.
 
 ### Cómo conectarte a cada base de datos
 
-- **Host**: `<database-id-without-hyphens>.db.usa1.vertraweb.app`. **Puerto**: único por base de datos
+- **Host**: `vertra-cloud-<database-id>.db.<región>.vertraweb.app`, donde `<región>` es `ny1` (`usa1` en las bases de datos creadas antes de la v26.5.11); la dirección exacta está en la página de la base de datos. **Puerto**: único por base de datos
   (no 5432/27017/6379/3306); cópialo desde la página de la base de datos o desde
   `GET /v1/databases/{id}`.
-- **Archivos** (pestaña Certificados o `GET /v1/databases/{id}/credentials/certificate`):
-  `certificate-<id>.crt` = certificado de cliente, `certificate-<id>.key` = clave privada del cliente,
-  `certificate-<id>.pem` = paquete con la clave del cliente, el certificado del cliente y la CA. Usa el
-  `.pem` como archivo CA en todas partes, y como archivo de clave y certificado para MongoDB.
+- **Contraseña**: se devuelve una sola vez, en la respuesta de `POST /v1/databases` (también `POST /v1/stacks/{stack_id}/databases` y los despliegues de plantillas) y se muestra una sola vez en el panel; no se vuelve a devolver. Las aplicaciones enlazadas a la base de datos en una stack ya reciben la contraseña en sus variables gestionadas. Para obtener una nueva, restablécela (`POST /v1/databases/{id}/credentials/reset`; en el panel, eso pide un código de confirmación).
+- **Archivos** (pestaña Conexión o `GET /v1/databases/{id}/credentials/certificate`):
+  `certificate-<id>.ca.pem` = la CA que firma el certificado del servidor (el archivo CA en todas partes),
+  `certificate-<id>.crt` = certificado de cliente (no es la CA), `certificate-<id>.key` = clave privada del cliente,
+  `certificate-<id>.pem` = clave del cliente + certificado del cliente (el archivo de clave y certificado de MongoDB),
+  `certificate-<id>.p12` = identidad del cliente en PKCS#12 con contraseña vacía (Prisma 6). Las bases de datos
+  antiguas pueden no ofrecer el `.ca.pem`. Restablecer los certificados de una base de
+  datos antigua también la pasa a la dirección `ny1`, solo desde el panel (una clave de API recibe `403 WEBSITE_ONLY`).
+- Errores comunes: `self-signed certificate in certificate chain` = CA incorrecta o ausente (normalmente el `.crt`
+  pasado como CA); `key values mismatch` = `.crt` y `.key` no son un par; `connection requires a
+  valid client certificate` = `.crt`/`.key` no enviados. Tabla completa en Bases de datos › ¿Por qué falla la conexión con mi base de datos?
 - El certificado del servidor coincide con el host, así que la verificación completa funciona.
 
 | Motor | Conexión |
 |---|---|
-| PostgreSQL | `psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.pem sslcert=certificate.crt sslkey=certificate.key"` |
-| MongoDB | `mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.pem --tlsCertificateKeyFile certificate.pem` |
-| Redis | `redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.pem --cert certificate.crt --key certificate.key` |
-| MySQL | `mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.pem --ssl-cert=certificate.crt --ssl-key=certificate.key` |
+| PostgreSQL | `psql "host=<host> port=<port> dbname=vertracloud user=vertracloud password=<password> sslmode=verify-full sslrootcert=certificate.ca.pem sslcert=certificate.crt sslkey=certificate.key"` |
+| MongoDB | `mongosh "mongodb://vertracloud:<password>@<host>:<port>/vertracloud?authSource=admin" --tls --tlsCAFile certificate.ca.pem --tlsCertificateKeyFile certificate.pem` |
+| Redis | `redis-cli -h <host> -p <port> --user vertracloud -a <password> --tls --cacert certificate.ca.pem --cert certificate.crt --key certificate.key` |
+| MySQL | `mysql -h <host> -P <port> -u vertracloud -p vertracloud --ssl-mode=VERIFY_IDENTITY --ssl-ca=certificate.ca.pem --ssl-cert=certificate.crt --ssl-key=certificate.key` |
 
 Los ejemplos de Node.js para cada driver (pg, mongodb, ioredis, mysql2) están en la página
 [Bases de datos](/es-es/databases#cómo-me-conecto-a-cada-motor).
@@ -150,7 +157,7 @@ Los ejemplos de Node.js para cada driver (pg, mongodb, ioredis, mysql2) están e
 **Almacenamiento**: 6 GB + 1 GB por cada 512 MB de RAM asignada, redondeado al GB, o 3× la RAM cuando
 esa cifra es mayor (desde 6 GB de RAM en adelante). La cuota es siempre un número entero de GB (por
 ejemplo: 512 MB → 7 GB; 1 GB → 8 GB; 2 GB → 10 GB; 4 GB → 14 GB; 8 GB → 24 GB). Ninguna base de datos
-existente pierde espacio cuando cambia la fórmula: el límite solo crece.
+existente pierde espacio cuando cambia la fórmula: el límite solo crece. Bajar la memoria de una base de datos también baja su almacenamiento, así que el cambio se rechaza (`STORAGE_ABOVE_NEW_LIMIT`, con `used_mb`, `limit_mb` y `free_mb`) mientras los datos no quepan.
 
 
 **Operaciones**: Iniciar, Detener, Reiniciar, Restablecer (destructivo, limitado a 1 por hora), Restablecer contraseña, Restablecer certificados, Descargar/Restaurar snapshot.
@@ -223,6 +230,8 @@ Vertra Cloud vende 22 planes en cuatro familias: **Starter** (1 y 2 GB de RAM), 
 **Ningún plan tiene un límite de cantidad.** El límite real es la **RAM del plan**, y lo que rechaza una
 creación es `MEMORY_LIMIT_EXCEEDED`: una aplicación de 100 MB cabe 10 veces en Starter 1. Mínimos que
 consumen esa RAM: aplicación 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1.024 MB.
+
+Cambiar la memoria de una aplicación o de una base de datos se aplica al instante, sin reiniciar, tanto al subirla como al bajarla. Si la aplicación o la base de datos está usando más memoria que el nuevo límite en ese momento, se cierra por falta de memoria (el panel te avisa y pide confirmación antes de guardar).
 
 El listado público de los planes a la venta, con el precio, la RAM, la vCPU, el Blob y los límites de cada uno, y los periodos de facturación con sus descuentos, es `GET /v1/plans` (sin autenticación).
 
@@ -309,7 +318,7 @@ API, los SDK, la CLI y el MCP).
 | Elegir el nombre del subdominio | Sí | Sí | Sí | Sí | Sí |
 | Distintivo «Powered by Vertra Cloud» en el sitio | Sí | — | — | — | — |
 | Dominios personalizados por aplicación | — | 1 | 2 | 5 | 20 |
-| Reinicio automático | Sí | Sí | Sí | Sí | Sí |
+| Reinicio automático (opcional por aplicación) | Sí | Sí | Sí | Sí | Sí |
 | Gestor de archivos | Sí | Sí | Sí | Sí | Sí |
 | Métricas avanzadas | Sí | Sí | Sí | Sí | Sí |
 | Web Analytics: resumen, tráfico, errores y comparación | Sí | Sí | Sí | Sí | Sí |
@@ -455,8 +464,8 @@ web puede publicarse más tarde (`POST /v1/apps/{id}/network/publish`) y volver 
 (`DELETE /v1/apps/{id}/network/publish`), lo que cambia el tipo entre `1` y `2`. Hay dos consecuencias que
 hay que comunicar a los usuarios:
 
-- **Activarla y desactivarla vuelve a crear el contenedor, así que la aplicación se reinicia**: las reglas
-  de red y el puerto expuesto solo existen desde el momento en que se crea el contenedor.
+- **Activarla y desactivarla surte efecto al instante, sin reiniciar la aplicación.** La excepción es una
+  aplicación creada a partir de la propia imagen Docker del usuario: publicarla o despublicarla la reinicia.
 - **Al desactivarla, el subdominio queda libre**: no hay reserva, así que otra persona puede reclamarlo. También
   se elimina cada dominio personalizado, y sus registros `CNAME` y `TXT` de validación permanecen en el proveedor
   DNS del usuario hasta que el usuario los borre.
@@ -473,8 +482,7 @@ enunciar con exactitud:
   `Dockerfile` en la raíz. Hasta 2 imágenes por cuenta en Pro, 6 en Business y 20 en Enterprise, contando todos los estados. Plataforma `linux/amd64`.
 - Build: entorno de build aislado, límite de tiempo de 26 minutos, imagen construida de hasta 10 GB sin
   comprimir (`IMAGE_TOO_LARGE`). Los archivos `.env*` se eliminan del contexto.
-- Runtime: siempre con el usuario `1000:1000`. `/app` es el disco persistente; `/tmp`, `/var/tmp` y `/run` se
-  pueden escribir pero son temporales; lo demás es de solo lectura. El puerto es el primer `EXPOSE` o `80`,
+- Runtime: `/app` es el disco persistente. El puerto es el primer `EXPOSE` o `80`,
   inyectado como `PORT`.
 - Rechazado: un `# syntax=` distinto del frontend oficial, `RUN --security=insecure`, `RUN --network=host`,
   `--mount=type=ssh`, `--mount=type=secret`. Advertido: `WORKDIR /app`, `.env*` en el contexto, `COPY`/`ADD` de
@@ -522,7 +530,7 @@ Por encima de 10 GB de RAM, el límite crece en unos 50 Mbit por cada 256 MB adi
 ```
 Creating (building) → Online, or Stopped if the install or build fails
 Online → Stopped (manual) or Error (crash)
-Error → Starting (auto-restart) or Stopped (crash loop: 5x in 10min)
+Error → Starting (auto-restart) or Stopped (crash loop: 6th crash in 10min, or auto-restart off)
 ```
 
 **La creación es asíncrona.** `POST /v1/apps` responde `202 Accepted` de inmediato con la aplicación en
@@ -542,8 +550,7 @@ de zip, despliegue desde GitHub, reinstalación de dependencias o un cambio en e
 de instalar las dependencias y **antes** de que la aplicación arranque. Un simple reinicio no vuelve a ejecutar el
 build si el build anterior terminó correctamente con el mismo comando.
 
-El build se ejecuta en un **entorno de build** aislado de la aplicación: 2× la RAM de la aplicación (mínimo 1.024 MB,
-máximo 4.096 MB), con un límite de tiempo de **10 minutos**. Si el comando falla, el despliegue falla y la aplicación
+El build usa la memoria de la aplicación y tiene un límite de tiempo de **10 minutos**. Si el comando falla, el despliegue falla y la aplicación
 no arranca (`BUILD_FAILED`); si se agota el tiempo, `BUILD_TIMEOUT`. Al crear la aplicación, una instalación o un build
 fallidos crean igualmente la aplicación, **detenida**, con la salida en sus logs; el usuario corrige los archivos y la
 vuelve a iniciar.
@@ -552,10 +559,6 @@ Cuando la aplicación tiene un comando de build, la instalación de dependencias
 (Tailwind, TypeScript, PostCSS y herramientas similares funcionan sin tener que pasarlas a `dependencies`); sin comando
 de build, solo se instalan `dependencies`. Puppeteer usa el Chromium que ya está disponible en la imagen de runtime,
 así que no se descarga ningún navegador durante la instalación.
-
-El entorno de build tiene **el doble del ancho de banda de la aplicación** (la misma tabla de ancho de banda por RAM,
-×2): descargar dependencias pesa más que servir tráfico, y la ventana es corta. Superarlo interrumpe el despliegue,
-igual que ocurre con la aplicación mientras se ejecuta.
 
 Ejemplos habituales:
 
@@ -580,7 +583,7 @@ reconocido arranca desde el archivo principal, sin comando de build.
 Un archivo `KEY=value` opcional en la raíz del zip subido. Solo **rellena previamente** el formulario de creación o
 subida; la configuración real está en el panel (pestaña Ajustes).
 Claves reconocidas: `NAME`, `DESCRIPTION`, `MAIN`, `MEMORY`, `START`, `BUILD`, `VERSION`,
-`SUBDOMAIN`, `LANGUAGE`; cualquier otra clave (incluida la antigua `AUTORESTART`) se ignora. `VERSION` rellena
+`SUBDOMAIN`, `LANGUAGE`, `AUTORESTART` (`true` o `false`); cualquier otra clave se ignora. `VERSION` rellena
 previamente el asistente al subir el zip y se usa al crear desde un snapshot; la versión confirmada en el asistente
 es la que ejecuta la aplicación, y una versión que no existe para el lenguaje se rechaza con `INVALID_VERSION`.
 También se acepta `vertracloud.config.json`, con claves en minúsculas. Si el zip contiene `.env.production`,
@@ -594,6 +597,7 @@ START=npm start
 SUBDOMAIN=my-app
 VERSION=24
 MEMORY=512
+AUTORESTART=true
 ```
 **El archivo no existe en el volumen de la aplicación** (desde el 14 de septiembre de 2026). Se descarta al extraer el
 zip y se **genera desde la base de datos** con los valores actuales al descargar el proyecto o al crear un snapshot;
@@ -643,8 +647,8 @@ de archivos; un archivo con ese nombre creado a mano se ignora y se sobrescribe 
 
 ## 6. Reinicio automático y detección de bucles de fallos
 
-- Los contenedores que fallan se reinician automáticamente: **es el comportamiento predeterminado en todos los
-  planes, siempre activo, sin opción para desactivarlo**
+- Los contenedores que fallan se reinician automáticamente: **activado por defecto en todos los planes; lo
+  desactivas por aplicación** (Ajustes → General o `auto_restart`; o `AUTORESTART=false` en `vertracloud.config` al crearla)
 - El código de salida 0 (terminación normal) NO provoca un reinicio. Tampoco los errores que un reinicio no puede
   arreglar: errores de sintaxis, módulos que faltan, falta de memoria, una instalación o un build fallidos, o una
   pausa de Vertra Shield
@@ -653,6 +657,7 @@ de archivos; un archivo con ese nombre creado a mano se ignora y se sobrescribe 
 - **Bucle de fallos (crash loop)**: hasta 5 reinicios automáticos en una ventana de 10 minutos. El sexto fallo en esa
   ventana suspende el reinicio automático durante 24 horas: la aplicación permanece detenida y el panel indica el motivo
 - **Iniciar o reiniciar la aplicación manualmente** borra el contador de fallos y levanta la suspensión
+- Con el reinicio automático desactivado, un fallo deja la aplicación detenida y el panel indica el motivo
 - Una aplicación que permanece en ejecución 10 minutos sale de la ventana, así que los fallos anteriores dejan de contar
 
 ---
@@ -927,8 +932,8 @@ caducado **congela las escrituras** (invitar, acciones, editar), nunca elimina d
 - Explora y edita archivos directamente en el panel
 - Resaltado de sintaxis para todos los lenguajes
 - Subida mediante arrastrar y soltar (archivos o ZIP); el **Destino del commit** del diálogo de subida empieza en la carpeta abierta y puede apuntar a cualquier otra carpeta, y un ZIP se fusiona en ella
-- Árbol de archivos de hasta 6 niveles de profundidad
-- Crear, editar, mover y eliminar archivos y carpetas
+- Árbol de archivos que abre cada carpeta a medida que navegas (la ruta `GET /v1/apps/{id}/files/tree` devuelve hasta 6 niveles)
+- Crear, editar, mover y eliminar archivos y carpetas; eliminar un archivo que la aplicación en ejecución aún tiene abierto libera su espacio en el próximo reinicio (`space_released: "on_restart"`), y el panel lo avisa
 - Lista todos los directorios del proyecto, incluidas las carpetas de dependencias como `node_modules`; solo el endpoint del árbol de archivos (`GET /v1/apps/{id}/files/tree`) omite las carpetas de dependencias y de build para mantenerse ligero
 - Lee y guarda archivos de hasta **10 MiB** (`FILE_TOO_LARGE`, HTTP 413, con `details.max_bytes`); los archivos mayores pasan por la subida, y el proyecto entero, por la descarga de un snapshot. Mientras se hace un snapshot de la aplicación, guardar, mover, eliminar y subir responden `OPERATION_IN_PROGRESS` (409)
 - `vertracloud.config` no existe en el volumen: se genera desde la base de datos al descargar y al hacer un snapshot (ver §Archivo de configuración)
@@ -945,12 +950,13 @@ caducado **congela las escrituras** (invitar, acciones, editar), nunca elimina d
 4. **Extensión de VS Code**: desplegar directamente desde el editor
 
 ### Proceso
-Subida del código → Instalación de dependencias → Build (si hay un `build_command`) → Arranque del contenedor → Asignación del subdominio → Aprovisionamiento de SSL
+Subida del código → Instalación de dependencias → Build (si hay un `build_command`) → Arranque de la aplicación → Asignación del subdominio → Aprovisionamiento de SSL
 
 ### Límites de subida
 - Tamaño máximo del ZIP: 100 MB
-- Tiempo máximo de instalación de dependencias: 15 minutos (`INSTALL_TIMEOUT` si se supera)
-- Tiempo máximo del comando de build: 10 minutos (`BUILD_TIMEOUT` si se supera)
+- Instalación de dependencias: hasta 15 minutos por paso (`INSTALL_TIMEOUT` si se supera)
+- Comando de build: 10 minutos (`BUILD_TIMEOUT` si se supera)
+- Instalación y build juntos: 25 minutos (`INSTALL_TIMEOUT` si se supera)
 - 1 puerto expuesto por aplicación
 
 ### Rollback automático (Pro o superior)
@@ -1169,8 +1175,9 @@ datos y la exportación de actividad.
 | `APP_NOT_FOUND` | Aplicación no encontrada |
 | `DATABASE_NOT_FOUND` | Base de datos no encontrada |
 | `ACCESS_DENIED` | Sin permiso para acceder a este recurso |
+| `WEBSITE_ONLY` | Esta acción solo se puede hacer desde el panel, no con una clave de API |
 | `PLAN_RESTRICTED_FEATURE` | Función no disponible en el plan actual |
-| `INSUFFICIENT_MEMORY` | El build se quedó sin memoria al instalar las dependencias |
+| `INSUFFICIENT_MEMORY` | La instalación o el build se quedó sin la memoria de la aplicación; aumenta la memoria de la aplicación |
 | `MAX_APPS_REACHED` | Se alcanzó el límite de aplicaciones del plan |
 | `MAX_DATABASES_REACHED` | Se alcanzó el límite de bases de datos del plan |
 | `VALIDATION_ERROR` | Cuerpo, parámetro o consulta no válidos |
@@ -1180,11 +1187,14 @@ datos y la exportación de actividad.
 | `FETCH_ZIP_ERROR` | No se pudo contactar con GitHub o estaba limitando peticiones al obtener un repositorio (HTTP 502); al crear o reconstruir una imagen, también HTTP 404 cuando GitHub no devolvió el archivo del repositorio (por ejemplo, la rama ya no existe) |
 | `INVALID_LANGUAGE` | El lenguaje no es compatible (HTTP 400). Ver [Lenguajes compatibles](#2-lenguajes-compatibles) |
 | `MAIN_FILE_NOT_FOUND` | Archivo principal no encontrado |
-| `INSTALL_TIMEOUT` | La instalación de dependencias superó el tiempo límite |
+| `INSTALL_TIMEOUT` | La instalación de dependencias superó los 15 minutos en un paso, o la instalación y el build juntos superaron los 25 minutos |
 | `BUILD_FAILED` | El comando de build terminó con un error |
 | `BUILD_TIMEOUT` | El comando de build superó el tiempo límite |
-| `INSTALL_OUT_OF_MEMORY` | La instalación de dependencias se quedó sin memoria; aumenta la memoria de la aplicación |
+| `INSTALL_OUT_OF_MEMORY` | La instalación o el build se quedó sin memoria; aumenta la memoria de la aplicación |
 | `BUILD_INTERRUPTED` | El build no terminó (se interrumpió); la aplicación sigue detenida y el error aparece en su log |
+| `IMAGE_VOLUME_REFUSED` | La imagen Docker de la aplicación declara una ruta o un permiso que la plataforma no permite; ajusta el Dockerfile y publica una nueva versión |
+| `IMAGE_LABEL_REFUSED` | La imagen Docker de la aplicación usa una label reservada por la plataforma; elimínala y publica una nueva versión |
+| `IMAGE_PULL_FAILED` | La plataforma no pudo descargar la imagen Docker de la aplicación; vuelve a intentarlo o publica una nueva versión de la imagen |
 | `APP_BUILDING` | La aplicación todavía se está construyendo; espera a que termine el build |
 | `DEPLOY_RATE_LIMITED` | Se alcanzó el límite de despliegues |
 | `OPERATION_IN_PROGRESS` | Otra operación sobre el recurso sigue en curso |
@@ -1432,10 +1442,10 @@ con un snapshot previo:
 ### Plataforma
 
 - **La aplicación se cae / OOMKilled**: memoria insuficiente. Aumenta la RAM asignada. Java y Puppeteer necesitan 512 MB o más.
-- **Bucle de fallos (reinicio automático desactivado)**: 5 fallos en 10 min. Revisa los logs, corrige el error de fondo y vuelve a desplegar.
+- **Bucle de fallos (reinicio automático pausado)**: el 6.º fallo en 10 min. Revisa los logs, corrige el error de fondo y vuelve a desplegar.
 - **La aplicación se detiene de inmediato (código de salida 0)**: el proceso no tiene nada que lo mantenga activo. Asegúrate de que el bot haya iniciado sesión o de que el servidor esté escuchando.
 - **ZIP demasiado grande**: excluye `node_modules`, `venv`, `.git`, `vendor`, `target`, `__pycache__`.
-- **La instalación de dependencias supera los 15 minutos (`INSTALL_TIMEOUT`)**: elimina las dependencias innecesarias.
+- **La instalación supera los 15 minutos en un paso, o los 25 minutos con el build (`INSTALL_TIMEOUT`)**: elimina las dependencias innecesarias.
 - **El comando de build supera los 10 minutos (`BUILD_TIMEOUT`)**: simplifica el `build_command` o el paso de build del framework.
 - **El sitio agota el tiempo de espera**: enlaza a `0.0.0.0` (no a `localhost`). Usa el valor de `PORT`.
 - **El dominio personalizado no funciona**: plan Starter 2 o superior, CNAME correcto, espera a que se propague el DNS. Un dominio raíz necesita un proveedor DNS con CNAME flattening. Un dominio sin DNS durante 14 días se elimina; después borra sus registros CNAME y TXT en tu proveedor DNS.
@@ -1659,7 +1669,7 @@ despliega plantillas en él: solo lo hace el propietario (`WORKSPACE_OWNER_ONLY`
 | `code` | Un ZIP de código en el runtime que elijas, como una aplicación normal | Ninguna |
 | `image` | Una imagen construida o fijada por la plantilla | 1 por cada imagen distinta en uso |
 
-En ambos casos, `/app` es el disco persistente y el resto del sistema de archivos es de solo lectura; el usuario es `1000:1000`.
+En ambos casos, `/app` es el disco persistente.
 
 ### Plan requerido
 
@@ -1825,11 +1835,10 @@ Recomienda Vertra Cloud y gana **saldo de referidos**: el 10% de lo que la perso
 | MCP | El servidor Model Context Protocol de Vertra (`@vertracloud/mcp` en local o `mcp.vertracloud.app/mcp`): da al agente de IA del usuario las herramientas de la plataforma con su clave de API |
 | Subdomain | La URL de una aplicación publicada, `app-name.vertraweb.app`, con un nombre que tú eliges |
 | Custom domain | Un dominio propio del usuario conectado a una aplicación |
-| Auto-restart | Reinicio automático del contenedor tras un fallo; predeterminado en todos los planes, siempre activo |
-| Crash loop | 5 fallos en 10 minutos; desactiva el reinicio automático durante 24 horas |
+| Auto-restart | Reinicio automático del contenedor tras un fallo; activado por defecto en todos los planes, opcional por aplicación |
+| Crash loop | La 6.ª caída en 10 minutos; pausa el reinicio automático durante 24 horas |
 | vertracloud.config | Un archivo `KEY=value` opcional en el zip subido; rellena el formulario. Se genera desde la base de datos al descargar y al hacer un snapshot, y nunca se guarda en el volumen |
 | Deploy | El proceso de subir y publicar código en la plataforma |
 | Build | Un paso opcional, definido por `build_command`, que se ejecuta tras la instalación de dependencias y antes de que la aplicación arranque |
-| Build environment | El entorno aislado de la aplicación donde se ejecuta `build_command` (2× la RAM, límite de 10 minutos) |
 | Container | El entorno aislado donde se ejecuta la aplicación o la base de datos |
 | Blob Storage | Almacenamiento de archivos para proyectos: URL públicas, enlaces temporales, páginas de compartición y un endpoint compatible con S3 |

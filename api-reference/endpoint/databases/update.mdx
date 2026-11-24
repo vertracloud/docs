@@ -26,70 +26,18 @@ description: Updates the name, description or RAM of a database by its ID.
 
 <ParamField body="ram" type="number">
   The new RAM in MB, a positive integer. It must fit in the plan's free memory and respect the
-  engine's minimum (512 MB for Redis, 1024 MB for the others).
+  engine's minimum (512 MB for Redis, 1024 MB for the others). Changing the memory applies right away, raising or lowering it. If the database is using more memory than the new limit at that moment, it is shut down for lack of memory; the dashboard warns you and asks you to confirm before saving. The database's storage follows its memory, so lowering the memory of a database that holds more data than the new storage allows is refused with `409` `STORAGE_ABOVE_NEW_LIMIT`.
 </ParamField>
 
 ### Response
 
 <ResponseField name="response" type="object">
-  The updated details of the database.
+  The response containing the operation status.
 
   <Expandable title="Toggle object">
 
-  <ResponseField name="id" type="string">
-    The ID of the database.
-  </ResponseField>
-
-  <ResponseField name="cluster" type="number">
-    The database cluster ID.
-  </ResponseField>
-
-  <ResponseField name="type" type="number">
-    The type of the database.
-  </ResponseField>
-
-  <ResponseField name="name" type="string">
-    The name of the database.
-  </ResponseField>
-
-  <ResponseField name="description" type="string">
-    The description of the database.
-  </ResponseField>
-
-  <ResponseField name="owner_id" type="string">
-    The ID of the database owner.
-  </ResponseField>
-
-  <ResponseField name="owner_plan" type="string | null">
-    The owner's plan name (for example, `starter-1` or `pro-4`), or `null` when the owner has no plan.
-  </ResponseField>
-
   <ResponseField name="status" type="string">
-    The status of the database (e.g., `up`).
-  </ResponseField>
-
-  <ResponseField name="ram" type="number">
-    The RAM allocated to the database in MB.
-  </ResponseField>
-
-  <ResponseField name="host" type="string">
-    The host address of the database.
-  </ResponseField>
-
-  <ResponseField name="port" type="number">
-    The port used by the database.
-  </ResponseField>
-
-  <ResponseField name="last_snapshot" type="string | null" format="date-time">
-    The timestamp of the last snapshot, if available.
-  </ResponseField>
-
-  <ResponseField name="created_at" type="string" format="date-time">
-    The timestamp when the database was created.
-  </ResponseField>
-
-  <ResponseField name="updated_at" type="string" format="date-time">
-    The timestamp when the database was last updated.
+    The operation status (`success`).
   </ResponseField>
 
   </Expandable>
@@ -100,22 +48,7 @@ description: Updates the name, description or RAM of a database by its ID.
 ```json Response
 {
   "response": {
-    "id": "00000000000000000000000000000001",
-    "cluster": 1,
-    "type": 1,
-    "name": "UpdatedDatabase",
-    "description": "Updated description",
-    "owner_id": "123456789012345678",
-    "owner_plan": "pro",
-    "status": "up",
-    "ram": 256,
-    "host": "database.example.com",
-    "port": 5432,
-    "username": "vertracloud",
-    "version": "18",
-    "last_snapshot": "2026-03-14T19:58:00Z",
-    "created_at": "2026-03-14T19:58:00Z",
-    "updated_at": "2026-03-14T20:00:00Z"
+    "status": "success"
   }
 }
 ```
@@ -132,6 +65,11 @@ description: Updates the name, description or RAM of a database by its ID.
   - `ACCESS_DENIED`: You are a workspace member without the permission for this action, or you did not send the `workspace_id` (`403`).
   - `DATABASE_NOT_FOUND`: The database was not found (`404`).
   - `OPERATION_IN_PROGRESS`: Another lifecycle operation is running on this database (`409`).
+  - `STORAGE_ABOVE_NEW_LIMIT`: The database holds more data than the storage the new RAM allows (`409`). Nothing was changed.
+</ResponseField>
+
+<ResponseField name="details" type="object">
+  Present on `STORAGE_ABOVE_NEW_LIMIT`. Carries `used_mb`, `limit_mb` and `free_mb`: how much the database holds, the storage the requested RAM would allow, and how much has to be deleted before the change is accepted.
 </ResponseField>
 
 <ResponseExample>
@@ -139,6 +77,17 @@ description: Updates the name, description or RAM of a database by its ID.
 ```json Error Response (404)
 {
   "code": "DATABASE_NOT_FOUND"
+}
+```
+
+```json Error Response (409)
+{
+  "code": "STORAGE_ABOVE_NEW_LIMIT",
+  "details": {
+    "used_mb": 9216,
+    "limit_mb": 8192,
+    "free_mb": 1024
+  }
 }
 ```
 

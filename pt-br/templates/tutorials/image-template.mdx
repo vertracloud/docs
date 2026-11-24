@@ -13,7 +13,7 @@ Use um template de imagem quando o app precisar de outra linguagem ou versão, d
 
 <Check>A CLI da Vertra autenticada com uma chave de API que tenha os escopos `templates:read`, `templates:write` e `templates:deploy`, mais os escopos que fazem build de imagens.</Check>
 <Check>Um plano que possa criar imagens Docker e templates privados (veja [Planos e limites](/pt-br/plans-and-limits)). Cada conta mantém até 5 templates privados.</Check>
-<Check>Você conhece as regras das [imagens Docker personalizadas](/pt-br/guides/custom-docker-images): caminhos graváveis, usuário `1000:1000`, a variável `PORT` e o que o build recusa.</Check>
+<Check>Você conhece as regras das [imagens Docker personalizadas](/pt-br/guides/custom-docker-images): o disco persistente, a variável `PORT` e o que o build recusa.</Check>
 
 <Note>Toda imagem em uso ocupa **uma vaga de imagem** na conta que a usa, não importa quantos apps rodem a partir dela. Quando você faz deploy do seu próprio template, a imagem já é sua; quem o recebe por um link ganha a própria cópia e usa uma vaga cada.</Note>
 
@@ -21,7 +21,7 @@ Use um template de imagem quando o app precisar de outra linguagem ou versão, d
 
 <Steps>
   <Step title="Escreva um app que siga as regras da plataforma">
-    Uma imagem roda com o mesmo isolamento de qualquer aplicação: o sistema de arquivos raiz é somente leitura, o usuário é sempre `1000:1000`, `/app` é o único disco persistente e o servidor precisa escutar na variável `PORT`. Crie esta pasta:
+    Uma imagem roda com o mesmo isolamento de qualquer aplicação: `/app` é o único disco persistente e o servidor precisa escutar na variável `PORT`. Crie esta pasta:
 
     ```text
     hello-counter/
@@ -78,7 +78,7 @@ Use um template de imagem quando o app precisar de outra linguagem ou versão, d
     CMD ["node", "server.js"]
     ```
 
-    <Tip>Teste localmente do mesmo jeito que vai rodar: `docker run --rm --read-only --user 1000:1000 --tmpfs /tmp -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. Se só funcionar com a raiz gravável ou como root, não vai funcionar na plataforma.</Tip>
+    <Tip>Teste localmente antes: `docker run --rm -e PORT=3000 -p 3000:3000 -v "$PWD/data:/app/data" hello-counter`. Se precisar de root para rodar, não vai funcionar na plataforma.</Tip>
   </Step>
   <Step title="Faça o build da imagem na plataforma">
     O template não carrega o `Dockerfile`: ele referencia uma imagem que já existe na sua conta. Faça o build a partir da pasta:
@@ -186,7 +186,7 @@ Use um template de imagem quando o app precisar de outra linguagem ou versão, d
 |---|---|
 | O build falha com `IMAGE_VOLUME_REFUSED` ou um aviso sobre `WORKDIR /app` | Nada do que a imagem coloca em `/app` sobrevive, porque `/app` é o disco persistente. Use outro diretório, como `/srv`, e nunca `VOLUME /app`. |
 | O app inicia e o assistente falha no healthcheck | O caminho responde com erro ou o servidor escuta em outra porta. Escute em `PORT` em `0.0.0.0` e confirme que `healthcheck.path` retorna 200. Aumente o `timeout` se o boot for lento. |
-| O app cai com um erro de permissão | A imagem grava fora de `/app`, `/tmp`, `/var/tmp` e `/run`. Todo o resto é somente leitura; aponte logs, caches e dados para `/app`. |
+| O app cai com um erro de permissão | O app não consegue gravar onde a imagem tenta. Aponte logs, caches e dados para `/app`. |
 | O `create` falha com `IMAGE_NOT_FOUND` | `source.image` não é o id de uma imagem da sua própria conta. Confira com `vertra image list`. |
 | O `create` falha com `IMAGE_NOT_READY` | A imagem ainda não tem um build bem-sucedido. Espere o `success`. |
 | O `validate` reporta `invalid_source` | Um campo do tipo errado: `main`, `start` e `language` são só para serviços de código; `port` é só para serviços de imagem. |
@@ -196,7 +196,7 @@ Use um template de imagem quando o app precisar de outra linguagem ou versão, d
 
 - [Requisitos e plano](/pt-br/templates/create/requirements): como `ram`, `web` e a imagem definem o plano e as vagas exigidos.
 - [Configurações de deploy](/pt-br/templates/create/deploy-settings): quando bloquear o blue-green e exigir rollback com dados.
-- [Boas práticas](/pt-br/templates/create/best-practices): onde ficam os dados, a raiz somente leitura, o usuário 1000 e a porta.
+- [Boas práticas](/pt-br/templates/create/best-practices): onde ficam os dados e a porta.
 - [Referência do manifesto](/pt-br/templates/create/manifest-reference): todos os campos de um serviço de app.
 - [Imagens Docker personalizadas](/pt-br/guides/custom-docker-images): as regras de build, as versões e o rollback da própria imagem.
 - Próximo tutorial: [uma stack com Postgres e Redis](/pt-br/templates/tutorials/postgres-redis-stack).

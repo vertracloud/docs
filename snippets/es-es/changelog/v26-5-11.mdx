@@ -1,0 +1,56 @@
+### El reinicio automático vuelve a ser opcional
+
+El reinicio automático sigue activado por defecto en todos los planes, y puedes desactivarlo por aplicación: en **Ajustes → General**, al crear la aplicación (`AUTORESTART=false` en `vertracloud.config`) o con `auto_restart` en la API. Con él desactivado, una aplicación que se cae se queda detenida y el panel muestra el motivo. `GET /v1/apps/{id}` vuelve a devolver `auto_restart`, y `POST /v1/apps` y `PATCH /v1/apps/{id}/config` lo aceptan (se había retirado en la v26.3.16). La espera entre reinicios ahora crece de inmediata a 2 minutos, y la 6.ª caída en 10 minutos pausa el reinicio automático durante 24 horas.
+
+### Una consola continua
+
+La consola de logs ahora es texto que puedes seleccionar y copiar. Detener, reiniciar o desplegar no la borra: cuando la aplicación se reinicia con la consola abierta, una línea avisa que los logs de arriba son de la ejecución anterior, y al abrir la consola ves la ejecución actual. La consola sigue el final mientras te mantienes cerca del pie. La salida de la instalación y del build aparece en la misma consola que la salida de la aplicación, y las aplicaciones de una imagen Docker personalizada muestran cada paso, uno por línea, antes de que arranque el proceso. Cuando una instalación o un build falla, el panel explica el motivo y ofrece reintentar, y cuando el entorno de ejecución pasó a otra línea de versión, la consola lo avisa.
+
+### Métricas en vivo y gráficos de historial
+
+Mientras la consola de una aplicación está abierta, una lectura en vivo de CPU, memoria y red aparece encima de ella y se actualiza cada pocos segundos. Los gráficos de historial de aplicaciones y bases de datos (últimos 5 minutos y últimas 24 horas) ahora marcan reinicios, reinicios automáticos y caídas, y señalan una caída causada por falta de memoria.
+
+### La nueva versión en la consola durante un despliegue sin caída
+
+Durante un despliegue sin caída, la salida de la nueva versión aparece en la consola antes de que tome el relevo y, cuando la nueva versión se descarta, la consola dice el motivo. Cuando un build se queda sin memoria, la consola ahora lo avisa con claridad.
+
+### La instalación y el build usan la memoria de la aplicación
+
+La instalación de las dependencias y el build ya no reciben memoria extra además de la de la aplicación: ahora usan la memoria de la propia aplicación. Un build que dependía de ese margen puede quedarse sin memoria; cuando pasa, la consola lo avisa, y aumentar la memoria de la aplicación lo resuelve.
+
+### Instalación y build más rápidos
+
+La instalación de las dependencias y el build son más rápidos.
+
+### Cambios que se aplican al instante
+
+Activar o desactivar la publicación web ya no reinicia la aplicación (una aplicación de imagen Docker personalizada sí se reinicia). Cambiar la memoria de una aplicación o de una base de datos se aplica al instante, al subirla o al bajarla. Si está usando más memoria que el nuevo límite en ese momento, se cierra por falta de memoria; el panel te avisa y pide confirmación antes de guardar. Bajar la memoria de una base de datos se rechaza con `409` `STORAGE_ABOVE_NEW_LIMIT` mientras sus datos no quepan en el nuevo almacenamiento.
+
+### El archivo principal debe existir
+
+Guardar un archivo principal que no existe (o es una carpeta) en **Ajustes** o con `PATCH /v1/apps/{id}/config` ahora falla con `400` `MAIN_FILE_NOT_FOUND`, y no se guarda nada. Subir un ZIP a una aplicación existente falla igual cuando, después de la subida, la aplicación se quedaría sin archivo principal. El panel muestra el error en el campo y te avisa antes de borrar o mover el archivo principal en el gestor de archivos.
+
+### Comandos en una sola línea
+
+Un comando de inicio o de build con un salto de línea ahora se rechaza con `400` `VALIDATION_ERROR`. Escríbelo en una sola línea, encadenando los pasos con `&&`. Una aplicación que ya tiene un comando así recibe el mismo error en su próximo inicio o despliegue y sigue como estaba hasta que lo cambies.
+
+### Bases de datos
+
+- La contraseña se muestra **una sola vez**, justo después de crear la base de datos (también en una stack o una plantilla), y solo la devuelven `POST /v1/databases`, `POST /v1/stacks/{stack_id}/databases` y el despliegue de plantillas. Para verla de nuevo, restablécela.
+- Las bases de datos nuevas usan la dirección `ny1`, con el formato `vertra-cloud-<database-id>.db.ny1.vertraweb.app`. Las más antiguas conservan la suya hasta que restableces los certificados, lo que también las pasa a la nueva dirección; eso se hace solo en el panel, que avisa antes (una clave de API recibe `403` `WEBSITE_ONLY`). `GET /v1/databases/{id}` devuelve `legacy_host` para distinguirlas.
+- Al crear una base de datos, el cuadro de diálogo muestra los certificados para copiar o descargar, y la tarjeta de conexión indica dónde encontrar la contraseña.
+
+### Archivos y acciones
+
+Eliminar un archivo que la aplicación en ejecución aún tiene abierto ahora avisa de que su espacio vuelve en el próximo reinicio (`space_released` en la respuesta). **Forzar build** y **Reinstalar dependencias** pasaron al menú **Más acciones** de la aplicación.
+
+El gestor de archivos se rediseñó: un árbol que abre cada carpeta a medida que navegas, con filtro por nombre; selecciona varios archivos o carpetas y muévelos a otra carpeta de una vez; crea un archivo o una carpeta en cualquier carpeta, usando `/` en el nombre para crear las carpetas del camino; y un editor con buscar y reemplazar, y pantalla completa.
+
+### Aplicaciones a partir de una imagen Docker
+
+Cuando la plataforma rechaza la imagen de una aplicación, la aplicación ahora muestra el motivo: `last_build_error` devuelve `IMAGE_VOLUME_REFUSED` (una ruta o un permiso que la plataforma no permite), `IMAGE_LABEL_REFUSED` (una label reservada) o `IMAGE_PULL_FAILED` (no se pudo descargar la imagen), en lugar de un `BUILD_FAILED` genérico.
+
+### API: métricas en vivo y marcas en los gráficos
+
+- `GET /v1/apps/{id}/realtime` acepta `metrics=true`, que añade eventos `metrics` con la lectura en vivo de CPU, memoria y red cada 5 segundos aproximadamente, y envía eventos `next_logs` con la salida de la nueva versión durante un despliegue sin caída. `deploy_note:discarded` ahora puede llevar el motivo, los avisos reenviados cuando se abre la conexión llevan la hora en que ocurrieron, y el nuevo aviso `install_note:build_oom` informa de un build que se quedó sin memoria.
+- Las métricas de aplicaciones y de bases de datos (`GET /v1/apps/{id}/metrics`, `GET /v1/databases/{id}/metrics`) devuelven `events` en cada punto: los reinicios, reinicios automáticos y caídas desde ese punto, con `out_of_memory` para una caída causada por falta de memoria.

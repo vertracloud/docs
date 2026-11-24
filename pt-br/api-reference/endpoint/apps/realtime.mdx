@@ -3,7 +3,7 @@ title: Logs da aplicação em tempo real
 sidebarTitle: Logs em tempo real
 api: GET https://api.vertracloud.app/v1/apps/{id}/realtime
 authMethod: bearer
-description: Retorna os logs em tempo real de uma aplicação pelo seu ID, transmitidos como um text event stream.
+description: Transmite os logs em tempo real de uma aplicação como um text event stream, com métricas ao vivo opcionais de CPU, memória e rede.
 ---
 
 {/* @see SSE stream — @vertracloud/api-types */}
@@ -15,22 +15,76 @@ description: Retorna os logs em tempo real de uma aplicação pelo seu ID, trans
   Se a aplicação pertencer a um workspace, o ID do workspace. Obrigatório para membros do workspace que agem sobre uma aplicação que não lhes pertence.
 </ParamField>
 
+<ParamField query="metrics" type="boolean">
+  Com `true`, o stream também traz eventos `metrics` com a leitura ao vivo de CPU, memória e rede da aplicação. Desligado por padrão.
+</ParamField>
+
 ### Resposta
 
 A resposta é transmitida como um text event stream (`text/event-stream`). Cada entrada de log é enviada como um evento no seguinte formato:
 
-- **Tipo do evento**: `logs` para mensagens de log, `system` para avisos do stream e da plataforma (por exemplo, `install_note:started`), `heartbeat` para eventos de keep-alive sem conteúdo.
-- **Data**: texto puro (não é JSON). Um evento `logs` traz uma ou mais linhas separadas por quebras de linha, cada uma com um timestamp ISO 8601 seguido da mensagem de log.
+- **Tipo do evento**: `logs` para mensagens de log, `next_logs` para a saída da nova versão enquanto um deploy sem queda a prepara, `system` para avisos do stream e da plataforma (por exemplo, `install_note:started`), `metrics` para a leitura ao vivo da aplicação (só com `metrics=true`), `heartbeat` para eventos de keep-alive sem conteúdo.
+- **Data**: texto puro (não é JSON), exceto nos eventos `metrics`, cujo data é um objeto JSON. Um evento `logs` traz uma ou mais linhas separadas por quebras de linha, cada uma com um timestamp ISO 8601 seguido da mensagem de log.
+
+Quando a conexão abre, os avisos que já aconteceram são enviados de novo antes do stream ao vivo, cada um com o horário em que ocorreu no início (`<ISO 8601> <aviso>`). Os avisos que chegam enquanto você está conectado não têm prefixo.
 
 Depois de um deploy, eventos `system` também podem informar o que aconteceu com a nova versão. O aviso cita as releases envolvidas pelo ID delas, como listado em [Listar releases da aplicação](/pt-br/api-reference/endpoint/apps/releases/list):
 
 - `deploy_note:failed:<release_id>`: a nova versão parou logo depois de iniciar. O log da falha fica disponível nessa release.
 - `deploy_note:rollback:<from>:<to>`: a plataforma voltou automaticamente para a versão anterior, porque a nova parou em até 60 segundos após o deploy. `<from>` é a release que falhou e `<to>` é a que voltou a rodar.
-- `deploy_note:discarded:<release_id>`: no plano Enterprise, a nova versão não ficou saudável e foi descartada; a versão anterior continuou rodando.
+- `deploy_note:discarded:<release_id>:<reason>`: no plano Enterprise, a nova versão não ficou saudável e foi descartada; a versão anterior continuou rodando. `<reason>` pode estar ausente, e novos valores podem surgir:
 
-Enquanto as dependências são instaladas, o stream traz a saída da instalação precedida pelo evento de sistema
-`install_note:started`.
-A instalação roda fora do limite de memória do plano e a aplicação inicia assim que ela termina.
+| `<reason>` | Significado |
+|---|---|
+| `install_oom` | A nova versão ficou sem memória ao instalar as dependências. |
+| `install_build_oom` | A nova versão ficou sem memória durante o build. |
+| `install_failed` | A instalação das dependências falhou. |
+| `install_build_failed` | O build falhou. |
+| `install_timeout` | A instalação passou do limite de tempo. |
+| `install_build_timeout` | O build passou do limite de tempo. |
+| `install_shield` | A instalação foi interrompida pela proteção da plataforma. |
+| `crashed` | A nova versão parou antes de ficar pronta. |
+| `unhealthy` | A nova versão não ficou pronta para receber tráfego. |
+| `timeout` | A nova versão não respondeu a tempo. |
+
+Durante um deploy sem queda (plano Enterprise), os eventos `next_logs` trazem a saída da nova versão, inclusive a instalação e o build, enquanto a versão atual continua atendendo e escrevendo em `logs`. As linhas têm o mesmo formato de `logs`. Quando a nova versão assume, a saída dela segue como `logs`.
+
+A saída da instalação e do build faz parte do mesmo stream, seguida da saída da própria aplicação. Tudo o que a sua aplicação imprime chega como `logs`, nunca como `system`.
+
+Outros avisos `system`:
+
+| Aviso | Significado |
+|---|---|
+| `install_note:started` | Uma instalação começou. |
+| `install_note:done` | A instalação das dependências terminou. |
+| `install_note:build_oom` | O comando de build ficou sem memória e foi interrompido. Aumente a memória da aplicação ou reduza o que o build processa. |
+| `install_note:timeout:<seconds>` | A instalação falhou por limite de tempo: `900` é uma única etapa, `1500` é a instalação inteira. Sem o número, o limite não é informado. |
+| `run_note:started:<ISO 8601>` | O processo da aplicação iniciou nesse instante. |
+| `run_note:port_not_listening:<port>` | A aplicação iniciou, mas não começou a ouvir a tempo na porta esperada (`<port>`). Confira se ela ouve nessa porta em todas as interfaces. |
+| `runtime_note:line_changed:<language>:<from>:<to>:<reason>` | A aplicação iniciou em uma linha de versão diferente da anterior. `<reason>` é `retired` (a linha anterior foi aposentada), `unavailable` (ela não está mais disponível) ou `requested` (você pediu a troca, ou a versão que você acompanha, como a recomendada, mudou de linha). |
+| `image_note:pulling:<0-100>` | Uma aplicação de imagem personalizada está sendo preparada, com o progresso em porcentagem. |
+| `image_note:creating` | O ambiente está pronto e a aplicação está sendo criada. |
+| `image_note:starting` | A aplicação está iniciando. |
+| `image_note:waiting_port` | A aplicação iniciou e a plataforma espera que ela escute na porta. |
+| `restart_note:auto_restart_disabled` | A aplicação parou de forma inesperada e não foi reiniciada porque o auto-restart está desligado. |
+
+### Métricas ao vivo
+
+Com `metrics=true`, um evento `metrics` chega a cada 5 segundos, aproximadamente, enquanto a aplicação está em execução e a conexão está aberta. Nada é enviado enquanto a aplicação está parada. Diferente dos outros eventos, o `data` dele é um objeto JSON:
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `at` | string | Horário da leitura (ISO 8601). |
+| `cpu_percent` | number | CPU em uso como porcentagem da CPU do plano da aplicação, de 0 a 100. |
+| `cpu_cores` | number | CPU em uso, em núcleos (`0.25` é um quarto de núcleo). |
+| `memory_bytes` | number | Memória em uso, em bytes, sem o cache de arquivos que pode ser liberado. |
+| `memory_limit_bytes` | number ou `null` | Limite de memória da aplicação, em bytes; `null` quando não há limite. |
+| `net_rx_bps` | number | Bytes por segundo recebidos pela aplicação. |
+| `net_tx_bps` | number | Bytes por segundo enviados pela aplicação. |
+| `net_rx_bytes` | number | Bytes recebidos desde que a aplicação iniciou. |
+| `net_tx_bytes` | number | Bytes enviados desde que a aplicação iniciou. |
+
+As taxas (`net_rx_bps`, `net_tx_bps`) são medidas entre duas leituras consecutivas.
 
 <ResponseExample>
 
@@ -43,6 +97,12 @@ data: 2026-03-20T19:58:01Z [DEBUG] Connected to database
 
 event: logs
 data: 2026-03-20T19:58:02Z [ERROR] Failed to process request
+
+event: next_logs
+data: 2026-03-20T19:58:02Z added 120 packages in 8s
+
+event: metrics
+data: {"at":"2026-03-20T19:58:02Z","cpu_percent":12.5,"cpu_cores":0.125,"memory_bytes":134217728,"memory_limit_bytes":536870912,"net_rx_bps":2048,"net_tx_bps":8192,"net_rx_bytes":10485760,"net_tx_bytes":52428800}
 
 event: system
 data: 2026-03-20T19:58:03Z Connection Closed

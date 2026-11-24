@@ -107,19 +107,21 @@ others) and third-party ones (PostGIS, `pgvector`) aren't available. ICU collati
 
 The port is **unique per database** — not the engine's default — and is shown on the database page.
 
-All databases generate TLS certificates automatically (CA, server, client). **Every engine requires TLS
+All databases generate TLS certificates automatically. **Every engine requires TLS
 and a client certificate** — a password alone never connects.
 
 ### How to connect to each database
 
-- **Host**: `<database-id-without-hyphens>.db.usa1.vertraweb.app`. **Port**: unique per database
+- **Host**: `vertra-cloud-<database-id>.db.<region>.vertraweb.app`, where `<region>` is `ny1` (`usa1` on databases created before v26.5.11); the exact address is on the database page. **Port**: unique per database
   (not 5432/27017/6379/3306) — copy it from the database page or `GET /v1/databases/{id}`.
-- **Files** (Certificates tab or `GET /v1/databases/{id}/credentials/certificate`):
+- **Password**: returned once, in the response of `POST /v1/databases` (also `POST /v1/stacks/{stack_id}/databases` and template deploys) and shown once in the dashboard; it is never returned again. Applications linked to the database in a stack already receive the password in their managed variables. To get a new one, reset it (`POST /v1/databases/{id}/credentials/reset`; in the dashboard it asks for a confirmation code).
+- **Files** (Connection tab or `GET /v1/databases/{id}/credentials/certificate`):
   `certificate-<id>.ca.pem` = the CA that signs the server certificate (the CA file everywhere),
   `certificate-<id>.crt` = client certificate (not the CA), `certificate-<id>.key` = client private key,
-  `certificate-<id>.pem` = bundle of client key + client certificate + the CA (MongoDB's certificate-key
+  `certificate-<id>.pem` = client key + client certificate (MongoDB's certificate-key
   file), `certificate-<id>.p12` = client identity as PKCS#12 with an empty password (Prisma 6). Older
-  databases may not offer the `.ca.pem`; there, the `.pem` works as the CA file.
+  databases may not offer the `.ca.pem`. Resetting certificates on an older database also moves
+  it to the `ny1` address, from the dashboard only (an API key gets `403 WEBSITE_ONLY`).
 - Common errors: `self-signed certificate in certificate chain` = wrong or missing CA (usually the `.crt`
   passed as the CA); `key values mismatch` = `.crt` and `.key` are not a pair; `connection requires a
   valid client certificate` = `.crt`/`.key` not sent. Full table in Databases › Why does my database
@@ -140,7 +142,7 @@ Node.js examples for each driver (pg, mongodb, ioredis, mysql2) are on the
 
 **Storage**: 6 GB + 1 GB for every 512 MB of allocated RAM, rounded up to the GB, or 3× the RAM
 when that is larger (from 6 GB of RAM up) — the quota is always a whole number of GB (e.g.: 512 MB → 7 GB;
-1 GB → 8 GB; 2 GB → 10 GB; 4 GB → 14 GB; 8 GB → 24 GB). No existing database loses space when the formula changes — the ceiling only grows.
+1 GB → 8 GB; 2 GB → 10 GB; 4 GB → 14 GB; 8 GB → 24 GB). No existing database loses space when the formula changes — the ceiling only grows. Lowering a database's memory lowers its storage too, so it is refused (`STORAGE_ABOVE_NEW_LIMIT`, with `used_mb`, `limit_mb` and `free_mb`) while the data would not fit.
 
 
 **Operations**: Start, Stop, Restart, Reset (destructive, limited to 1 per hour), Reset Password, Reset Certificates, Snapshot Download/Restore.
@@ -210,6 +212,8 @@ Vertra Cloud sells 22 plans in four families: **Starter** (1 and 2 GB of RAM), *
 **No plan has a count ceiling.** The real limit is the
 **plan's RAM**, and what refuses a creation is
 `MEMORY_LIMIT_EXCEEDED` — a 100 MB app fits 10 times in Starter 1. Minimums that consume that RAM: application 100 MB, Redis 512 MB, Postgres/MySQL/Mongo 1,024 MB.
+
+Changing an application's or database's memory applies right away, with no restart, whether you raise it or lower it. If the application or database is using more memory than the new limit at that moment, it is shut down for lack of memory (the dashboard warns you and asks you to confirm before saving).
 
 The public listing of the plans on sale, with the price, RAM, vCPU, Blob and limits of each one and the billing periods with their discounts, is `GET /v1/plans` (no authentication).
 
@@ -292,7 +296,7 @@ must read `plan.name` and `owner_plan` instead (breaking change of the API, SDKs
 | Choose the subdomain name | Yes | Yes | Yes | Yes | Yes |
 | "Powered by Vertra Cloud" badge on the site | Yes | — | — | — | — |
 | Custom domains per application | — | 1 | 2 | 5 | 20 |
-| Auto-restart | Yes | Yes | Yes | Yes | Yes |
+| Auto-restart (optional per application) | Yes | Yes | Yes | Yes | Yes |
 | File manager | Yes | Yes | Yes | Yes | Yes |
 | Advanced metrics | Yes | Yes | Yes | Yes | Yes |
 | Web Analytics: summary, traffic, errors, compare | Yes | Yes | Yes | Yes | Yes |
@@ -434,8 +438,8 @@ published later (`POST /v1/apps/{id}/network/publish`) and unpublished again
 (`DELETE /v1/apps/{id}/network/publish`), which switches the type between `1` and `2`. Two consequences
 users need to be told about:
 
-- **Turning it on and off recreates the container, so the application restarts** — network rules and the
-  exposed port only exist from the moment the container is created.
+- **Turning it on and off applies right away, without restarting the application.** The exception is an
+  application created from the user's own Docker image: publishing or unpublishing it restarts it.
 - **When turning it off, the subdomain is released**: there is no reservation, someone else can claim it. Every
   custom domain is also removed, and its `CNAME` and validation `TXT` records stay at the user's DNS provider until
   the user deletes them.
@@ -447,7 +451,7 @@ less than that the call returns `MEMORY_BELOW_MINIMUM` with `details: { current_
 
 - Build context: ZIP up to 100 MB, or a GitHub repository, with a file named exactly `Dockerfile` at the root. Up to 2 images per account on Pro, 6 on Business and 20 on Enterprise, counting every state. Platform `linux/amd64`.
 - Build: isolated build environment, time limit of 26 minutes, built image up to 10 GB uncompressed (`IMAGE_TOO_LARGE`). `.env*` files are removed from the context.
-- Runtime: always user `1000:1000`. `/app` is the persistent disk; `/tmp`, `/var/tmp` and `/run` are writable but temporary; everything else is read-only. The port is the first `EXPOSE` or `80`, injected as `PORT`.
+- Runtime: `/app` is the persistent disk. The port is the first `EXPOSE` or `80`, injected as `PORT`.
 - Refused: a `# syntax=` other than the official frontend, `RUN --security=insecure`, `RUN --network=host`, `--mount=type=ssh`, `--mount=type=secret`. Warned: `WORKDIR /app`, `.env*` in the context, `COPY`/`ADD` of `.env`, `VOLUME` outside `/app`.
 - Updates: rebuild by upload, rebuild from the current source (`POST /v1/images/:image_id/rebuild`: the tip of the linked branch, or the context of the last build), commit (on top of the current context) or push to a linked GitHub branch. A rebuild restarts apps only when the image option `auto_update_apps` is on (on for images created from GitHub, off for the others; change it on the image page or with `PATCH /v1/images/:image_id`): then every successful build restarts the image's running apps on the new version, stopped apps stay stopped and a failing app does not block the others. Each app keeps 30 releases for 30 days, and rollback uses an already built version.
 - Snapshots hold the data of `/app` and the image version; restore can optionally go back to that version.
@@ -481,7 +485,7 @@ Above 10 GB of RAM, the limit grows by roughly 50 Mbit per additional 256 MB.
 ```
 Creating (building) → Online, or Stopped if the install or build fails
 Online → Stopped (manual) or Error (crash)
-Error → Starting (auto-restart) or Stopped (crash loop: 5x in 10min)
+Error → Starting (auto-restart) or Stopped (crash loop: 6th crash in 10min, or auto-restart off)
 ```
 
 **Creation is asynchronous.** `POST /v1/apps` answers `202 Accepted` right away with the application in
@@ -500,9 +504,7 @@ GitHub deploy, dependency reinstall or a change to the command itself —, alway
 dependency installation and **before** the application starts. A plain restart doesn't rerun the
 build if the previous build succeeded with the same command.
 
-The build runs in a **build environment** isolated from the application: 2× the application's RAM (minimum
-1,024 MB, maximum 4,096 MB), with a
-**10-minute** time limit. If the command fails → the deploy fails and the application doesn't start (`BUILD_FAILED`);
+The build uses the application's memory and has a **10-minute** time limit. If the command fails → the deploy fails and the application doesn't start (`BUILD_FAILED`);
 if it times out → `BUILD_TIMEOUT`. On creation, a failed install or build still creates the application,
 **stopped**, with the output in its logs; the user fixes the files and starts it again.
 
@@ -510,10 +512,6 @@ When the application has a build command, dependency installation also includes 
 TypeScript, PostCSS and similar tools work without moving them to `dependencies`); without a build command,
 only `dependencies` are installed. Puppeteer uses the Chromium already available in the runtime image, so
 no browser is downloaded during installation.
-
-The build environment has **twice the application's bandwidth** (the same bandwidth-by-RAM table, ×2) —
-downloading dependencies weighs more than serving traffic, and the window is short. Exceeding it interrupts the deploy, the same as happens with the application
-while it's running.
 
 Common examples:
 
@@ -538,7 +536,7 @@ creating it. A project without a recognized framework starts from the main file,
 An optional `KEY=value` file at the root of the uploaded zip. It only **pre-fills** the
 creation/upload form — the actual configuration lives in the dashboard (Settings tab).
 Recognized keys: `NAME`, `DESCRIPTION`, `MAIN`, `MEMORY`, `START`, `BUILD`, `VERSION`,
-`SUBDOMAIN`, `LANGUAGE`; any other key (including the old `AUTORESTART`) is ignored. `VERSION` pre-fills the
+`SUBDOMAIN`, `LANGUAGE`, `AUTORESTART` (`true` or `false`); any other key is ignored. `VERSION` pre-fills the
 wizard on zip upload and is used on creation from a snapshot; the version confirmed in the wizard is
 the one the application runs, and a version that doesn't exist for the language is refused with
 `INVALID_VERSION`. `vertracloud.config.json` is also accepted, with lowercase keys.
@@ -552,6 +550,7 @@ START=npm start
 SUBDOMAIN=my-app
 VERSION=24
 MEMORY=512
+AUTORESTART=true
 ```
 **The file doesn't exist on the app's volume** (since 09/14/2026). It is discarded when the
 zip is extracted and **generated from the database** with the current values when downloading the project or creating a snapshot — that's
@@ -602,8 +601,8 @@ overwritten on download.
 
 ## 6. Auto-Restart and Crash Loop Detection
 
-- Containers that crash are restarted automatically — **the default on every plan,
-  always on, with no option to turn it off**
+- Containers that crash are restarted automatically — **on by default on every plan; you turn it off per
+  application** (Settings → General or `auto_restart`; or `AUTORESTART=false` in `vertracloud.config` when you create it)
 - Exit code 0 (normal termination) does NOT trigger a restart. Neither do errors a restart can't fix:
   syntax errors, missing modules, out of memory, a failed install or build, or a Vertra Shield pause
 - **Every other crash is restarted**, even if the application was up for only a few seconds, with a
@@ -611,6 +610,7 @@ overwritten on download.
 - **Crash loop**: up to 5 automatic restarts in a 10-minute window. The 6th crash in that window
   suspends auto-restart for 24 hours: the application stays stopped and the dashboard says why
 - **Starting or restarting the application manually** clears the crash count and lifts the suspension
+- With auto-restart off, a crash leaves the application stopped and the dashboard says why
 - An application that stays up for 10 minutes leaves the window, so older crashes stop counting
 
 ---
@@ -888,8 +888,8 @@ an expired plan **freezes writes** (invite, action, edit), never deletes data.
 - Browse and edit files directly in the dashboard
 - Syntax highlighting for all languages
 - Upload via drag-and-drop (files or ZIP); the upload dialog's **Commit destination** starts at the open folder and can point to any other folder, and a ZIP is merged into it
-- File tree up to 6 levels deep
-- Create, edit, move, delete files and folders
+- File tree that opens each folder as you go (the `GET /v1/apps/{id}/files/tree` endpoint returns up to 6 levels)
+- Create, edit, move, delete files and folders; deleting a file that the running application still has open frees its space at the next restart (`space_released: "on_restart"`), and the dashboard says so
 - Lists every directory of the project, including dependency folders such as `node_modules`; only the file tree endpoint (`GET /v1/apps/{id}/files/tree`) skips dependency and build folders to stay small
 - Reads and saves files of up to **10 MiB** (`FILE_TOO_LARGE`, HTTP 413, with `details.max_bytes`); larger files go through upload, and the whole project through a snapshot download. While a snapshot of the application is being taken, saves, moves, deletes and uploads answer `OPERATION_IN_PROGRESS` (409)
 - `vertracloud.config` doesn't exist on the volume: it's generated from the database on download and on snapshot (see §Configuration File)
@@ -906,12 +906,13 @@ an expired plan **freezes writes** (invite, action, edit), never deletes data.
 4. **VSCode extension** — deploy straight from the editor
 
 ### Process
-Code upload → Dependency installation → Build (if there's a `build_command`) → Container startup → Subdomain assignment → SSL provisioning
+Code upload → Dependency installation → Build (if there's a `build_command`) → Application start → Subdomain assignment → SSL provisioning
 
 ### Upload Limits
 - Maximum ZIP size: 100 MB
-- Maximum dependency install time: 15 minutes (`INSTALL_TIMEOUT` if exceeded)
-- Maximum build command time: 10 minutes (`BUILD_TIMEOUT` if exceeded)
+- Dependency installation: up to 15 minutes per step (`INSTALL_TIMEOUT` if exceeded)
+- Build command: 10 minutes (`BUILD_TIMEOUT` if exceeded)
+- Installation and build together: 25 minutes (`INSTALL_TIMEOUT` if exceeded)
 - 1 exposed port per application
 
 ### Automatic Rollback (Pro+)
@@ -1130,8 +1131,9 @@ data queries and activity export.
 | `APP_NOT_FOUND` | Application not found |
 | `DATABASE_NOT_FOUND` | Database not found |
 | `ACCESS_DENIED` | No permission to access this resource |
+| `WEBSITE_ONLY` | This action can only be done from the dashboard, not with an API key |
 | `PLAN_RESTRICTED_FEATURE` | Feature not available on the current plan |
-| `INSUFFICIENT_MEMORY` | The build ran out of memory while installing dependencies |
+| `INSUFFICIENT_MEMORY` | Installation or build ran out of the application's memory; raise the application memory |
 | `MAX_APPS_REACHED` | Plan's application limit reached |
 | `MAX_DATABASES_REACHED` | Plan's database limit reached |
 | `VALIDATION_ERROR` | Invalid body, parameter or query |
@@ -1141,11 +1143,14 @@ data queries and activity export.
 | `FETCH_ZIP_ERROR` | GitHub could not be reached or was limiting requests while fetching a repository (HTTP 502); when creating or rebuilding an image, also HTTP 404 when GitHub did not return the repository archive (for example, the branch no longer exists) |
 | `INVALID_LANGUAGE` | The language isn't supported (HTTP 400). See [Supported Languages](#2-supported-languages) |
 | `MAIN_FILE_NOT_FOUND` | Main file not found |
-| `INSTALL_TIMEOUT` | Dependency installation exceeded the time limit |
+| `INSTALL_TIMEOUT` | Dependency installation exceeded 15 minutes in one step, or installation and build together exceeded 25 minutes |
 | `BUILD_FAILED` | Build command exited with an error |
 | `BUILD_TIMEOUT` | Build command exceeded the time limit |
-| `INSTALL_OUT_OF_MEMORY` | Dependency installation ran out of memory; raise the application memory |
+| `INSTALL_OUT_OF_MEMORY` | Installation or build ran out of memory; raise the application memory |
 | `BUILD_INTERRUPTED` | The build didn't finish (it was interrupted); the application stays stopped and the error appears in its log |
+| `IMAGE_VOLUME_REFUSED` | The application's Docker image declares a path or permission the platform does not allow; adjust the Dockerfile and publish a new version |
+| `IMAGE_LABEL_REFUSED` | The application's Docker image uses a label reserved by the platform; remove it and publish a new version |
+| `IMAGE_PULL_FAILED` | The platform could not download the application's Docker image; try again or publish a new version of the image |
 | `APP_BUILDING` | The application is still building; wait until the build ends |
 | `DEPLOY_RATE_LIMITED` | Deploy limit reached |
 | `OPERATION_IN_PROGRESS` | Another operation on the resource is still in progress |
@@ -1391,10 +1396,10 @@ On an account without an active plan, projects that stay offline for more than 3
 ### Platform
 
 - **App crashing / OOMKilled**: Insufficient memory. Increase the allocated RAM. Java/Puppeteer need 512 MB+.
-- **Crash loop (auto-restart disabled)**: 5 crashes in 10 min. Check the logs, fix the root error, redeploy.
+- **Crash loop (auto-restart paused)**: the 6th crash in 10 min. Check the logs, fix the root error, redeploy.
 - **App stops immediately (exit code 0)**: The process has nothing keeping it alive. Make sure the bot is logged in or the server is listening.
 - **ZIP too large**: Exclude `node_modules`, `venv`, `.git`, `vendor`, `target`, `__pycache__`.
-- **Dependency installation exceeds 15 minutes (`INSTALL_TIMEOUT`)**: Remove unnecessary dependencies.
+- **Installation exceeds 15 minutes in one step, or 25 minutes with the build (`INSTALL_TIMEOUT`)**: Remove unnecessary dependencies.
 - **Build command exceeds 10 minutes (`BUILD_TIMEOUT`)**: Simplify the `build_command` or the framework's build step.
 - **Site times out**: Bind to `0.0.0.0` (not `localhost`). Use the `PORT` value.
 - **Custom domain doesn't work**: Starter 2+ plan, correct CNAME, wait for DNS propagation. A root domain needs a DNS provider with CNAME flattening. A domain with no DNS for 14 days is removed; delete its CNAME and TXT records at your DNS provider afterwards.
@@ -1615,7 +1620,7 @@ Users do not publish to the public catalog from the dashboard. Private templates
 | `code` | A code ZIP on the runtime of your choice, like a normal application | None |
 | `image` | An image built or pinned by the template | 1 per distinct image in use |
 
-In both, `/app` is the persistent disk and the rest of the filesystem is read-only; the user is `1000:1000`.
+In both, `/app` is the persistent disk.
 
 ### Required plan
 
@@ -1747,11 +1752,10 @@ Use this to guide a user who asks about the program.
 | MCP | Vertra's Model Context Protocol server (`@vertracloud/mcp` locally or `mcp.vertracloud.app/mcp`): gives the user's AI agent the platform's tools using their API key |
 | Subdomain | The URL of a published application, `app-name.vertraweb.app`, with a name you choose |
 | Custom domain | A user's own domain connected to an application |
-| Auto-restart | Automatic container restart on crash; default on every plan, always on |
-| Crash loop | 5 crashes in 10 minutes — disables auto-restart for 24 hours |
+| Auto-restart | Automatic container restart on crash; on by default on every plan, optional per application |
+| Crash loop | The 6th crash in 10 minutes — pauses auto-restart for 24 hours |
 | vertracloud.config | An optional `KEY=value` file in the uploaded zip; pre-fills the form. Generated from the database on download and on snapshot, never stored on the volume |
 | Deploy | The process of uploading and publishing code on the platform |
 | Build | An optional step, defined by `build_command`, that runs after dependency installation and before the application starts |
-| Build environment | The environment isolated from the application where `build_command` runs (2× RAM, 10-minute time limit) |
 | Container | The isolated environment where the application or database runs |
 | Blob Storage | File storage for projects: public URLs, temporary links, share pages and an S3-compatible endpoint |

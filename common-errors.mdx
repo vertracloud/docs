@@ -29,14 +29,15 @@ plan limits.
     - Optimize the code to reduce memory usage
   </Accordion>
 
-  <Accordion title="Crash loop — Auto-restart disabled" icon="rotate">
-    **Symptom:** The app crashed 5 times in 10 minutes and auto-restart was disabled for 24 hours.
+  <Accordion title="Crash loop — Auto-restart paused" icon="rotate">
+    **Symptom:** The 6th crash in 10 minutes paused auto-restart for 24 hours.
 
     **Cause:** A persistent error in the code (invalid token, missing dependency, syntax error).
 
     **Fix:**
     - Check the logs to identify the root error
     - Fix the issue and redeploy
+    - If you turned auto-restart off, a crash leaves the app stopped: turn it back on in **Settings → General**
     - Syntax errors and exit code 0 do NOT trigger auto-restart — the app simply stops
   </Accordion>
 
@@ -64,8 +65,8 @@ plan limits.
     - **Go:** `vendor` | **Rust:** `target` | **.NET:** `bin`, `obj` | **Elixir:** `_build`, `deps` | **Java:** `target`, `.gradle`, `build`
   </Accordion>
 
-  <Accordion title="Dependency installation exceeds the time limit (15 minutes)" icon="clock">
-    **Cause:** Installing dependencies takes too long (too many packages, native compilation). Error: `INSTALL_TIMEOUT`.
+  <Accordion title="Installation exceeds the time limit (15 minutes per step, 25 in total)" icon="clock">
+    **Cause:** Installing dependencies takes too long (too many packages, native compilation): a step is limited to 15 minutes, and installation plus build together to 25 minutes. Error: `INSTALL_TIMEOUT`.
 
     **Fix:**
     - Remove unnecessary dependencies
@@ -75,13 +76,13 @@ plan limits.
   <Accordion title="Build command fails or exceeds the time limit (10 minutes)" icon="hammer">
     **Cause:** The `build_command` (the `BUILD` field in `vertracloud.config`) ended with an error
     (`BUILD_FAILED`) or didn't finish in time (`BUILD_TIMEOUT`). It runs after dependency
-    installation and before the application starts, in an environment with 2× the application's
-    RAM. A new application is still created, stopped, with the build output in its
-    logs.
+    installation and before the application starts. A new application is still created, stopped,
+    with the build output in its logs. If the build runs out of memory, `last_build_error` shows
+    `INSTALL_OUT_OF_MEMORY`.
 
     **Fix:**
     - Run the command locally to see the real error
-    - Simplify the build or increase the application's memory (the build environment scales with it)
+    - Simplify the build or increase the application's memory
   </Accordion>
 
   <Accordion title="Deploys-per-hour limit reached" icon="hourglass">
@@ -92,6 +93,15 @@ plan limits.
     **Fix:**
     - Wait for the time indicated in `details.retry_after`
     - Restarting and stopping the application don't count against this limit
+  </Accordion>
+
+  <Accordion title="Main file not found" icon="file-circle-question">
+    **Cause:** The main file (`main_file`) does not exist in the application's files, or points to a folder. Error: `MAIN_FILE_NOT_FOUND`. The same check applies when you create an application from a ZIP, upload a ZIP to an existing application, deploy from GitHub or change the main file in the settings; nothing is saved when it fails.
+
+    **Fix:**
+    - Check the path, including upper and lower case and the folder it is in
+    - If the file is generated during the build, send the project with the file included or point to a file that exists
+    - Deleting or moving the main file in the file manager also stops the application from starting; the dashboard warns you first
   </Accordion>
 
   <Accordion title="Invalid ZIP structure" icon="folder-tree">
@@ -137,8 +147,8 @@ plan limits.
     **Cause:** Connecting without TLS, without the client certificate, or on the engine's default port.
 
     **Fix:**
-    - Download the three certificate files in the database's **Certificates** tab
-    - Pass the client certificate (`.crt` + `.key`) and use the `.pem` as the CA — every engine requires it
+    - Download the three certificate files in the database's **Connection** tab
+    - Pass the client certificate (`.crt` + `.key`) and use the `.ca.pem` as the CA — every engine requires it
     - Use the database's own port shown on its page — it's not 5432, 27017, 6379 or 3306
     - For MongoDB, add `authSource=admin` to the URI
     - See [How do I connect to each engine?](/databases#how-do-i-connect-to-each-engine)
@@ -235,6 +245,12 @@ plan limits.
     **Cause:** Native modules compiled on macOS/Windows don't work in the Linux container.
 
     **Fix:** Don't include `node_modules/` in the upload. The platform compiles native modules for Linux automatically.
+  </Accordion>
+
+  <Accordion title="A package fails after Node.js changed version line" icon="rotate">
+    **Cause:** A retired Node.js version moves to the recommended one on the next restart (the console says so), and a package with native code may not support the new version.
+
+    **Fix:** Update the package to a release that supports the new version, or pin another version that is still available with `VERSION` in **Settings → General**.
   </Accordion>
 </AccordionGroup>
 

@@ -31,6 +31,8 @@ When the application runs a custom Docker image, the upload is a commit that reb
   A ZIP is **extracted on top of** the destination folder (`path`, or the application's root): files it contains overwrite the matching paths, but files already on disk that aren't in the ZIP are left untouched — it's a merge, not a replace. Forbidden directories (`node_modules`, `.git`, `.local`, and similar) are stripped from the ZIP on the server before extraction, regardless of what the archive contains.
 
   Multipart upload is capped at 100 MB; a ZIP is also capped at 512 MB once decompressed.
+
+  After the upload, the application's main file must exist: either the ZIP brings it (counting the destination folder) or the application already has it. Otherwise nothing is saved and the request fails with `MAIN_FILE_NOT_FOUND`.
 </ParamField>
 
 <ParamField body="message" type="string">
@@ -92,6 +94,7 @@ When the application runs a custom Docker image, the upload is a commit that reb
   - `APP_NOT_FOUND`: The specified application was not found.
   - `NO_FILE_UPLOADED`: No file was provided in the request (`400`).
   - `INVALID_ZIP_STRUCTURE`: The zip could not be read (`400`).
+  - `MAIN_FILE_NOT_FOUND`: After the upload the application would have no main file: the ZIP does not include it and the application does not have it (`400`). Nothing was saved.
   - `INVALID_PATH`: The `path` query parameter is malformed or tries to leave the application's root, for example with `..` (`400`).
   - `FORBIDDEN_PATH`: The destination is a folder reserved by the platform (`403`).
   - `PATH_IS_FILE`: The destination exists and is a file, not a folder (`409`).

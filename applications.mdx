@@ -37,8 +37,10 @@ settings or through
 [Publish Application on the Web](/api-reference/endpoint/apps/network/publish).
 
 <Warning>
-  Turning publishing on or off **recreates the container, so the application restarts**. And
-  unpublishing **releases the subdomain** — it is not reserved for you, so someone else can take it.
+  Turning publishing on or off takes effect right away, **without restarting the application**. The
+  exception is an application created from your [own Docker image](/guides/custom-docker-images):
+  publishing or unpublishing it restarts it. And unpublishing **releases the subdomain** — it is not
+  reserved for you, so someone else can take it.
 </Warning>
 
 You can also create an application from a [template](/templates/overview): a ready-made project you deploy in a few clicks, sometimes together with its database as a [stack](/templates/use/stacks).
@@ -110,7 +112,7 @@ stateDiagram-v2
     Online --> Error: crash
     Error --> Starting: auto-restart
     Stopped --> Starting: start
-    Error --> Stopped: crash loop (5x in 10min)
+    Error --> Stopped: crash loop (6th crash in 10min)
 ```
 
 An application goes through the following states:
@@ -130,8 +132,7 @@ and before the application starts — on every deploy that installs or changes c
 upload, GitHub deploy, dependency reinstall, or a change to the command itself. A plain restart
 skips it when the previous build already succeeded with the same command.
 
-The build runs in an isolated build environment: 2× the application's RAM (min 1,024 MB, max
-4,096 MB), with a 10-minute timeout. With a build command, `devDependencies` are installed too. A failing command fails the
+The build uses the application's memory and has a 10-minute timeout. With a build command, `devDependencies` are installed too. A failing command fails the
 deploy (`BUILD_FAILED`); running past the timeout does too (`BUILD_TIMEOUT`). A new application is
 still created, stopped, so you can read the build output in its logs, fix it and start again.
 
@@ -166,9 +167,12 @@ The panel includes an integrated file manager with syntax highlighting and code 
 
 <AccordionGroup>
   <Accordion title="Navigation and editing" icon="folder-open">
-    - File tree with up to 6 levels of depth
+    - Expandable file tree that opens each folder as you go, with a filter by name
+    - Select several files or folders and move them to another folder at once
+    - Create a file or folder in any folder; `/` in the name creates the folders on the way
+    - Find and replace in the editor, and full screen
     - Syntax highlighting for all supported languages
-    - Create, edit, move and delete files and folders
+    - Create, edit, move and delete files and folders; a deleted file that the running application still has open frees its space at the next restart, and the dashboard says so
   </Accordion>
   <Accordion title="File upload" icon="upload">
     - Drag-and-drop of individual files or ZIP
@@ -234,26 +238,31 @@ Each domain can use its own port, path prefix or redirect. See [Connect custom d
 
 ## Auto-Restart and Crash Detection
 
-Auto-restart is **on by default for every plan** — there's no toggle and nothing to configure:
+Auto-restart is **on by default, on every plan**. You can turn it off for an application in **Settings → General**, with `auto_restart` in [Update Application Configuration](/api-reference/endpoint/apps/updateconfig), or with `AUTORESTART=false` in [`vertracloud.config`](/configuration) when you create it (for an existing application, use Settings → General, the API or `vertra app config`):
 
 <AccordionGroup>
   <Accordion title="How Auto-Restart Works" icon="rotate">
-    - Containers that exit unexpectedly are restarted automatically
-    - Normal exit codes (0) and syntax/dependency errors **do not** trigger restart
-    - A 1-hour cooldown is applied between consecutive restarts
-    - The container must be online for at least 60 seconds to count as stable
+    - An application that exits unexpectedly is restarted automatically, even if it was up for only a few seconds
+    - A normal exit (code 0) and errors a restart can't fix (syntax errors, missing modules, out of memory, a failed install or build) **do not** trigger a restart
+    - The wait between attempts grows: immediately, then 10 s, 30 s, 60 s and 2 min
+    - With auto-restart off, an application that crashes stays stopped, and the dashboard shows why
   </Accordion>
   <Accordion title="Crash Loop Detection" icon="shield">
-    - If a container crashes **5 times in 10 minutes**, auto-restart is disabled for 24 hours
-    - The system records the reason for the auto-restart shutdown
-    - After 24 hours, auto-restart resumes automatically
+    - Up to 5 automatic restarts in a 10-minute window; the 6th crash in the window pauses auto-restart for 24 hours and the application stays stopped
+    - The dashboard records the reason
+    - Starting or restarting the application by hand clears the count and lifts the pause
   </Accordion>
 </AccordionGroup>
 
 ## Real-Time Logs
 
-The dashboard terminal shows the application's output live; when the application is stopped, it
-shows the latest logs. From outside the dashboard, use `vertra logs -f` in the [CLI](/cli) or
+The dashboard console shows the application's output live, as text you can select and copy. The history is
+continuous: a stop, a restart or a deploy **never clears** it, each run is separated by a line such as
+**Restarted**, and **Clear Logs** empties the view only when you ask. Opening the console shows the current run. The console follows the end while you stay
+near the bottom and shows how many new lines arrived when you scroll up. Installation and build output appear in
+the same console, before the application's own output. During a zero-downtime deploy, the output of the new version also shows in the console before it takes over, and if it is discarded, the console says why. If a build runs out of memory, the console says so. For an application from a
+[custom Docker image](/guides/custom-docker-images), it also shows each step, one per line, before the process starts. From
+outside the dashboard, use `vertra logs -f` in the [CLI](/cli) or
 [Application Logs](/api-reference/endpoint/apps/logs).
 
 ## Metrics
@@ -271,3 +280,5 @@ The panel displays real-time performance metrics:
     Bytes received and sent with total accumulated.
   </Card>
 </CardGroup>
+
+While the console is open, a live reading of CPU, memory and network appears above it and updates every few seconds. The history charts (last 5 minutes and last 24 hours) mark restarts, automatic restarts and crashes, and flag a crash caused by running out of memory. The same data is available in the API: [Application Metrics](/api-reference/endpoint/apps/metrics) returns the markers as `events`, and [Real-Time Application Logs](/api-reference/endpoint/apps/realtime) streams the live reading with `metrics=true`.

@@ -28,7 +28,7 @@ Las imágenes que vienen de una [plantilla](/es-es/templates/overview) también 
 
 ## Límites del build
 
-Cada build se ejecuta en su propio entorno de build aislado, con los mismos límites que el build de una aplicación normal:
+Cada build se ejecuta en su propio entorno de build aislado, con estos límites:
 
 - RAM de 2 veces la RAM por aplicación del plan, como mínimo 1024 MB y como máximo 4096 MB.
 - Un límite de tiempo de **26 minutos**.
@@ -90,8 +90,9 @@ Puedes ejecutar la misma revisión por la API con [Comprobar Dockerfile](/es-es/
 
 La aplicación se ejecuta con el mismo aislamiento que cualquier otra aplicación de la plataforma.
 
-- **Rutas escribibles.** `/app` es el disco **persistente** de la aplicación (cuota, gestor de archivos, snapshots). `/tmp`, `/var/tmp` y `/run` se pueden escribir, pero son **temporales**: se vacían cuando la aplicación se reinicia. **Todo lo demás es de solo lectura.** Una imagen que escriba en cualquier otro sitio fallará, así que apunta los logs, las cachés y los datos a `/app`. La pestaña **Archivos** de la aplicación muestra `/app`, no el código que hay dentro de la imagen.
-- **Usuario.** La aplicación siempre se ejecuta como el usuario `1000:1000`. La instrucción `USER` del `Dockerfile` se ignora, así que una imagen que necesite root para escribir fuera de las rutas anteriores no se ejecuta.
+- **Disco persistente.** `/app` es el disco **persistente** de la aplicación (cuota, gestor de archivos, snapshots). Apunta los logs, las cachés y los datos a `/app`. La pestaña **Archivos** de la aplicación muestra `/app`, no el código que hay dentro de la imagen.
+- **Usuario.** La aplicación no se ejecuta como root. La instrucción `USER` del `Dockerfile` se ignora, así que una imagen que necesite root no se ejecuta. Haz que los archivos que trae la imagen sean legibles por cualquier usuario.
+- **Consola.** Mientras se prepara la imagen y la aplicación arranca, la consola muestra cada paso.
 - **Comando.** El `ENTRYPOINT` y el `CMD` de la imagen. No son configurables.
 - **Instrucciones ignoradas.** `HEALTHCHECK` se ignora. `EXPOSE` solo sugiere el puerto.
 
@@ -99,7 +100,7 @@ La aplicación se ejecuta con el mismo aislamiento que cualquier otra aplicació
 
 Solo las aplicaciones web tienen puerto. Al crear la aplicación, el valor predeterminado es el **primer `EXPOSE`** del
 `Dockerfile`, o **80** si no hay ninguno. La imagen devuelve ese valor como `suggested_port` en
-[Obtener imagen](/es-es/api-reference/endpoint/images/get). La plataforma lo inyecta como la variable de entorno `PORT` y dirige el tráfico a él, así que tu servidor debe escuchar en `PORT`. Una aplicación creada con la web desactivada (un bot o un worker) no tiene puerto ni subdominio. Puedes publicarla en la web más adelante con [Publicar aplicación](/es-es/api-reference/endpoint/apps/network/publish), indicando en `port` el puerto en el que escucha la imagen; sin él, la llamada falla con `IMAGE_APP_PORT_REQUIRED`.
+[Obtener imagen](/es-es/api-reference/endpoint/images/get). La plataforma lo inyecta como la variable de entorno `PORT` y dirige el tráfico a él, así que tu servidor debe escuchar en `PORT`. Una aplicación creada con la web desactivada (un bot o un worker) no tiene puerto ni subdominio. Puedes publicarla en la web más adelante con [Publicar aplicación](/es-es/api-reference/endpoint/apps/network/publish), indicando en `port` el puerto en el que escucha la imagen; sin él, la llamada falla con `IMAGE_APP_PORT_REQUIRED`. Publicar o despublicar una aplicación creada a partir de una imagen la reinicia.
 
 ### Variables de entorno
 
