@@ -1,0 +1,20 @@
+### Versão atual e nova versão, lado a lado no console
+
+Durante um deploy sem queda, o console agora tem duas abas, **Versão atual** e **Nova versão**, cada uma com o seu terminal: a versão atual continua mostrando o que atende enquanto a nova mostra a instalação, o build e a partida. A faixa de métricas mostra a nova versão ao lado da atual, como um anel interno e um valor marcado "nova", até ela assumir ou ser descartada. Se você fechar e reabrir o console durante o deploy, as linhas da nova versão continuam lá.
+
+### Refazer o build de uma imagem responde na hora
+
+**Refazer build** numa imagem Docker personalizada agora responde imediatamente e mostra "Baixando o código do repositório" até o build entrar na fila. Se o repositório ou o contexto guardado não puder ser usado (por exemplo, a branch vinculada não existe mais), o build termina como falho e a imagem mostra o motivo, em vez de a requisição falhar.
+
+### Faixa de métricas
+
+Os números da faixa de métricas ficam alinhados quando você seleciona um valor.
+
+### Logs salvos
+
+Na aba **Logs**, o registro da versão que saiu num deploy sem queda aparece marcado como **Versão anterior**, e o da nova versão que foi descartada, como **Nova versão descartada**, junto do deploy a que pertence.
+
+### API: `next_metrics` e a fase `preparing`
+
+- `GET /v1/apps/{id}/realtime` envia eventos `next_metrics`, com `metrics=true`: a mesma leitura ao vivo de `metrics`, da nova versão durante um deploy sem queda, até ela assumir ou ser descartada. `metrics` continua descrevendo a versão que está atendendo.
+- As imagens têm uma fase de build nova, `build_phase: "preparing"`, antes de `queued`: a plataforma está obtendo o código do build. `POST /v1/images/{image_id}/rebuild` responde `202` na hora com a imagem em `building`/`preparing`, e um problema com a fonte não faz mais a chamada falhar: o build termina como `failed` e a imagem devolve o código em `error_code` (`FETCH_ZIP_ERROR`, `INSTALLATION_NOT_FOUND`, `IMAGE_CONTEXT_TOO_LARGE` ou `DOCKERFILE_REFUSED`) e os achados em `error`. `IMAGE_NOT_READY` continua sendo devolvido na hora quando a imagem nunca guardou o código.

@@ -16,15 +16,15 @@ description: Transmite los logs en tiempo real de una aplicación como un flujo 
 </ParamField>
 
 <ParamField query="metrics" type="boolean">
-  Con `true`, el flujo también incluye eventos `metrics` con la lectura en vivo de CPU, memoria y red de la aplicación. Desactivado por defecto.
+  Con `true`, el flujo también incluye eventos `metrics` con la lectura en vivo de CPU, memoria y red de la aplicación, y eventos `next_metrics` con la misma lectura de la nueva versión durante un despliegue sin caída. Desactivado por defecto.
 </ParamField>
 
 ### Respuesta
 
 La respuesta se transmite como un flujo de eventos de texto (`text/event-stream`). Cada entrada de log se envía como un evento con el siguiente formato:
 
-- **Tipo de evento**: `logs` para los mensajes de log, `next_logs` para la salida de la nueva versión mientras un despliegue sin caída la prepara, `system` para los avisos del flujo y de la plataforma (por ejemplo, `install_note:started`), `metrics` para la lectura en vivo de la aplicación (solo con `metrics=true`), `heartbeat` para los eventos de keep-alive sin contenido.
-- **Data**: Texto plano (no JSON), salvo en los eventos `metrics`, cuyo data es un objeto JSON. Un evento `logs` lleva una o más líneas separadas por saltos de línea, cada una con una marca de tiempo ISO 8601 seguida del mensaje del log.
+- **Tipo de evento**: `logs` para los mensajes de log, `next_logs` para la salida de la nueva versión mientras un despliegue sin caída la prepara, `system` para los avisos del flujo y de la plataforma (por ejemplo, `install_note:started`), `metrics` para la lectura en vivo de la aplicación (solo con `metrics=true`), `next_metrics` para la misma lectura de la nueva versión mientras un despliegue sin caída la prepara (solo con `metrics=true`), `heartbeat` para los eventos de keep-alive sin contenido.
+- **Data**: Texto plano (no JSON), salvo en los eventos `metrics` y `next_metrics`, cuyo data es un objeto JSON. Un evento `logs` lleva una o más líneas separadas por saltos de línea, cada una con una marca de tiempo ISO 8601 seguida del mensaje del log.
 
 Cuando se abre la conexión, los avisos que ya ocurrieron se envían de nuevo antes del flujo en vivo, cada uno con la hora en que ocurrió al principio (`<ISO 8601> <aviso>`). Los avisos que llegan mientras estás conectado no llevan prefijo.
 
@@ -47,7 +47,7 @@ Tras un despliegue, los eventos `system` también pueden informar de lo que ocur
 | `unhealthy` | La nueva versión no llegó a estar lista para recibir tráfico. |
 | `timeout` | La nueva versión no respondió a tiempo. |
 
-Durante un despliegue sin caída (plan Enterprise), los eventos `next_logs` llevan la salida de la nueva versión, incluidas la instalación y el build, mientras la versión actual sigue atendiendo y escribiendo en `logs`. Las líneas tienen el mismo formato que `logs`. Cuando la nueva versión toma el relevo, su salida continúa como `logs`.
+Durante un despliegue sin caída (plan Enterprise), los eventos `next_logs` llevan la salida de la nueva versión, incluidas la instalación y el build, mientras la versión actual sigue atendiendo y escribiendo en `logs`. Las líneas tienen el mismo formato que `logs`. Cuando la nueva versión toma el relevo, su salida continúa como `logs`. Con `metrics=true`, los eventos `next_metrics` llevan la lectura en vivo de la nueva versión, con el mismo formato que `metrics`, hasta que toma el relevo o se descarta; `metrics` sigue describiendo la versión que está atendiendo.
 
 La salida de la instalación y del build forma parte del mismo flujo, seguida de la salida de la propia aplicación. Todo lo que imprime tu aplicación llega como `logs`, nunca como `system`.
 
@@ -103,6 +103,9 @@ data: 2026-03-20T19:58:02Z added 120 packages in 8s
 
 event: metrics
 data: {"at":"2026-03-20T19:58:02Z","cpu_percent":12.5,"cpu_cores":0.125,"memory_bytes":134217728,"memory_limit_bytes":536870912,"net_rx_bps":2048,"net_tx_bps":8192,"net_rx_bytes":10485760,"net_tx_bytes":52428800}
+
+event: next_metrics
+data: {"at":"2026-03-20T19:58:02Z","cpu_percent":38.0,"cpu_cores":0.38,"memory_bytes":251658240,"memory_limit_bytes":536870912,"net_rx_bps":512,"net_tx_bps":256,"net_rx_bytes":1048576,"net_tx_bytes":262144}
 
 event: system
 data: 2026-03-20T19:58:03Z Connection Closed

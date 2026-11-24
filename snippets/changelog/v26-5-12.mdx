@@ -1,0 +1,20 @@
+### Current version and new version, side by side in the console
+
+During a zero-downtime deploy, the console now has two tabs, **Current version** and **New version**, each with its own terminal: the current version keeps showing what it serves while the new one shows its installation, build and start. The metrics strip shows the new version next to the current one, as an inner ring and a value marked "new", until it takes over or is discarded. If you close and reopen the console during the deploy, the lines of the new version are still there.
+
+### Rebuild an image answers right away
+
+**Rebuild** on a custom Docker image now responds immediately and shows "Downloading the repository code" until the build enters the queue. If the repository or the stored context cannot be used (for example, the linked branch no longer exists), the build ends as failed and the image shows the reason, instead of the request failing.
+
+### Metrics strip
+
+The numbers in the metrics strip stay aligned when you select a value.
+
+### Saved logs
+
+In the **Logs** tab, the log of the version that was replaced by a zero-downtime deploy is marked **Previous version**, and the log of a new version that was discarded is marked **New version discarded**, next to the deploy it belongs to.
+
+### API: `next_metrics` and the `preparing` phase
+
+- `GET /v1/apps/{id}/realtime` sends `next_metrics` events, with `metrics=true`: the same live reading as `metrics`, for the new version during a zero-downtime deploy, until it takes over or is discarded. `metrics` keeps describing the version that is serving.
+- Images have a new build phase, `build_phase: "preparing"`, before `queued`: the platform is getting the code of the build. `POST /v1/images/{image_id}/rebuild` responds `202` right away with the image in `building`/`preparing`, and a problem with the source no longer fails the call: the build ends as `failed` and the image returns the code in `error_code` (`FETCH_ZIP_ERROR`, `INSTALLATION_NOT_FOUND`, `IMAGE_CONTEXT_TOO_LARGE` or `DOCKERFILE_REFUSED`) and the findings in `error`. `IMAGE_NOT_READY` is still returned right away when the image never stored its code.

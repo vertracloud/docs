@@ -1,0 +1,20 @@
+### Versión actual y nueva versión, una junto a la otra en la consola
+
+Durante un despliegue sin caída, la consola ahora tiene dos pestañas, **Versión actual** y **Nueva versión**, cada una con su propio terminal: la versión actual sigue mostrando lo que atiende mientras la nueva muestra su instalación, el build y el arranque. La franja de métricas muestra la nueva versión junto a la actual, como un anillo interior y un valor marcado "nueva", hasta que toma el relevo o se descarta. Si cierras y vuelves a abrir la consola durante el despliegue, las líneas de la nueva versión siguen ahí.
+
+### Rehacer el build de una imagen responde al instante
+
+**Rehacer build** en una imagen Docker personalizada ahora responde de inmediato y muestra "Descargando el código del repositorio" hasta que el build entra en la cola. Si el repositorio o el contexto guardado no se puede usar (por ejemplo, la rama vinculada ya no existe), el build termina como fallido y la imagen muestra el motivo, en lugar de que la solicitud falle.
+
+### Franja de métricas
+
+Los números de la franja de métricas quedan alineados cuando seleccionas un valor.
+
+### Registros guardados
+
+En la pestaña **Logs**, el registro de la versión que salió en un despliegue sin caída aparece marcado como **Versión anterior**, y el de la nueva versión que se descartó, como **Nueva versión descartada**, junto al despliegue al que pertenece.
+
+### API: `next_metrics` y la fase `preparing`
+
+- `GET /v1/apps/{id}/realtime` envía eventos `next_metrics`, con `metrics=true`: la misma lectura en vivo de `metrics`, de la nueva versión durante un despliegue sin caída, hasta que toma el relevo o se descarta. `metrics` sigue describiendo la versión que está atendiendo.
+- Las imágenes tienen una fase de build nueva, `build_phase: "preparing"`, antes de `queued`: la plataforma está obteniendo el código del build. `POST /v1/images/{image_id}/rebuild` responde `202` al instante con la imagen en `building`/`preparing`, y un problema con la fuente ya no hace fallar la llamada: el build termina como `failed` y la imagen devuelve el código en `error_code` (`FETCH_ZIP_ERROR`, `INSTALLATION_NOT_FOUND`, `IMAGE_CONTEXT_TOO_LARGE` o `DOCKERFILE_REFUSED`) y los hallazgos en `error`. `IMAGE_NOT_READY` se sigue devolviendo al instante cuando la imagen nunca guardó su código.
