@@ -16,15 +16,15 @@ description: Streams the real-time logs of an application as a text event stream
 </ParamField>
 
 <ParamField query="metrics" type="boolean">
-  When `true`, the stream also carries `metrics` events with the live CPU, memory and network reading of the application. Off by default.
+  When `true`, the stream also carries `metrics` events with the live CPU, memory and network reading of the application, and `next_metrics` events with the same reading for the new version during a zero-downtime deploy. Off by default.
 </ParamField>
 
 ### Response
 
 The response is streamed as a text event stream (`text/event-stream`). Each log entry is sent as an event with the following format:
 
-- **Event Type**: `logs` for log messages, `next_logs` for the output of the new version while a zero-downtime deploy prepares it, `system` for stream and platform notices (e.g., `install_note:started`), `metrics` for the live reading of the application (only with `metrics=true`), `heartbeat` for keep-alive events with no content.
-- **Data**: Plain text (not JSON), except in `metrics` events, whose data is a JSON object. A `logs` event carries one or more lines separated by newlines, each an ISO 8601 timestamp followed by the log message.
+- **Event Type**: `logs` for log messages, `next_logs` for the output of the new version while a zero-downtime deploy prepares it, `system` for stream and platform notices (e.g., `install_note:started`), `metrics` for the live reading of the application (only with `metrics=true`), `next_metrics` for the same reading of the new version while a zero-downtime deploy prepares it (only with `metrics=true`), `heartbeat` for keep-alive events with no content.
+- **Data**: Plain text (not JSON), except in `metrics` and `next_metrics` events, whose data is a JSON object. A `logs` event carries one or more lines separated by newlines, each an ISO 8601 timestamp followed by the log message.
 
 When the connection opens, notices that already happened are sent again before the live stream, each prefixed with the time it happened (`<ISO 8601> <notice>`). Notices that arrive while you are connected have no prefix.
 
@@ -47,7 +47,14 @@ After a deploy, `system` events can also report what happened to the new version
 | `unhealthy` | The new version did not become ready to receive traffic. |
 | `timeout` | The new version did not respond in time. |
 
-During a zero-downtime deploy (Enterprise plan), `next_logs` events carry the output of the new version, installation and build included, while the current version keeps serving and keeps writing to `logs`. The lines have the same format as `logs`. When the new version takes over, its output continues as `logs`.
+- `deploy_note:recreated[:<reason>]`: the restart or deploy did not use zero downtime, and the application restarted the regular way (stop, then start). Zero downtime only happens when the plan has free memory at least equal to the application's memory. `<reason>` can be absent (the restart happened for another reason), and new values may appear:
+
+| `<reason>` | Meaning |
+|---|---|
+| `plan_memory` | The plan did not have free memory to run both versions at the same time. |
+| `recreate_required` | The change required recreating the application. |
+
+During a zero-downtime deploy (Enterprise plan), `next_logs` events carry the output of the new version, installation and build included, while the current version keeps serving and keeps writing to `logs`. The lines have the same format as `logs`. When the new version takes over, its output continues as `logs`. With `metrics=true`, `next_metrics` events carry the live reading of the new version, in the same format as `metrics`, until it takes over or is discarded; `metrics` keeps describing the version that is serving.
 
 Installation and build output are part of the same stream, followed by the application's own output. Anything your application prints arrives as `logs`, never as `system`.
 
@@ -103,6 +110,9 @@ data: 2026-03-20T19:58:02Z added 120 packages in 8s
 
 event: metrics
 data: {"at":"2026-03-20T19:58:02Z","cpu_percent":12.5,"cpu_cores":0.125,"memory_bytes":134217728,"memory_limit_bytes":536870912,"net_rx_bps":2048,"net_tx_bps":8192,"net_rx_bytes":10485760,"net_tx_bytes":52428800}
+
+event: next_metrics
+data: {"at":"2026-03-20T19:58:02Z","cpu_percent":38.0,"cpu_cores":0.38,"memory_bytes":251658240,"memory_limit_bytes":536870912,"net_rx_bps":512,"net_tx_bps":256,"net_rx_bytes":1048576,"net_tx_bytes":262144}
 
 event: system
 data: 2026-03-20T19:58:03Z Connection Closed

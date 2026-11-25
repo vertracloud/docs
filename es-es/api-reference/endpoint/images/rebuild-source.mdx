@@ -9,6 +9,8 @@ description: Construye la imagen de nuevo sin subir nada, a partir del contexto 
 {/* @see APICustomImage, RESTPostAPICustomImageRebuildResult — @vertracloud/api-types */}
 La solicitud no tiene cuerpo. La fuente depende de la imagen: una imagen vinculada a GitHub se construye a partir de la punta actual de la rama vinculada; cualquier otra imagen se construye a partir del contexto de su último build, **incluso de un build que falló**. Úsalo para repetir un build que falló sin enviar los archivos de nuevo.
 
+La llamada responde al instante, sin esperar a la fuente: la imagen vuelve con `status: "building"` y `build_phase: "preparing"`, mientras la plataforma obtiene la fuente (descarga el repositorio o lee el contexto guardado) antes de que el build entre en la cola. Un problema con la fuente no es un error de la llamada: el build termina como `failed`, con el código en `error_code` (`FETCH_ZIP_ERROR`, `INSTALLATION_NOT_FOUND`, `IMAGE_CONTEXT_TOO_LARGE` o `DOCKERFILE_REFUSED`) y los hallazgos en el texto de `error`. Sigue el build con [Obtener imagen](/es-es/api-reference/endpoint/images/get).
+
 La reconstrucción mantiene el mismo ID de la imagen y, cuando termina bien, añade una nueva [versión](/es-es/api-reference/endpoint/images/versions). Cuenta en el límite de deploys por hora como cualquier otro build, y una reconstrucción que falla mantiene la versión actual. **Las aplicaciones solo se reinician si la imagen tiene `auto_update_apps` activado**; en caso contrario, cada app pasa a la nueva versión en el próximo reinicio o deploy que pidas. Para construir con otros archivos, usa [Reconstruir imagen](/es-es/api-reference/endpoint/images/rebuild).
 
 Necesita el scope `images:write` cuando se llama con una clave de API.
@@ -24,7 +26,7 @@ Necesita el scope `images:write` cuando se llama con una clave de API.
 ### Response
 
 <ResponseField name="response" type="object">
-  La imagen. La respuesta es `202 Accepted` con `status: "building"`.
+  La imagen. La respuesta es `202 Accepted`, al instante, con `status: "building"` y `build_phase: "preparing"`.
 
   <Expandable title="Mostrar objeto">
 
@@ -48,8 +50,16 @@ Necesita el scope `images:write` cuando se llama con una clave de API.
     Estado del último build: `building`, `success` o `failed`. Una reconstrucción fallida no cambia la versión actual: las aplicaciones siguen ejecutando la última que funcionó.
   </ResponseField>
 
+  <ResponseField name="build_phase" type="string | null">
+    Etapa del build en curso, solo mientras `status` es `building`, si no `null`: `preparing` (la plataforma está obteniendo la fuente: descargando el repositorio o leyendo el contexto guardado), `queued`, `starting`, `building` o `verifying`.
+  </ResponseField>
+
   <ResponseField name="error" type="string | null">
     Motivo legible del último build fallido, o `null`.
+  </ResponseField>
+
+  <ResponseField name="error_code" type="string | null">
+    Código del último build fallido, o `null`. En un build cuya fuente no se pudo usar, es `FETCH_ZIP_ERROR`, `INSTALLATION_NOT_FOUND`, `IMAGE_CONTEXT_TOO_LARGE` o `DOCKERFILE_REFUSED`.
   </ResponseField>
 
   <ResponseField name="digest" type="string | null">
@@ -97,6 +107,7 @@ Necesita el scope `images:write` cuando se llama con una clave de API.
     "description": null,
     "owner": "account",
     "status": "building",
+    "build_phase": "preparing",
     "error": null,
     "digest": null,
     "uncompressed_bytes": null,
@@ -127,15 +138,13 @@ Necesita el scope `images:write` cuando se llama con una clave de API.
   - `OPERATION_IN_PROGRESS`: La imagen se está eliminando (`409`).
   - `IMAGE_NOT_READY`: La imagen no tiene un contexto de build guardado desde el que construir (`409`).
   - `DEPLOY_RATE_LIMITED`: Se alcanzó el límite de deploys por hora del dueño de la imagen; `details` trae `limit`, `window_seconds` y `retry_after` (`429`).
-  - `INSTALLATION_NOT_FOUND`: El repositorio vinculado ya no está en una instalación de la GitHub App del dueño de la imagen (`404`).
-  - `FETCH_ZIP_ERROR`: GitHub no devolvió el archivo del repositorio, por ejemplo porque la rama vinculada ya no existe (`404`), o GitHub no está disponible (`502`).
   - `DOCKERFILE_NOT_FOUND`: No hay un archivo llamado exactamente `Dockerfile` en la raíz del contexto (`400`).
-  - `DOCKERFILE_REFUSED`: El `Dockerfile` tiene una instrucción rechazada; `details` lista los hallazgos (`400`).
   - `INVALID_ZIP`: El contexto de build guardado o el archivo del repositorio no es un ZIP legible (`400`).
-  - `IMAGE_CONTEXT_TOO_LARGE`: El contexto de build superó un límite: más de 100 MB comprimido, más de 512 MB descomprimido, más de 50.000 entradas o un `Dockerfile` de más de 1 MB (`413`).
   - `IMAGE_BUILDER_UNAVAILABLE`: Ningún host puede construir imágenes ahora; inténtalo de nuevo más tarde (`503`). También se devuelve cuando el build no pudo iniciarse (`409`).
   - `INTERNAL_SERVER_ERROR`: Fallo inesperado (`500`).
 </ResponseField>
+
+Los problemas con la fuente del build (`FETCH_ZIP_ERROR`, `INSTALLATION_NOT_FOUND`, `IMAGE_CONTEXT_TOO_LARGE`, `DOCKERFILE_REFUSED`) no son errores de esta llamada: terminan el build como `failed`, con el código en el `error_code` de la imagen.
 
 <ResponseExample>
 

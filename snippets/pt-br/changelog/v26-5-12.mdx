@@ -1,0 +1,24 @@
+### A nova versão no console durante o deploy sem queda
+
+Durante um deploy sem queda, o console mostra as linhas da nova versão (instalação, build e partida) junto com as da versão que está no ar, na ordem em que acontecem, com as da nova versão marcadas como **[Nova versão]**. Quando a nova versão assume, ela passa a ser a versão do console na hora, sem esperar a anterior terminar de sair. A faixa de métricas mostra a nova versão ao lado da atual, como um anel interno e um valor marcado "nova", até ela assumir ou ser descartada. Se você recarregar a página durante o deploy, as linhas das duas versões continuam na ordem.
+
+### Deploy sem queda só com memória livre no plano
+
+A nova versão de um deploy sem queda roda ao lado da atual, então ele agora só acontece quando o plano tem memória livre igual ou maior que a memória do app. A memória livre é o total do plano menos a memória de todos os seus apps e bancos, inclusive os que estão em workspaces. Nada fica reservado: a conta é feita a cada reinício e deploy. Sem memória livre suficiente, o app reinicia do jeito comum (para e sobe de novo) e o console mostra o motivo. Em **Configurações → Deploy**, a opção de deploy sem queda mostra quanto de memória livre é preciso e quanto o plano tem.
+
+### Refazer o build de uma imagem responde na hora
+
+**Refazer build** numa imagem Docker personalizada agora responde imediatamente e mostra "Baixando o código do repositório" até o build entrar na fila. Se o repositório ou o contexto guardado não puder ser usado (por exemplo, a branch vinculada não existe mais), o build termina como falho e a imagem mostra o motivo, em vez de a requisição falhar.
+
+### Faixa de métricas
+
+Os números da faixa de métricas ficam alinhados quando você seleciona um valor.
+
+### Logs salvos
+
+Na aba **Logs**, o registro salvo quando um deploy sem queda troca de versão agora mostra as duas versões como você as viu no console: as linhas da versão que estava no ar e as da nova versão, na ordem em que aconteceram, com as da nova versão marcadas como **[Nova versão]**. O registro de uma nova versão descartada marca as linhas dela do mesmo jeito. No próprio arquivo, no gerenciador de arquivos ou baixado, essas linhas começam com `[new version]`.
+
+### API: `next_metrics` e a fase `preparing`
+
+- `GET /v1/apps/{id}/realtime` envia eventos `next_metrics`, com `metrics=true`: a mesma leitura ao vivo de `metrics`, da nova versão durante um deploy sem queda, até ela assumir ou ser descartada. `metrics` continua descrevendo a versão que está atendendo.
+- As imagens têm uma fase de build nova, `build_phase: "preparing"`, antes de `queued`: a plataforma está obtendo o código do build. `POST /v1/images/{image_id}/rebuild` responde `202` na hora com a imagem em `building`/`preparing`, e um problema com a fonte não faz mais a chamada falhar: o build termina como `failed` e a imagem devolve o código em `error_code` (`FETCH_ZIP_ERROR`, `INSTALLATION_NOT_FOUND`, `IMAGE_CONTEXT_TOO_LARGE` ou `DOCKERFILE_REFUSED`) e os achados em `error`. `IMAGE_NOT_READY` continua sendo devolvido na hora quando a imagem nunca guardou o código.

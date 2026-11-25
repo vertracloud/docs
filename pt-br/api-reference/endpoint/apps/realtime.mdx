@@ -16,15 +16,15 @@ description: Transmite os logs em tempo real de uma aplicação como um text eve
 </ParamField>
 
 <ParamField query="metrics" type="boolean">
-  Com `true`, o stream também traz eventos `metrics` com a leitura ao vivo de CPU, memória e rede da aplicação. Desligado por padrão.
+  Com `true`, o stream também traz eventos `metrics` com a leitura ao vivo de CPU, memória e rede da aplicação, e eventos `next_metrics` com a mesma leitura da nova versão durante um deploy sem queda. Desligado por padrão.
 </ParamField>
 
 ### Resposta
 
 A resposta é transmitida como um text event stream (`text/event-stream`). Cada entrada de log é enviada como um evento no seguinte formato:
 
-- **Tipo do evento**: `logs` para mensagens de log, `next_logs` para a saída da nova versão enquanto um deploy sem queda a prepara, `system` para avisos do stream e da plataforma (por exemplo, `install_note:started`), `metrics` para a leitura ao vivo da aplicação (só com `metrics=true`), `heartbeat` para eventos de keep-alive sem conteúdo.
-- **Data**: texto puro (não é JSON), exceto nos eventos `metrics`, cujo data é um objeto JSON. Um evento `logs` traz uma ou mais linhas separadas por quebras de linha, cada uma com um timestamp ISO 8601 seguido da mensagem de log.
+- **Tipo do evento**: `logs` para mensagens de log, `next_logs` para a saída da nova versão enquanto um deploy sem queda a prepara, `system` para avisos do stream e da plataforma (por exemplo, `install_note:started`), `metrics` para a leitura ao vivo da aplicação (só com `metrics=true`), `next_metrics` para a mesma leitura da nova versão enquanto um deploy sem queda a prepara (só com `metrics=true`), `heartbeat` para eventos de keep-alive sem conteúdo.
+- **Data**: texto puro (não é JSON), exceto nos eventos `metrics` e `next_metrics`, cujo data é um objeto JSON. Um evento `logs` traz uma ou mais linhas separadas por quebras de linha, cada uma com um timestamp ISO 8601 seguido da mensagem de log.
 
 Quando a conexão abre, os avisos que já aconteceram são enviados de novo antes do stream ao vivo, cada um com o horário em que ocorreu no início (`<ISO 8601> <aviso>`). Os avisos que chegam enquanto você está conectado não têm prefixo.
 
@@ -47,7 +47,14 @@ Depois de um deploy, eventos `system` também podem informar o que aconteceu com
 | `unhealthy` | A nova versão não ficou pronta para receber tráfego. |
 | `timeout` | A nova versão não respondeu a tempo. |
 
-Durante um deploy sem queda (plano Enterprise), os eventos `next_logs` trazem a saída da nova versão, inclusive a instalação e o build, enquanto a versão atual continua atendendo e escrevendo em `logs`. As linhas têm o mesmo formato de `logs`. Quando a nova versão assume, a saída dela segue como `logs`.
+- `deploy_note:recreated[:<reason>]`: o reinício ou deploy não usou o deploy sem queda, e a aplicação reiniciou do jeito comum (para e sobe de novo). O deploy sem queda só acontece quando o plano tem memória livre igual ou maior que a memória da aplicação. `<reason>` pode estar ausente (o reinício aconteceu por outro motivo), e novos valores podem surgir:
+
+| `<reason>` | Significado |
+|---|---|
+| `plan_memory` | O plano não tinha memória livre para rodar as duas versões ao mesmo tempo. |
+| `recreate_required` | A mudança precisou recriar a aplicação. |
+
+Durante um deploy sem queda (plano Enterprise), os eventos `next_logs` trazem a saída da nova versão, inclusive a instalação e o build, enquanto a versão atual continua atendendo e escrevendo em `logs`. As linhas têm o mesmo formato de `logs`. Quando a nova versão assume, a saída dela segue como `logs`. Com `metrics=true`, os eventos `next_metrics` trazem a leitura ao vivo da nova versão, no mesmo formato de `metrics`, até ela assumir ou ser descartada; `metrics` continua descrevendo a versão que está atendendo.
 
 A saída da instalação e do build faz parte do mesmo stream, seguida da saída da própria aplicação. Tudo o que a sua aplicação imprime chega como `logs`, nunca como `system`.
 
@@ -103,6 +110,9 @@ data: 2026-03-20T19:58:02Z added 120 packages in 8s
 
 event: metrics
 data: {"at":"2026-03-20T19:58:02Z","cpu_percent":12.5,"cpu_cores":0.125,"memory_bytes":134217728,"memory_limit_bytes":536870912,"net_rx_bps":2048,"net_tx_bps":8192,"net_rx_bytes":10485760,"net_tx_bytes":52428800}
+
+event: next_metrics
+data: {"at":"2026-03-20T19:58:02Z","cpu_percent":38.0,"cpu_cores":0.38,"memory_bytes":251658240,"memory_limit_bytes":536870912,"net_rx_bps":512,"net_tx_bps":256,"net_rx_bytes":1048576,"net_tx_bytes":262144}
 
 event: system
 data: 2026-03-20T19:58:03Z Connection Closed
