@@ -47,6 +47,13 @@ After a deploy, `system` events can also report what happened to the new version
 | `unhealthy` | The new version did not become ready to receive traffic. |
 | `timeout` | The new version did not respond in time. |
 
+- `deploy_note:recreated[:<reason>]`: the restart or deploy did not use zero downtime, and the application restarted the regular way (stop, then start). Zero downtime only happens when the plan has free memory at least equal to the application's memory. `<reason>` can be absent (the restart happened for another reason), and new values may appear:
+
+| `<reason>` | Meaning |
+|---|---|
+| `plan_memory` | The plan did not have free memory to run both versions at the same time. |
+| `recreate_required` | The change required recreating the application. |
+
 During a zero-downtime deploy (Enterprise plan), `next_logs` events carry the output of the new version, installation and build included, while the current version keeps serving and keeps writing to `logs`. The lines have the same format as `logs`. When the new version takes over, its output continues as `logs`. With `metrics=true`, `next_metrics` events carry the live reading of the new version, in the same format as `metrics`, until it takes over or is discarded; `metrics` keeps describing the version that is serving.
 
 Installation and build output are part of the same stream, followed by the application's own output. Anything your application prints arrives as `logs`, never as `system`.
