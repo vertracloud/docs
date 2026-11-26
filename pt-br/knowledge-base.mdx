@@ -121,7 +121,7 @@ e certificado de cliente** — só a senha nunca conecta.
 
 ### Como conectar a cada banco
 
-- **Host**: `vertra-cloud-<database-id>.db.<região>.vertraweb.app`, em que `<região>` é `ny1` (`usa1` nos bancos criados antes da v26.5.11); o endereço exato está na página do banco. **Porta**: única por banco
+- **Host**: `vertra-cloud-<database-id>.db.<nó>.vertraweb.app`, em que `<nó>` é o servidor do banco (`node`), como `ny1` (`usa1` nos bancos criados antes da v26.5.11); o endereço exato está na página do banco. **Porta**: única por banco
   (não 5432/27017/6379/3306) — copie-a na página do banco ou em `GET /v1/databases/{id}`.
 - **Senha**: retornada uma única vez, na resposta de `POST /v1/databases` (também `POST /v1/stacks/{stack_id}/databases` e nos deploys de template) e mostrada uma única vez no dashboard; nunca é retornada de novo. As aplicações ligadas ao banco em uma stack já recebem a senha nas variáveis gerenciadas. Para obter uma nova, redefina-a (`POST /v1/databases/{id}/credentials/reset`; no dashboard, isso pede um código de confirmação).
 - **Arquivos** (aba Conexão ou `GET /v1/databases/{id}/credentials/certificate`):
@@ -1183,6 +1183,9 @@ alterações de subdomínio, consultas de dados e exportação de atividades.
 | `SNAPSHOT_FAILED` | Não foi possível fazer um snapshot; `422` no snapshot manual de um banco cujos dados não puderam ser exportados (por exemplo, ainda sem dados), `500` nos demais casos |
 | `SNAPSHOT_TOO_LARGE` | O conteúdo passa do tamanho que um snapshot do recurso comporta (`413`, na criação; `details.max_bytes`); o snapshot não é criado |
 | `SNAPSHOT_EXCEEDS_STORAGE` | O conteúdo do snapshot não cabe no armazenamento do destino (`400`); `details` traz `required_bytes`, `available_bytes` e, em um banco, `required_ram_mb` |
+| `REGION_NOT_AVAILABLE` | A região escolhida na criação não está disponível para a conta, ou não tem espaço para novos recursos agora (400) |
+| `NODE_NOT_ALLOWED` | `node` foi enviado por uma conta que não pode escolher o servidor (403) |
+| `NODE_NOT_IN_REGION` | `node` não pertence à `region`, ou não está aceitando novos recursos (400) |
 | `RESTORE_IN_PROGRESS` | Há uma restauração em andamento no recurso (`409`) |
 | `SNAPSHOT_CORRUPTED` | O snapshot não confere com o que foi registrado quando foi feito; nada mudou (`422`) |
 | `SNAPSHOT_TIMEOUT` | O snapshot ou a restauração demorou demais e foi cancelado (`504`) |

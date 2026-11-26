@@ -126,7 +126,7 @@ motores exigen TLS y un certificado de cliente**: una contraseña sola nunca con
 
 ### Cómo conectarte a cada base de datos
 
-- **Host**: `vertra-cloud-<database-id>.db.<región>.vertraweb.app`, donde `<región>` es `ny1` (`usa1` en las bases de datos creadas antes de la v26.5.11); la dirección exacta está en la página de la base de datos. **Puerto**: único por base de datos
+- **Host**: `vertra-cloud-<database-id>.db.<nodo>.vertraweb.app`, donde `<nodo>` es el servidor de la base de datos (`node`), como `ny1` (`usa1` en las bases de datos creadas antes de la v26.5.11); la dirección exacta está en la página de la base de datos. **Puerto**: único por base de datos
   (no 5432/27017/6379/3306); cópialo desde la página de la base de datos o desde
   `GET /v1/databases/{id}`.
 - **Contraseña**: se devuelve una sola vez, en la respuesta de `POST /v1/databases` (también `POST /v1/stacks/{stack_id}/databases` y los despliegues de plantillas) y se muestra una sola vez en el panel; no se vuelve a devolver. Las aplicaciones enlazadas a la base de datos en una stack ya reciben la contraseña en sus variables gestionadas. Para obtener una nueva, restablécela (`POST /v1/databases/{id}/credentials/reset`; en el panel, eso pide un código de confirmación).
@@ -1201,6 +1201,9 @@ datos y la exportación de actividad.
 | `SNAPSHOT_FAILED` | No se pudo hacer un snapshot; `422` en el snapshot manual de una base de datos cuyos datos no se pudieron exportar (por ejemplo, aún sin datos), `500` en los demás casos |
 | `SNAPSHOT_TOO_LARGE` | El contenido supera el tamaño que admite un snapshot del recurso (`413`, al crearlo; `details.max_bytes`); el snapshot no se crea |
 | `SNAPSHOT_EXCEEDS_STORAGE` | El contenido del snapshot no cabe en el almacenamiento del destino (`400`); `details` trae `required_bytes`, `available_bytes` y, en una base de datos, `required_ram_mb` |
+| `REGION_NOT_AVAILABLE` | La región elegida al crear no está disponible para la cuenta, o no tiene espacio para nuevos recursos ahora (400) |
+| `NODE_NOT_ALLOWED` | `node` lo envió una cuenta que no puede elegir el servidor (403) |
+| `NODE_NOT_IN_REGION` | `node` no pertenece a `region`, o no acepta nuevos recursos (400) |
 | `RESTORE_IN_PROGRESS` | Hay una restauración en curso en el recurso (`409`) |
 | `SNAPSHOT_CORRUPTED` | El snapshot no coincide con lo registrado cuando se hizo; no cambió nada (`422`) |
 | `SNAPSHOT_TIMEOUT` | El snapshot o la restauración tardó demasiado y se canceló (`504`) |

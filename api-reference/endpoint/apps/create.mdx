@@ -41,6 +41,14 @@ The application has **two mutually exclusive sources** — send exactly one of `
   Optional, `true` by default. Whether the application restarts by itself after a crash. See [Update Application Configuration](/api-reference/endpoint/apps/updateconfig). When the field is omitted, `AUTORESTART` (`true` or `false`) in the `vertracloud.config` applies.
 </ParamField>
 
+<ParamField body="region" type="string">
+  Optional. The region to create the application in, `ny` (New York, USA) or `sp` (São Paulo, Brazil). Omitted, the account's default region is used. A region that is not available is refused with `REGION_NOT_AVAILABLE`.
+</ParamField>
+
+<ParamField body="node" type="string">
+  Optional. The server of the region to create the application on, such as `ny1`. Without it, the platform picks one. Not every account can choose the server: without access the call fails with `NODE_NOT_ALLOWED`, and a server that does not belong to `region` fails with `NODE_NOT_IN_REGION`.
+</ParamField>
+
 <ParamField body="main" type="string">
   The main file of the application. Required with `file`; with `snapshot_id` it is optional and falls back to the snapshot's `vertracloud.config`.
 </ParamField>
@@ -115,8 +123,12 @@ With `file`, creation is asynchronous: the response is `202 Accepted` with the a
     The application description.
   </ResponseField>
 
-  <ResponseField name="cluster" type="integer">
-    The application cluster ID.
+  <ResponseField name="region" type="string">
+    The region where the application runs: `ny` (New York, USA) or `sp` (São Paulo, Brazil).
+  </ResponseField>
+
+  <ResponseField name="node" type="string">
+    The region's server that runs the application, such as `ny1`.
   </ResponseField>
 
   <ResponseField name="status" type="string">
@@ -263,7 +275,8 @@ With `file`, creation is asynchronous: the response is `202 Accepted` with the a
     "owner_plan": "pro",
     "name": "API Simples",
     "description": "I have a description :)",
-    "cluster": 1,
+    "region": "ny",
+    "node": "ny1",
     "status": "building",
     "ram": 128,
     "type": 2,
@@ -310,6 +323,9 @@ With `file`, creation is asynchronous: the response is `202 Accepted` with the a
   - `SNAPSHOT_NOT_FOUND`: The `snapshot_id` was not found (`404`).
   - `SNAPSHOT_TYPE_MISMATCH`: The snapshot is a database snapshot, not an application one (`400`).
   - `SNAPSHOT_EXCEEDS_STORAGE`: The snapshot's content does not fit in the new application's storage (`400`). `details` has `required_bytes` and `available_bytes`.
+  - `REGION_NOT_AVAILABLE`: `region` is not available to the account, or has no room for new resources now (`400`).
+  - `NODE_NOT_ALLOWED`: `node` was sent by an account that cannot choose the server (`403`).
+  - `NODE_NOT_IN_REGION`: `node` does not belong to `region`, or is not accepting new resources (`400`).
   - `RESTORE_COOLDOWN`: With `snapshot_id`, the user asked for another restore within 60 seconds (`429`). Nothing was created; wait and retry.
   - `MEMORY_REQUIRED`: `memory` was omitted and the snapshot's `vertracloud.config` has no usable `MEMORY` (`400`).
   - `PLAN_REQUIRED`: The owner has no active plan, so a new application can't be created, or a `subdomain` was requested without one (`403`).

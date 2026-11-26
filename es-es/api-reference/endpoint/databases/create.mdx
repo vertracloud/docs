@@ -37,6 +37,14 @@ El cuerpo es **JSON**, no multipart, a diferencia de `POST /v1/apps`. La base de
   El ID del workspace al que asociar la base de datos, si procede.
 </ParamField>
 
+<ParamField body="region" type="string">
+  Opcional. La región en la que crear la base de datos, `ny` (Nueva York, EE. UU.) o `sp` (São Paulo, Brasil). Si se omite, se usa la región predeterminada de la cuenta. Una región no disponible se rechaza con `REGION_NOT_AVAILABLE`.
+</ParamField>
+
+<ParamField body="node" type="string">
+  Opcional. El servidor de la región en el que crear la base de datos, como `ny1`. Sin él, la plataforma elige uno. No todas las cuentas pueden elegir el servidor: sin acceso, la llamada falla con `NODE_NOT_ALLOWED`, y un servidor que no pertenece a `region` falla con `NODE_NOT_IN_REGION`.
+</ParamField>
+
 <ParamField body="snapshot_id" type="string">
   Crea la base de datos a partir de un snapshot **de base de datos** existente. El motor se toma del `resource_type` del snapshot. La respuesta es `202` con la base de datos y un `restore_job_id`: la base de datos se crea
   primero y los datos vuelven del snapshot en segundo plano, sin límite de tamaño del snapshot más allá del almacenamiento de la
@@ -129,7 +137,8 @@ El cuerpo es **JSON**, no multipart, a diferencia de `POST /v1/apps`. La base de
 {
   "response": {
     "id": "00000000000000000000000000000001",
-    "cluster": 1,
+    "region": "ny",
+    "node": "ny1",
     "type": 1,
     "name": "MyDatabase",
     "description": "I have a description :)",
@@ -168,6 +177,9 @@ El cuerpo es **JSON**, no multipart, a diferencia de `POST /v1/apps`. La base de
   - `INVALID_DATABASE_VERSION`: `version` no está disponible para este motor (`400`).
   - `SNAPSHOT_VERSION_NEWER`: `version` es anterior a la versión mayor del snapshot (`400`).
   - `SNAPSHOT_EXCEEDS_STORAGE`: Los datos del snapshot no caben en el almacenamiento del `ram` elegido (`400`). `details` trae `required_bytes`, `available_bytes` y `required_ram_mb`, el menor tamaño de memoria que los admite.
+  - `REGION_NOT_AVAILABLE`: `region` no está disponible para la cuenta, o no tiene espacio para nuevos recursos ahora (`400`).
+  - `NODE_NOT_ALLOWED`: `node` lo envió una cuenta que no puede elegir el servidor (`403`).
+  - `NODE_NOT_IN_REGION`: `node` no pertenece a `region`, o no acepta nuevos recursos (`400`).
   - `RESTORE_COOLDOWN`: Con `snapshot_id`, el usuario pidió otra restauración de base de datos en menos de 60 segundos (`429`). No se creó nada; espera y reintenta.
   - `DB_CREATION_FAILED`: La plataforma no pudo aprovisionar la base de datos (`500`).
   - `DATABASE_PERSISTENCE_FAILED`: La base de datos se creó, pero no pudo leerse después (`500`).

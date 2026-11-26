@@ -41,6 +41,14 @@ default; to create it from an existing snapshot, send `snapshot_id`.
   The ID of the workspace to associate with the database, if applicable.
 </ParamField>
 
+<ParamField body="region" type="string">
+  Optional. The region to create the database in, `ny` (New York, USA) or `sp` (São Paulo, Brazil). Omitted, the account's default region is used. A region that is not available is refused with `REGION_NOT_AVAILABLE`.
+</ParamField>
+
+<ParamField body="node" type="string">
+  Optional. The server of the region to create the database on, such as `ny1`. Without it, the platform picks one. Not every account can choose the server: without access the call fails with `NODE_NOT_ALLOWED`, and a server that does not belong to `region` fails with `NODE_NOT_IN_REGION`.
+</ParamField>
+
 <ParamField body="snapshot_id" type="string">
   Creates the database from an existing **database** snapshot. The engine comes from the snapshot
   `resource_type`. The answer is `202` with the database and a `restore_job_id`: the database is created
@@ -134,7 +142,8 @@ default; to create it from an existing snapshot, send `snapshot_id`.
 {
   "response": {
     "id": "00000000000000000000000000000001",
-    "cluster": 1,
+    "region": "ny",
+    "node": "ny1",
     "type": 1,
     "name": "MyDatabase",
     "description": "I have a description :)",
@@ -176,6 +185,9 @@ default; to create it from an existing snapshot, send `snapshot_id`.
   - `INVALID_DATABASE_VERSION`: `version` is not available for this engine (`400`).
   - `SNAPSHOT_VERSION_NEWER`: `version` is older than the snapshot's major version (`400`).
   - `SNAPSHOT_EXCEEDS_STORAGE`: The snapshot's data does not fit in the storage of the chosen `ram` (`400`). `details` has `required_bytes`, `available_bytes` and `required_ram_mb`, the smallest memory size that fits it.
+  - `REGION_NOT_AVAILABLE`: `region` is not available to the account, or has no room for new resources now (`400`).
+  - `NODE_NOT_ALLOWED`: `node` was sent by an account that cannot choose the server (`403`).
+  - `NODE_NOT_IN_REGION`: `node` does not belong to `region`, or is not accepting new resources (`400`).
   - `RESTORE_COOLDOWN`: With `snapshot_id`, the user asked for another database restore within 60 seconds (`429`). Nothing was created; wait and retry.
   - `DB_CREATION_FAILED`: The platform could not provision the database (`500`).
   - `DATABASE_PERSISTENCE_FAILED`: The database was created but could not be read back (`500`).
