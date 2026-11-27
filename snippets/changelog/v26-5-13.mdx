@@ -1,0 +1,24 @@
+### Region and server on applications and databases
+
+Every application and database now shows where it runs: the region (New York or São Paulo) and the name of the server, for example **Amethyst · New York** on the application and database pages. Existing applications and databases stay where they are, in New York.
+
+### Choose the region when creating
+
+When more than one region is available to your account, creating an application, a database or a template asks for the region.
+
+### Dependencies after restoring a snapshot
+
+After an application is restored from a snapshot, a build that fails (for example, out of memory) no longer makes the next start install the dependencies again: the next start runs only the build.
+
+### API: `region` and `node` replace `cluster`
+
+This is a breaking change for integrations that read `cluster`.
+
+- `GET /v1/apps/{id}`, `GET /v1/databases/{id}` and `GET /v1/users/me` no longer return `cluster` on applications and databases. They return `region` (`ny` or `sp`) and `node`, the name of the server (such as `amethyst`).
+- `POST /v1/apps`, `POST /v1/apps/image` and `POST /v1/databases` accept an optional `region`. Without it, the account's default region is used. A region that is not available to the account, or has no room for new resources now, returns `REGION_NOT_AVAILABLE` (`400`).
+
+### SDKs, CLI and VS Code extension
+
+- **Go SDK v0.5.0** and **Python SDK 0.5.0** (`vertracloud-api`): `Region` and `Node` (`region` and `node` in Python) in place of `Cluster`, `region` on creation, and the `REGION_NOT_AVAILABLE` error code.
+- **CLI v0.4.0**: **Region** and **Node** columns in `vertra app list` and `vertra db list`, and in the details of an application or database.
+- **VS Code extension 0.4.0**: uses the new `region` and `node` fields.

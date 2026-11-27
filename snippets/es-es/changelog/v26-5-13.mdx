@@ -1,0 +1,24 @@
+### Región y servidor en las aplicaciones y las bases de datos
+
+Cada aplicación y cada base de datos ahora muestran dónde se ejecutan: la región (Nueva York o São Paulo) y el nombre del servidor, por ejemplo **Amethyst · Nueva York** en las páginas de la aplicación y de la base de datos. Las aplicaciones y las bases de datos que ya existen siguen donde están, en Nueva York.
+
+### Elección de la región al crear
+
+Cuando más de una región está disponible para tu cuenta, la creación de aplicaciones, bases de datos y plantillas pide la región.
+
+### Dependencias después de restaurar un snapshot
+
+Después de restaurar una aplicación desde un snapshot, un build que falla (por ejemplo, por falta de memoria) ya no hace que el siguiente inicio vuelva a instalar las dependencias: el siguiente inicio ejecuta solo el build.
+
+### API: `region` y `node` reemplazan a `cluster`
+
+Es un cambio incompatible para las integraciones que leen `cluster`.
+
+- `GET /v1/apps/{id}`, `GET /v1/databases/{id}` y `GET /v1/users/me` ya no devuelven `cluster` en las aplicaciones y las bases de datos. Devuelven `region` (`ny` o `sp`) y `node`, el nombre del servidor (como `amethyst`).
+- `POST /v1/apps`, `POST /v1/apps/image` y `POST /v1/databases` aceptan un `region` opcional. Sin él, se usa la región predeterminada de la cuenta. Una región que no está disponible para la cuenta, o que no tiene espacio para recursos nuevos ahora, devuelve `REGION_NOT_AVAILABLE` (`400`).
+
+### SDKs, CLI y extensión de VS Code
+
+- **SDK de Go v0.5.0** y **SDK de Python 0.5.0** (`vertracloud-api`): `Region` y `Node` (`region` y `node` en Python) en lugar de `Cluster`, `region` al crear y el código de error `REGION_NOT_AVAILABLE`.
+- **CLI v0.4.0**: columnas **Región** y **Nodo** en `vertra app list` y `vertra db list`, y en los detalles de una aplicación o base de datos.
+- **Extensión de VS Code 0.4.0**: usa los campos nuevos `region` y `node`.
