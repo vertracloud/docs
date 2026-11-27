@@ -41,10 +41,6 @@ O body é **JSON**, não multipart — diferente de `POST /v1/apps`. Por padrão
   Opcional. A região em que criar o banco de dados, `ny` (Nova York, EUA) ou `sp` (São Paulo, Brasil). Omitida, vale a região padrão da conta. Uma região indisponível é recusada com `REGION_NOT_AVAILABLE`.
 </ParamField>
 
-<ParamField body="node" type="string">
-  Opcional. O servidor da região em que criar o banco de dados, como `ny1`. Sem ele, a plataforma escolhe. Nem toda conta pode escolher o servidor: sem acesso, a chamada falha com `NODE_NOT_ALLOWED`, e um servidor que não pertence à `region` falha com `NODE_NOT_IN_REGION`.
-</ParamField>
-
 <ParamField body="snapshot_id" type="string">
   Cria o banco de dados a partir de um **snapshot de banco de dados** existente. O motor vem do `resource_type` do snapshot. A resposta é `202` com o banco de dados e um `restore_job_id`: o banco é criado
   primeiro e os dados voltam do snapshot em segundo plano, sem limite de tamanho do snapshot além do armazenamento do
@@ -138,7 +134,7 @@ O body é **JSON**, não multipart — diferente de `POST /v1/apps`. Por padrão
   "response": {
     "id": "00000000000000000000000000000001",
     "region": "ny",
-    "node": "ny1",
+    "node": "amethyst",
     "type": 1,
     "name": "MyDatabase",
     "description": "I have a description :)",
@@ -178,8 +174,6 @@ O body é **JSON**, não multipart — diferente de `POST /v1/apps`. Por padrão
   - `SNAPSHOT_VERSION_NEWER`: `version` é mais antiga que a versão major do snapshot (`400`).
   - `SNAPSHOT_EXCEEDS_STORAGE`: os dados do snapshot não cabem no armazenamento do `ram` escolhido (`400`). `details` traz `required_bytes`, `available_bytes` e `required_ram_mb`, o menor tamanho de memória que os comporta.
   - `REGION_NOT_AVAILABLE`: `region` não está disponível para a conta, ou não tem espaço para novos recursos agora (`400`).
-  - `NODE_NOT_ALLOWED`: `node` foi enviado por uma conta que não pode escolher o servidor (`403`).
-  - `NODE_NOT_IN_REGION`: `node` não pertence à `region`, ou não está aceitando novos recursos (`400`).
   - `RESTORE_COOLDOWN`: com `snapshot_id`, o usuário pediu outra restauração de banco em menos de 60 segundos (`429`). Nada foi criado; espere e tente de novo.
   - `DB_CREATION_FAILED`: A plataforma não conseguiu provisionar o banco de dados (`500`).
   - `DATABASE_PERSISTENCE_FAILED`: O banco de dados foi criado, mas não pôde ser lido de volta (`500`).
